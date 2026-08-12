@@ -8,6 +8,13 @@ export { Badge, badgeVariants, type BadgeProps } from "./components/badge";
 export { Input, type InputProps } from "./components/input";
 export { Select, type SelectProps } from "./components/select";
 export { ConfirmDialog, type ConfirmDialogProps } from "./components/confirm-dialog";
+// Sortie de plein écran — partagée depuis le 2026-08-12 (ADR-0052) : elle vivait sous
+// `frontend-massimo/components/galaxy/` avec DEUX consommateurs (GalaxyPage, GalaxyReplayModal),
+// et `MindmapWorkspace` (packages/ui) en a besoin sans pouvoir importer depuis une app.
+export {
+  CloseFullscreenButton,
+  type CloseFullscreenButtonProps,
+} from "./components/close-fullscreen-button";
 // Briques de pilotage Papa partagées (fiches, mindmaps ; capsules réutilisent GenerationProgress).
 export {
   GenerationProgress,

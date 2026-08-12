@@ -1,4 +1,8 @@
-// Sortie du plein écran (ZETIS Galaxy, ADR-0024).
+// Sortie du plein écran — galaxie (ADR-0024), rejeu de galaxie, et mindmap (ADR-0052).
+//
+// Elle vivait sous `frontend-massimo/components/galaxy/`. Déplacée ici le 2026-08-12 parce que
+// `MindmapWorkspace` (packages/ui) en a besoin et qu'un paquet ne peut pas importer depuis une
+// app : la recopier aurait fait diverger deux boutons de sortie au premier ajustement.
 //
 // Une vraie cible tactile de 44px, un tracé SVG plutôt qu'un « × » typographique — le
 // caractère se centre mal et change de forme selon la police. Le halo léger le détache du

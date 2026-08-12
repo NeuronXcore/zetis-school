@@ -55,7 +55,12 @@ export function ModeSegmented({
   onChange: (mode: MindmapMode) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+    // ⚠️ `flex-wrap`, JAMAIS de défilement horizontal ni de menu déroulant — même règle que la
+    // barre d'onglets de la page matière (addendum ADR-0024 §3 bis). Sans lui, mesuré le
+    // 2026-08-12 : à 390 px de viewport, le bouton « ③ Reconstruire » avait son bord droit à
+    // 435 px — 45 px coupés, et la page ne défilant pas horizontalement, on ne pouvait pas aller
+    // chercher ce qui manquait. C'est le mode que l'écran sert le plus qui disparaissait.
+    <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
       {MODES.map((m, i) => {
         const active = value === m.mode;
         return (

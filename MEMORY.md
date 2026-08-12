@@ -6,178 +6,114 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — la collision « carte » d'`ACTION_UI` est levée (PR #117, squash `77962d3`)
+### ✅ CHANTIER COMPLET — la mindmap prend la place qu'elle demande (ADR-0052)
 
-**Base `dd37cd5`. Branche `feat/action-ui-collision-carte` supprimée** (locale **et** distante),
-`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12
-(étape 4bis faite dans la foulée du merge). Aucune migration, aucune route, aucun contrat d'API
-touché.
+**Branche `feat/mindmap-place-qu-elle-demande`, base `fa5ba6d`.** 🔴 **RIEN N'EST COMMITÉ** : tout
+vit dans l'arbre de travail. Aucune migration, aucune route, aucun contrat d'API — front pur
+(`packages/ui` + `apps/frontend-massimo`).
 
-`CHANGELOG.md` **0.78.0** · `TROUBLESHOOTING.md` une section, **cinq** sous-sections (la cinquième
-est née de l'étape 4bis elle-même — voir l'encadré ci-dessous).
+⚠️ **`main` porte un commit NON POUSSÉ** : `fa5ba6d`, le lot ADR du cadrage (`0 1` vs `origin`).
 
-> ⚠️ **Le contrôle « branche supprimée » du rituel a failli produire un fait FAUX.** Après
-> `gh pr merge --delete-branch`, `git branch -r` listait **toujours**
-> `origin/feat/action-ui-collision-carte` : une **référence locale périmée**, pas l'état du serveur.
-> `git ls-remote --heads origin` rendait vide, et `git fetch --prune` a confirmé la suppression.
-> **`git branch -r` lit un cache ; seul `git ls-remote` interroge le dépôt.** Quatrième prise du
-> point 6 de `/cloture` en quatre clôtures — et la première où c'est la commande **prescrite par le
-> rituel** qui induisait en erreur.
+**Ce qu'il corrige.** En mode Reconstruire, `MindmapWorkspace` empilait barre des modes → consigne
+→ canvas `clamp(520px, 74vh, 840px)` → **banque d'étiquettes**. Les puces à glisser étaient donc
+**sous** le canvas : **le glisser-déposer traversait la limite de défilement** — une fois en bas,
+l'emplacement où déposer était remonté hors écran.
 
-**Ce qu'il corrige.** `ACTION_UI` (`apps/frontend-massimo/src/lib/notionActionUi.ts`) est LA table
-d'habillage des sept activités d'une notion — une source unique, partagée par **cinq** surfaces
-(panneau de notion, pastilles, bande de catalogue, Galaxy, chat). Deux de ses libellés se suivaient
-dans le **même panneau** et disaient le même mot pour deux destinations sans rapport :
-« Reconstruire la **carte** » (mindmap) au-dessus de « Réviser mes **cartes** » (SRS).
-
-Ce n'était pas une hypothèse : un cran plus haut, le même défaut avait fait conclure au
-commanditaire qu'**il manquait un lien vers les mindmaps** (l'onglet s'appelait « Cartes », juste
-avant « Révisions »). Corrigé le 2026-08-11 sur l'onglet et la bande ; la **table** portait encore
-la collision — dette écrite dans l'addendum ADR-0024 §3 bis, **soldée ici**.
-
-**Ce qui a été fait**, en un mot chacun :
-
-- `mindmap` dit désormais **« Reconstruire la mindmap »**. `revision` **ne bouge pas**.
-- **Verrou neuf sur la table** : `lib/notionActionUi.test.ts`.
-- `MissionsPage.STEP_META` : champ `action` **supprimé** (jamais rendu).
-- Quatre commentaires qui citaient l'ancien état comme justification, remis au réel.
-- Addendum ADR-0024 §3 bis : la dette passe de « laissée » à **payée**.
+**Les cinq décisions de l'ADR-0052, toutes livrées** : plein écran (patron galaxie, overlay CSS +
+état React), canvas qui **remplit son conteneur** au lieu de se mesurer en `vh`, banque **au-dessus**
+du canvas, barre des modes qui ne se coupe plus (`flex-wrap`), et « carte » qui cesse de désigner
+la mindmap côté Massimo.
 
 ### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **La collision se lève du côté MINDMAP, jamais du côté révision.** « Carte » au sens SRS vient
-   du **modèle** (`Card`, module `memory`) et est tenu partout ailleurs dans l'app (« 8 cartes à
-   revoir », « 5 cartes » sur une échéance, « Refaire un tour (3 cartes) »). Rebaptiser la révision
-   lèverait bien le doublon — et casserait un vocabulaire que Massimo a déjà appris.
-2. **Le GESTE reste « Reconstruire »**, seule la CHOSE est renommée. C'est bien de mémoire que
-   Massimo la refait ; c'est ce qui distingue l'activité de la lecture d'une mindmap.
-3. **« Reconstruire la mindmap » ne doit PAS être raccourci pour gagner une ligne sur `/galaxy`.**
-   Arbitrage du commanditaire, pris sur mesures (voir la dette ci-dessous). L'interdit est écrit
-   dans la table elle-même, là où on serait tenté de le défaire.
-4. **`ACTION_UI` et `MissionsPage.STEP_META` restent DEUX tables.** Elles habillent deux choses
-   différentes (activités d'une notion / étapes d'une mission). Les fusionner a été écarté.
-5. **Ce que l'interdit de `notionRoutes.ts` couvre vraiment** : il disait « on ne touche pas
-   `ACTION_UI` », c'était trop large. Il interdit d'y mettre un texte vrai sur **une seule**
-   surface (la portée : `SCOPE_NOTE`) — pas un renommage, qui s'applique partout à l'identique.
-   **Restreint, pas révoqué.**
+1. 🔴 **Le canvas ne se mesure JAMAIS en `vh`.** Un `vh` mesure le VIEWPORT, alors que ce composant
+   vit dans **trois** conteneurs dont aucun ne l'est (la page, `ActivityModal`, la modale Papa).
+   La hauteur est **mesurée** (`useAvailableHeight`) et posée en **`min-height`**, jamais en
+   `height` — `height` enferme et écrase la banque à 53 px ; `min-height` offre.
+2. 🔴 **Le `ReactFlow` est enveloppé d'un `absolute inset-0`.** Ce n'est pas de la mise en forme :
+   `.react-flow { height: 100% }` exige un parent à hauteur **définie**, et `flex-1` n'en est pas
+   une. Sans ce wrapper, **la carte est invisible**.
+3. **Plein écran : overlay CSS + état React**, jamais `requestFullscreen`. `CloseFullscreenButton`
+   **déplacée dans `packages/ui`** (un paquet ne peut pas importer depuis une app) — elle avait
+   **deux** consommateurs, `GalaxyPage` **et `GalaxyReplayModal`.**
+4. 🔴 **Le sélecteur de présentation RESTE visible en plein écran, y compris sur téléphone** —
+   arbitrage du commanditaire contre ma première version. Sur un iPhone en portrait, une mindmap
+   « Horizontal » tombe à un zoom de 0,32 : **c'est la présentation qui est le levier**, la masquer
+   retirait l'outil au moment où il sert le plus.
+5. **`minZoom` est à 0,12, pas 0,3.** Un plancher de bureau **empêche `fitView` de faire tenir la
+   carte** sur un téléphone. Petite et entière vaut mieux que grande et coupée.
+6. **La banque est en mode `build` UNIQUEMENT.** Mémorise n'a aucune banque — la demande initiale
+   visait les deux modes, elle est **sans objet** pour l'un d'eux.
 
-### 🎯 CE QUE LES SABOTAGES ONT APPRIS
+### 👁️ LA RELECTURE VISUELLE A EU LIEU — écran par écran, avec le commanditaire
 
-**Deux sabotages joués sur mon propre verrou, et le second est celui qui compte.**
+**Six défauts trouvés, dont QUATRE étaient de moi.** Aucun n'a été vu par un test.
 
-| Sabotage | « pas de doublon » | les deux autres assertions |
+| | Défaut | Origine |
 |---|---|---|
-| remettre « Reconstruire la carte » | 🔴 rouge | 🔴 rouges |
-| renommer la **révision** (correction du mauvais côté) | ✅ **VERTE** | 🔴 rouges |
+| 1 | « OUVRE UNE CARTE » — 5ᵉ occurrence, **absente de l'inventaire de l'ADR** | moi |
+| 2 | 🔴 **La carte invisible** — `height:100%` sans parent à hauteur définie | moi |
+| 3 | 🔴 **Le plein écran ne recadrait pas** — 40 % de remplissage | moi |
+| 4 | 🔴 **Crash TDZ** — app morte, 668 tests VERTS, `tsc` VERT | moi |
+| 5 | 🔴 **Deux présentations débordaient** (124 %, 122 %) — `minZoom` de bureau | pré-existant |
+| 6 | Contrôles de zoom **blanc sur blanc**, cible 26 px | pré-existant |
 
-🔴 **Un verrou d'unicité écrit naïvement est vert sur une correction fausse.** Il doit dire **quel
-côté garde le mot**. Quatrième occurrence du motif « mon test-verrou central était vert sur un
-sabotage » — la première **cherchée** plutôt que trouvée par hasard.
+**Vérifié sur iPhone 17 réel** (simulateur, 402 × 874) : l'app monte, « Vertical » ne déborde plus,
+le sélecteur est là, la consigne est masquée, les contrôles sont à droite et lisibles.
 
-### 👁️ LA RELECTURE VISUELLE A EU LIEU — et elle a rapporté deux choses
+### 🎯 CE QUE CETTE SESSION A APPRIS
 
-Menée sur la session authentifiée du commanditaire, **mesures dans le DOM, jamais jugées sur
-capture**. Cinq surfaces passées : page matière (1594 px **et** 390 px), pastilles, `/galaxy`
-(1594 px **et** 390 px), `/missions`. Le menu du chat n'a pas été déclenché (conditionnel).
+🔴 **`packages/ui` n'a AUCUN test, et ça a coûté.** Le crash TDZ est le cas d'école : suite verte,
+typage vert, **composant mort** — parce qu'aucun test ne monte `MindmapWorkspace`, et que le seul
+qui l'approche (`MindmapPreviewModal.test.tsx`, Papa) le **mocke**.
 
-1. 🔴 **Une régression de ce chantier, arbitrée** : sur `/galaxy` à 390 px, le budget de texte du
-   bouton est de **146 px** ; l'ancien libellé faisait **144 px** (il tenait **à 2 px près**, par
-   chance), le nouveau en fait **172** et passe à deux lignes. **Accepté** — trois autres libellés
-   de ce panneau passent déjà à la ligne. Sur la page matière, la surface principale, il tient sur
-   une ligne aux deux largeurs.
-2. 🔴 **Un défaut ANTÉRIEUR, trouvé de biais** → au `BACKLOG.md`, voir dettes ci-dessous.
+🔴 **Mesurer la boîte ne dit rien de ce qu'elle contient.** J'ai mesuré le conteneur (748 px) et
+jamais le `.react-flow` à l'intérieur (0 px). La doctrine « mesurer dans le DOM » appliquée au
+mauvais élément.
 
-**Aucun des deux n'était visible d'un test** : la suite est verte de bout en bout, et
-`NotionActionPanel.test.tsx` ne mesure aucune géométrie.
+⚠️ **J'ai changé trois fois de diagnostic sur le recadrage**, dont une auto-correction erronée
+affirmée avec aplomb. La bonne réponse : `fitView` a **deux** déclencheurs, le cadre **et** la mise
+en page elk (asynchrone).
 
 ### 🧾 DETTES OUVERTES
 
-- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** — **né de la relecture de
-  ce chantier, mais antérieur à lui**. À 390 px de viewport, le bord droit des boutons tombe à
-  **484 px** : **94 px hors cadre**, sur **tous** les boutons, légende de statuts par-dessus.
-  Reproduit **après rechargement propre**. Sur l'iPhone de Massimo, la moitié droite du panneau
-  d'une notion n'existe pas. **Au `BACKLOG.md`** (§ Bugs / risques à surveiller), avec la piste :
-  le **même** panneau tient parfaitement à la même largeur sur la page matière (`NotionPanel`) —
-  comparer les deux devrait donner la cause.
-- ⚠️ **`docs/frontend-massimo/mockup/maquette-massimo-galaxy.html` porte encore l'ancien libellé.**
-  C'est une **maquette**, pas une spec de page : elle n'est pas dans la liste des documents de
-  structure du rituel de clôture, et un artefact de cadrage n'a pas vocation à suivre le code.
-  Laissée telle quelle **sciemment** — à trancher si quelqu'un s'en sert comme référence.
-- 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau —
-  survivant de l'élagage de `data/mock.ts` (PR #115), seul consommateur `MassimoBannerHeader`,
-  verrouillé par son test. Trancher est une **décision produit** (montrer un faux nombre, ou ne
-  rien montrer), pas un nettoyage.
-- ⚠️ **`cursor: default` sur les 29 boutons de l'app** (Tailwind v4) — remonté de l'élagage de
-  l'ADR-0051, **toujours ouvert**, toujours hors périmètre.
-- ⚠️ **Le rail arrive après ~1 500 px de défilement sur téléphone** (page matière) : l'échéance
-  réelle est en bas de page. Acceptable pour un rappel qui a l'Accueil et l'Agenda comme surfaces
-  propres — mais c'est un choix. **Signalé au commanditaire, non tranché.**
-- ⚠️ **« Points solides / À renforcer » sur `/matieres` : moitié livrée, moitié refusée.** Le
-  commanditaire avait choisi « reformuler au positif » ; le read-before-code a montré ensuite que
-  la donnée vit derrière `require_parent` et qu'en bâtir un équivalent enfant créerait un
-  **classement des matières par faiblesse** — ce que l'ADR-0024 §5 interdit. **Signalé, non
-  redemandé.** À rouvrir avec l'addendum qui va avec, s'il le souhaite.
+- 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des
+  données de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et
+  l'Échap en capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem
+  pour l'**aperçu Papa**, dont le test **mocke** le workspace.
+- 🔴 **`packages/ui` n'a aucun test ni script de test.** En ajouter est une **décision
+  d'infrastructure** (monter un runner), hors périmètre de ce chantier — mais la TDZ vient de
+  montrer ce que ça coûte.
+- 🔴 **Sur l'Accueil, « Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone.** Vu au simulateur, hors
+  périmètre. C'est le premier écran que Massimo voit sur son téléphone.
+- ⚠️ **En Reconstruire sur téléphone, ça reste serré** : la banque prend 278 px, le canvas 388 même
+  en plein écran. Mesuré, pas jugé — une grande mindmap sur un téléphone reste petite.
+- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à
+  390 px) — **au `BACKLOG.md`**, avec la piste : le même panneau tient sur la page matière.
+- 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau.
+  Décision **produit** (montrer un faux nombre, ou rien), pas un nettoyage.
+- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`, conditionnel
+  à une réponse de ZETIS. Vérification **non jouée**.
+- ⚠️ **`cursor: default` sur les 29 boutons** (Tailwind v4) — toujours ouvert.
+- ⚠️ **Le rail arrive après ~1 500 px de défilement** sur la page matière. Signalé, non tranché.
+- ⚠️ **« Points solides / À renforcer » sur `/matieres`** : moitié livrée, moitié refusée (la donnée
+  vit derrière `require_parent`, un équivalent enfant créerait un classement par faiblesse — ADR-0024
+  §5). Signalé, non redemandé.
+- ⚠️ **`maquette-massimo-galaxy.html` porte encore l'ancien libellé** « Reconstruire la carte ».
+  Une maquette n'est pas une spec de page — laissée sciemment.
 
 ### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #117, squash `77962d3`), branche
-supprimée, **étape 4bis faite dans la foulée du merge** — ce fichier est au réel, chaque fait
-revérifié par commande. `main == origin/main`, arbre propre.
+**Ce chantier est COMPLET mais RIEN N'EST COMMITÉ.** La première action de reprise :
 
-⚠️ **Deux résidus de session, qui ne vivent nulle part ailleurs** :
+1. `git add -A && git commit` sur la branche (le message est au point 9 de la clôture)
+2. `git push origin main` — ⚠️ le lot ADR `fa5ba6d` **n'est toujours pas poussé**
+3. `git push -u origin feat/mindmap-place-qu-elle-demande`, PR, merge
+4. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — revenir mettre squash, n° de PR, « branche
+   supprimée », « rien à pousser », **vérifiés par commande**.
 
-- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue à l'écran** — le menu de notion du `/chat` est
-  conditionnel à une réponse de ZETIS et n'a pas été déclenché. Les quatre autres l'ont été, aux
-  deux largeurs. Le rendu y est le plus simple des cinq (icône + libellé sur une ligne), mais
-  c'est une vérification **non jouée**, pas une vérification réussie.
-- **`docs/frontend-massimo/mockup/maquette-massimo-galaxy.html` porte encore l'ancien libellé**
-  (cf. dettes ci-dessus) — laissé sciemment, une maquette n'est pas une spec de page.
-
-**▶ CHANTIER SUIVANT : CADRÉ. Prochain pas = `/ouverture`.**
-
-**ADR-0052 — « La mindmap prend la place qu'elle demande »**, `Proposé` le 2026-08-12. Session de
-cadrage menée sur `main`, **sans une ligne de code**, après une `/ouverture` **arrêtée à son §2**
-(troisième fois : l'ADR n'existait pas, et les trois documents mindmap du dépôt sont ceux de
-l'ADR-0016).
-
-**Deux lots, et l'ORDRE compte** (`docs/WORKFLOW.md §2bis`) :
-
-| Lot | Fichiers | Où |
-|---|---|---|
-| **main**, à committer **AVANT** `/ouverture` | `docs/decisions/adr-0052-*.md`, `DECISIONS.md`, ce fichier | `main` |
-| **branche**, `/ouverture` les emporte | `docs/frontend-massimo/page-mindmaps.md`, `prompts/claude-code/prompts-claude-code-adr-0052.md` | la branche |
-
-⚠️ **`/ouverture` s'arrête si elle voit `DECISIONS.md` modifié** — le lot `main` part d'abord,
-sinon la commande bute sur ce qu'on vient de faire.
-
-**Les cinq décisions sont gelées** (une session de slice les **relit**) :
-
-1. **Plein écran**, patron de la galaxie — overlay CSS + état React, jamais `requestFullscreen` ;
-   `CloseFullscreenButton` réutilisé, Échap, défilement du corps verrouillé. **Les trois modes.**
-2. 🔴 **Le canvas cesse de se mesurer en `vh`** — il remplit son **conteneur**. C'est la décision
-   de fond.
-3. **La banque passe au-dessus du canvas** — mode `build` uniquement.
-4. **La barre des modes cesse d'être coupée** (`flex-wrap`, règle déjà écrite ADR-0024 §3 bis).
-5. **« carte » cesse de désigner la mindmap** (4 chaînes ; Papa hors périmètre).
-
-🔴 **LA DÉCISION DU MATIN A ÉTÉ RENVERSÉE PAR LE READ-BEFORE-CODE, LE JOUR MÊME.** Le
-commanditaire avait arbitré « banque en haut + canvas raccourci » **contre** le plein écran, sur
-mon exposé. **Mesuré ensuite dans l'app** — 1594 × 1078 : décor 320 + banque 154 → **588 px** de
-canvas, tenable ; **390 × 844 : décor 463 + banque 278 = 741 sur 844 → 87 px de canvas**,
-impossible. Le plein écran, que j'avais écarté **pour une raison fausse** (les modales, qui bornent
-déjà leur hauteur et défilent en interne), redevient la décision. **Ré-arbitré par le
-commanditaire.**
-
-⚠️ **Ma contre-proposition chiffrée était fausse aussi** : `clamp(380px, 58vh, 660px)` débordait
-encore de **37 px** sur l'écran où je l'ai proposée. **Si une solution contient `vh` pour la
-hauteur du canvas, elle est fausse** — c'est écrit dans le prompt.
-
-⚠️ **La 5ᵉ décision mélange deux sujets** (gabarit + vocabulaire) : signalé, **le commanditaire a
-choisi de les réunir**. Écart au mono-chantier **assumé**.
-
-⚠️ **Un deuxième défaut trouvé en cadrant** : à 390 px, le bouton « ③ Reconstruire » a son bord
-droit à **435 px**, **45 px coupés**, et la page ne défile pas horizontalement. Couvert par la
-Décision 4.
+⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit un cache. Utiliser
+`git ls-remote --heads origin` puis `git fetch --prune` (piège consigné le 2026-08-12).
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
