@@ -119,9 +119,32 @@ cadre**, **0 cible de touche sous 44 px**, 0 titre tronqué.
   par son test). 🔴 **Dette laissée** : ce repli affiche des chiffres FAUX (niveau 7, 1240 XP) en
   cas de panne réseau — même motif que `SUBJECTS`, en plus petit. Trancher est une **décision
   produit** (montrer un faux nombre, ou ne rien montrer), pas un nettoyage.
-- 🔴 **`ACTION_UI` porte toujours la collision « carte »** : « Reconstruire la **carte** » (mindmap)
-  et « Réviser mes **cartes** » (SRS) coexistent dans le panneau de notion. Table **partagée avec
-  la Galaxy et le chat** — hors périmètre, non traité.
+- 🔴 **`ACTION_UI` porte toujours la collision « carte »** — **SEUL point ouvert de ce fichier**,
+  et **prochain chantier** (session neuve, contexte de la session du 2026-08-11 épuisé).
+
+  `lib/notionActionUi.ts` : `mindmap → « Reconstruire la carte »` et
+  `revision → « Réviser mes cartes »` se suivent **dans le même panneau de notion** et désignent
+  deux surfaces sans rapport.
+
+  ⚠️ **Ce n'est pas une hypothèse.** Le même défaut, un cran plus haut, a fait dire au
+  commanditaire qu'**il manquait un lien vers les mindmaps** : l'onglet s'appelait « Cartes »,
+  juste avant « Révisions ». Corrigé sur l'onglet et la bande (addendum ADR-0024 §3 bis), pas
+  dans la table.
+
+  **Cinq consommateurs, relevés le 2026-08-11** — c'est ce qui en fait un chantier et non un
+  renommage : `matiere/NotionPanel.tsx`, `matiere/PanoplyDots.tsx` (`aria-label`),
+  `matiere/SubjectCatalogueBand.tsx` (icônes seulement — elle a sa **propre** table `NOM`, déjà
+  corrigée), `galaxy/NotionActionPanel.tsx`, `pages/ChatPage.tsx`.
+
+  ⚠️ **Trois pièges à lever avant de renommer** : `galaxy/NotionActionPanel.test.tsx` **verrouille**
+  au moins un de ces libellés ; `lib/notionRoutes.ts` porte un commentaire disant explicitement
+  *« On ne touche pas `ACTION_UI` »* (à propos de `SCOPE_NOTE`) — à lire en entier, il peut porter
+  une raison à respecter ou à révoquer ; et `MissionsPage.tsx` contient les mêmes chaînes, à
+  vérifier (issues de la table, ou écrites en dur ?).
+
+  **Vocabulaire imposé** : l'app nomme cette surface **« Mindmaps »** (`lib/navigation.ts`), et
+  c'est le nom retenu le 2026-08-11. Mais les libellés d'`ACTION_UI` sont des **ordres** adressés
+  à l'enfant (« Lire la fiche », « Me tester »), pas des noms de choses.
 - ✅ **Le test instable de `QuizPage` est RÉPARÉ le 2026-08-11**, **mergé** : PR #116, squash
   `a24f383`, branche supprimée — et **la cause écrite ici était FAUSSE**. Ce fichier annonçait « interférence entre fichiers de test » ; la reproduction l'a
   démentie.
@@ -179,7 +202,9 @@ remis au réel).
 par-dessus celle du livré, une régression de documentation qui avait survécu à une clôture et à
 un merge. Le récit est dans `TROUBLESHOOTING.md`. **Arbre de travail propre.**
 
-**▶ Le chantier suivant se choisit au `BACKLOG.md`.**
+**▶ PROCHAIN CHANTIER : lever la collision « carte » d'`ACTION_UI`** — dernier point ouvert,
+tout est instruit dans « DETTES OUVERTES » ci-dessus (les cinq consommateurs, les trois pièges,
+le vocabulaire imposé). À faire en **session neuve**. Ensuite seulement, le `BACKLOG.md`.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
