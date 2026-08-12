@@ -5696,3 +5696,69 @@ du dépôt exige **44**. Tant qu'on ne voit pas un bouton, on ne voit pas qu'il 
 **Parade** : styler explicitement `.react-flow__controls` dans `mindmap.css`, en reprenant l'idiome
 de contrôle flottant **déjà posé** par `CloseFullscreenButton` (`border-white/15`, fond sombre
 translucide, `backdrop-blur`) plutôt que d'en inventer un troisième. Contraste obtenu : **15,12 : 1**.
+
+## Le paquet partagé cesse d'être un angle mort (ADR-0053) — 2026-08-12
+
+### ⚠️ Un paquet d'espace de travail n'hérite RIEN des outils de ses consommateurs
+
+`packages/ui` n'avait **aucun script** et **aucune devDependency de test**. `vitest` et
+`@testing-library` étaient installés dans les deux apps, donc « présents dans le dépôt » — mais
+**pas résolvables depuis le paquet** (`packages/ui/node_modules/.bin/` ne les contenait pas).
+
+**Parade** : avant de supposer qu'un outil est disponible dans un paquet d'un monorepo pnpm, le
+vérifier — `ls <paquet>/node_modules/.bin/`. Les déclarer dans **son** `package.json`, puis
+`pnpm install --filter <paquet>`.
+
+### 🔴 Le test qui attrape une TDZ n'a pas besoin de comprendre le composant
+
+Le défaut du jour — un `useEffect` déclaré avant le `useState` qu'il lit — se produit à
+l'**évaluation du corps de la fonction composant**, donc **avant** que le JSX soit retourné, avant
+que la moindre librairie soit sollicitée.
+
+Conséquence contre-intuitive : **un test qui se contente de monter le composant l'attrape**, alors
+qu'un test « la page affiche son titre » ne l'aurait pas vu — il aurait échoué, certes, mais on
+l'aurait lu comme un problème de rendu, pas comme un composant mort.
+
+```tsx
+it.each(MONTABLES)("%s se monte sans jeter", (_n, el) => {
+  expect(() => render(el)).not.toThrow();
+});
+```
+
+**28 composants, une assertion.** Contre-épreuve jouée : sabotage de la TDZ → **1 seul test rouge
+sur 28**, et il désigne le bon composant.
+
+### ⚠️ Deux API de navigateur manquent à jsdom, et elles bloquent des montages
+
+- **`ResizeObserver`** — React Flow en dépend. Sans polyfill, `MindmapWorkspace` ne se monte jamais.
+- **`window.matchMedia`** — `AvatarCanvas` (et tout composant qui lit `prefers-reduced-motion`) ne
+  se monte pas non plus.
+
+**Parade** : les polyfiller dans le `setup.ts` du paquet, avec la règle qui ferme la liste — *ce que
+le navigateur fournit, que jsdom n'a pas, et dont l'absence ferait échouer un montage pour une
+raison étrangère au code testé*. Tout le reste est un **mock**, et un mock n'a rien à faire dans un
+`setup`.
+
+⚠️ **Conséquence** : `prefers-reduced-motion` répond **`false`** dans ces tests.
+
+### ⚠️ Une décision peut être écrite plus étroitement que son propre raisonnement
+
+L'ADR-0053 disait « polyfille `ResizeObserver`, et **rien d'autre** ». À l'exécution, `matchMedia`
+s'est présenté : **exactement la même nature**, exactement le même motif. La **lettre** l'excluait,
+le **raisonnement** l'incluait.
+
+**Parade** : quand un cas rencontre la lettre d'une décision mais pas son esprit, **ne pas trancher
+seul** — c'est un stop-on-blocker. Signalé, arbitré par le commanditaire, écrit en **addendum daté**
+dans l'ADR *et* dans le code. Et la liste a été refermée **par une règle** plutôt que par une
+énumération, pour que le prochain cas se tranche sans arbitrage.
+
+### ⚠️ `grep` sur `export {` ne voit pas les exports multi-lignes
+
+Un premier inventaire avait conclu que **`MindmapWorkspace` n'était pas exporté** — alarmant, car
+c'est le composant du défaut. C'était faux : son export est écrit sur trois lignes, et le motif
+`export\s*\{[^}]*\}` sans le drapeau multi-ligne ne le voyait pas.
+
+**Parade** : pour inventorier une surface d'export, lire les fichiers d'index **en entier**, ou
+utiliser un motif avec `/s`. Le comptage réel a donné **29 composants** et **81 fonctions et
+constantes** — ce qui a aussi montré que « monter tous les exports » n'avait pas de sens : on ne
+monte pas `easeOutCubic`.
