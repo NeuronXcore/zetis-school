@@ -6,10 +6,16 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON POUSSÉ — les dépréciations Starlette sont levées (`fix/deprecations-starlette`)
+### ✅ CHANTIER MERGÉ — les dépréciations Starlette sont levées (PR #120, squash `5a6d4c0`)
 
-**Base `cde5ca4`.** Un seul commit — lire `git log --oneline main..HEAD`. **Rien n'est poussé**,
-aucune PR ouverte.
+**Base `cde5ca4`.** **Branche `fix/deprecations-starlette` supprimée** (locale **et** serveur),
+`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12, étape
+4bis faite dans la foulée du merge.
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la QUATRIÈME fois**, sur quatre merges
+> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/fix/deprecations-starlette` ;
+> `git ls-remote --heads origin` rendait vide. Le réflexe tient — mais il ne s'automatise pas :
+> c'est le comportement **normal** de la commande, il se rejouera au merge suivant.
 
 🔴 **Ce chantier n'a PAS d'ADR, et c'est délibéré.** Correction mécanique d'un écart avec une
 bibliothèque : aucune décision produit n'a été prise, rien à figer. **Le prochain élagage ne doit
@@ -103,15 +109,21 @@ le jour où starlette retire le repli.
 
 ### ▶ PROCHAIN PAS
 
-**Pousser la branche et ouvrir la PR.** Le chantier est COMPLET et commité ; rien n'est poussé.
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #120, squash `5a6d4c0`), branche
+supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
+propre, chaque fait revérifié par commande.
+
+⚠️ **Résidu de clôture : 13 branches LOCALES périmées** subsistent (`git branch` en rend 14 avec
+`main`). Toutes ont une PR **`MERGED`** — #98 à #110, contrôlées **une par une** via `gh pr list
+--head <branche> --state all` le 2026-08-12. Rien n'est perdu ; c'est de l'encombrement, et le
+ménage est un geste humain :
 
 ```
-git push -u origin fix/deprecations-starlette
-gh pr create --fill
+git branch -D $(git branch --format='%(refname:short)' | grep -v '^main$')
 ```
 
-Puis merge en **squash**, puis **étape 4bis** (`WORKFLOW.md` §5) — cette section deviendra fausse dès
-le merge.
+🔴 **Ne PAS trancher cette question avec `git merge-base --is-ancestor`** : il annonce ces 13
+branches « non fusionnées », et il aura tort — voir les réflexes d'outillage ci-dessous.
 
 **▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
 
@@ -131,7 +143,8 @@ le merge.
   (additif), puis `uv lock` (n'écrit que le lockfile, ne touche pas le venv).
 - ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
   `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. Le piège s'est
-  rejoué **trois fois**, sur trois merges consécutifs — c'est le comportement normal de la commande.
+  rejoué **quatre fois**, sur quatre merges consécutifs — c'est le comportement **normal** de la
+  commande, donc il se rejouera au merge suivant : le réflexe ne s'automatise pas.
   ⚠️ **Même famille : `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en squash**
   (le squash crée un commit neuf), et déclare donc « non fusionnées » toutes les branches déjà
   mergées. Passer par `gh pr list --head <branche> --state all`.
