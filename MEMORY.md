@@ -6,10 +6,16 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON POUSSÉ — le titre de page cesse d'être seul au bord (`fix/accueil-titre-coupe`)
+### ✅ CHANTIER MERGÉ — le titre de page cesse d'être seul au bord (PR #121, squash `ced50a2`)
 
-**Base `618c8f5`.** Le contenu de la branche se lit par `git log --oneline main..HEAD`. **Rien n'est
-poussé**, aucune PR ouverte.
+**Base `618c8f5`.** **Branche `fix/accueil-titre-coupe` supprimée** (locale **et** serveur),
+`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12, étape
+4bis faite dans la foulée du merge. **Plus aucune branche locale hors `main`.**
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la CINQUIÈME fois**, sur cinq merges
+> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/fix/accueil-titre-coupe` ;
+> `git ls-remote --heads origin` rendait vide. Cinq occurrences suffisent à conclure : **ce n'est
+> pas une distraction, c'est le contrat de la commande.** Elle se rejouera au merge suivant.
 
 🔴 **Pas d'ADR, délibérément** (comme le chantier précédent) : correction visuelle, aucune décision
 produit figée. **Le prochain élagage ne doit pas en chercher un.**
@@ -112,15 +118,13 @@ alignement — **un défaut neuf pour en corriger un autre**.
 
 ### ▶ PROCHAIN PAS
 
-**Pousser la branche et ouvrir la PR.** Le chantier est COMPLET et commité ; rien n'est poussé.
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #121, squash `ced50a2`), branche
+supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
+propre, chaque fait revérifié par commande.
 
-```
-git push -u origin fix/accueil-titre-coupe
-gh pr create --fill
-```
-
-Puis merge en **squash**, puis **étape 4bis** (`WORKFLOW.md` §5) — cette section devient fausse dès
-le merge.
+⚠️ **Résidu de clôture : deux serveurs de dev restés allumés** — `backend-dev` (port 8001) et
+`massimo-dev` (port 5176), lancés pour la vérification visuelle. À arrêter, ou à réutiliser tels
+quels à la reprise (la session Massimo y était encore connectée).
 
 **▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
 
@@ -145,7 +149,7 @@ le merge.
   (additif), puis `uv lock` (n'écrit que le lockfile).
 - ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
   `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. Le piège s'est
-  rejoué **quatre fois**, sur quatre merges consécutifs — c'est le comportement **normal** de la
+  rejoué **cinq fois**, sur cinq merges consécutifs — c'est le comportement **normal** de la
   commande, donc il se rejouera : le réflexe ne s'automatise pas.
   ⚠️ **Même famille : `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en squash**
   (le squash crée un commit neuf), et déclare donc « non fusionnées » toutes les branches déjà
