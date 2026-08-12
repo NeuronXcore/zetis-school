@@ -6,13 +6,21 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — la mindmap prend la place qu'elle demande (ADR-0052)
+### ✅ CHANTIER MERGÉ — la mindmap prend la place qu'elle demande (PR #118, squash `1fbb33a`)
 
-**Branche `feat/mindmap-place-qu-elle-demande`, base `fa5ba6d`.** 🔴 **RIEN N'EST COMMITÉ** : tout
-vit dans l'arbre de travail. Aucune migration, aucune route, aucun contrat d'API — front pur
-(`packages/ui` + `apps/frontend-massimo`).
+**Base `fa5ba6d`** (le lot ADR du cadrage, poussé sur `main` avant la branche — l'ordre compte,
+sinon la PR embarque l'ADR dans son diff). **Branche `feat/mindmap-place-qu-elle-demande`
+supprimée** (locale **et** serveur), `main == origin/main`, **rien à pousser** — les quatre
+vérifiés par commande le 2026-08-12, étape 4bis faite dans la foulée du merge.
 
-⚠️ **`main` porte un commit NON POUSSÉ** : `fa5ba6d`, le lot ADR du cadrage (`0 1` vs `origin`).
+Aucune migration, aucune route, aucun contrat d'API — front pur (`packages/ui` +
+`apps/frontend-massimo`). `CHANGELOG.md` **0.79.0** · `TROUBLESHOOTING.md` une section,
+cinq sous-sections.
+
+> ⚠️ **Le piège de `git branch -r` s'est REJOUÉ, moins de 24 h après avoir été consigné.** Après
+> `gh pr merge --delete-branch`, il listait **toujours** `origin/feat/mindmap-place-qu-elle-demande`.
+> `git ls-remote --heads origin` rendait vide, `git fetch --prune` a confirmé. **`git branch -r` lit
+> un cache ; seul `ls-remote` interroge le dépôt.** La parade écrite la veille a servi le lendemain.
 
 **Ce qu'il corrige.** En mode Reconstruire, `MindmapWorkspace` empilait barre des modes → consigne
 → canvas `clamp(520px, 74vh, 840px)` → **banque d'étiquettes**. Les puces à glisser étaient donc
@@ -104,16 +112,26 @@ en page elk (asynchrone).
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est COMPLET mais RIEN N'EST COMMITÉ.** La première action de reprise :
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #118, squash `1fbb33a`), branche
+supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`,
+arbre propre, chaque fait revérifié par commande.
 
-1. `git add -A && git commit` sur la branche (le message est au point 9 de la clôture)
-2. `git push origin main` — ⚠️ le lot ADR `fa5ba6d` **n'est toujours pas poussé**
-3. `git push -u origin feat/mindmap-place-qu-elle-demande`, PR, merge
-4. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — revenir mettre squash, n° de PR, « branche
-   supprimée », « rien à pousser », **vérifiés par commande**.
+**▶ CE QUI ATTEND, par ordre de coût pour Massimo :**
 
-⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit un cache. Utiliser
-`git ls-remote --heads origin` puis `git fetch --prune` (piège consigné le 2026-08-12).
+1. 🔴 **`packages/ui` n'a AUCUN test.** Ce n'est plus une remarque de style : le crash TDZ de ce
+   chantier a rendu la mindmap **totalement inutilisable** avec 668 tests verts et `tsc` vert.
+   Monter un runner dans ce paquet est une **décision d'infrastructure** — elle mérite son cadrage.
+2. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les
+   jours. Vu au simulateur, jamais cadré.
+3. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au
+   `BACKLOG.md`, avec sa piste (le même panneau tient sur la page matière).
+4. Le reste est dans « DETTES OUVERTES » ci-dessus.
+
+⚠️ **Deux réglages laissés hors de leur défaut sur le Mac du commanditaire** : le simulateur
+**iPhone 17 tourne encore**, et `ConnectHardwareKeyboard` a été passé à **`false`** (c'est ce qui
+fait apparaître le clavier iOS à l'écran ; sans ça, aucun clavier ne s'affiche au tap). À remettre
+si ça gêne ailleurs : `defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`
+puis redémarrer le Simulateur — **le réglage ne prend qu'au lancement**.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
