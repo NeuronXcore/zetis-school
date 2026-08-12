@@ -5577,3 +5577,25 @@ renommage, qui s'applique partout à l'identique — c'est l'usage même d'une s
 **Parade** : un interdit trouvé au read-before-code se lit **avec sa justification**, et se
 **restreint** à ce qu'elle couvre plutôt que de se contourner ou de s'ignorer. Le commentaire a
 été réécrit pour dire ce qu'il interdit vraiment, avec le renommage en contre-exemple qui le borne.
+
+### ⚠️ « Branche supprimée » : `git branch -r` lit un CACHE, il n'interroge pas le serveur
+
+Étape 4bis du 2026-08-12, juste après `gh pr merge 117 --squash --delete-branch`. Le rituel de
+`/cloture` prescrit de vérifier la suppression par `git branch` **et** `git branch -r`. Le premier
+rendait vide, le second listait **toujours** `origin/feat/action-ui-collision-carte`.
+
+La branche **était** supprimée. `git branch -r` liste les **références de suivi locales**, qui ne
+se mettent à jour qu'au `fetch` : `--delete-branch` supprime la branche côté GitHub, pas la copie
+de son nom dans mon dépôt.
+
+**Parade** — deux commandes, dans cet ordre :
+
+```bash
+git ls-remote --heads origin "*<branche>*"   # interroge le SERVEUR ; vide = supprimée
+git fetch --prune origin                     # élague la référence locale périmée
+```
+
+⚠️ **C'est la première fois que le contrôle prescrit par le rituel est lui-même la source de
+l'erreur.** Écrit tel quel, `MEMORY.md` aurait annoncé une branche vivante qui n'existe plus —
+et la session suivante l'aurait cherchée. Même famille que les hash faux du 2026-08-03 : *une case
+cochée ne vaut pas une commande*, mais ici il fallait aller plus loin — **la bonne commande**.

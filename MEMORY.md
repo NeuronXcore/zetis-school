@@ -6,14 +6,23 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — la collision « carte » d'`ACTION_UI` est levée
+### ✅ CHANTIER MERGÉ — la collision « carte » d'`ACTION_UI` est levée (PR #117, squash `77962d3`)
 
-**Branche `feat/action-ui-collision-carte`, base `dd37cd5`** (= tête de `main` à l'ouverture,
-`main == origin/main` vérifié par commande). **Non poussée, aucune PR.** Aucune migration, aucune
-route, aucun contrat d'API touché. Le détail des commits se lit par
-`git log --oneline main..HEAD` — il ne s'écrit pas ici.
+**Base `dd37cd5`. Branche `feat/action-ui-collision-carte` supprimée** (locale **et** distante),
+`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12
+(étape 4bis faite dans la foulée du merge). Aucune migration, aucune route, aucun contrat d'API
+touché.
 
-`CHANGELOG.md` **0.78.0** · `TROUBLESHOOTING.md` une section, quatre sous-sections.
+`CHANGELOG.md` **0.78.0** · `TROUBLESHOOTING.md` une section, **cinq** sous-sections (la cinquième
+est née de l'étape 4bis elle-même — voir l'encadré ci-dessous).
+
+> ⚠️ **Le contrôle « branche supprimée » du rituel a failli produire un fait FAUX.** Après
+> `gh pr merge --delete-branch`, `git branch -r` listait **toujours**
+> `origin/feat/action-ui-collision-carte` : une **référence locale périmée**, pas l'état du serveur.
+> `git ls-remote --heads origin` rendait vide, et `git fetch --prune` a confirmé la suppression.
+> **`git branch -r` lit un cache ; seul `git ls-remote` interroge le dépôt.** Quatrième prise du
+> point 6 de `/cloture` en quatre clôtures — et la première où c'est la commande **prescrite par le
+> rituel** qui induisait en erreur.
 
 **Ce qu'il corrige.** `ACTION_UI` (`apps/frontend-massimo/src/lib/notionActionUi.ts`) est LA table
 d'habillage des sept activités d'une notion — une source unique, partagée par **cinq** surfaces
@@ -111,13 +120,18 @@ capture**. Cinq surfaces passées : page matière (1594 px **et** 390 px), pasti
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est COMPLET et commité, mais NI POUSSÉ NI MERGÉ.** La première action de reprise est
-donc, dans cet ordre :
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #117, squash `77962d3`), branche
+supprimée, **étape 4bis faite dans la foulée du merge** — ce fichier est au réel, chaque fait
+revérifié par commande. `main == origin/main`, arbre propre.
 
-1. `git push -u origin feat/action-ui-collision-carte`
-2. ouvrir la **PR**, puis merger
-3. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — revenir remettre CE fichier au réel : squash, n° de
-   PR, « branche supprimée », « rien à pousser », vérifiés **par commande** et non recopiés.
+⚠️ **Deux résidus de session, qui ne vivent nulle part ailleurs** :
+
+- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue à l'écran** — le menu de notion du `/chat` est
+  conditionnel à une réponse de ZETIS et n'a pas été déclenché. Les quatre autres l'ont été, aux
+  deux largeurs. Le rendu y est le plus simple des cinq (icône + libellé sur une ligne), mais
+  c'est une vérification **non jouée**, pas une vérification réussie.
+- **`docs/frontend-massimo/mockup/maquette-massimo-galaxy.html` porte encore l'ancien libellé**
+  (cf. dettes ci-dessus) — laissé sciemment, une maquette n'est pas une spec de page.
 
 **▶ CHANTIER SUIVANT, DÉJÀ CADRÉ AVEC LE COMMANDITAIRE** (2026-08-12, rien d'implémenté) :
 **le défilement de la mindmap en mode Reconstruire.**
