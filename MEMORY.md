@@ -122,9 +122,14 @@ alignement — **un défaut neuf pour en corriger un autre**.
 supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
 propre, chaque fait revérifié par commande.
 
-⚠️ **Résidu de clôture : deux serveurs de dev restés allumés** — `backend-dev` (port 8001) et
-`massimo-dev` (port 5176), lancés pour la vérification visuelle. À arrêter, ou à réutiliser tels
-quels à la reprise (la session Massimo y était encore connectée).
+✅ **Résidu soldé : les serveurs de dev sont arrêtés** (2026-08-12). Aucun processus n'écoute plus
+sur 8000, 8001 ni 5176.
+
+⚠️ **Ils étaient TROIS, pas deux.** La clôture n'en avait consigné que deux — `backend-dev` (8001)
+et `massimo-dev` (5176), ceux que cette session avait lancés — et `backend` (8000) tournait aussi.
+Le contrôle `lsof` de l'étape 4bis n'avait sondé que les deux ports **déjà écrits** : *une
+vérification qui ne contrôle que sa propre liste ne peut pas trouver ce qui en manque.* La bonne
+question était « que tourne-t-il ? » (`preview_list`), pas « mes deux serveurs tournent-ils ? ».
 
 **▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
 

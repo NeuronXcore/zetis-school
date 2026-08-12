@@ -5927,3 +5927,24 @@ défaut, ni ne peut garder sa correction. Un test qui vérifierait la présence 
 **Parade** : pour ce type de défaut, la preuve est **visuelle et mesurée dans un vrai moteur de
 rendu** (panneau navigateur ou simulateur), et elle se consigne — chiffres à l'appui — dans le
 message de commit et dans `MEMORY.md`. Ne pas écrire de test pour se rassurer.
+
+### ⚠️ `lsof -ti :PORT` ne dit pas « un serveur écoute » — ajouter `-sTCP:LISTEN`
+
+Après l'arrêt des serveurs de dev, `lsof -ti :8001` rendait encore un PID : lu comme « le serveur
+n'est pas mort ». **Faux.** `lsof -ti :PORT` matche **toute** socket touchant ce port, y compris les
+connexions résiduelles d'un client — ici celles du panneau navigateur de l'app Claude, à l'état
+`(CLOSED)`. Aucun processus n'écoutait.
+
+**Parade** : `lsof -ti :PORT -sTCP:LISTEN` pour la seule question qui compte. Et `lsof -i :PORT -P -n`
+pour voir *qui* et dans *quel état*, avant de conclure.
+
+### ⚠️ Vérifier sa propre liste ne trouve jamais ce qui en manque
+
+La clôture avait consigné « deux serveurs de dev restés allumés », et l'étape 4bis l'avait
+« vérifié » par un `lsof` sur ces **deux** ports. Ils tournaient : le fait était donc confirmé, et
+faux — un troisième serveur (`backend`, port 8000) tournait aussi, absent de la liste.
+
+**Parade** : pour un inventaire, poser la question **ouverte** à la source qui sait (`preview_list`,
+`pgrep`, `git branch`), pas la question **fermée** sur ce qu'on a déjà écrit. Une vérification
+fait-par-fait valide ce qui est écrit ; elle ne détecte aucune omission. Les deux contrôles sont
+complémentaires, et le second manquait.
