@@ -33,6 +33,18 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "httpx>=0.27",
+    # `TestClient` de starlette hérite de la classe `Client` d'un httpx, et depuis starlette 1.3
+    # il veut celle de **httpx 2.x** — publié sous le nom `httpx2` PRÉCISÉMENT pour cohabiter
+    # avec `httpx`. Sans lui, starlette retombe sur `httpx` en émettant une dépréciation : ça
+    # marche encore, jusqu'au jour où starlette retire le repli, et ce jour-là c'est la suite
+    # ENTIÈRE qui tombe d'un coup.
+    #
+    # ⚠️ Les deux sont installés, et c'est VOULU : `httpx2` ne sert qu'aux tests, `httpx` reste
+    # celui du code applicatif — les trois providers LLM (ollama, anthropic, mlx) et
+    # `production/failures.py` l'importent, et `test_production_durabilite.py` s'appuie sur ses
+    # types d'exception (`httpx.ConnectError`, `httpx.HTTPStatusError`). Ne pas « unifier » les
+    # deux : ce sont deux usages disjoints qui n'ont aucune raison de bouger ensemble.
+    "httpx2>=2.10",
 ]
 # Voix des capsules (ADR-0007). Optionnel : le code appelle le binaire `piper` en
 # sous-processus (pas d'import Python). `pip install -e '.[tts]'` fournit la CLI + onnxruntime,
@@ -57,3 +69,21 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]
+# Un avertissement que personne ne lit est un vert qui ne prouve rien. Les deux dépréciations
+# Starlette levées le 2026-08-12 s'affichaient à CHAQUE run depuis des mois — lues par personne.
+# `error` déplace le moment où ça fait mal : la suite rougit le jour où une bibliothèque
+# **déprécie**, pendant qu'il reste un chemin de sortie, au lieu du jour où elle **retire**, où
+# c'est la suite entière qui tombe d'un coup sans préavis.
+#
+# Coût MESURÉ le 2026-08-12, pas supposé : les 1212 tests passent déjà sous `-W error`. Et le
+# mode attrape les DEUX natures — l'avertissement levé pendant un test (échec) comme celui levé
+# à l'import d'un module (erreur de collecte, encore plus bruyante). Vérifié par sabotage des
+# deux côtés.
+#
+# 🔴 **Le vrai danger n'est pas ce bloc, c'est ce qu'on y ajoutera.** Le jour où une dépendance
+# tierce émettra un avertissement qui n'est pas le vôtre, la suite rougira pour une raison
+# étrangère, et la tentation sera d'écrire `"ignore::DeprecationWarning"`. Cette ligne rendrait
+# ce bloc PIRE que son absence : elle muselerait tout en se donnant l'air d'une politique.
+# Toute exception ajoutée ici vise un MESSAGE précis, jamais une catégorie, et porte sa date et
+# son motif — comme le plancher `starlette>=0.48` plus haut.
+filterwarnings = ["error"]
