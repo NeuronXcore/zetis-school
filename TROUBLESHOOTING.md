@@ -5504,3 +5504,76 @@ géométrie sans dépendre du rendu du pane. Ici : 3 questions, **une clé par q
 
 ⚠️ `scroll_amount` est **plafonné à 10**, et un dépassement rend une erreur de validation, pas un
 scroll tronqué.
+
+## La collision « carte » d'`ACTION_UI` — 2026-08-12
+
+### 🔴 Un test-verrou qui interdit le DOUBLON est vert sur une correction faite du MAUVAIS CÔTÉ
+
+Le verrou naturel, pour deux libellés qui se marchent dessus, c'est *« aucun mot ne doit nommer
+deux activités »*. Écrit tel quel, il est **vert sur une correction fausse**.
+
+Démontré par sabotage, sur mon propre verrou. Deux sabotages, pas un :
+
+| Sabotage | Assertion « pas de doublon » | Les deux autres |
+|---|---|---|
+| remettre « Reconstruire la **carte** » (le défaut d'origine) | 🔴 rouge | 🔴 rouges |
+| renommer la **révision** en « Réviser mes fiches mémo » | ✅ **VERTE** | 🔴 rouges |
+
+Le second est le piège : il **lève** la collision — plus aucun doublon — mais en cassant le
+vocabulaire SRS que l'enfant a déjà appris (« 8 cartes à revoir », « 5 cartes », « Refaire un
+tour (3 cartes) »), et qui vient du modèle lui-même (`Card`, module `memory`).
+
+**Parade** : un verrou d'unicité doit dire **quel côté garde le mot**, pas seulement qu'il n'y en
+a qu'un. `notionActionUi.test.ts` porte donc trois assertions, et c'est la deuxième
+(`activitesQuiDisentCarte() === ["revision"]`) qui attrape ce cas-là.
+
+> Quatrième occurrence du motif « mon test-verrou central était vert sur un sabotage ». Les trois
+> précédentes ont été trouvées par hasard ; celle-ci a été **cherchée**, parce que le motif est
+> maintenant consigné.
+
+### 🔴 Un libellé qui tient « à 2 px près » n'est pas une contrainte respectée, c'est un hasard
+
+Renommer « Reconstruire la **carte** » → « Reconstruire la **mindmap** » paraissait purement
+sémantique. Mesuré dans le DOM, dans le panneau de notion de `/galaxy` à **390 px** :
+
+| | largeur du texte | budget du bouton | tient ? |
+|---|---|---|---|
+| ancien | **144 px** | 146 px | ✅ **à 2 px près** |
+| nouveau | **172 px** | 146 px | ❌ passe à 2 lignes |
+
+Personne n'avait « fait tenir » l'ancien libellé : il tenait par chance. Le **budget** (146 px)
+n'est écrit nulle part, aucun test ne le connaît, et la suite est restée **verte** de bout en bout.
+
+**Parade** : quand on renomme quelque chose d'affiché, mesurer le **budget** de la surface la plus
+contrainte avant de trancher, et **écrire l'arbitrage dans le code** — pas dans un ADR que
+personne ne relira au moment de « corriger » le libellé. C'est fait dans `notionActionUi.ts`, avec
+les chiffres et un « ne pas raccourcir ».
+
+> Complète le piège *« Un libellé mesuré vaut mieux qu'un libellé raisonné »* (§ plus haut) : là il
+> s'agissait de **choisir** un libellé, ici de **renommer** un existant — et c'est le cas où l'on
+> mesure le moins, puisqu'on croit ne changer que le sens.
+
+### ⚠️ `grep` trouve une chaîne que personne ne voit — le champ mort d'une table de présentation
+
+`MissionsPage.STEP_META` portait `action: "Reconstruire la carte"`, la chaîne exacte qu'on
+traquait. Elle n'atteignait **jamais le DOM** : seuls `icon`, `label` et `sub` sont rendus
+(vérifié ligne à ligne, puis à l'écran sur une mission réelle).
+
+**Parade** : avant de renommer une chaîne trouvée par `grep`, remonter jusqu'à son **rendu**.
+Si elle n'en a pas, la **supprimer** — la renommer maintient du code mort *et* fait mentir la
+prochaine recherche sur le sujet, qui croira la surface concernée.
+
+> Même famille que l'élagage de `data/mock.ts` (PR #115) : là, `grep -w` prétendait `SUBJECTS`
+> vivant dans 5 fichiers, tous des homonymes locaux. **Le contrôle fiable est le chemin de rendu,
+> jamais la présence du texte.**
+
+### ⚠️ Un commentaire de code qui dit « on ne touche pas à X » peut être plus large que sa raison
+
+`notionRoutes.ts` portait *« On ne touche pas `ACTION_UI` — il est partagé avec la Galaxy et le
+chat »*. Lu en entier, sa raison est la **portée** : ne pas mettre dans une table partagée par
+trois surfaces un texte qui n'est vrai que sur l'une d'elles. Elle n'interdit **pas** un
+renommage, qui s'applique partout à l'identique — c'est l'usage même d'une source unique.
+
+**Parade** : un interdit trouvé au read-before-code se lit **avec sa justification**, et se
+**restreint** à ce qu'elle couvre plutôt que de se contourner ou de s'ignorer. Le commentaire a
+été réécrit pour dire ce qu'il interdit vraiment, avec le renommage en contre-exemple qui le borne.
