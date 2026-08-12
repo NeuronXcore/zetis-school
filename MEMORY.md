@@ -6,14 +6,23 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — le paquet partagé cesse d'être un angle mort (ADR-0053)
+### ✅ CHANTIER MERGÉ — le paquet partagé cesse d'être un angle mort (PR #119, squash `1c1885e`)
 
-**Branche `feat/tests-packages-ui`, base `f36f663`.** 🔴 **RIEN N'EST COMMITÉ** : tout vit dans
-l'arbre de travail. Aucune migration, aucune route, aucun changement de comportement pour Massimo
-ni pour Papa — **ce chantier ne livre aucune fonctionnalité**, il paie une dette.
+**Base `f36f663`** (le lot ADR du cadrage, poussé sur `main` **avant** la branche — l'ordre compte,
+sinon la PR embarque l'ADR dans son diff). **Branche `feat/tests-packages-ui` supprimée** (locale
+**et** serveur), `main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le
+2026-08-12, étape 4bis faite dans la foulée du merge.
 
-⚠️ **`main` porte un commit NON POUSSÉ** : `f36f663`, le lot ADR du cadrage (`0 1` vs `origin`).
-À pousser **avant** la branche, sinon la PR embarque l'ADR dans son diff.
+Aucune migration, aucune route, aucun changement de comportement pour Massimo ni pour Papa — **ce
+chantier ne livre aucune fonctionnalité**, il paie une dette. `CHANGELOG.md` **0.80.0** ·
+`TROUBLESHOOTING.md` une section, cinq sous-sections.
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la TROISIÈME fois**, sur trois merges
+> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/feat/tests-packages-ui` ;
+> `git ls-remote --heads origin` rendait vide. **Ce n'est pas un accident, c'est le comportement
+> normal** : `branch -r` lit les références de suivi locales, qui ne bougent qu'au `fetch`.
+> Le réflexe est désormais acquis — mais il doit le rester : sans lui, `MEMORY.md` annoncerait
+> une branche vivante qui n'existe plus, et la session suivante la chercherait.
 
 **Pourquoi ce chantier.** Le 2026-08-12, une **zone morte temporelle** dans `MindmapWorkspace` —
 un `useEffect` déclaré avant le `useState` qu'il lit dans ses dépendances — a rendu la mindmap
@@ -98,23 +107,29 @@ quatre fois par ce dépôt.
 
 ### ▶ PROCHAIN PAS
 
-**Ce chantier est COMPLET mais RIEN N'EST COMMITÉ.** La première action de reprise :
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #119, squash `1c1885e`), branche
+supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`,
+arbre propre, chaque fait revérifié par commande.
 
-1. `git add -A && git commit` sur la branche
-2. `git push origin main` — ⚠️ le lot ADR `f36f663` **n'est toujours pas poussé**
-3. `git push -u origin feat/tests-packages-ui`, PR, merge
-4. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — squash, n° de PR, « branche supprimée », « rien à
-   pousser », **vérifiés par commande**.
+**▶ CE QUI ATTEND, par ordre de coût pour Massimo :**
 
-⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit un cache. `git ls-remote --heads
-origin` puis `git fetch --prune`. **Le piège s'est déjà rejoué une fois**, moins de 24 h après avoir
-été consigné.
+1. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les
+   jours. Vu au simulateur le 2026-08-12, **jamais cadré**.
+2. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au
+   `BACKLOG.md`, avec sa piste : le **même** panneau tient parfaitement sur la page matière
+   (`NotionPanel`), comparer les deux devrait donner la cause.
+3. 🔴 **Le plein écran depuis la modale de mission n'a jamais été exercé** — aucune mission des
+   données de dev ne porte d'étape `mindmap`. Il faudrait en fabriquer une côté Papa.
+4. Le reste est dans « DETTES OUVERTES » ci-dessus.
 
-⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie rien : utiliser
-`./node_modules/.bin/tsc -b` **depuis chaque app**.
+### 🧰 DEUX RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
 
-**▶ CE QUI ATTEND ENSUITE**, par ordre de coût pour Massimo : « Bonjour Massimo » coupé sur
-l'Accueil iPhone · le panneau `/galaxy` hors écran · puis le reste des dettes ci-dessus.
+- ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
+  `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. **Le piège s'est
+  rejoué TROIS fois, sur trois merges consécutifs** — ce n'est pas un accident, c'est le
+  comportement normal de la commande.
+- ⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie **rien** (il rend un message d'aide et
+  sort en 0). Utiliser `./node_modules/.bin/tsc -b` **depuis chaque app**.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
