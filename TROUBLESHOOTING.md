@@ -5762,3 +5762,81 @@ c'est le composant du défaut. C'était faux : son export est écrit sur trois l
 utiliser un motif avec `/s`. Le comptage réel a donné **29 composants** et **81 fonctions et
 constantes** — ce qui a aussi montré que « monter tous les exports » n'avait pas de sens : on ne
 monte pas `easeOutCubic`.
+
+## Les dépréciations Starlette — `fix/deprecations-starlette` — 2026-08-12
+
+### 🔴 La liste des avertissements n'est pas la liste des défauts
+
+pytest signalait **deux** avertissements `HTTP_422_UNPROCESSABLE_ENTITY`, et le code portait
+**deux** occurrences de la constante. La correspondance semblait parfaite. Elle était fausse : les
+deux avertissements venaient de la **même** ligne (`agenda/service.py:508`), atteinte par deux tests
+différents. La ligne **505** portait la même constante dépréciée **sans émettre quoi que ce soit** —
+sa branche (`lesson is None`, « Leçon inconnue ») n'est couverte par aucun test.
+
+Un correctif guidé par la sortie de pytest aurait laissé la 505 en place, pour casser le jour où
+starlette retire le repli.
+
+**Parade** : pour une dépréciation, chercher **le symbole** dans le code (`grep`), pas les
+avertissements dans la sortie. Et chercher **toute la famille** : starlette 1.3.1 en déprécie
+**quatre** (`HTTP_413_REQUEST_ENTITY_TOO_LARGE`, `HTTP_414_REQUEST_URI_TOO_LONG`,
+`HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE`, `HTTP_422_UNPROCESSABLE_ENTITY`) — la liste se lit dans
+`starlette/status.py`, dictionnaire `__deprecated__`.
+
+### 🔴 Une contre-épreuve posée sur une ligne NON COUVERTE rend zéro — et fait douter du bon outil
+
+Premier sabotage : la constante dépréciée remise sur la ligne 505. Résultat : **zéro avertissement**.
+Lecture tentante — « ma méthode de détection est aveugle, je ne peux rien conclure ». C'était le
+**sabotage** qui était aveugle : il visait la branche que rien n'exerce.
+
+Reposé sur la 508 : **2 avertissements** reviennent, puis **2 échecs** une fois `filterwarnings`
+en place.
+
+**Parade** : avant de saboter, vérifier que la ligne visée est **atteinte par un test**. Un sabotage
+muet a deux causes possibles — l'outil ne voit rien, ou le sabotage ne se produit pas — et rien ne
+les distingue de l'extérieur. C'est la variante « à l'envers » du piège déjà consigné : là, la
+contre-épreuve mal visée **alarme** au lieu de rassurer.
+
+### 🔴 `uv sync` aurait retiré les extras optionnels du venv backend
+
+`apps/backend/pyproject.toml` déclare `stt` (faster-whisper) et `tts` (piper-tts) en extras
+**optionnels**, installés à la main une fois. Le venv les contient : `faster-whisper 1.2.1`,
+`ctranslate2 4.8.1`, `piper-tts 1.4.2`, `onnxruntime 1.27.0`.
+
+`uv sync` **aligne** le venv sur les extras sélectionnés — il aurait donc **désinstallé** les quatre,
+cassant la **dictée ELI5** et la **voix des capsules**, sans que le moindre test rougisse (les deux
+dégradent proprement en 503).
+
+**Parade** : pour ajouter un paquet, `VIRTUAL_ENV=.venv uv pip install <paquet>` (additif), puis
+`uv lock` — qui n'écrit que le lockfile et ne touche pas le venv. Vérifier ensuite que le diff du
+lock est bien **purement additif** (`git diff --stat` : 50 insertions, 0 suppression ici).
+
+### ⚠️ `uv pip index versions` n'existe pas — pour sonder un paquet, `--dry-run`
+
+`uv pip index versions <paquet>` rend `unrecognized subcommand`. Pour savoir si un paquet existe et
+ce qu'il tirerait, **sans rien installer** : `VIRTUAL_ENV=.venv uv pip install --dry-run <paquet>`.
+C'est ce qui a montré d'avance que `httpx2` amènerait `httpcore2` et `truststore`.
+
+### ⚠️ `filterwarnings = ["error"]` attrape DEUX natures d'avertissement, pas une
+
+- levé **pendant** un test → échec du test ;
+- levé **à l'import** d'un module (le cas de la dépréciation `httpx`, émise depuis
+  `fastapi/testclient.py:1`, hors de tout test) → **erreur de collecte**, qui interrompt la session
+  entière. Encore plus bruyant.
+
+Vérifié par un module de test jetable faisant `warnings.warn(..., DeprecationWarning)` au niveau
+module. **À savoir avant de poser le réglage** : sans ça, on peut croire qu'il ne couvre que les
+avertissements d'exécution, et le juger trop faible pour ce qu'on veut attraper.
+
+### 🔴 `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en SQUASH
+
+Un contrôle de branches locales annonçait **13 branches « non fusionnées »**, dont une à 13 commits
+uniques — de quoi croire à du travail perdu.
+
+C'était faux, et structurellement : un squash crée un commit **neuf**, les commits d'origine ne
+deviennent donc jamais ancêtres de `main`. `--is-ancestor` répondra « non fusionnée » pour **toutes**
+les branches squashées, indéfiniment. Vérification par la vraie source — l'état des PR — : les 13
+avaient une PR `MERGED` (#98 à #110).
+
+**Parade** : `gh pr list --head <branche> --state all --json number,state`. Même famille que le
+piège `git branch -r` déjà consigné : *la commande évidente répond à une question voisine de celle
+qu'on pose.*

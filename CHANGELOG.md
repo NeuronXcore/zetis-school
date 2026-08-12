@@ -1,5 +1,38 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.80.1 — Les avertissements cessent d'être décoratifs
+
+**Cette version ne livre rien à Massimo**, et ne change **aucun comportement** : les valeurs HTTP
+sont identiques (422 reste 422), aucune route ni migration n'est touchée.
+
+Trois avertissements de dépréciation s'affichaient à **chaque** run de la suite backend, depuis des
+mois. Ils n'ont pas manqué de visibilité — ils ont manqué de **conséquence**.
+
+**Les causes sont levées.** `HTTP_422_UNPROCESSABLE_ENTITY` devient `HTTP_422_UNPROCESSABLE_CONTENT`
+dans `agenda/service.py` — le plancher `starlette>=0.48` du `pyproject.toml` avait été posé
+**précisément** pour que ces noms existent, mais le renommage n'avait jamais suivi. Et `httpx2>=2.10`
+rejoint l'extra `dev` : depuis starlette 1.3, `TestClient` hérite de la classe `Client` de httpx 2.x,
+publiée sous ce nom-là **pour cohabiter** avec `httpx`. Les deux restent installés, et c'est voulu —
+`httpx` porte les trois providers LLM et `production/failures.py`.
+
+**La conséquence est posée** : `filterwarnings = ["error"]`. La suite rougit désormais le jour où une
+bibliothèque **déprécie**, pendant qu'il reste un chemin de sortie, au lieu du jour où elle
+**retire**, où c'est la suite entière qui tombe d'un coup. Coût **mesuré**, pas supposé : les 1212
+tests passaient déjà sous `-W error` avant qu'on y touche.
+
+> 🔴 **Le vrai danger de ce réglage n'est pas lui, c'est ce qu'on y ajoutera.** Le jour où une
+> dépendance tierce émettra un avertissement qui n'est pas le nôtre, la tentation sera d'écrire
+> `"ignore::DeprecationWarning"` — une ligne qui rendrait le bloc **pire que son absence**. Toute
+> exception vise un **message** précis, jamais une catégorie, et porte sa date et son motif.
+
+**Ce que la sortie des tests cachait.** Le code portait deux occurrences de la constante dépréciée et
+pytest signalait deux avertissements — mais les deux venaient de la **même** ligne. La seconde
+(« Leçon inconnue ») était muette : **aucun test ne couvre cette branche**. Elle a été trouvée en
+cherchant les quatre constantes dépréciées par `grep`, pas en suivant pytest. *La liste des
+avertissements n'est pas la liste des défauts ; elle n'en montre que la part exercée.*
+
+**1212 tests verts, zéro avertissement.**
+
 ## 0.80.0 — Le paquet partagé cesse d'être un angle mort
 
 **Cette version ne livre rien à Massimo.** Elle paie une dette dont le coût avait été démontré la

@@ -502,10 +502,10 @@ def _check_lesson_belongs(db: Session, lesson_id: int | None, chapter_id: int | 
         return
     lesson = db.get(Lesson, lesson_id)
     if lesson is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Leçon inconnue.")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Leçon inconnue.")
     if chapter_id is not None and lesson.chapter_id != chapter_id:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "Cette leçon n'appartient pas au chapitre indiqué.",
         )
 
