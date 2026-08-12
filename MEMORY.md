@@ -133,27 +133,51 @@ revérifié par commande. `main == origin/main`, arbre propre.
 - **`docs/frontend-massimo/mockup/maquette-massimo-galaxy.html` porte encore l'ancien libellé**
   (cf. dettes ci-dessus) — laissé sciemment, une maquette n'est pas une spec de page.
 
-**▶ CHANTIER SUIVANT, DÉJÀ CADRÉ AVEC LE COMMANDITAIRE** (2026-08-12, rien d'implémenté) :
-**le défilement de la mindmap en mode Reconstruire.**
+**▶ CHANTIER SUIVANT : CADRÉ. Prochain pas = `/ouverture`.**
 
-- **Le défaut** : dans `packages/ui/src/components/mindmap/MindmapWorkspace.tsx`, l'empilement est
-  ① barre des modes → ② consigne + pastilles → ③ canvas `clamp(520px, 74vh, 840px)` → ④ `NodeBank`.
-  Les puces à glisser sont **sous** le canvas : **le glisser-déposer traverse la limite de
-  défilement**. Ce n'est pas un problème de consigne — déplacer la seule phrase ne corrigerait rien.
-- **Décidé** : remonter **toute la banque** sous la ligne « Replace les étiquettes blanchies »
-  (déjà en haut, `MindmapWorkspace.tsx` l. 586) **ET** raccourcir le canvas en mode `build` — sinon
-  banque + 74vh dépassent encore l'écran. Ordre de grandeur visé : `clamp(380px, 58vh, 660px)`.
-- 🔴 **« ET pour les 2 modes » est irréalisable tel quel, signalé et tranché** : `NodeBank`
-  n'existe **qu'en mode `build`**. **Mémorise (`train`) n'a aucune banque** — on clique les « · · · »
-  sur le canvas, et sa consigne, ses pastilles et son bouton « Passe suivante ▸ » sont **déjà en
-  haut** (l. 570). Mémorise **n'a pas le défaut**.
-- ⚠️ **Brique partagée par TROIS surfaces** : `MindmapSubjectPage` (pleine page),
-  `MindmapMissionModal` (Massimo) et `MindmapPreviewModal` (Papa). Les deux dernières sont des
-  **modales** — c'est ce qui a fait écarter le **plein écran** pour l'instant (une modale dans une
-  modale, à cadrer par un ADR). Le plein écran reste souhaitable et **non tranché**.
-- ⚠️ Ce chantier **n'a pas encore d'ADR**. Le dépôt a payé trois fois l'absence d'ADR sur un
-  correctif « direct » (#89, #111, `fix/cours-vide-non-validable`) — dont une fois un addendum
-  rétroactif. À trancher à l'ouverture.
+**ADR-0052 — « La mindmap prend la place qu'elle demande »**, `Proposé` le 2026-08-12. Session de
+cadrage menée sur `main`, **sans une ligne de code**, après une `/ouverture` **arrêtée à son §2**
+(troisième fois : l'ADR n'existait pas, et les trois documents mindmap du dépôt sont ceux de
+l'ADR-0016).
+
+**Deux lots, et l'ORDRE compte** (`docs/WORKFLOW.md §2bis`) :
+
+| Lot | Fichiers | Où |
+|---|---|---|
+| **main**, à committer **AVANT** `/ouverture` | `docs/decisions/adr-0052-*.md`, `DECISIONS.md`, ce fichier | `main` |
+| **branche**, `/ouverture` les emporte | `docs/frontend-massimo/page-mindmaps.md`, `prompts/claude-code/prompts-claude-code-adr-0052.md` | la branche |
+
+⚠️ **`/ouverture` s'arrête si elle voit `DECISIONS.md` modifié** — le lot `main` part d'abord,
+sinon la commande bute sur ce qu'on vient de faire.
+
+**Les cinq décisions sont gelées** (une session de slice les **relit**) :
+
+1. **Plein écran**, patron de la galaxie — overlay CSS + état React, jamais `requestFullscreen` ;
+   `CloseFullscreenButton` réutilisé, Échap, défilement du corps verrouillé. **Les trois modes.**
+2. 🔴 **Le canvas cesse de se mesurer en `vh`** — il remplit son **conteneur**. C'est la décision
+   de fond.
+3. **La banque passe au-dessus du canvas** — mode `build` uniquement.
+4. **La barre des modes cesse d'être coupée** (`flex-wrap`, règle déjà écrite ADR-0024 §3 bis).
+5. **« carte » cesse de désigner la mindmap** (4 chaînes ; Papa hors périmètre).
+
+🔴 **LA DÉCISION DU MATIN A ÉTÉ RENVERSÉE PAR LE READ-BEFORE-CODE, LE JOUR MÊME.** Le
+commanditaire avait arbitré « banque en haut + canvas raccourci » **contre** le plein écran, sur
+mon exposé. **Mesuré ensuite dans l'app** — 1594 × 1078 : décor 320 + banque 154 → **588 px** de
+canvas, tenable ; **390 × 844 : décor 463 + banque 278 = 741 sur 844 → 87 px de canvas**,
+impossible. Le plein écran, que j'avais écarté **pour une raison fausse** (les modales, qui bornent
+déjà leur hauteur et défilent en interne), redevient la décision. **Ré-arbitré par le
+commanditaire.**
+
+⚠️ **Ma contre-proposition chiffrée était fausse aussi** : `clamp(380px, 58vh, 660px)` débordait
+encore de **37 px** sur l'écran où je l'ai proposée. **Si une solution contient `vh` pour la
+hauteur du canvas, elle est fausse** — c'est écrit dans le prompt.
+
+⚠️ **La 5ᵉ décision mélange deux sujets** (gabarit + vocabulaire) : signalé, **le commanditaire a
+choisi de les réunir**. Écart au mono-chantier **assumé**.
+
+⚠️ **Un deuxième défaut trouvé en cadrant** : à 390 px, le bouton « ③ Reconstruire » a son bord
+droit à **435 px**, **45 px coupés**, et la page ne défile pas horizontalement. Couvert par la
+Décision 4.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
