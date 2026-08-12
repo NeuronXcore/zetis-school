@@ -113,17 +113,14 @@ le jour où starlette retire le repli.
 supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
 propre, chaque fait revérifié par commande.
 
-⚠️ **Résidu de clôture : 13 branches LOCALES périmées** subsistent (`git branch` en rend 14 avec
-`main`). Toutes ont une PR **`MERGED`** — #98 à #110, contrôlées **une par une** via `gh pr list
---head <branche> --state all` le 2026-08-12. Rien n'est perdu ; c'est de l'encombrement, et le
-ménage est un geste humain :
+✅ **Résidu soldé le 2026-08-12 : les 13 branches locales périmées sont supprimées.** `git branch` ne
+rend plus que `main`. Elles avaient toutes une PR **`MERGED`** (#98 à #110), et — contrôle plus fort
+que l'état de la PR — **chaque tête locale était exactement le `headRefOid` que GitHub avait mergé** :
+aucune ne portait de commit resté en local. Récupérables ~90 jours via `git reflog` si besoin.
 
-```
-git branch -D $(git branch --format='%(refname:short)' | grep -v '^main$')
-```
-
-🔴 **Ne PAS trancher cette question avec `git merge-base --is-ancestor`** : il annonce ces 13
-branches « non fusionnées », et il aura tort — voir les réflexes d'outillage ci-dessous.
+🔴 **Si la question se repose, ne PAS la trancher avec `git merge-base --is-ancestor`** : il
+déclarait ces 13 branches « non fusionnées », et il avait tort — voir les réflexes d'outillage
+ci-dessous. Le bon contrôle est le couple *état de la PR* + *tête locale == `headRefOid`*.
 
 **▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
 
