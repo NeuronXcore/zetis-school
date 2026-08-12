@@ -116,22 +116,53 @@ en page elk (asynchrone).
 supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`,
 arbre propre, chaque fait revérifié par commande.
 
-**▶ CE QUI ATTEND, par ordre de coût pour Massimo :**
+✅ **Les deux réglages laissés sur le Mac ont été REMIS** à la demande du commanditaire : simulateur
+éteint (0 appareil amorcé), serveurs de dev arrêtés (ports 8001 et 5176 libres),
+`ConnectHardwareKeyboard` **remis à `true`**.
 
-1. 🔴 **`packages/ui` n'a AUCUN test.** Ce n'est plus une remarque de style : le crash TDZ de ce
-   chantier a rendu la mindmap **totalement inutilisable** avec 668 tests verts et `tsc` vert.
-   Monter un runner dans ce paquet est une **décision d'infrastructure** — elle mérite son cadrage.
-2. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les
-   jours. Vu au simulateur, jamais cadré.
-3. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au
-   `BACKLOG.md`, avec sa piste (le même panneau tient sur la page matière).
-4. Le reste est dans « DETTES OUVERTES » ci-dessus.
+**▶ CHANTIER SUIVANT : CADRÉ. Prochain pas = `/ouverture`.**
 
-⚠️ **Deux réglages laissés hors de leur défaut sur le Mac du commanditaire** : le simulateur
-**iPhone 17 tourne encore**, et `ConnectHardwareKeyboard` a été passé à **`false`** (c'est ce qui
-fait apparaître le clavier iOS à l'écran ; sans ça, aucun clavier ne s'affiche au tap). À remettre
-si ça gêne ailleurs : `defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool true`
-puis redémarrer le Simulateur — **le réglage ne prend qu'au lancement**.
+**ADR-0053 — « Le paquet partagé cesse d'être un angle mort »**, `Proposé` le 2026-08-12. Cadrage
+mené sur `main`, **sans une ligne de code**, après une `/ouverture` **arrêtée à son §2** (quatrième
+fois).
+
+**Deux lots, et l'ORDRE compte** (`docs/WORKFLOW.md §2bis`) :
+
+| Lot | Fichiers | Où |
+|---|---|---|
+| **main**, à committer **AVANT** `/ouverture` | `docs/decisions/adr-0053-*.md`, `DECISIONS.md`, ce fichier | `main` |
+| **branche**, `/ouverture` l'emporte | `prompts/claude-code/prompts-claude-code-adr-0053.md` | la branche |
+
+⚠️ **`/ouverture` s'arrête si elle voit `DECISIONS.md` modifié** — le lot `main` part d'abord.
+
+**Les cinq décisions sont gelées** :
+
+1. **`packages/ui` reçoit SON runner**, calqué sur celui des apps. **On recopie, on ne factorise
+   pas** — à rouvrir si les trois configurations divergent.
+2. 🔴 **Le premier test est un test de MONTAGE**, sur tous les composants exportés : les monter et
+   vérifier qu'ils ne jettent pas, **rien d'autre**. ⚠️ **Sabotage de la TDZ = condition de
+   livraison.**
+3. **Le `setup.ts` polyfille `ResizeObserver`, et rien d'autre.** Un polyfill n'est **pas** un mock.
+4. **`elkjs` et le canvas 3D** : on tolère l'échec asynchrone, on n'échoue pas dessus. `GalaxyCanvas`
+   exclu **avec son motif écrit** s'il ne monte pas.
+5. **Le paquet est vérifié dans la même passe que les apps.**
+
+**Ce que le read-before-code a mesuré** (et qui a réduit deux craintes sur trois) :
+
+- `packages/ui` = **48 fichiers, 0 test, aucun script `test`** ; l'`include` des apps est **relatif
+  à leur racine**, donc des tests y seraient ramassés par personne ;
+- 🔴 **la couverture indirecte est un mirage** : sur 6 tests d'app qui touchent `@zetis/ui`,
+  **4 le MOQUENT** — dont le seul qui approchait `MindmapWorkspace` ;
+- ✅ les deux configs vitest sont **identiques**, les deux `setup.ts` font **2 lignes** ;
+- ✅ les dépendances lourdes tiennent dans **5 fichiers sur 48** ;
+- 🔴 **React Flow exige `ResizeObserver`** (absent de jsdom, polyfillé nulle part) et **`elkjs`
+  cherche un `Worker`** ; aucun test du dépôt n'a jamais monté React Flow ;
+- 🔴 **le fait qui décide de tout** : la TDZ se produit **avant** que le JSX soit retourné, donc
+  **un simple montage l'aurait attrapée** — sans React Flow, sans elk, sans connaître le métier.
+
+⚠️ **Ce chantier ne livre AUCUNE fonctionnalité à Massimo.** Il paie une dette dont le coût a été
+démontré le jour même. Les deux autres urgences restent : **« Bonjour Massimo » coupé à gauche sur
+l'Accueil iPhone**, et le **panneau `/galaxy` hors écran de 94 px** (au `BACKLOG.md`).
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
