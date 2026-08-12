@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@zetis/auth";
 import { useAccueil } from "../hooks/useAccueil";
 import { useMotivationWeek } from "../hooks/useMotivationWeek";
+import { RETRAIT_TITRE_PAGE } from "../lib/pageTitle";
 import { HomeAgendaBanner } from "../components/agenda/HomeAgendaBanner";
 import { HomeGalaxyCard } from "../components/galaxy/HomeGalaxyCard";
 import { ProgressSparkline } from "../components/galaxy/ProgressSparkline";
@@ -90,7 +91,12 @@ export function AccueilMassimoPage() {
           rendue : AUCUNE phrase de secours, aucun bandeau motivationnel générique à côté —
           une phrase fabriquée côté client serait exactement le mensonge que cette page a
           cessé d'afficher, et « garde le cap » serait en plus une relance. */}
-      <h1 className="text-2xl font-bold">Bonjour{name ? ` ${name}` : ""} 👋</h1>
+      {/* `RETRAIT_TITRE_PAGE` : cette page n'utilise pas `PageHeader` (son titre porte le prénom
+          servi et un emoji), mais elle doit s'aligner comme les dix qui l'utilisent — c'est ICI
+          que le défaut a été vu. */}
+      <h1 className={`${RETRAIT_TITRE_PAGE} text-2xl font-bold`}>
+        Bonjour{name ? ` ${name}` : ""} 👋
+      </h1>
       {welcome && (
         <div className="mt-3">
           <ZetisMessageCard message={welcome} />
