@@ -17,10 +17,15 @@ const SURFACES: { kind: GalaxyActionKind; label: string }[] = [
   { kind: "fiche", label: "Fiches" },
   // ⚠️ « Mindmaps », et surtout PAS « Cartes ». Signalé par le user le 2026-08-11 : un onglet
   // « Cartes » posé juste avant « Révisions » se lit comme les cartes de révision, et le lien
-  // vers les mindmaps semble MANQUANT. Le mot « carte » désigne déjà deux choses dans l'app
-  // (`ACTION_UI` : « Reconstruire la carte » / « Réviser mes cartes ») — cet onglet n'a pas à
-  // inventer un troisième nom. « Mindmaps » est celui que la barre latérale montre à Massimo
-  // tous les jours (`navigation.ts`).
+  // vers les mindmaps semble MANQUANT. « Mindmaps » est le nom que la barre latérale montre à
+  // Massimo tous les jours (`navigation.ts`).
+  //
+  // La collision d'origine venait d'`ACTION_UI`, qui disait « Reconstruire la carte » à deux
+  // lignes de « Réviser mes cartes » ; elle y a été **levée le 2026-08-12** et un test-verrou
+  // (`lib/notionActionUi.test.ts`) l'empêche de revenir. « Carte » ne désigne donc plus qu'une
+  // chose dans l'app — la carte de révision — et cet onglet n'a plus rien à contourner : il
+  // reste nommé ainsi parce que c'est le bon nom, pas pour esquiver un homonyme.
+
   { kind: "mindmap", label: "Mindmaps" },
   { kind: "revision", label: "Révisions" },
   { kind: "quiz", label: "Quiz" },

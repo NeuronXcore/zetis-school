@@ -1,5 +1,55 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.78.0 — « Carte » ne désigne plus qu'une seule chose
+
+**Aucune migration, aucune route touchée : quatre mots à l'écran.** Mais ces quatre mots ont déjà
+coûté un faux signalement de bug.
+
+`ACTION_UI` est la table qui habille les sept activités d'une notion — une source unique, partagée
+par le panneau de notion, les pastilles, la bande de catalogue, la Galaxy et le chat. Deux de ses
+libellés se suivaient dans le **même panneau** et disaient le même mot pour deux surfaces sans
+rapport : *« Reconstruire la **carte** »* (mindmap) juste au-dessus de *« Réviser mes **cartes** »*
+(révision SRS).
+
+**Ce n'était pas une hypothèse.** Un cran plus haut, le même défaut a fait dire au commanditaire
+qu'**il manquait un lien vers les mindmaps** : l'onglet existait, mais s'appelait « Cartes », juste
+avant « Révisions ». Le 2026-08-11, l'onglet et la bande ont été corrigés ; la table, elle, avait
+été laissée — dette écrite noir sur blanc dans l'addendum ADR-0024 §3 bis, et dernier point ouvert
+du carnet de bord.
+
+**La collision se lève du côté mindmap, et pas de l'autre.** « Carte » au sens SRS est le sens déjà
+tenu partout ailleurs — « 8 cartes à revoir » sur la page matière, « 5 cartes » sur une échéance,
+« Refaire un tour (3 cartes) » en fin de session — et il vient du modèle lui-même (`Card`, module
+`memory`). Rebaptiser la révision aurait déplacé le problème en cassant un vocabulaire que Massimo
+a déjà appris. Le **geste** reste (« Reconstruire » : c'est bien de mémoire qu'il la refait), seule
+la **chose** est renommée, du nom que la barre latérale lui montre tous les jours : **« Reconstruire
+la mindmap »**.
+
+**Le verrou qui existait ne pouvait pas voir ce défaut.** Celui du 2026-08-11 ne regarde que la
+bande de catalogue ; la collision vivait dans la table, et serait revenue par n'importe laquelle des
+quatre autres surfaces sans qu'une assertion rougisse. Un second verrou est donc posé sur la **table
+elle-même** (`lib/notionActionUi.test.ts`), et il ne se contente pas d'interdire le doublon : il dit
+**quel côté garde le mot**. Vérifié par deux sabotages — et le second, « corriger du mauvais côté »,
+**passe** la première assertion. C'est précisément pour lui que les deux autres existent.
+
+**Une chaîne identique dormait ailleurs**, dans une seconde table (`MissionsPage.STEP_META`), au sein
+d'un champ `action` que **rien ne rendait** — seuls `icon`, `label` et `sub` atteignent le DOM. Champ
+supprimé plutôt que renommé : un mot mort, invisible à l'écran, qui aurait fait mentir toute
+recherche future sur le sujet. Les deux tables restent distinctes ; elles habillent deux choses
+différentes.
+
+**Relu à l'écran, et ça a servi.** Mesures dans le DOM sur les cinq surfaces : le libellé tient sur
+une ligne partout, **sauf** dans le panneau de `/galaxy` à 390 px, où le budget de texte est de
+146 px pour 172 px de libellé. L'ancien y tenait à **2 pixels près** — par chance, pas par
+conception. Deux lignes **acceptées** : trois autres libellés de ce panneau passent déjà à la ligne,
+et raccourcir aurait coûté le geste de reconstruction de mémoire. L'arbitrage est écrit dans la
+table, là où on serait tenté de le défaire.
+
+**Et la relecture a trouvé autre chose, qui ne vient pas de ce chantier** : ce même panneau
+`/galaxy` **sort de l'écran de 94 px** à 390 px (bord droit mesuré à 484 px), sur tous ses boutons,
+avec la légende par-dessus. Aucun test ne le voit — la suite est verte et rien n'y mesure de
+géométrie. Consigné au `BACKLOG.md`, pas corrigé au vol.
+
 ## 0.77.0 — Les pages Matière disent enfin ce que Massimo y a fait
 
 Cadré sur **9 wireframes** noir & blanc, et sur une phrase du commanditaire : *« voir ses XP est

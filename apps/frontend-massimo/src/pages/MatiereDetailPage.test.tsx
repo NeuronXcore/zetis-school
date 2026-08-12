@@ -408,6 +408,7 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
     // ⚠️ « mindmap », pas « carte » — corrigé le 2026-08-11. Cette pastille annonçait « 1 carte »
     // à trois pastilles de « 8 cartes à revoir » : le même mot pour deux destinations, et le lien
     // vers les mindmaps se lisait comme absent. Les deux libellés doivent rester DISTINCTS.
+    // (`ACTION_UI` a suivi le 2026-08-12 — voir le verrou de `lib/notionActionUi.test.ts`.)
     expect(screen.getByLabelText("1 mindmap en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("1 quiz en SVT")).toBeInTheDocument();
     expect(screen.getByLabelText("8 cartes à revoir en SVT")).toBeInTheDocument();
@@ -416,6 +417,11 @@ describe("MatiereDetailPage — ce que ZETIS a pour la matière", () => {
   it("ne nomme JAMAIS « carte » deux destinations différentes", async () => {
     // 🔴 TEST-VERROU né d'un signalement du user. La mindmap et la révision SRS sont deux
     // surfaces distinctes ; les appeler pareil fait disparaître l'une des deux à la lecture.
+    //
+    // ⚠️ Il ne couvre que CETTE bande. La même collision vivait dans `ACTION_UI` — la table
+    // partagée par le panneau de notion, la Galaxy et le chat — sans qu'aucune assertion d'ici
+    // ne puisse la voir. Elle y a été levée le 2026-08-12, et son propre verrou vit désormais
+    // sur la table : `lib/notionActionUi.test.ts`.
     renderPage();
     const mindmap = await screen.findByLabelText(/mindmap en SVT/);
     expect(mindmap.getAttribute("href")).toContain("/mindmaps/");

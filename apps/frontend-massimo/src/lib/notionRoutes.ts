@@ -197,8 +197,16 @@ export function agendaCourseRoute(item: {
  *
  *  `quiz` et `revision` n'ont AUCUN identifiant par notion (hors v1 ADR-0027, cibles
  *  `location.state`) : ils ouvrent la surface MATIÈRE. Les libellés d'`ACTION_UI` (« Me tester »,
- *  « Réviser mes cartes ») promettent pourtant la notion. On ne touche pas `ACTION_UI` — il est
- *  partagé avec la Galaxy et le chat — on ajoute la précision là où on la rend. */
+ *  « Réviser mes cartes ») promettent pourtant la notion. La précision se pose donc ICI, là où on
+ *  la rend, et pas dans `ACTION_UI`.
+ *
+ *  ⚠️ **Ce que cette règle interdit, et ce qu'elle n'interdit pas.** Elle disait « on ne touche pas
+ *  `ACTION_UI` » ; c'était trop large. Ce qui n'a rien à faire dans une table partagée par trois
+ *  surfaces, c'est un texte qui n'est vrai que sur l'une d'elles — la portée est justement de
+ *  celles-là. Un **renommage**, lui, s'applique partout à l'identique : c'est l'usage même d'une
+ *  source unique. `mindmap` y a été renommé le 2026-08-12 (« Reconstruire la carte » →
+ *  « Reconstruire la mindmap ») pour lever une collision de vocabulaire, sur les cinq surfaces à
+ *  la fois — et c'est bien ainsi. */
 export const SCOPE_NOTE: Partial<Record<GalaxyActionKind, string>> = {
   revision: "toute la matière",
   quiz: "toute la matière",

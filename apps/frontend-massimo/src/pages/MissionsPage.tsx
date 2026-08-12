@@ -24,15 +24,23 @@ type Ui = ReturnType<typeof useMissions>;
 const bySort = (a: MissionStep, b: MissionStep) => a.sort_order - b.sort_order;
 
 // Vocabulaire visuel des étapes typées (spec + mindmap 🗺).
-const STEP_META: Record<string, { icon: string; label: string; action: string; sub: string }> = {
-  lesson: { icon: "📘", label: "Lire", action: "Lire la leçon", sub: "la leçon" },
-  eli5: { icon: "💡", label: "Découvrir", action: "Découvrir avec ZETIS", sub: "ZETIS t'explique" },
-  vocal_explain: { icon: "🎙", label: "Verbaliser", action: "Expliquer à ZETIS", sub: "avec tes mots" },
-  quiz: { icon: "❓", label: "Mini-quiz", action: "Faire le mini-quiz", sub: "quelques questions" },
-  mindmap: { icon: "🗺", label: "Reconstruire", action: "Reconstruire la carte", sub: "de mémoire" },
+//
+// ⚠️ Table DISTINCTE d'`ACTION_UI` (`lib/notionActionUi.ts`), et elle le reste : celle-ci habille
+// les étapes d'une mission, celle-là les activités d'une notion. Deux surfaces, deux vocabulaires.
+//
+// Un champ `action` y a vécu jusqu'au 2026-08-12 sans jamais être rendu — seuls `icon`, `label` et
+// `sub` atteignent le DOM. Il portait « Reconstruire la carte », la chaîne exacte dont on levait la
+// collision dans `ACTION_UI` : un mot mort, invisible à l'écran, qui aurait fait mentir toute
+// recherche future sur le sujet. Supprimé plutôt que renommé.
+const STEP_META: Record<string, { icon: string; label: string; sub: string }> = {
+  lesson: { icon: "📘", label: "Lire", sub: "la leçon" },
+  eli5: { icon: "💡", label: "Découvrir", sub: "ZETIS t'explique" },
+  vocal_explain: { icon: "🎙", label: "Verbaliser", sub: "avec tes mots" },
+  quiz: { icon: "❓", label: "Mini-quiz", sub: "quelques questions" },
+  mindmap: { icon: "🗺", label: "Reconstruire", sub: "de mémoire" },
 };
 function stepMeta(type: string) {
-  return STEP_META[type] ?? { icon: "•", label: "Étape", action: "Continuer", sub: "" };
+  return STEP_META[type] ?? { icon: "•", label: "Étape", sub: "" };
 }
 
 // mission_type → pastille enfant (jamais le jargon de source). EXPORTÉ pour son test-verrou :
