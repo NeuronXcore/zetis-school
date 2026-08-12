@@ -6,83 +6,77 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — le paquet partagé cesse d'être un angle mort (PR #119, squash `1c1885e`)
+### ✅ CHANTIER COMPLET, NON POUSSÉ — les dépréciations Starlette sont levées (`fix/deprecations-starlette`)
 
-**Base `f36f663`** (le lot ADR du cadrage, poussé sur `main` **avant** la branche — l'ordre compte,
-sinon la PR embarque l'ADR dans son diff). **Branche `feat/tests-packages-ui` supprimée** (locale
-**et** serveur), `main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le
-2026-08-12, étape 4bis faite dans la foulée du merge.
+**Base `cde5ca4`.** Un seul commit — lire `git log --oneline main..HEAD`. **Rien n'est poussé**,
+aucune PR ouverte.
 
-Aucune migration, aucune route, aucun changement de comportement pour Massimo ni pour Papa — **ce
-chantier ne livre aucune fonctionnalité**, il paie une dette. `CHANGELOG.md` **0.80.0** ·
-`TROUBLESHOOTING.md` une section, cinq sous-sections.
+🔴 **Ce chantier n'a PAS d'ADR, et c'est délibéré.** Correction mécanique d'un écart avec une
+bibliothèque : aucune décision produit n'a été prise, rien à figer. **Le prochain élagage ne doit
+donc pas en chercher un** — le contrôle n° 1 du §1bis de `/cloture` tomberait à vide et bloquerait
+pour rien.
 
-> 🔴 **Le piège de `git branch -r` s'est rejoué pour la TROISIÈME fois**, sur trois merges
-> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/feat/tests-packages-ui` ;
-> `git ls-remote --heads origin` rendait vide. **Ce n'est pas un accident, c'est le comportement
-> normal** : `branch -r` lit les références de suivi locales, qui ne bougent qu'au `fetch`.
-> Le réflexe est désormais acquis — mais il doit le rester : sans lui, `MEMORY.md` annoncerait
-> une branche vivante qui n'existe plus, et la session suivante la chercherait.
+**3 fichiers, backend seulement.** Aucune migration, aucune route, **aucun changement de
+comportement** pour Massimo ni pour Papa : les valeurs HTTP sont identiques (422 reste 422).
 
-**Pourquoi ce chantier.** Le 2026-08-12, une **zone morte temporelle** dans `MindmapWorkspace` —
-un `useEffect` déclaré avant le `useState` qu'il lit dans ses dépendances — a rendu la mindmap
-**totalement inmontable**, écran vide. `tsc -b` était **vert** (une TDZ est une erreur d'exécution)
-et **668 tests Massimo + 814 Papa étaient VERTS**, parce qu'aucun ne montait ce composant.
+**Ce qui a été livré :**
 
-**Ce qui a été livré** : `packages/ui` a son runner (`vite.config.ts` recopié des apps, scripts,
-8 devDependencies), un `setup.ts` à deux polyfills, et **28 composants montés** dans
-`src/monte.test.tsx`.
+1. `HTTP_422_UNPROCESSABLE_ENTITY` → `HTTP_422_UNPROCESSABLE_CONTENT` dans `agenda/service.py`
+   (2 lignes). Le plancher `starlette>=0.48` du `pyproject.toml` avait été posé **précisément** pour
+   que ces noms existent ; le renommage n'avait jamais suivi.
+2. `httpx2>=2.10` dans l'extra `dev` : depuis starlette 1.3, `TestClient` hérite de la classe
+   `Client` de **httpx 2.x**, publiée sous ce nom-là pour cohabiter avec `httpx`. Vérifié après
+   coup : `TestClient.__mro__[1]` est bien `httpx2.Client`.
+3. `filterwarnings = ["error"]` dans `[tool.pytest.ini_options]`.
 
-### 🔴 LA CONTRE-ÉPREUVE A RÉUSSI — c'est le seul résultat qui compte
+### 🔴 CE QUE LA SORTIE DES TESTS CACHAIT — la leçon du chantier
 
-Sabotage joué : la déclaration de `layout` remise **après** l'effet qui la lit, soit la TDZ
-**exacte** du chantier précédent.
+Le code portait **deux** occurrences de la constante dépréciée, et pytest signalait **deux**
+avertissements. La correspondance était trompeuse : les deux avertissements venaient de la **même**
+ligne (508), touchée par deux tests différents. **La ligne 505 (« Leçon inconnue ») n'émettait
+rien** — aucun test ne couvre cette branche.
 
-```
-FAIL  MindmapWorkspace se monte sans jeter
-ReferenceError: Cannot access 'layout' before initialization
-```
-
-**Un seul test rouge sur 28**, et il désigne le bon composant. Restauration vérifiée **deux fois** :
-`diff` avec la sauvegarde identique, et `git diff` sur `MindmapWorkspace.tsx` **vide**.
-
-Sans cette contre-épreuve, ce chantier n'aurait produit qu'un test qui *se sent* utile — motif payé
-quatre fois par ce dépôt.
+Elle a été trouvée en cherchant par `grep` les **quatre** constantes dépréciées de starlette, pas en
+suivant la sortie de pytest. **La liste des avertissements n'est pas la liste des défauts** : elle
+n'en montre que la part exercée. Sans ce détour, une ligne dépréciée serait restée, et aurait cassé
+le jour où starlette retire le repli.
 
 ### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Le bloc `test` de `packages/ui` est RECOPIÉ de celui des apps, pas factorisé.** Une config
-   partagée à la racine a été écartée (`CLAUDE.md` n° 7). **À rouvrir le jour où les trois
-   divergent** — pas avant.
-2. 🔴 **Le test ne vérifie qu'UNE chose : ça se monte, ou ça ne se monte pas.** Pas de contenu, pas
-   de comportement. C'est délibérément grossier, et c'est ce qui attrape une TDZ — un test qui
-   vérifierait qu'une page « affiche un titre » n'aurait rien vu.
-3. **Le `setup.ts` de `packages/ui` DIVERGE volontairement de celui des apps.** Ne pas « aligner les
-   trois » : la divergence *est* ce qui rend les tests possibles.
-4. 🔴 **La liste des polyfills est fermée par une RÈGLE, pas par une énumération** (addendum 3 bis) :
-   *ce que le navigateur fournit, que jsdom n'a pas, et dont l'absence ferait échouer un montage
-   pour une raison étrangère au code testé.* Tout le reste est un **mock**, et un mock n'a rien à
-   faire dans un `setup`.
-5. **Aucun objectif de couverture chiffré.** Écarté fermement : le défaut n'était pas un manque de
-   couverture, c'était un composant qui ne montait pas.
+1. **`httpx` ET `httpx2` cohabitent, et c'est VOULU.** `httpx2` ne sert qu'au `TestClient` ; `httpx`
+   reste celui du code applicatif — les trois providers LLM et `production/failures.py` l'importent,
+   et `test_production_durabilite.py` s'appuie sur ses types d'exception (`httpx.ConnectError`,
+   `httpx.HTTPStatusError`). **Ne pas « unifier »** : deux usages disjoints, aucune raison de bouger
+   ensemble.
+2. **`filterwarnings = ["error"]`, jamais `ignore`.** Les deux gestes sont opposés : `error` fait
+   rougir la suite le jour où une bibliothèque **déprécie**, quand il reste un chemin de sortie ;
+   `ignore` la rend aveugle jusqu'au jour où elle **retire**, où c'est la suite entière qui tombe
+   d'un coup.
+3. 🔴 **Toute exception ajoutée à `filterwarnings` vise un MESSAGE précis, jamais une catégorie**, et
+   porte sa date et son motif. Un `"ignore::DeprecationWarning"` nu rendrait le bloc **pire que son
+   absence** : il muselle tout en se donnant l'air d'une politique. C'est le seul vrai danger de ce
+   réglage — pas le mode strict lui-même.
+4. **`uv pip install`, jamais `uv sync`, sur le venv backend** — voir les réflexes d'outillage.
 
-### 🎯 CE QUE LE READ-BEFORE-CODE A CORRIGÉ DANS L'ADR
+### 🎯 CE QUE LE READ-BEFORE-CODE A CORRIGÉ
 
-- **29 composants exportés, mais aussi 81 fonctions/constantes.** La décision « monter tous les
-  composants exportés » n'en concerne que les premiers — on ne « monte » pas `easeOutCubic`.
-- **`GalaxyCanvas` n'est PAS exporté** par `@zetis/ui/galaxy` : il vit dans le sous-chemin
-  `@zetis/ui/galaxy/canvas` pour tenir Three.js hors du bundle. La décision qui l'excluait visait un
-  composant **hors index**.
-- **`MindmapNode` n'est pas montable seul** — c'est un type de nœud React Flow, il attend le
-  contexte d'un `<ReactFlow>`. Il est exercé **pour de vrai** par le montage de `MindmapWorkspace`.
-- ⚠️ **`matchMedia`** : la Décision 3 disait « `ResizeObserver` et rien d'autre » — **sa lettre était
-  plus étroite que son raisonnement**. Élargie par arbitrage du commanditaire (addendum 3 bis).
+- Starlette 1.3.1 déprécie **quatre** constantes, pas une : `HTTP_413_REQUEST_ENTITY_TOO_LARGE`,
+  `HTTP_414_REQUEST_URI_TOO_LONG`, `HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE` et celle du jour. Les
+  trois premières ne sont utilisées **nulle part** — vérifié par `grep`, pas supposé.
+- **`fastapi.status` n'existe pas** comme module importable ; le code fait `from fastapi import
+  status`, et ces constantes sont celles de starlette, que fastapi ré-exporte.
 
 ### 🧾 DETTES OUVERTES
 
-- ✅ **`packages/ui` n'a plus zéro test** — c'est ce chantier. Mais ⚠️ **28 tests de MONTAGE ne sont
-  pas une suite** : ils ne disent rien de ce que les composants font. C'est leur nature, pas une
-  étape vers autre chose.
+- ⚠️ **NOUVELLE — `filterwarnings = ["error"]` est gratuit AUJOURD'HUI, sur ce jeu de dépendances.**
+  Mesuré : les 1212 tests passaient déjà sous `-W error` **avant** qu'on pose le réglage. Le prochain
+  `uv lock` qui monte un paquet peut le rendre payant, en faisant rougir la suite pour un
+  avertissement qui n'est pas le nôtre. La parade est la décision active n° 3, **pas** un `ignore`
+  large.
+- ⚠️ **NOUVELLE — la branche « leçon inconnue » de `_check_lesson_belongs`**
+  (`agenda/service.py:505`) n'est couverte par **aucun** test. Découverte de biais, pas cherchée.
+- ⚠️ **NOUVELLE, mineure — `httpx>=0.27` figure DEUX fois** dans le `pyproject` (dépendance
+  principale **et** extra `dev`). Redondant, sans effet. Laissé sciemment : hors périmètre.
 - 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des données
   de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et l'Échap en
   capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem pour
@@ -95,6 +89,8 @@ quatre fois par ce dépôt.
   Décision **produit** (montrer un faux nombre, ou rien), pas un nettoyage.
 - ⚠️ **En Reconstruire sur téléphone, ça reste serré** : la banque prend 278 px, le canvas 388 même
   en plein écran. Mesuré, pas jugé.
+- ⚠️ **28 tests de MONTAGE ne sont pas une suite** : ils ne disent rien de ce que les composants
+  font. C'est leur nature, pas une étape vers autre chose.
 - **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`, conditionnel à
   une réponse de ZETIS. Vérification **non jouée**.
 - ⚠️ **`cursor: default` sur les 29 boutons** (Tailwind v4) — toujours ouvert.
@@ -107,29 +103,40 @@ quatre fois par ce dépôt.
 
 ### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #119, squash `1c1885e`), branche
-supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`,
-arbre propre, chaque fait revérifié par commande.
+**Pousser la branche et ouvrir la PR.** Le chantier est COMPLET et commité ; rien n'est poussé.
 
-**▶ CE QUI ATTEND, par ordre de coût pour Massimo :**
+```
+git push -u origin fix/deprecations-starlette
+gh pr create --fill
+```
 
-1. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les
-   jours. Vu au simulateur le 2026-08-12, **jamais cadré**.
-2. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au
-   `BACKLOG.md`, avec sa piste : le **même** panneau tient parfaitement sur la page matière
-   (`NotionPanel`), comparer les deux devrait donner la cause.
-3. 🔴 **Le plein écran depuis la modale de mission n'a jamais été exercé** — aucune mission des
-   données de dev ne porte d'étape `mindmap`. Il faudrait en fabriquer une côté Papa.
+Puis merge en **squash**, puis **étape 4bis** (`WORKFLOW.md` §5) — cette section deviendra fausse dès
+le merge.
+
+**▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
+
+1. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les jours.
+   Vu au simulateur le 2026-08-12, **jamais cadré**.
+2. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au `BACKLOG.md`,
+   avec sa piste : le **même** panneau tient parfaitement sur la page matière (`NotionPanel`).
+3. 🔴 **Le plein écran depuis la modale de mission n'a jamais été exercé** — il faudrait fabriquer
+   une mission à étape `mindmap` côté Papa.
 4. Le reste est dans « DETTES OUVERTES » ci-dessus.
 
-### 🧰 DEUX RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
+### 🧰 TROIS RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
 
+- 🔴 **`uv sync` CASSERAIT le venv backend.** Il aurait retiré `faster-whisper`, `ctranslate2`,
+  `piper-tts` et `onnxruntime` — les extras `stt`/`tts`, non sélectionnés — donc la **dictée ELI5**
+  et la **voix des capsules**. Pour ajouter un paquet : `VIRTUAL_ENV=.venv uv pip install <p>`
+  (additif), puis `uv lock` (n'écrit que le lockfile, ne touche pas le venv).
 - ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
-  `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. **Le piège s'est
-  rejoué TROIS fois, sur trois merges consécutifs** — ce n'est pas un accident, c'est le
-  comportement normal de la commande.
-- ⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie **rien** (il rend un message d'aide et
-  sort en 0). Utiliser `./node_modules/.bin/tsc -b` **depuis chaque app**.
+  `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. Le piège s'est
+  rejoué **trois fois**, sur trois merges consécutifs — c'est le comportement normal de la commande.
+  ⚠️ **Même famille : `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en squash**
+  (le squash crée un commit neuf), et déclare donc « non fusionnées » toutes les branches déjà
+  mergées. Passer par `gh pr list --head <branche> --state all`.
+- ⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie **rien** (il rend un message d'aide et sort
+  en 0). Utiliser `./node_modules/.bin/tsc -b` **depuis chaque app**.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
