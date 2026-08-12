@@ -55,3 +55,63 @@
     transform: translateY(-16px) scale(0.96);
   }
 }
+
+/* ── Contrôles de zoom de React Flow (ADR-0052) ──────────────────────────────────────────────
+   Trouvés à la relecture visuelle du 2026-08-12, à l'œil du commanditaire : « on ne voit pas
+   bien sur le bandeau blanc ». Mesuré : fond des boutons `rgb(254,254,254)`, remplissage des
+   icônes `rgb(232,236,248)` — **blanc sur blanc, contraste ≈ 1,1 : 1**, donc invisible.
+
+   Deux causes qui se rencontrent : la feuille de xyflow habille ses contrôles pour un thème
+   CLAIR (fond blanc), et l'app impose sa couleur de texte, claire elle aussi, que le
+   `fill: currentColor` des SVG hérite. Aucune des deux n'a tort seule.
+
+   ⚠️ Et la cible faisait **26 px**, là où la spec du dépôt en exige **44** — c'est au doigt que
+   Massimo zoome sur sa mindmap. Le défaut de contraste cachait un défaut de taille. */
+/* Le cadre reprend l'idiome de contrôle FLOTTANT déjà posé par `CloseFullscreenButton`
+   (`border-white/15`, fond sombre translucide, `backdrop-blur`) : un bloc qui se détache du
+   canvas sans le masquer, et qui se lit que Massimo ait tourné sa carte vers une zone claire
+   ou sombre. On ne réinvente pas un troisième habillage de bouton flottant. */
+.react-flow__controls {
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(10px);
+}
+
+.react-flow__controls-button {
+  width: 44px;
+  height: 44px;
+  background: rgb(15 23 42 / 70%);
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  color: #e8ecf8;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button:hover {
+  background: rgb(34 211 238 / 18%);
+  color: #a5f3fc;
+}
+
+.react-flow__controls-button:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__controls-button {
+    transition: none;
+  }
+}
+
+/* Les icônes de xyflow sont des `<svg>` à `fill: currentColor` : c'est la couleur ci-dessus
+   qu'elles reprennent, et non plus celle de l'app. */
+.react-flow__controls-button svg {
+  fill: currentColor;
+  max-width: 18px;
+  max-height: 18px;
+}

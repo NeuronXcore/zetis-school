@@ -3,7 +3,7 @@ import type { GalaxyFullGraph, GalaxyTimeline } from "@zetis/types";
 import { hasWebGL } from "@zetis/ui/galaxy";
 import { fetchFullGraph, fetchGalaxyTimelineWithSkills } from "../../lib/galaxy";
 import { useGalaxyGrowth } from "../../hooks/useGalaxyGrowth";
-import { CloseFullscreenButton } from "../galaxy/CloseFullscreenButton";
+import { CloseFullscreenButton } from "@zetis/ui";
 import { ProgressSparkline } from "../galaxy/ProgressSparkline";
 
 // « Revoir ma galaxie grandir » — la galaxie se CONSTRUIT depuis `root` (ADR-0029 et son

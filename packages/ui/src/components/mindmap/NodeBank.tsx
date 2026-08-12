@@ -26,11 +26,22 @@ export function NodeBank({
   failedAttempts: number;
 }) {
   return (
-    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+    // La banque vit AU-DESSUS du canvas dans une colonne flex (ADR-0052).
+    //
+    // ⚠️ **`max-h-[40%]` n'est pas un réglage esthétique, c'est ce qui fait tenir la Décision 2.**
+    // Mesuré sur iPhone : une passe à quatre étiquettes fait passer les puces à la ligne et la
+    // banque à **278 px** — un tiers de l'écran. Sans plafond, « le canvas prend ce qui reste » ne
+    // lui laisse presque rien. Au-delà, ce sont les PUCES qui défilent, dans leur propre cadre :
+    // un petit défilement à côté du canvas, jamais le défilement de page qui séparait la banque de
+    // ses emplacements.
+    //
+    // `shrink-0` retiré à dessein : sous le plafond, la banque garde sa taille naturelle ; c'est
+    // le plafond qui arbitre, pas la compression.
+    <div className="mb-3 flex max-h-[40%] min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-400">
           Glisse chaque étiquette sur son emplacement — <b className="text-cyan-300">ZETIS vérifie
-          tout seul</b> quand la carte est complète.
+          tout seul</b> quand la mindmap est complète.
         </p>
         {failedAttempts > 0 && (
           <span className="rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-semibold text-rose-300">
@@ -38,7 +49,8 @@ export function NodeBank({
           </span>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
+      {/* Ce sont les PUCES qui défilent quand la banque atteint son plafond — jamais la page. */}
+      <div className="flex min-h-0 flex-1 flex-wrap gap-2 overflow-y-auto">
         {chips.map((chip) => {
           const used = usedIds.has(chip.nodeId);
           return (
@@ -61,7 +73,7 @@ export function NodeBank({
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex shrink-0 items-center gap-3">
         {busy && <span className="text-sm text-cyan-300">Vérification…</span>}
         <button
           type="button"

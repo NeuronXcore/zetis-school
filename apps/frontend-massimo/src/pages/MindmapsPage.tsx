@@ -43,7 +43,11 @@ export function MindmapsPage() {
               Mes mindmaps
             </span>
           }
-          subtitle="Vois la carte d'une notion, entraîne-toi à la compléter, puis reconstruis-la."
+          // ⚠️ « mindmap », jamais « carte » (ADR-0052 §5) : le mot « carte » est pris par la
+          // carte de RÉVISION (SRS), et cette page annonçait « 14 cartes » à trois entrées de
+          // sidebar de « Révision · 9+ ». Le même défaut, un cran plus haut, avait fait conclure
+          // au commanditaire qu'il manquait un lien vers les mindmaps.
+          subtitle="Vois la mindmap d'une notion, entraîne-toi à la compléter, puis reconstruis-la."
         />
 
         {error && (
@@ -74,7 +78,7 @@ export function MindmapsPage() {
                 count: s.mindmap_count,
                 hint:
                   s.mindmap_count > 0
-                    ? `${s.mindmap_count} carte${s.mindmap_count > 1 ? "s" : ""}`
+                    ? `${s.mindmap_count} mindmap${s.mindmap_count > 1 ? "s" : ""}`
                     : undefined,
                 dimmed: s.mindmap_count === 0,
                 dimmedHint: "bientôt ✨",

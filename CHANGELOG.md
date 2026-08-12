@@ -1,5 +1,57 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.79.0 — La mindmap prend la place qu'elle demande
+
+**Signalement du commanditaire en usage** : *« faudrait-il un mode plein écran pour éviter de
+scroller en bas à chaque fois ? »* En mode Reconstruire, les étiquettes à glisser vivaient **sous**
+le canvas : **le glisser-déposer traversait la limite de défilement** — une fois en bas,
+l'emplacement où déposer était remonté hors écran. Déplacer la consigne, première idée, n'aurait
+rien corrigé : ce n'est pas la phrase qui manquait, c'est le geste qui était coupé en deux.
+
+**La cause était plus profonde que l'ordre des blocs.** Le canvas se mesurait en `74vh` — contre le
+**viewport** — alors que ce composant vit dans **trois** conteneurs dont aucun ne l'est : la page
+(320 à 463 px de décor au-dessus), la modale de mission et l'aperçu Papa, toutes deux déjà bornées
+et défilantes. Il ne pouvait pas tenir **par construction**. Il remplit désormais son **conteneur**,
+sur une hauteur **mesurée** et posée en `min-height` — jamais en `height`, qui enferme et écrasait
+la banque à 53 px.
+
+**Un plein écran, sur le patron de la galaxie** (overlay CSS + état React, jamais l'API du
+navigateur), dans les **trois** modes. Il double le canvas sur téléphone. La consigne s'y retire —
+c'est du mode d'emploi ; **le sélecteur de présentation reste**, parce que sur un écran portrait
+c'est lui, et non le gabarit, qui rend une carte lisible.
+
+🔴 **La décision du matin a été renversée par les mesures de l'après-midi.** « Banque en haut +
+canvas raccourci » avait été arbitré **contre** le plein écran ; mesuré ensuite, ça tenait sur un
+bureau (588 px de canvas) et **pas sur un iPhone** — décor 463 + banque 278 = 741 sur 844, il
+restait **87 px**. Le plein écran, écarté pour une raison **fausse** (les modales, qui ne posaient
+aucun problème), est redevenu la décision.
+
+**La relecture visuelle, faite écran par écran avec le commanditaire, a trouvé six défauts — dont
+quatre nés de ce chantier, et aucun vu par un test :**
+
+- « OUVRE UNE **CARTE** » sur la liste — **cinquième** occurrence du mot, absente de l'inventaire
+  de l'ADR ;
+- 🔴 **la carte devenue invisible** : `.react-flow { height: 100% }` exige un parent à hauteur
+  définie, et le `flex-1` qui remplaçait le `clamp` n'en est pas une — les nœuds étaient dans le
+  DOM, aux bonnes coordonnées, et rien ne s'affichait ;
+- 🔴 **le plein écran qui ne recadrait pas** — 40 % de remplissage : `fitView` ne joue qu'au
+  montage, et il lui fallait **deux** déclencheurs, le cadre **et** la mise en page elk asynchrone ;
+- 🔴 **un crash** : un effet déclaré avant l'état qu'il lit, zone morte temporelle, **composant
+  mort** — avec **668 tests verts et `tsc` vert**, parce qu'aucun test ne monte ce composant ;
+- 🔴 **deux présentations sur quatre qui débordaient** (124 % et 122 % de la largeur), bloquées au
+  zoom **0,300** : un `minZoom` écrit pour un bureau **empêchait le recadrage** de faire tenir la
+  carte sur un téléphone ;
+- les **contrôles de zoom blancs sur blanc** (contraste 1,1 : 1) et à **26 px** de cible là où la
+  spec en exige 44 — le défaut de contraste cachait le défaut de taille.
+
+**Vérifié sur un iPhone 17 réel**, au simulateur, et pas seulement dans un viewport redimensionné.
+
+**« Carte » cesse aussi de désigner la mindmap** côté Massimo (« 14 mindmaps », « 🧠 Mindmap »,
+« Ouvre une mindmap ») — la PR #117 n'avait levé la collision que dans la table partagée.
+Côté Papa, « Carte mentale » reste : la confusion est un problème du vocabulaire de l'enfant.
+
+**Zéro migration, zéro route, zéro backend.**
+
 ## 0.78.0 — « Carte » ne désigne plus qu'une seule chose
 
 **Aucune migration, aucune route touchée : quatre mots à l'écran.** Mais ces quatre mots ont déjà

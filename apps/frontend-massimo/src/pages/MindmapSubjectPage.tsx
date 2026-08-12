@@ -222,8 +222,10 @@ export function MindmapSubjectPage() {
           </div>
         ) : (
           <>
+            {/* « mindmap », jamais « carte » (ADR-0052 §5). Cet en-tête ne figurait PAS dans
+                l'inventaire de l'ADR — trouvé à la relecture visuelle, le 2026-08-12. */}
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
-              Ouvre une carte
+              Ouvre une mindmap
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {list.map((m, i) => (
@@ -239,7 +241,9 @@ export function MindmapSubjectPage() {
                     </span>
                   )}
                   <span className="font-semibold text-slate-100">{m.title}</span>
-                  <span className="flex items-center gap-2 text-xs text-slate-400">🧠 Carte mentale</span>
+                  {/* « Mindmap », jamais « Carte mentale » (ADR-0052 §5) — le mot « carte » est
+                      pris par la carte de révision (SRS). */}
+                  <span className="flex items-center gap-2 text-xs text-slate-400">🧠 Mindmap</span>
                 </button>
               ))}
             </div>

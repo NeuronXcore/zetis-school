@@ -5599,3 +5599,100 @@ git fetch --prune origin                     # élague la référence locale pé
 l'erreur.** Écrit tel quel, `MEMORY.md` aurait annoncé une branche vivante qui n'existe plus —
 et la session suivante l'aurait cherchée. Même famille que les hash faux du 2026-08-03 : *une case
 cochée ne vaut pas une commande*, mais ici il fallait aller plus loin — **la bonne commande**.
+
+## La mindmap prend la place qu'elle demande (ADR-0052) — 2026-08-12
+
+### 🔴 Une TDZ dans un tableau de dépendances tue le composant — suite VERTE, `tsc` VERT
+
+Un `useEffect(…, [fullscreen, layout])` déclaré **avant** le `const [layout, setLayout] = useState()`
+qu'il référence. Le tableau de dépendances s'évalue **au rendu**, donc dans la zone morte
+temporelle du `const` :
+
+```
+ReferenceError: Cannot access 'layout' before initialization
+```
+
+**Le composant ne monte plus du tout.** Écran vide.
+
+⚠️ **Rien ne l'a vu, et c'est le cœur du piège** :
+
+- `tsc -b` **passe** — une TDZ est une erreur d'**exécution**, pas de typage ;
+- les **668 tests Massimo étaient verts** — parce qu'**aucun ne monte `MindmapWorkspace`** :
+  `packages/ui` n'a **aucun test ni script de test**, et le seul qui l'approche
+  (`MindmapPreviewModal.test.tsx`, Papa) le **mocke**.
+
+**Parade** : déclarer un effet **après** tout état qu'il lit. Et, plus profond : un paquet partagé
+sans aucun test est un angle mort que la suite de l'app ne couvre pas — la trouver a demandé un œil
+humain sur un simulateur.
+
+> ⚠️ **J'ai d'abord diagnostiqué « le tap a raté, la page est défilée »** et poursuivi trois écrans
+> sur cette lecture. C'est la **console du navigateur** qui a donné la vraie cause. Devant un écran
+> vide, lire les erreurs AVANT d'expliquer.
+
+### 🔴 `height: 100%` d'une lib exige un parent à hauteur DÉFINIE — `flex-1` n'en est pas une
+
+En remplaçant `height: clamp(520px, 74vh, 840px)` par `flex-1` sur le conteneur du canvas, la
+mindmap est devenue **invisible**. Les 13 nœuds étaient dans le DOM, aux bonnes coordonnées.
+
+La feuille de xyflow pose `.react-flow { height: 100% }`. Un pourcentage se résout contre une
+hauteur **définie** : l'ancien `clamp` en était une, la hauteur issue de la répartition flex **non**
+(le navigateur la traite comme indéfinie). `.react-flow` retombait à **hauteur 0**, et toute la
+chaîne avec (`renderer`, `pane`, `viewport`, `nodes` : tous à 0).
+
+**Parade** : envelopper la lib d'un `absolute inset-0` dans le conteneur `relative`. `inset-0` tire
+une hauteur définie du bloc conteneur, ce que `flex-1` seul ne fait pas.
+
+⚠️ **J'ai mesuré le CONTENEUR (748 px) et jamais le `.react-flow` à l'intérieur (0 px).** La
+doctrine « mesurer dans le DOM » appliquée au mauvais élément : **mesurer la boîte ne dit rien de ce
+qu'elle contient**. Devant un cadre correct et vide, descendre la chaîne des ancêtres.
+
+### 🔴 `minZoom` écrit pour un bureau EMPÊCHE `fitView` de faire tenir la carte sur un téléphone
+
+À 402 × 874 en plein écran, deux présentations sur quatre **débordaient** : « Vertical » à **124 %**
+de la largeur du cadre, « Équilibrée » à **122 %** — les deux **exactement au zoom 0,300**,
+c'est-à-dire collées à `minZoom={0.3}`. `fitView` dézoomait autant qu'il pouvait et **butait sur la
+borne**.
+
+**Parade** : `minZoom={0.12}`. Les deux se recadrent alors à ~0,20 et tiennent.
+
+Le signe qui l'identifie : **un zoom rigoureusement égal au `minZoom`** après un `fitView`. Ce n'est
+pas le recadrage qui échoue, c'est une borne qui le bâillonne.
+
+> Une carte trop grande pour un téléphone y restera petite — limite du support. Mais **petite et
+> entière** vaut mieux que **grande et coupée** : un graphe dont on ne voit pas les bords ne dit pas
+> qu'il continue, et l'enfant croit avoir tout vu.
+
+### ⚠️ `fitView` a DEUX déclencheurs, et le second est asynchrone
+
+`fitView` de React Flow ne joue qu'au **montage**. Le rejouer demande de couvrir :
+
+1. le **cadre** qui change de taille (passage en plein écran) ;
+2. la **mise en page** qui change — `computeLayout` (elk) est **asynchrone**, changer de
+   présentation repositionne les nœuds bien après le rendu.
+
+Avec le seul (1), passer en « Vertical » puis en plein écran laissait le graphe déborder. Avec le
+seul (2), il restait petit dans un coin.
+
+**Parade** : `[fullscreen, layout]`, et **deux `requestAnimationFrame` imbriqués** — la première
+image laisse le navigateur poser le cadre, la seconde mesure une géométrie stable. Un `setTimeout`
+parierait sur une durée ; deux rAF attendent l'événement.
+
+⚠️ `layout` et **non** `rfNodes` : re-cadrer à chaque déplacement de nœud annulerait le geste de
+l'enfant qui ré-agence sa carte à la main.
+
+⚠️ L'instance vient de `onInit`, **pas** de `useReactFlow()` : ce hook exige d'être appelé **sous**
+le `ReactFlowProvider`, et le composant le rend lui-même.
+
+### ⚠️ Deux feuilles de style qui ont chacune raison peuvent produire du blanc sur blanc
+
+Les contrôles de zoom étaient **invisibles** : fond `rgb(254,254,254)`, icônes `rgb(232,236,248)` —
+contraste **≈ 1,1 : 1**. xyflow habille ses contrôles pour un thème **clair** ; l'app impose sa
+couleur de texte, **claire** aussi, que le `fill: currentColor` des SVG hérite. **Aucune des deux
+n'a tort seule.**
+
+⚠️ **Et le défaut de contraste en cachait un plus grave** : la cible faisait **26 px** là où la spec
+du dépôt exige **44**. Tant qu'on ne voit pas un bouton, on ne voit pas qu'il est trop petit.
+
+**Parade** : styler explicitement `.react-flow__controls` dans `mindmap.css`, en reprenant l'idiome
+de contrôle flottant **déjà posé** par `CloseFullscreenButton` (`border-white/15`, fond sombre
+translucide, `backdrop-blur`) plutôt que d'en inventer un troisième. Contraste obtenu : **15,12 : 1**.

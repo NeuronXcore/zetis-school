@@ -10,6 +10,7 @@ import {
   type Edge,
   type Node,
   type NodeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -21,6 +22,7 @@ import { MindmapNode, type MindmapNodeData, type MindmapNodeState } from "./Mind
 import { LayoutSelector } from "./LayoutSelector";
 import { ModeSegmented, type MindmapMode } from "./ModeSegmented";
 import { NodeBank, type BankChip } from "./NodeBank";
+import { CloseFullscreenButton } from "../close-fullscreen-button";
 import { CENTER_ID, computeLayout, type LayoutResult, type NodeBox } from "./mindmapLayout";
 import {
   childrenOf,
@@ -48,6 +50,26 @@ import "./mindmap.css";
 // Reconstruire = GLISSER-DÉPOSER (pointeur → mouse ET touch) : on tire une étiquette de la banque
 // sur un emplacement. Le drag démarre sur une puce (hors canvas) → il n'entre pas en conflit avec
 // le pan de React Flow (qui ne démarre que sur un pointerdown DANS le canvas).
+//
+// ── GABARIT VERTICAL (ADR-0052) ──────────────────────────────────────────────────────────────
+// ① barre des modes · ② consigne + passes · ③ LA BANQUE (mode build) · ④ le canvas.
+//
+// 🔴 **La banque est AU-DESSUS du canvas, et le canvas ne se mesure JAMAIS en `vh`.**
+//
+// Jusqu'au 2026-08-12, la banque était SOUS un canvas en `clamp(520px, 74vh, 840px)` : les puces
+// à glisser se trouvaient donc sous la ligne de flottaison, et **le glisser-déposer traversait la
+// limite de défilement** — une fois en bas, l'emplacement où déposer était remonté hors écran.
+//
+// Le `vh` était la cause, pas un réglage : il mesure le VIEWPORT, alors que ce composant vit dans
+// trois conteneurs dont aucun ne l'est — la page (320 à 463 px de décor au-dessus), la modale de
+// mission et la modale d'aperçu Papa (bornées à `max-h-[calc(100vh-4rem)]`, corps défilant).
+// Il ne pouvait pas tenir **par construction**. Mesuré sur iPhone (390 × 844) : décor 463 +
+// banque 278 = 741 sur 844 — il restait **87 px** pour la carte.
+//
+// La hauteur est donc **mesurée**, pas devinée (`useAvailableHeight`), et le canvas prend ce qui
+// reste (`flex-1` + `min-h-0`). ⚠️ Ne pas y remettre de constante : la galaxie en code une en dur
+// (`GalaxyPage` : `112`), c'est l'anti-modèle. Et la banque n'a PAS de hauteur fixe — 154 px à
+// vide, 278 px mesurés sur téléphone.
 
 const nodeTypes = { mm: MindmapNode };
 
@@ -61,6 +83,52 @@ export type MindmapEvaluator = (
   placements: MindmapNodePlacement[],
   failedAttempts: number,
 ) => Promise<MindmapAttemptResult>;
+
+/** Marge sous le composant, pour ne pas coller au bord bas de la fenêtre. */
+const MARGE_BASSE = 16;
+
+/** Hauteur disponible sous le composant, **mesurée** — jamais devinée.
+ *
+ *  On lit sa position dans la fenêtre et on lui donne tout ce qui reste dessous. C'est ce qui
+ *  remplace le `74vh` : la même formule vaut pour la pleine page (où 320 à 463 px de décor la
+ *  précèdent) et pour les deux modales (dont le corps est déjà borné et défile).
+ *
+ *  🔴 **Elle se pose en `min-height`, JAMAIS en `height`** — et la nuance décide de tout :
+ *
+ *  - `height` **enferme**. Essayé, mesuré à 390 × 844 : la colonne était forcée à 528 px, la barre
+ *    des modes et la consigne en prenaient 168, le canvas gardait son plancher de 220 — et la
+ *    banque était **écrasée à 53 px**, une fente où les puces défilaient une par une.
+ *  - `min-height` **offre**. Quand ça tient, `flex-1` étend le canvas jusqu'au bas de l'écran ;
+ *    quand ça ne tient pas, le contenu garde sa taille et la page défile un peu. La banque étant
+ *    **au-dessus**, on descend alors vers le canvas *dans le sens du glisser* — l'inverse exact du
+ *    défaut d'origine.
+ *
+ *  Sur un téléphone, la place n'existe pas (463 px de décor sur 844) : la vraie réponse y est le
+ *  **plein écran**, et c'est ce que dit l'ADR-0052. Ce hook ne prétend pas la créer.
+ *
+ *  ⚠️ On mesure au montage et au **redimensionnement**, pas au défilement : recalculer pendant que
+ *  Massimo fait défiler ferait respirer la carte sous ses doigts. */
+function useAvailableHeight(
+  ref: React.RefObject<HTMLDivElement | null>,
+  actif: boolean,
+): number | null {
+  const [hauteur, setHauteur] = useState<number | null>(null);
+  useEffect(() => {
+    if (!actif) {
+      setHauteur(null);
+      return;
+    }
+    const mesurer = () => {
+      const el = ref.current;
+      if (!el) return;
+      setHauteur(window.innerHeight - el.getBoundingClientRect().top - MARGE_BASSE);
+    };
+    mesurer();
+    window.addEventListener("resize", mesurer);
+    return () => window.removeEventListener("resize", mesurer);
+  }, [ref, actif]);
+  return hauteur;
+}
 
 const HINTS: Record<MindmapMode, string> = {
   view: "Déplace un nœud pour ré-agencer la carte · glisse le fond pour te déplacer · molette pour zoomer · clique une branche pour la replier/déplier.",
@@ -99,8 +167,68 @@ export function MindmapWorkspace({
 }) {
   const [kind, setKind] = useState<LayoutKind>(() => defaultLayout(mm));
   const setMode = onModeChange;
+
+  // Plein écran (ADR-0052) — même mécanique que la galaxie : un état React et un overlay CSS,
+  // JAMAIS `requestFullscreen` (elle exige un geste utilisateur, sort au changement d'onglet et se
+  // comporte mal en iframe).
+  //
+  // ⚠️ Cet état ne passe PAS par `resetForMode` : changer de mode en plein écran ne doit pas en
+  // faire sortir — c'est même le parcours normal (mémoriser en grand, puis reconstruire en grand).
+  const [fullscreen, setFullscreen] = useState(false);
+  const racineRef = useRef<HTMLDivElement>(null);
+  // Hors plein écran, la hauteur se mesure ; en plein écran, l'overlay la donne (`inset-0`).
+  const hauteurDisponible = useAvailableHeight(racineRef, !fullscreen);
+
+  // Résultat de la mise en page elk (asynchrone). ⚠️ Déclaré ICI, avant l'effet de recadrage qui
+  // en dépend — voir l'avertissement sur la zone morte temporelle plus bas.
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [layoutError, setLayoutError] = useState(false);
+
+  // 🔴 Recadrer la carte quand le cadre change de taille — sans ça, le plein écran DONNE de la
+  // place et ne s'en sert pas. `fitView` ne s'exécute qu'au MONTAGE de React Flow : en passant en
+  // grand, le conteneur triplait de surface et le zoom restait celui d'avant. Mesuré à la
+  // relecture du 2026-08-12 : le graphe n'occupait plus que **40 % en largeur et 39 % en hauteur**
+  // du cadre qu'on venait de lui offrir.
+  //
+  // L'instance est capturée par `onInit` plutôt que par `useReactFlow()` : ce hook exige d'être
+  // appelé SOUS le `ReactFlowProvider`, et ce composant le rend lui-même — il est donc au-dessus.
+  //
+  // 🔴 **DEUX déclencheurs, pas un** — et le second m'a échappé deux fois.
+  //
+  // `fitView` de React Flow ne joue qu'au MONTAGE. Il faut donc le rejouer quand :
+  //   1. le CADRE change de taille — c'est le passage en plein écran ;
+  //   2. la MISE EN PAGE change — `computeLayout` (elk) est **asynchrone**, et changer de
+  //      présentation (Radial → Vertical…) repositionne tous les nœuds bien après le rendu.
+  //
+  // Vérifié au simulateur iPhone le 2026-08-12 : avec le seul déclencheur (1), passer en
+  // « Vertical » puis en plein écran laissait le graphe **déborder des deux côtés du cadre**.
+  // ⚠️ Et l'inverse est vrai aussi : sans (1), le graphe restait petit dans un coin.
+  //
+  // ⚠️ **DEUX images d'animation**, pas une : la première laisse le navigateur poser le nouveau
+  // cadre, la seconde mesure une géométrie enfin stable. Un `setTimeout` parierait sur une durée ;
+  // deux rAF attendent l'événement.
+  //
+  // ⚠️ `layout` et non `rfNodes` : re-cadrer à chaque déplacement de nœud annulerait le geste de
+  // Massimo qui ré-agence sa mindmap à la main.
+  //
+  // 🔴 **L'effet est déclaré APRÈS `layout`, et ce n'est pas cosmétique.** Placé avant, son
+  // tableau de dépendances lit `layout` dans la zone morte temporelle du `const` :
+  // `ReferenceError: Cannot access 'layout' before initialization`, et **le composant ne monte
+  // plus du tout** — écran vide. C'est arrivé le 2026-08-12, et rien ne l'a vu : `tsc -b` passait
+  // (la TDZ est une erreur d'exécution), et les 668 tests Massimo étaient verts **parce
+  // qu'aucun ne monte ce composant** — `packages/ui` n'a aucun test, et le seul test qui
+  // l'approche (`MindmapPreviewModal.test.tsx`, Papa) le **mocke**.
+  const flowRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => flowRef.current?.fitView({ padding: 0.2 }));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [fullscreen, layout]);
 
   // État par mode.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -226,6 +354,29 @@ export function MindmapWorkspace({
     cheerTimer.current = window.setTimeout(() => setCheer(null), 1100);
   }, []);
   useEffect(() => () => void (cheerTimer.current && window.clearTimeout(cheerTimer.current)), []);
+
+  // Échap sort du plein écran, et le corps ne défile pas derrière l'overlay (patron `GalaxyPage`).
+  //
+  // ⚠️ `stopPropagation` : ouvert DEPUIS une modale (mission, aperçu Papa), Échap doit refermer le
+  // plein écran SANS refermer la modale — sinon Massimo perdrait sa mission en voulant réduire sa
+  // carte. On restaure aussi l'`overflow` précédent plutôt que de forcer `""` : la modale l'avait
+  // déjà mis à `hidden`, et l'écraser rendrait le défilement à la page derrière elle.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setFullscreen(false);
+      }
+    };
+    const precedent = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.body.style.overflow = precedent;
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [fullscreen]);
 
   const dropAt = useCallback(
     (slotId: string, chipNodeId: string) => {
@@ -548,27 +699,78 @@ export function MindmapWorkspace({
   );
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+    <div
+      ref={racineRef}
+      // Colonne flex BORNÉE : c'est elle qui donne sa hauteur au canvas (`flex-1` + `min-h-0`
+      // plus bas), à la place du `74vh` d'avant. Hors plein écran la hauteur est mesurée ; en
+      // plein écran, l'overlay `inset-0` la fournit.
+      //
+      // ⚠️ `z-50` passe AU-DESSUS d'`ActivityModal` (`z-40`) : ouvert depuis une modale de mission
+      // ou l'aperçu Papa, le plein écran doit la recouvrir, pas se glisser dessous.
+      className={
+        fullscreen
+          ? "fixed inset-0 z-50 flex flex-col gap-2 bg-zetis-bg p-3 sm:p-4"
+          : "flex flex-col"
+      }
+      style={fullscreen ? undefined : { minHeight: hauteurDisponible ?? undefined }}
+      role={fullscreen ? "dialog" : undefined}
+      aria-modal={fullscreen ? true : undefined}
+      aria-label={fullscreen ? `${mm.center} en plein écran` : undefined}
+    >
+      {fullscreen && <CloseFullscreenButton onClick={() => setFullscreen(false)} />}
+      {/* `shrink-0` sur les trois blocs fixes de la colonne (barre, consigne, banque) : seul le
+          canvas doit absorber la variation de hauteur. */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-3 pr-14">
         <ModeSegmented value={mode} onChange={setMode} />
-        <div className="ml-auto flex items-center gap-2">
-          {hasArrangement && (
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* UNE seule façon d'entrer, UNE seule d'en sortir. Le bouton n'existe qu'en entrée : en
+              plein écran, c'est la croix ✕ (patron de la galaxie, cible 44 px) qui fait sortir, et
+              Échap avec elle. Deux sorties côte à côte encombraient une barre déjà chargée sans
+              rien apprendre à Massimo.
+
+              Disponible dans les TROIS modes : une mindmap large se lit mal partout, pas seulement
+              quand on la reconstruit. */}
+          {!fullscreen && (
             <button
               type="button"
-              onClick={resetArrangement}
-              title="Revenir à la disposition automatique"
+              onClick={() => setFullscreen(true)}
+              title="Voir la mindmap en grand"
               className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:border-white/25 hover:text-slate-100"
             >
-              ↺ Disposition
+              ⛶ Plein écran
             </button>
           )}
-          <LayoutSelector value={kind} onChange={setKind} />
+          {/* 🔴 **Le sélecteur de présentation reste visible en plein écran, y compris sur
+              téléphone** — arbitrage du commanditaire, 2026-08-12, contre ma première version.
+              Je l'avais masqué sous 500 px pour rendre de la place à la carte ; mesuré ensuite :
+              sur un iPhone en portrait, une mindmap « Horizontal » tombe à un **zoom de 0,32**,
+              nœuds minuscules, parce qu'un graphe large et plat ne peut pas remplir un cadre
+              presque carré. Le gabarit n'y peut rien — **c'est la présentation qui est le levier**,
+              et « Vertical » ou « Radial » remplit bien mieux un écran portrait.
+              Le masquer revenait donc à retirer l'outil au moment précis où il sert le plus. */}
+          <span className="flex items-center gap-2">
+            {hasArrangement && (
+              <button
+                type="button"
+                onClick={resetArrangement}
+                title="Revenir à la disposition automatique"
+                className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:border-white/25 hover:text-slate-100"
+              >
+                ↺ Disposition
+              </button>
+            )}
+            <LayoutSelector value={kind} onChange={setKind} />
+          </span>
         </div>
       </div>
 
       {mode === "train" ? (
-        <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <span className="text-slate-400">{HINTS.train}</span>
+        <div className="mb-2 flex min-h-[28px] shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          {/* La consigne se retire en plein écran étroit — elle prenait 3 lignes sur un iPhone.
+              Les PASSES, elles, restent : c'est de la progression, pas du mode d'emploi. */}
+          <span className={"text-slate-400 " + (fullscreen ? "hidden min-[500px]:inline" : "")}>
+            {HINTS.train}
+          </span>
           {levels.length > 0 && <PassDots statuses={trainStatuses} accent="cyan" />}
           {passComplete && !memorizeDone && (
             <button
@@ -581,22 +783,59 @@ export function MindmapWorkspace({
           )}
         </div>
       ) : mode === "build" ? (
-        <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <span className="text-slate-400">
-            Replace les étiquettes blanchies — le reste de la carte t'aide.
+        <div className="mb-2 flex min-h-[28px] shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className={"text-slate-400 " + (fullscreen ? "hidden min-[500px]:inline" : "")}>
+            Replace les étiquettes blanchies — le reste de la mindmap t'aide.
           </span>
           {buildPasses.length > 0 && <PassDots statuses={buildStatuses} accent="amber" />}
         </div>
       ) : (
-        <p className="mb-2 min-h-[20px] text-sm text-slate-400">{HINTS[mode]}</p>
+        <p
+          className={
+            "mb-2 min-h-[20px] shrink-0 text-sm text-slate-400 " +
+            (fullscreen ? "hidden min-[500px]:block" : "")
+          }
+        >
+          {HINTS[mode]}
+        </p>
+      )}
+
+      {/* 🔴 LA BANQUE EST AU-DESSUS DU CANVAS (ADR-0052 §3). On glisse du HAUT vers le BAS, dans
+          le sens de lecture, sans jamais franchir une limite de défilement. Elle était en dessous
+          jusqu'au 2026-08-12 : il fallait défiler pour atteindre les puces, et l'emplacement où
+          les déposer remontait alors hors écran.
+
+          ⚠️ Mode `build` UNIQUEMENT. Mémorise n'a pas de banque — on y clique les « · · · » sur le
+          canvas, et sa consigne et son bouton « Passe suivante ▸ » sont déjà au-dessus. La demande
+          d'origine visait les deux modes ; elle est sans objet pour l'un d'eux. */}
+      {mode === "build" && (
+        <NodeBank
+          chips={chips}
+          usedIds={usedIds}
+          onDragChip={startDrag}
+          onReset={resetBuild}
+          busy={busy}
+          failedAttempts={failedAttempts}
+        />
       )}
 
       <div
-        className="relative overflow-hidden rounded-2xl border border-white/10"
-        // Grande zone d'affichage (s'adapte à la hauteur de l'écran) pour bien voir la carte ;
-        // `fitView` recalera le graphe dedans → nœuds plus lisibles. Bornée pour rester raisonnable.
+        // `flex-1` : le canvas prend TOUT ce que la colonne lui laisse, après la barre des modes,
+        // la consigne et la banque.
+        //
+        // ⚠️ Aucune HAUTEUR ici : ni `vh`, ni `clamp`, ni constante. Voir l'en-tête du fichier.
+        //
+        // `min-h-[220px]` est un PLANCHER, pas une hauteur — et il joue AUSSI le rôle du `min-h-0`
+        // habituel : un enfant flex a `min-height: auto` par défaut (il refuse de descendre sous
+        // son contenu et déborde) ; toute valeur explicite lève ce blocage. Un `min-h-0` en plus
+        // serait une seconde déclaration `min-height` qui écraserait ce plancher.
+        //
+        // Pourquoi un plancher : sur téléphone, hors plein écran, la colonne mesurée ne fait que
+        // ~420 px et les blocs fixes la remplissent — sans lui, le canvas tombait à **2 px**,
+        // mesuré. Mieux vaut que la page défile un peu que de rendre une carte invisible ; sur cet
+        // écran-là, la vraie réponse est le plein écran.
+        className="relative min-h-[220px] flex-1 overflow-hidden rounded-2xl border border-white/10"
         style={{
-          height: "clamp(520px, 74vh, 840px)",
           background: "radial-gradient(circle at 50% 45%, rgba(99,102,241,.10), transparent 60%)",
         }}
       >
@@ -607,6 +846,22 @@ export function MindmapWorkspace({
         ) : !layout ? (
           <p className="grid h-full place-items-center text-sm text-slate-400">Mise en page…</p>
         ) : (
+          // 🔴 `absolute inset-0` — ce n'est PAS de la mise en forme, c'est ce qui rend la carte
+          // visible. La feuille de xyflow pose `.react-flow { height: 100% }`, et un pourcentage
+          // exige un parent à hauteur DÉFINIE. L'ancien `height: clamp(...)` en était une ; le
+          // `flex-1` qui l'a remplacé n'en est pas une (sa hauteur vient de la répartition flex,
+          // que le navigateur traite comme indéfinie pour résoudre un %). Sans ce wrapper,
+          // `.react-flow` retombe à **hauteur 0** — les nœuds existent, sont dans le DOM, aux
+          // bonnes coordonnées, et **rien ne s'affiche**.
+          //
+          // Trouvé à la relecture visuelle du 2026-08-12, par l'œil du commanditaire : *« on ne
+          // voit rien, les mindmaps ont disparu de l'écran »*. Les 668 tests Massimo et les 814
+          // de Papa étaient VERTS, et mes propres mesures aussi — je mesurais le CONTENEUR
+          // (748 px), jamais le `.react-flow` à l'intérieur (0 px).
+          //
+          // `inset-0` donne une hauteur définie à partir du bloc conteneur (le parent `relative`),
+          // ce que `flex-1` seul ne fait pas.
+          <div className="absolute inset-0">
           <ReactFlowProvider>
             <ReactFlow
               key={kind}
@@ -620,9 +875,24 @@ export function MindmapWorkspace({
               // Les clics de nœud passent par RF (sinon un onClick sur le nœud ne partirait jamais).
               onNodeClick={(_, node) => (node.data as MindmapNodeData).onClick?.()}
               nodeTypes={nodeTypes}
+              // L'instance sert à RECADRER quand le cadre change de taille (plein écran) — voir
+              // l'effet plus haut. `fitView` seul ne joue qu'au montage.
+              onInit={(inst) => (flowRef.current = inst)}
               fitView
               fitViewOptions={{ padding: 0.2 }}
-              minZoom={0.3}
+              // ⚠️ **0,12 et non 0,3** — un plancher de zoom écrit pour un écran de bureau
+              // EMPÊCHE `fitView` de faire tenir la carte sur un téléphone. Mesuré à 402 × 874 en
+              // plein écran le 2026-08-12 : en présentation « Vertical » le graphe occupait
+              // **124 %** de la largeur du cadre et **débordait**, en « Équilibrée » 122 % — les
+              // deux **exactement au zoom 0,300**, c'est-à-dire collés à l'ancienne borne. Le
+              // recadrage faisait son travail et butait sur elle.
+              //
+              // Une carte trop grande pour un téléphone y restera petite : c'est une limite du
+              // support, pas un défaut. Mais **petite et entière** vaut infiniment mieux que
+              // **grande et coupée** — un graphe dont on ne voit pas les bords ne dit pas qu'il
+              // continue, et Massimo croit avoir tout vu. Les boutons de zoom sont là pour entrer
+              // dedans ensuite.
+              minZoom={0.12}
               maxZoom={1.8}
               nodesDraggable
               nodesConnectable={false}
@@ -630,9 +900,15 @@ export function MindmapWorkspace({
               proOptions={{ hideAttribution: true }}
             >
               <Background color="rgba(255,255,255,0.06)" gap={26} />
-              <Controls showInteractive={false} />
+              {/* ⚠️ En BAS À DROITE, pas en bas à gauche (défaut par défaut de React Flow).
+                  Vu au simulateur iPhone le 2026-08-12 : depuis qu'ils font 44 px (cible de touche
+                  conforme), les trois boutons masquaient le coin bas-gauche du graphe — or les
+                  quatre présentations d'elk poussent la racine à GAUCHE, donc c'est précisément là
+                  que la carte commence. À droite, ils ne recouvrent que du vide. */}
+              <Controls showInteractive={false} position="bottom-right" />
             </ReactFlow>
           </ReactFlowProvider>
+          </div>
         )}
 
         {/* Félicitation ÉPHÉMÈRE (Reconstruire) : toast doré non bloquant à chaque bon placement.
@@ -739,17 +1015,6 @@ export function MindmapWorkspace({
           </div>
         )}
       </div>
-
-      {mode === "build" && (
-        <NodeBank
-          chips={chips}
-          usedIds={usedIds}
-          onDragChip={startDrag}
-          onReset={resetBuild}
-          busy={busy}
-          failedAttempts={failedAttempts}
-        />
-      )}
 
       {/* Fantôme de l'étiquette tirée (suit le pointeur ; pointer-events:none pour ne pas gêner
           elementFromPoint lors du drop). */}

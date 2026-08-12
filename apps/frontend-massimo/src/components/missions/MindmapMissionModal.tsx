@@ -59,7 +59,8 @@ export function MindmapMissionModal({ mission, step, onStepDone, onClose }: Miss
     <ActivityModal
       open
       onRequestClose={onClose}
-      title={`Carte mentale — ${skillName}`}
+      // « Mindmap », jamais « Carte mentale » (ADR-0052 §5).
+      title={`Mindmap — ${skillName}`}
       subtitle="Reconstruis la carte de mémoire 🗺"
       size="wide"
       dirty={!done}

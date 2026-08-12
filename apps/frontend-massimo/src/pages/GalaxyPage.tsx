@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 import { ProgressRing } from "../components/ProgressRing";
-import { CloseFullscreenButton } from "../components/galaxy/CloseFullscreenButton";
+import { CloseFullscreenButton } from "@zetis/ui";
 import { GalaxySearch } from "../components/galaxy/GalaxySearch";
 import { NotionActionPanel } from "../components/galaxy/NotionActionPanel";
 import { SearchEmptyToast } from "../components/galaxy/SearchEmptyToast";
