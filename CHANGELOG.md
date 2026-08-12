@@ -1,5 +1,51 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.80.0 — Le paquet partagé cesse d'être un angle mort
+
+**Cette version ne livre rien à Massimo.** Elle paie une dette dont le coût avait été démontré la
+veille, sur un chantier livré.
+
+Une **zone morte temporelle** dans `MindmapWorkspace` — un `useEffect` déclaré avant le `useState`
+qu'il lit dans ses dépendances — avait rendu la mindmap **totalement inmontable**, écran vide. Avec
+`tsc -b` **vert** (une TDZ est une erreur d'exécution, pas de typage) et **668 tests Massimo +
+814 Papa verts**, parce qu'**aucun ne montait ce composant**. Le défaut a été trouvé par l'œil du
+commanditaire sur un simulateur iPhone.
+
+**La couverture indirecte était un mirage** : sur les six tests d'application qui touchaient
+`@zetis/ui`, **quatre le moquaient** — dont le seul qui approchait `MindmapWorkspace`.
+
+**`packages/ui` a désormais son runner** — bloc `test` **recopié** de celui des deux apps, pas
+factorisé : trois fichiers de dix lignes identiques ne justifient pas un quatrième plus un
+mécanisme d'héritage. À rouvrir le jour où ils divergent.
+
+**Et un test qui tient en une assertion** : *ça se monte, ou ça ne se monte pas.* **28 composants**,
+aucune vérification de contenu ni de comportement. C'est délibérément grossier, et c'est ce qui
+attrape une TDZ — elle se produit à l'évaluation du corps de la fonction, **avant** que le JSX soit
+retourné. Un test « la page affiche son titre » ne l'aurait pas vue.
+
+🔴 **La contre-épreuve était une condition de livraison, et elle a réussi.** Sabotage joué — la
+déclaration de `layout` remise après l'effet qui la lit, la TDZ exacte de la veille :
+
+```
+FAIL  MindmapWorkspace se monte sans jeter
+ReferenceError: Cannot access 'layout' before initialization
+```
+
+**Un seul test rouge sur 28**, désignant le bon composant. Sans cette épreuve, on n'aurait produit
+qu'un test qui *se sent* utile — motif payé quatre fois par ce dépôt.
+
+**Deux polyfills, et une règle qui ferme la liste.** `ResizeObserver` (exigé par React Flow) et
+`matchMedia` (exigé par tout composant lisant `prefers-reduced-motion`) manquent à jsdom. L'ADR
+n'autorisait que le premier ; le second a montré que **sa lettre était plus étroite que son propre
+raisonnement**. Élargi par arbitrage, en addendum daté — et la liste est désormais fermée par une
+phrase plutôt que par une énumération : *ce que le navigateur fournit, que jsdom n'a pas, et dont
+l'absence ferait échouer un montage pour une raison étrangère au code testé.* Tout le reste est un
+**mock**, et un mock n'a rien à faire dans un `setup`.
+
+⚠️ **Ce que ces 28 tests ne sont pas** : une suite. Ils ne disent rien de ce que les composants
+font. C'est leur nature, pas une étape vers autre chose — aucun objectif de couverture chiffré n'a
+été retenu, un seuil ferait écrire des tests pour le chiffre.
+
 ## 0.79.0 — La mindmap prend la place qu'elle demande
 
 **Signalement du commanditaire en usage** : *« faudrait-il un mode plein écran pour éviter de

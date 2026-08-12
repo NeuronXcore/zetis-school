@@ -149,6 +149,32 @@ testé — et un test qui échoue toujours finit désactivé.
 remplace pas ce qu'on teste. La différence est exactement celle qui rend
 `MindmapPreviewModal.test.tsx` incapable de voir quoi que ce soit.
 
+#### 3 bis. ADDENDUM — `matchMedia` rejoint la liste, et la règle qui la ferme est écrite
+
+**Arbitré par le commanditaire le 2026-08-12, à l'exécution de la slice.**
+
+`AvatarCanvas` (444 lignes) ne se montait pas : `window.matchMedia` **n'existe pas dans jsdom**, et
+la Décision 3 disait « `ResizeObserver`, et **rien d'autre** ».
+
+🔴 **La LETTRE de la décision était plus étroite que son propre RAISONNEMENT.** `matchMedia` est
+exactement de même nature : une API que le navigateur fournit, que jsdom n'a pas, et dont l'absence
+fait échouer un montage **pour une raison étrangère au code testé** — le motif même qui justifiait
+le premier polyfill. Appliquer la lettre aurait exclu un composant qui, dans un vrai navigateur,
+se monte parfaitement.
+
+**La liste est désormais FERMÉE par une règle, plus par une énumération** :
+
+> Est admis ici — et rien d'autre — *ce que le navigateur fournit, que jsdom n'a pas, et dont
+> l'absence ferait échouer un montage pour une raison étrangère au code testé.*
+
+Tout ce qui ne rentre pas dans cette phrase est un **mock**, et un mock n'a rien à faire dans un
+`setup`.
+
+⚠️ **Conséquence à connaître** : `prefers-reduced-motion` répond **`false`** dans ces tests — les
+composants s'y croient en mouvement autorisé. C'est le défaut du navigateur, pas une
+neutralisation ; un test qui voudrait vérifier le comportement en mouvement réduit devra le
+surcharger lui-même.
+
 ### 4. `elkjs` et le canvas 3D : on tolère l'échec asynchrone, on n'échoue pas dessus
 
 `mindmapLayout` est **asynchrone** et cherche un Worker absent. Le test de montage n'attend **pas**

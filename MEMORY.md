@@ -6,163 +6,115 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — la mindmap prend la place qu'elle demande (PR #118, squash `1fbb33a`)
+### ✅ CHANTIER COMPLET — le paquet partagé cesse d'être un angle mort (ADR-0053)
 
-**Base `fa5ba6d`** (le lot ADR du cadrage, poussé sur `main` avant la branche — l'ordre compte,
-sinon la PR embarque l'ADR dans son diff). **Branche `feat/mindmap-place-qu-elle-demande`
-supprimée** (locale **et** serveur), `main == origin/main`, **rien à pousser** — les quatre
-vérifiés par commande le 2026-08-12, étape 4bis faite dans la foulée du merge.
+**Branche `feat/tests-packages-ui`, base `f36f663`.** 🔴 **RIEN N'EST COMMITÉ** : tout vit dans
+l'arbre de travail. Aucune migration, aucune route, aucun changement de comportement pour Massimo
+ni pour Papa — **ce chantier ne livre aucune fonctionnalité**, il paie une dette.
 
-Aucune migration, aucune route, aucun contrat d'API — front pur (`packages/ui` +
-`apps/frontend-massimo`). `CHANGELOG.md` **0.79.0** · `TROUBLESHOOTING.md` une section,
-cinq sous-sections.
+⚠️ **`main` porte un commit NON POUSSÉ** : `f36f663`, le lot ADR du cadrage (`0 1` vs `origin`).
+À pousser **avant** la branche, sinon la PR embarque l'ADR dans son diff.
 
-> ⚠️ **Le piège de `git branch -r` s'est REJOUÉ, moins de 24 h après avoir été consigné.** Après
-> `gh pr merge --delete-branch`, il listait **toujours** `origin/feat/mindmap-place-qu-elle-demande`.
-> `git ls-remote --heads origin` rendait vide, `git fetch --prune` a confirmé. **`git branch -r` lit
-> un cache ; seul `ls-remote` interroge le dépôt.** La parade écrite la veille a servi le lendemain.
+**Pourquoi ce chantier.** Le 2026-08-12, une **zone morte temporelle** dans `MindmapWorkspace` —
+un `useEffect` déclaré avant le `useState` qu'il lit dans ses dépendances — a rendu la mindmap
+**totalement inmontable**, écran vide. `tsc -b` était **vert** (une TDZ est une erreur d'exécution)
+et **668 tests Massimo + 814 Papa étaient VERTS**, parce qu'aucun ne montait ce composant.
 
-**Ce qu'il corrige.** En mode Reconstruire, `MindmapWorkspace` empilait barre des modes → consigne
-→ canvas `clamp(520px, 74vh, 840px)` → **banque d'étiquettes**. Les puces à glisser étaient donc
-**sous** le canvas : **le glisser-déposer traversait la limite de défilement** — une fois en bas,
-l'emplacement où déposer était remonté hors écran.
+**Ce qui a été livré** : `packages/ui` a son runner (`vite.config.ts` recopié des apps, scripts,
+8 devDependencies), un `setup.ts` à deux polyfills, et **28 composants montés** dans
+`src/monte.test.tsx`.
 
-**Les cinq décisions de l'ADR-0052, toutes livrées** : plein écran (patron galaxie, overlay CSS +
-état React), canvas qui **remplit son conteneur** au lieu de se mesurer en `vh`, banque **au-dessus**
-du canvas, barre des modes qui ne se coupe plus (`flex-wrap`), et « carte » qui cesse de désigner
-la mindmap côté Massimo.
+### 🔴 LA CONTRE-ÉPREUVE A RÉUSSI — c'est le seul résultat qui compte
+
+Sabotage joué : la déclaration de `layout` remise **après** l'effet qui la lit, soit la TDZ
+**exacte** du chantier précédent.
+
+```
+FAIL  MindmapWorkspace se monte sans jeter
+ReferenceError: Cannot access 'layout' before initialization
+```
+
+**Un seul test rouge sur 28**, et il désigne le bon composant. Restauration vérifiée **deux fois** :
+`diff` avec la sauvegarde identique, et `git diff` sur `MindmapWorkspace.tsx` **vide**.
+
+Sans cette contre-épreuve, ce chantier n'aurait produit qu'un test qui *se sent* utile — motif payé
+quatre fois par ce dépôt.
 
 ### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **Le canvas ne se mesure JAMAIS en `vh`.** Un `vh` mesure le VIEWPORT, alors que ce composant
-   vit dans **trois** conteneurs dont aucun ne l'est (la page, `ActivityModal`, la modale Papa).
-   La hauteur est **mesurée** (`useAvailableHeight`) et posée en **`min-height`**, jamais en
-   `height` — `height` enferme et écrase la banque à 53 px ; `min-height` offre.
-2. 🔴 **Le `ReactFlow` est enveloppé d'un `absolute inset-0`.** Ce n'est pas de la mise en forme :
-   `.react-flow { height: 100% }` exige un parent à hauteur **définie**, et `flex-1` n'en est pas
-   une. Sans ce wrapper, **la carte est invisible**.
-3. **Plein écran : overlay CSS + état React**, jamais `requestFullscreen`. `CloseFullscreenButton`
-   **déplacée dans `packages/ui`** (un paquet ne peut pas importer depuis une app) — elle avait
-   **deux** consommateurs, `GalaxyPage` **et `GalaxyReplayModal`.**
-4. 🔴 **Le sélecteur de présentation RESTE visible en plein écran, y compris sur téléphone** —
-   arbitrage du commanditaire contre ma première version. Sur un iPhone en portrait, une mindmap
-   « Horizontal » tombe à un zoom de 0,32 : **c'est la présentation qui est le levier**, la masquer
-   retirait l'outil au moment où il sert le plus.
-5. **`minZoom` est à 0,12, pas 0,3.** Un plancher de bureau **empêche `fitView` de faire tenir la
-   carte** sur un téléphone. Petite et entière vaut mieux que grande et coupée.
-6. **La banque est en mode `build` UNIQUEMENT.** Mémorise n'a aucune banque — la demande initiale
-   visait les deux modes, elle est **sans objet** pour l'un d'eux.
+1. **Le bloc `test` de `packages/ui` est RECOPIÉ de celui des apps, pas factorisé.** Une config
+   partagée à la racine a été écartée (`CLAUDE.md` n° 7). **À rouvrir le jour où les trois
+   divergent** — pas avant.
+2. 🔴 **Le test ne vérifie qu'UNE chose : ça se monte, ou ça ne se monte pas.** Pas de contenu, pas
+   de comportement. C'est délibérément grossier, et c'est ce qui attrape une TDZ — un test qui
+   vérifierait qu'une page « affiche un titre » n'aurait rien vu.
+3. **Le `setup.ts` de `packages/ui` DIVERGE volontairement de celui des apps.** Ne pas « aligner les
+   trois » : la divergence *est* ce qui rend les tests possibles.
+4. 🔴 **La liste des polyfills est fermée par une RÈGLE, pas par une énumération** (addendum 3 bis) :
+   *ce que le navigateur fournit, que jsdom n'a pas, et dont l'absence ferait échouer un montage
+   pour une raison étrangère au code testé.* Tout le reste est un **mock**, et un mock n'a rien à
+   faire dans un `setup`.
+5. **Aucun objectif de couverture chiffré.** Écarté fermement : le défaut n'était pas un manque de
+   couverture, c'était un composant qui ne montait pas.
 
-### 👁️ LA RELECTURE VISUELLE A EU LIEU — écran par écran, avec le commanditaire
+### 🎯 CE QUE LE READ-BEFORE-CODE A CORRIGÉ DANS L'ADR
 
-**Six défauts trouvés, dont QUATRE étaient de moi.** Aucun n'a été vu par un test.
-
-| | Défaut | Origine |
-|---|---|---|
-| 1 | « OUVRE UNE CARTE » — 5ᵉ occurrence, **absente de l'inventaire de l'ADR** | moi |
-| 2 | 🔴 **La carte invisible** — `height:100%` sans parent à hauteur définie | moi |
-| 3 | 🔴 **Le plein écran ne recadrait pas** — 40 % de remplissage | moi |
-| 4 | 🔴 **Crash TDZ** — app morte, 668 tests VERTS, `tsc` VERT | moi |
-| 5 | 🔴 **Deux présentations débordaient** (124 %, 122 %) — `minZoom` de bureau | pré-existant |
-| 6 | Contrôles de zoom **blanc sur blanc**, cible 26 px | pré-existant |
-
-**Vérifié sur iPhone 17 réel** (simulateur, 402 × 874) : l'app monte, « Vertical » ne déborde plus,
-le sélecteur est là, la consigne est masquée, les contrôles sont à droite et lisibles.
-
-### 🎯 CE QUE CETTE SESSION A APPRIS
-
-🔴 **`packages/ui` n'a AUCUN test, et ça a coûté.** Le crash TDZ est le cas d'école : suite verte,
-typage vert, **composant mort** — parce qu'aucun test ne monte `MindmapWorkspace`, et que le seul
-qui l'approche (`MindmapPreviewModal.test.tsx`, Papa) le **mocke**.
-
-🔴 **Mesurer la boîte ne dit rien de ce qu'elle contient.** J'ai mesuré le conteneur (748 px) et
-jamais le `.react-flow` à l'intérieur (0 px). La doctrine « mesurer dans le DOM » appliquée au
-mauvais élément.
-
-⚠️ **J'ai changé trois fois de diagnostic sur le recadrage**, dont une auto-correction erronée
-affirmée avec aplomb. La bonne réponse : `fitView` a **deux** déclencheurs, le cadre **et** la mise
-en page elk (asynchrone).
+- **29 composants exportés, mais aussi 81 fonctions/constantes.** La décision « monter tous les
+  composants exportés » n'en concerne que les premiers — on ne « monte » pas `easeOutCubic`.
+- **`GalaxyCanvas` n'est PAS exporté** par `@zetis/ui/galaxy` : il vit dans le sous-chemin
+  `@zetis/ui/galaxy/canvas` pour tenir Three.js hors du bundle. La décision qui l'excluait visait un
+  composant **hors index**.
+- **`MindmapNode` n'est pas montable seul** — c'est un type de nœud React Flow, il attend le
+  contexte d'un `<ReactFlow>`. Il est exercé **pour de vrai** par le montage de `MindmapWorkspace`.
+- ⚠️ **`matchMedia`** : la Décision 3 disait « `ResizeObserver` et rien d'autre » — **sa lettre était
+  plus étroite que son raisonnement**. Élargie par arbitrage du commanditaire (addendum 3 bis).
 
 ### 🧾 DETTES OUVERTES
 
-- 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des
-  données de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et
-  l'Échap en capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem
-  pour l'**aperçu Papa**, dont le test **mocke** le workspace.
-- 🔴 **`packages/ui` n'a aucun test ni script de test.** En ajouter est une **décision
-  d'infrastructure** (monter un runner), hors périmètre de ce chantier — mais la TDZ vient de
-  montrer ce que ça coûte.
-- 🔴 **Sur l'Accueil, « Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone.** Vu au simulateur, hors
-  périmètre. C'est le premier écran que Massimo voit sur son téléphone.
-- ⚠️ **En Reconstruire sur téléphone, ça reste serré** : la banque prend 278 px, le canvas 388 même
-  en plein écran. Mesuré, pas jugé — une grande mindmap sur un téléphone reste petite.
-- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à
-  390 px) — **au `BACKLOG.md`**, avec la piste : le même panneau tient sur la page matière.
+- ✅ **`packages/ui` n'a plus zéro test** — c'est ce chantier. Mais ⚠️ **28 tests de MONTAGE ne sont
+  pas une suite** : ils ne disent rien de ce que les composants font. C'est leur nature, pas une
+  étape vers autre chose.
+- 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des données
+  de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et l'Échap en
+  capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem pour
+  l'**aperçu Papa**, dont le test **mocke** le workspace.
+- 🔴 **Sur l'Accueil, « Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone.** Premier écran, tous les
+  jours. Vu au simulateur, jamais cadré.
+- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à 390 px)
+  — **au `BACKLOG.md`**, avec la piste : le même panneau tient sur la page matière.
 - 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau.
   Décision **produit** (montrer un faux nombre, ou rien), pas un nettoyage.
-- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`, conditionnel
-  à une réponse de ZETIS. Vérification **non jouée**.
+- ⚠️ **En Reconstruire sur téléphone, ça reste serré** : la banque prend 278 px, le canvas 388 même
+  en plein écran. Mesuré, pas jugé.
+- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`, conditionnel à
+  une réponse de ZETIS. Vérification **non jouée**.
 - ⚠️ **`cursor: default` sur les 29 boutons** (Tailwind v4) — toujours ouvert.
 - ⚠️ **Le rail arrive après ~1 500 px de défilement** sur la page matière. Signalé, non tranché.
 - ⚠️ **« Points solides / À renforcer » sur `/matieres`** : moitié livrée, moitié refusée (la donnée
-  vit derrière `require_parent`, un équivalent enfant créerait un classement par faiblesse — ADR-0024
-  §5). Signalé, non redemandé.
+  vit derrière `require_parent`, un équivalent enfant créerait un classement par faiblesse —
+  ADR-0024 §5). Signalé, non redemandé.
 - ⚠️ **`maquette-massimo-galaxy.html` porte encore l'ancien libellé** « Reconstruire la carte ».
   Une maquette n'est pas une spec de page — laissée sciemment.
 
 ### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #118, squash `1fbb33a`), branche
-supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`,
-arbre propre, chaque fait revérifié par commande.
+**Ce chantier est COMPLET mais RIEN N'EST COMMITÉ.** La première action de reprise :
 
-✅ **Les deux réglages laissés sur le Mac ont été REMIS** à la demande du commanditaire : simulateur
-éteint (0 appareil amorcé), serveurs de dev arrêtés (ports 8001 et 5176 libres),
-`ConnectHardwareKeyboard` **remis à `true`**.
+1. `git add -A && git commit` sur la branche
+2. `git push origin main` — ⚠️ le lot ADR `f36f663` **n'est toujours pas poussé**
+3. `git push -u origin feat/tests-packages-ui`, PR, merge
+4. 🔴 **étape 4bis** (`docs/WORKFLOW.md §5`) — squash, n° de PR, « branche supprimée », « rien à
+   pousser », **vérifiés par commande**.
 
-**▶ CHANTIER SUIVANT : CADRÉ. Prochain pas = `/ouverture`.**
+⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit un cache. `git ls-remote --heads
+origin` puis `git fetch --prune`. **Le piège s'est déjà rejoué une fois**, moins de 24 h après avoir
+été consigné.
 
-**ADR-0053 — « Le paquet partagé cesse d'être un angle mort »**, `Proposé` le 2026-08-12. Cadrage
-mené sur `main`, **sans une ligne de code**, après une `/ouverture` **arrêtée à son §2** (quatrième
-fois).
+⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie rien : utiliser
+`./node_modules/.bin/tsc -b` **depuis chaque app**.
 
-**Deux lots, et l'ORDRE compte** (`docs/WORKFLOW.md §2bis`) :
-
-| Lot | Fichiers | Où |
-|---|---|---|
-| **main**, à committer **AVANT** `/ouverture` | `docs/decisions/adr-0053-*.md`, `DECISIONS.md`, ce fichier | `main` |
-| **branche**, `/ouverture` l'emporte | `prompts/claude-code/prompts-claude-code-adr-0053.md` | la branche |
-
-⚠️ **`/ouverture` s'arrête si elle voit `DECISIONS.md` modifié** — le lot `main` part d'abord.
-
-**Les cinq décisions sont gelées** :
-
-1. **`packages/ui` reçoit SON runner**, calqué sur celui des apps. **On recopie, on ne factorise
-   pas** — à rouvrir si les trois configurations divergent.
-2. 🔴 **Le premier test est un test de MONTAGE**, sur tous les composants exportés : les monter et
-   vérifier qu'ils ne jettent pas, **rien d'autre**. ⚠️ **Sabotage de la TDZ = condition de
-   livraison.**
-3. **Le `setup.ts` polyfille `ResizeObserver`, et rien d'autre.** Un polyfill n'est **pas** un mock.
-4. **`elkjs` et le canvas 3D** : on tolère l'échec asynchrone, on n'échoue pas dessus. `GalaxyCanvas`
-   exclu **avec son motif écrit** s'il ne monte pas.
-5. **Le paquet est vérifié dans la même passe que les apps.**
-
-**Ce que le read-before-code a mesuré** (et qui a réduit deux craintes sur trois) :
-
-- `packages/ui` = **48 fichiers, 0 test, aucun script `test`** ; l'`include` des apps est **relatif
-  à leur racine**, donc des tests y seraient ramassés par personne ;
-- 🔴 **la couverture indirecte est un mirage** : sur 6 tests d'app qui touchent `@zetis/ui`,
-  **4 le MOQUENT** — dont le seul qui approchait `MindmapWorkspace` ;
-- ✅ les deux configs vitest sont **identiques**, les deux `setup.ts` font **2 lignes** ;
-- ✅ les dépendances lourdes tiennent dans **5 fichiers sur 48** ;
-- 🔴 **React Flow exige `ResizeObserver`** (absent de jsdom, polyfillé nulle part) et **`elkjs`
-  cherche un `Worker`** ; aucun test du dépôt n'a jamais monté React Flow ;
-- 🔴 **le fait qui décide de tout** : la TDZ se produit **avant** que le JSX soit retourné, donc
-  **un simple montage l'aurait attrapée** — sans React Flow, sans elk, sans connaître le métier.
-
-⚠️ **Ce chantier ne livre AUCUNE fonctionnalité à Massimo.** Il paie une dette dont le coût a été
-démontré le jour même. Les deux autres urgences restent : **« Bonjour Massimo » coupé à gauche sur
-l'Accueil iPhone**, et le **panneau `/galaxy` hors écran de 94 px** (au `BACKLOG.md`).
+**▶ CE QUI ATTEND ENSUITE**, par ordre de coût pour Massimo : « Bonjour Massimo » coupé sur
+l'Accueil iPhone · le panneau `/galaxy` hors écran · puis le reste des dettes ci-dessus.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 
