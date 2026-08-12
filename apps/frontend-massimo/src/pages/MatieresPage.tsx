@@ -9,6 +9,7 @@
 // notions travaillées, tous deux servis par le serveur. Ce qu'elle ne dit toujours pas : aucun
 // pourcentage, aucun classement, aucun verdict sur une matière.
 import { Link } from "react-router-dom";
+import { RETRAIT_TITRE_PAGE } from "../lib/pageTitle";
 import { GlassPanel, NEON_BUTTON, NeonBackdrop } from "../components/glass";
 import { SubjectSideRail } from "../components/matiere/SubjectSideRail";
 import { SubjectTile } from "../components/SubjectTile";
@@ -25,7 +26,9 @@ export function MatieresPage() {
     <div className="relative isolate -m-6 min-h-full overflow-hidden bg-[#000010] p-6 text-white">
       <NeonBackdrop />
       <div className="relative mx-auto max-w-6xl">
-        <h1 className="text-2xl font-bold">Mes matières</h1>
+        {/* Voir `RETRAIT_TITRE_PAGE` : cette page annule le padding de `main` (`-m-6 p-6`) puis
+            le rétablit, donc son titre retombe au même bord que les autres — et le même défaut. */}
+        <h1 className={`${RETRAIT_TITRE_PAGE} text-2xl font-bold`}>Mes matières</h1>
 
         <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex min-w-0 flex-col gap-5">

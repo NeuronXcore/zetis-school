@@ -6,89 +6,92 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — les dépréciations Starlette sont levées (PR #120, squash `5a6d4c0`)
+### ✅ CHANTIER COMPLET, NON POUSSÉ — le titre de page cesse d'être seul au bord (`fix/accueil-titre-coupe`)
 
-**Base `cde5ca4`.** **Branche `fix/deprecations-starlette` supprimée** (locale **et** serveur),
-`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12, étape
-4bis faite dans la foulée du merge.
+**Base `618c8f5`.** Le contenu de la branche se lit par `git log --oneline main..HEAD`. **Rien n'est
+poussé**, aucune PR ouverte.
 
-> 🔴 **Le piège de `git branch -r` s'est rejoué pour la QUATRIÈME fois**, sur quatre merges
-> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/fix/deprecations-starlette` ;
-> `git ls-remote --heads origin` rendait vide. Le réflexe tient — mais il ne s'automatise pas :
-> c'est le comportement **normal** de la commande, il se rejouera au merge suivant.
+🔴 **Pas d'ADR, délibérément** (comme le chantier précédent) : correction visuelle, aucune décision
+produit figée. **Le prochain élagage ne doit pas en chercher un.**
 
-🔴 **Ce chantier n'a PAS d'ADR, et c'est délibéré.** Correction mécanique d'un écart avec une
-bibliothèque : aucune décision produit n'a été prise, rien à figer. **Le prochain élagage ne doit
-donc pas en chercher un** — le contrôle n° 1 du §1bis de `/cloture` tomberait à vide et bloquerait
-pour rien.
+**4 fichiers, `frontend-massimo` seulement.** Aucun backend, aucune migration, aucune route.
 
-**3 fichiers, backend seulement.** Aucune migration, aucune route, **aucun changement de
-comportement** pour Massimo ni pour Papa : les valeurs HTTP sont identiques (422 reste 422).
+### 🔴 LA MESURE A CORRIGÉ L'ÉNONCÉ — c'est le cœur du chantier
 
-**Ce qui a été livré :**
+Le défaut était noté « *« Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone* ». **Rien n'était
+coupé.** À 390 px, le texte tenait sur **une ligne avec 136 px de marge**, et l'Accueil ne débordait
+pas d'un pixel (`scrollWidth == clientWidth`).
 
-1. `HTTP_422_UNPROCESSABLE_ENTITY` → `HTTP_422_UNPROCESSABLE_CONTENT` dans `agenda/service.py`
-   (2 lignes). Le plancher `starlette>=0.48` du `pyproject.toml` avait été posé **précisément** pour
-   que ces noms existent ; le renommage n'avait jamais suivi.
-2. `httpx2>=2.10` dans l'extra `dev` : depuis starlette 1.3, `TestClient` hérite de la classe
-   `Client` de **httpx 2.x**, publiée sous ce nom-là pour cohabiter avec `httpx`. Vérifié après
-   coup : `TestClient.__mro__[1]` est bien `httpx2.Client`.
-3. `filterwarnings = ["error"]` dans `[tool.pytest.ini_options]`.
+Le vrai défaut : le titre était le **seul** texte de la page à `x = 16`. Les quarante autres
+commençaient à **33, 37 ou 41**, selon le padding de leur carte. L'œil prend la colonne des cartes
+pour la marge de la page ; un titre qui en sort **se lit comme coupé**. Même chose vécue, autre
+chose à réparer.
 
-### 🔴 CE QUE LA SORTIE DES TESTS CACHAIT — la leçon du chantier
+⚠️ **La maquette v3 donne raison au code existant** (`padding: 26px 20px`, `h1` sans retrait) : les
+cartes gardent le bord du conteneur. On n'a pas corrigé le design — on a sorti le titre de la seule
+position que plus rien d'autre n'occupait.
 
-Le code portait **deux** occurrences de la constante dépréciée, et pytest signalait **deux**
-avertissements. La correspondance était trompeuse : les deux avertissements venaient de la **même**
-ligne (508), touchée par deux tests différents. **La ligne 505 (« Leçon inconnue ») n'émettait
-rien** — aucun test ne couvre cette branche.
+### 🔴 CE QUI A FAIT RECULER LE CHANTIER — le correctif évident était faux
 
-Elle a été trouvée en cherchant par `grep` les **quatre** constantes dépréciées de starlette, pas en
-suivant la sortie de pytest. **La liste des avertissements n'est pas la liste des défauts** : elle
-n'en montre que la part exercée. Sans ce détour, une ligne dépréciée serait restée, et aurait cassé
-le jour où starlette retire le repli.
+`PageHeader` titre **dix** pages : une ligne semblait tout régler. Elle y a été posée, **puis
+retirée après mesure**.
+
+| Page | Textes au bord `x = 16` | Le retrait y serait |
+|---|---|---|
+| Accueil · Matières · Missions | 0 | juste — le titre est seul |
+| **`/agenda`** | **7** — « Aujourd'hui », « Demain », « Ce qui arrive »… | **faux** |
+| **`/revision`** | **2** — « Mélanges », « Par matière » | **faux** |
+
+La moitié de ces pages alignent leurs **libellés de section** sur le bord du conteneur, hors des
+cartes. Le titre n'y est **pas seul** : il leur est *aligné*. Le rentrer aurait cassé cet
+alignement — **un défaut neuf pour en corriger un autre**.
 
 ### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **`httpx` ET `httpx2` cohabitent, et c'est VOULU.** `httpx2` ne sert qu'au `TestClient` ; `httpx`
-   reste celui du code applicatif — les trois providers LLM et `production/failures.py` l'importent,
-   et `test_production_durabilite.py` s'appuie sur ses types d'exception (`httpx.ConnectError`,
-   `httpx.HTTPStatusError`). **Ne pas « unifier »** : deux usages disjoints, aucune raison de bouger
-   ensemble.
-2. **`filterwarnings = ["error"]`, jamais `ignore`.** Les deux gestes sont opposés : `error` fait
-   rougir la suite le jour où une bibliothèque **déprécie**, quand il reste un chemin de sortie ;
-   `ignore` la rend aveugle jusqu'au jour où elle **retire**, où c'est la suite entière qui tombe
-   d'un coup.
-3. 🔴 **Toute exception ajoutée à `filterwarnings` vise un MESSAGE précis, jamais une catégorie**, et
-   porte sa date et son motif. Un `"ignore::DeprecationWarning"` nu rendrait le bloc **pire que son
-   absence** : il muselle tout en se donnant l'air d'une politique. C'est le seul vrai danger de ce
-   réglage — pas le mode strict lui-même.
-4. **`uv pip install`, jamais `uv sync`, sur le venv backend** — voir les réflexes d'outillage.
+1. 🔴 **`RETRAIT_TITRE_PAGE` ne va PAS dans `PageHeader`, et ce n'est pas un oubli.** La règle est
+   **conditionnelle par page** — *ce retrait s'applique quand le titre serait le seul texte au bord
+   du conteneur* — donc elle ne peut pas vivre dans un composant partagé. Le raisonnement complet
+   est dans `lib/pageTitle.ts`, et un commentaire dans `PageHeader.tsx` prévient celui qui voudrait
+   « factoriser » de bonne foi.
+2. **16 px, et pas une autre valeur.** Elle aligne le titre sur le texte d'une carte `p-4` aux
+   **deux** points de rupture : mobile 16 + 16 = 32 contre 33 ; bureau 24 + 16 = 40 contre 40.
+3. **Les cartes ne bougent pas.** Elles gardent le bord du conteneur, conforme à la maquette v3.
+4. **Périmètre : Accueil et Matières seulement.** Les titres d'ELI5 et de Placeholder sont
+   **centrés** — ils ne touchent aucun bord, ils n'étaient pas concernés.
+5. **Aucun test ajouté, délibérément.** jsdom n'a **pas de moteur de mise en page** :
+   `getBoundingClientRect` y rend des zéros. Un test n'aurait pu qu'assurer la présence d'une
+   classe — il se serait senti utile sans rien voir. **La preuve de ce chantier est visuelle.**
 
 ### 🎯 CE QUE LE READ-BEFORE-CODE A CORRIGÉ
 
-- Starlette 1.3.1 déprécie **quatre** constantes, pas une : `HTTP_413_REQUEST_ENTITY_TOO_LARGE`,
-  `HTTP_414_REQUEST_URI_TOO_LONG`, `HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE` et celle du jour. Les
-  trois premières ne sont utilisées **nulle part** — vérifié par `grep`, pas supposé.
-- **`fastapi.status` n'existe pas** comme module importable ; le code fait `from fastapi import
-  status`, et ces constantes sont celles de starlette, que fastapi ré-exporte.
+- Il existe un composant `PageHeader` **utilisé par dix pages** ; quatre pages roulent leur propre
+  `h1`. Le défaut touchait donc potentiellement 14 titres — et finalement 2.
+- `MatieresPage` **annule le padding de `main` puis le rétablit** (`-m-6 … p-6`) : son titre retombe
+  au même bord que les autres, et au même défaut.
+- Le `h1` de `PlaceholderPage` et celui d'`Eli5Page` sont dans des conteneurs `text-center` : ils ne
+  touchent aucun bord.
 
 ### 🧾 DETTES OUVERTES
 
-- ⚠️ **NOUVELLE — `filterwarnings = ["error"]` est gratuit AUJOURD'HUI, sur ce jeu de dépendances.**
-  Mesuré : les 1212 tests passaient déjà sous `-W error` **avant** qu'on pose le réglage. Le prochain
-  `uv lock` qui monte un paquet peut le rendre payant, en faisant rougir la suite pour un
-  avertissement qui n'est pas le nôtre. La parade est la décision active n° 3, **pas** un `ignore`
-  large.
-- ⚠️ **NOUVELLE — la branche « leçon inconnue » de `_check_lesson_belongs`**
-  (`agenda/service.py:505`) n'est couverte par **aucun** test. Découverte de biais, pas cherchée.
-- ⚠️ **NOUVELLE, mineure — `httpx>=0.27` figure DEUX fois** dans le `pyproject` (dépendance
-  principale **et** extra `dev`). Redondant, sans effet. Laissé sciemment : hors périmètre.
+- ⚠️ **NOUVELLE — `/matieres` déborde de 8 px horizontalement** (`main.scrollWidth 398` pour
+  `clientWidth 390`). **Préexistant, mesuré AVANT le changement**, cause : le `-m-6 p-6` qui déborde
+  la boîte de contenu de `main`. Sur écran tactile, la page se laisse tirer de côté — exactement le
+  genre d'effet qui se rapporte comme « c'est coupé ». L'Accueil, lui, est à zéro.
+- ⚠️ **NOUVELLE — unifier titre ET libellés de section** sur toutes les pages (les rentrer tous à
+  32) est une décision de **design** qui mérite un ADR, pas un passage en force. En l'état, deux
+  familles de pages coexistent, chacune cohérente avec elle-même.
+- ⚠️ **`filterwarnings = ["error"]` est gratuit AUJOURD'HUI seulement.** Mesuré : les 1212 tests
+  backend passaient déjà sous `-W error` avant qu'on pose le réglage. Le prochain `uv lock` qui
+  monte un paquet peut le rendre payant. La parade sera un `ignore` **sur un message précis**,
+  jamais sur une catégorie.
+- ⚠️ **La branche « leçon inconnue » de `_check_lesson_belongs`** (`agenda/service.py:505`) n'est
+  couverte par **aucun** test. Découverte de biais le 2026-08-12.
+- ⚠️ **`httpx>=0.27` figure DEUX fois** dans `apps/backend/pyproject.toml` (dépendance principale
+  **et** extra `dev`). Redondant, sans effet. Laissé sciemment.
 - 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des données
   de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et l'Échap en
   capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem pour
   l'**aperçu Papa**, dont le test **mocke** le workspace.
-- 🔴 **Sur l'Accueil, « Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone.** Premier écran, tous les
-  jours. Vu au simulateur, jamais cadré.
 - 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à 390 px)
   — **au `BACKLOG.md`**, avec la piste : le même panneau tient sur la page matière.
 - 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau.
@@ -109,39 +112,41 @@ le jour où starlette retire le repli.
 
 ### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #120, squash `5a6d4c0`), branche
-supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
-propre, chaque fait revérifié par commande.
+**Pousser la branche et ouvrir la PR.** Le chantier est COMPLET et commité ; rien n'est poussé.
 
-✅ **Résidu soldé le 2026-08-12 : les 13 branches locales périmées sont supprimées.** `git branch` ne
-rend plus que `main`. Elles avaient toutes une PR **`MERGED`** (#98 à #110), et — contrôle plus fort
-que l'état de la PR — **chaque tête locale était exactement le `headRefOid` que GitHub avait mergé** :
-aucune ne portait de commit resté en local. Récupérables ~90 jours via `git reflog` si besoin.
+```
+git push -u origin fix/accueil-titre-coupe
+gh pr create --fill
+```
 
-🔴 **Si la question se repose, ne PAS la trancher avec `git merge-base --is-ancestor`** : il
-déclarait ces 13 branches « non fusionnées », et il avait tort — voir les réflexes d'outillage
-ci-dessous. Le bon contrôle est le couple *état de la PR* + *tête locale == `headRefOid`*.
+Puis merge en **squash**, puis **étape 4bis** (`WORKFLOW.md` §5) — cette section devient fausse dès
+le merge.
 
 **▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
 
-1. 🔴 **« Bonjour Massimo » est coupé à gauche sur l'Accueil iPhone.** Premier écran, tous les jours.
-   Vu au simulateur le 2026-08-12, **jamais cadré**.
-2. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au `BACKLOG.md`,
+1. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au `BACKLOG.md`,
    avec sa piste : le **même** panneau tient parfaitement sur la page matière (`NotionPanel`).
+2. ⚠️ **Les 8 px de débordement de `/matieres`** — petit, mais c'est un écran qui se laisse tirer de
+   côté au doigt, et la cause est identifiée (`-m-6 p-6`).
 3. 🔴 **Le plein écran depuis la modale de mission n'a jamais été exercé** — il faudrait fabriquer
    une mission à étape `mindmap` côté Papa.
 4. Le reste est dans « DETTES OUVERTES » ci-dessus.
 
-### 🧰 TROIS RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
+### 🧰 QUATRE RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
 
-- 🔴 **`uv sync` CASSERAIT le venv backend.** Il aurait retiré `faster-whisper`, `ctranslate2`,
+- 🔴 **Un padding interne ne déplace PAS la boîte.** `element.getBoundingClientRect().left` d'un
+  `h1` en `pl-4` rend toujours le bord du conteneur : c'est le **texte** qui bouge, pas la boîte.
+  Mesuré à tort le 2026-08-12, au point de croire le correctif sans effet. **Parade** : mesurer le
+  contenu par un `Range` — `const r = document.createRange(); r.selectNodeContents(el);
+  r.getBoundingClientRect()`.
+- 🔴 **`uv sync` CASSERAIT le venv backend.** Il retirerait `faster-whisper`, `ctranslate2`,
   `piper-tts` et `onnxruntime` — les extras `stt`/`tts`, non sélectionnés — donc la **dictée ELI5**
   et la **voix des capsules**. Pour ajouter un paquet : `VIRTUAL_ENV=.venv uv pip install <p>`
-  (additif), puis `uv lock` (n'écrit que le lockfile, ne touche pas le venv).
+  (additif), puis `uv lock` (n'écrit que le lockfile).
 - ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
   `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. Le piège s'est
   rejoué **quatre fois**, sur quatre merges consécutifs — c'est le comportement **normal** de la
-  commande, donc il se rejouera au merge suivant : le réflexe ne s'automatise pas.
+  commande, donc il se rejouera : le réflexe ne s'automatise pas.
   ⚠️ **Même famille : `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en squash**
   (le squash crée un commit neuf), et déclare donc « non fusionnées » toutes les branches déjà
   mergées. Passer par `gh pr list --head <branche> --state all`.

@@ -5840,3 +5840,90 @@ avaient une PR `MERGED` (#98 à #110).
 **Parade** : `gh pr list --head <branche> --state all --json number,state`. Même famille que le
 piège `git branch -r` déjà consigné : *la commande évidente répond à une question voisine de celle
 qu'on pose.*
+
+## Le titre de page seul au bord — `fix/accueil-titre-coupe` — 2026-08-12
+
+### 🔴 Un padding INTERNE ne déplace pas la boîte — `getBoundingClientRect` mesure la mauvaise chose
+
+Après avoir ajouté `pl-4` à un `h1`, la mesure rendait toujours `left: 16`. Conclusion tentante :
+« le correctif n'a pas pris, le HMR n'a pas rechargé ». **Faux.** `getBoundingClientRect()` rend la
+boîte de **bordure** : un padding gauche pousse le **contenu** vers la droite *à l'intérieur* de la
+boîte, et la boîte, elle, ne bouge pas d'un pixel.
+
+**Parade** : pour mesurer où commence le TEXTE, passer par un `Range` sur le contenu —
+
+```js
+const r = document.createRange(); r.selectNodeContents(el); r.getBoundingClientRect().left;
+```
+
+⚠️ Le même piège existe à l'envers : une boîte qui *semble* déborder peut n'avoir qu'un padding.
+Comparer systématiquement `boîte` et `contenu` avant de conclure.
+
+### 🔴 « C'est coupé » ne veut pas dire que c'est coupé — mesurer avant de croire l'énoncé
+
+Le défaut était consigné depuis plusieurs jours comme « *« Bonjour Massimo » est COUPÉ À GAUCHE sur
+iPhone* ». La mesure à 390 px a montré l'inverse : le texte tenait sur **une ligne avec 136 px de
+marge**, aucun élément de la page ne sortait du cadre, `scrollWidth == clientWidth`.
+
+Le vrai défaut : le titre était le **seul** texte à `x = 16` — les quarante autres à 33, 37 ou 41,
+selon le padding de leur carte. L'œil prend la colonne des cartes pour la marge de la page.
+
+**Parade** : d'un défaut visuel rapporté, retenir **le symptôme vécu**, pas le mécanisme supposé.
+Ici, corriger « la coupure » aurait mené à élargir une marge déjà conforme à la maquette. Deux
+mesures suffisent à trancher : *l'élément sort-il du cadre ?* et *où commencent les autres ?*
+
+### 🔴 Le correctif « évident » dans le composant partagé était FAUX — et un scan l'a montré
+
+`PageHeader` titre **dix** pages : y poser le retrait semblait tout régler d'une ligne. Posé, puis
+**retiré**. Un scan des textes à `x = 16`, page par page, a montré que la moitié de ces pages
+alignent leurs **libellés de section** sur le bord du conteneur, hors des cartes :
+
+| Page | Textes au bord | Le retrait y serait |
+|---|---|---|
+| Accueil, Matières, Missions | 0 | juste |
+| `/agenda` | 7 — « Aujourd'hui », « Demain », « Ce qui arrive », « À reprendre » | **faux** |
+| `/revision` | 2 — « Mélanges », « Par matière » | **faux** |
+
+Sur ces pages, le titre n'est pas seul : il leur est **aligné**. Le rentrer aurait cassé un
+alignement existant — un défaut neuf pour en corriger un autre.
+
+**Parade** : avant de poser une règle de mise en page dans un composant partagé, **scanner ses
+consommateurs**, pas les deux qu'on a sous les yeux. Le scan tient en dix lignes :
+
+```js
+[...document.querySelectorAll('main h2,main p,main span,main a,main button')]
+  .filter(e => e.textContent.trim() && !e.querySelector('h2,p,span,a,button'))
+  .filter(e => Math.round(e.getBoundingClientRect().left) === 16)
+```
+
+### ⚠️ Une règle de mise en page peut être CONDITIONNELLE, et alors elle ne se factorise pas
+
+Conséquence du point précédent : la règle retenue est *« ce retrait s'applique quand le titre serait
+le seul texte au bord du conteneur »*. Un composant partagé ne peut pas l'évaluer — il ne connaît
+pas le contenu de la page qui l'utilise.
+
+C'est contre-intuitif dans un dépôt qui traque la duplication : ici, **deux applications d'une même
+constante ne sont pas une duplication**, c'est une règle appliquée là où sa condition est vraie.
+Consigné dans `lib/pageTitle.ts`, avec un renvoi depuis `PageHeader.tsx` pour arrêter la « bonne
+idée » avant qu'elle ne soit posée.
+
+### ⚠️ `/matieres` déborde de 8 px horizontalement — et ça se sent au doigt, pas à la souris
+
+Mesuré en passant : `main.scrollWidth` vaut 398 pour un `clientWidth` de 390. Cause : la page fait
+`-m-6 … p-6`, qui annule le padding de `main` puis le rétablit — mais les marges négatives débordent
+la boîte de contenu. `main` étant en `overflow-auto`, la page **se laisse tirer de côté** sur écran
+tactile ; à la souris, on ne le voit jamais.
+
+⚠️ **C'est exactement le genre d'effet qui se rapporte comme « c'est coupé »** — et pourtant ce
+n'était pas la cause ici : l'Accueil, lui, est à **zéro** débordement. Vérifier la page **nommée**,
+pas une page voisine.
+
+### ⚠️ jsdom n'a pas de moteur de mise en page — un défaut de marge n'est PAS testable en unitaire
+
+`getBoundingClientRect` rend des zéros sous jsdom. Aucun test de la suite Massimo ne pouvait voir ce
+défaut, ni ne peut garder sa correction. Un test qui vérifierait la présence de la classe
+`pl-4` assurerait que le code est ce qu'il est — il **se sentirait utile sans rien voir**.
+
+**Parade** : pour ce type de défaut, la preuve est **visuelle et mesurée dans un vrai moteur de
+rendu** (panneau navigateur ou simulateur), et elle se consigne — chiffres à l'appui — dans le
+message de commit et dans `MEMORY.md`. Ne pas écrire de test pour se rassurer.
