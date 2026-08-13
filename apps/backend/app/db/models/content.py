@@ -44,11 +44,22 @@ class Capsule(Base, TimestampMixin):
 
 
 class Fiche(Base, TimestampMixin):
-    """Fiche de révision d'UNE leçon (ADR-0015), dérivée du cours canonique validé.
+    """Fiche de révision d'UNE leçon (ADR-0015) — **deux auteurs** (addendum ADR-0015 §1).
 
     Leçon-centré : une fiche = 1 leçon = 1 page (`lesson_id`). `spec_json` porte le `FicheSpec`
     typé (validé par Pydantic avant persistance — jamais de spec invalide en base). Conventions
     de colonnes reprises de `capsules` (`validation_status`, `source`, `program_version`).
+
+    ⚠️ **`author` et `source` sont deux axes, pas un.** `source` (`generated|manual`) dit COMMENT
+    la pièce a été produite ; `author` dit À QUI elle est. Une fiche personnelle partiellement
+    assistée n'aurait aucune valeur de `source` juste.
+
+    ⚠️ **Ne JAMAIS lire cette table sans dire de quelle population on parle.** Deux prédicats
+    partagés existent, un par public — `fiches.service.readable_by_student()` pour le flux élève,
+    `fiches.service.zetis_authored()` pour la production et le pilotage. Une clause recopiée à la
+    main est le piège de l'agenda (trois lecteurs non filtrés de `learning_events`), et le
+    read-before-code du 2026-08-13 a montré qu'il était déjà tendu ici : **huit** requêtes lisent
+    `fiches`, dont quatre hors du module et sans aucun filtre de statut.
     """
 
     __tablename__ = "fiches"
@@ -56,9 +67,14 @@ class Fiche(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
     spec_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # ⚠️ `personal` est la 4ᵉ valeur, HORS cycle éditorial (addendum §2) : la fiche de Massimo
+    # n'est ni validée ni rejetée, elle est à lui. C'est aussi une **sécurité par construction** —
+    # un lecteur qui oublierait le filtre d'auteur garde son `== "validated"`, donc il exclut
+    # naturellement la fiche de Massimo. Le mode d'échec devient « sa fiche ne s'affiche pas »
+    # (visible, bénin) au lieu de « du contenu non validé fuit » (silencieux, grave).
     validation_status: Mapped[str] = mapped_column(
         String(20), default="pending"
-    )  # pending | validated | rejected
+    )  # pending | validated | rejected | personal
     # Provenance de la validation (addendum ADR-0011 §F) — cf. `Capsule`.
     validated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -73,7 +89,19 @@ class Fiche(Base, TimestampMixin):
     production_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("production_runs.id"), nullable=True
     )
-
+    # --- Addendum ADR-0015 : le second auteur. ---
+    author: Mapped[str] = mapped_column(
+        String(10), default="zetis", server_default="zetis"
+    )  # zetis | massimo
+    # NULL = fiche ZETIS (elle appartient à une leçon, pas à un enfant). Renseigné pour une fiche
+    # personnelle — cohérent avec la trajectoire multi-enfant sans la précipiter.
+    student_id: Mapped[int | None] = mapped_column(
+        ForeignKey("student_profiles.id"), nullable=True
+    )
+    # Version dans le temps (§7) : rouvrir une fiche FINIE en crée une nouvelle, l'ancienne reste
+    # lisible ; rouvrir un BROUILLON reprend en place. `lesson_id` étant indexé non unique,
+    # plusieurs fiches par leçon étaient déjà supportées — il ne manquait qu'un numéro.
+    version: Mapped[int] = mapped_column(default=1, server_default="1")
 
 
 class Mindmap(Base, TimestampMixin):

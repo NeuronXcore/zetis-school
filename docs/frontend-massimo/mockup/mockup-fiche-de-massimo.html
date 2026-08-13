@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Mockup « La fiche que Massimo fabrique » (addendum ADR-0015)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* Tokens repris À L'IDENTIQUE de mockup-page-fiches.html (contrat visuel validé ADR-0015). */
+  :root {
+    --zetis-bg: #0a0d1c;
+    --zetis-primary: #6366f1;
+    --zetis-cyan: #22d3ee;
+    --zetis-fuchsia: #d946ef;
+    --zetis-fg: #eef0ff;
+    --zetis-muted: #8b91b8;
+    --zetis-glass: rgba(255, 255, 255, 0.055);
+    --zetis-glass-border: rgba(255, 255, 255, 0.12);
+    --accent: #34d399; /* matière : SVT */
+    --warm: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg); color: var(--zetis-fg); min-height: 100vh; overflow-x: hidden;
+  }
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .3;
+  }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-primary); }
+  .neon-backdrop::after { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-fuchsia); opacity: .16; }
+  .halo-cyan { position: absolute; width: 340px; height: 340px; border-radius: 50%; background: var(--zetis-cyan); filter: blur(120px); opacity: .1; top: 45%; left: 55%; }
+
+  /* ══ ROADMAP DES SCÉNARIOS — OUTIL DE RELECTURE, ne fait PAS partie de l'app ══ */
+  .layout { position: relative; z-index: 1; display: grid; grid-template-columns: 246px minmax(0, 1fr); }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+  .roadmap {
+    position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+    padding: 20px 14px 30px 18px; scrollbar-width: thin;
+    border-right: 1px dashed rgba(217, 70, 239, .38);
+    background: rgba(6, 8, 18, .55); backdrop-filter: blur(12px);
+  }
+  @media (max-width: 980px) {
+    .roadmap { position: static; max-height: none; border-right: none;
+      border-bottom: 1px dashed rgba(217,70,239,.38); }
+  }
+  .rm-title { font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-fuchsia); font-weight: 800; margin-bottom: 3px; }
+  .rm-sub { font-size: 11px; color: var(--zetis-muted); line-height: 1.5; margin-bottom: 18px; opacity: .85; }
+  .rm-group { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; font-weight: 800;
+    color: var(--zetis-muted); opacity: .7; margin: 18px 0 9px 2px; }
+  .rm-group:first-of-type { margin-top: 0; }
+
+  /* le rail vertical qui relie les jalons */
+  .rm-list { position: relative; display: grid; gap: 2px; }
+  .rm-item {
+    position: relative; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; gap: 9px; padding: 7px 9px 7px 30px;
+    background: none; border: none; border-radius: 9px;
+    color: var(--zetis-muted); font-size: 12.5px; font-weight: 700; line-height: 1.35;
+    transition: color .15s ease, background .15s ease;
+  }
+  .rm-item::before { /* le fil */
+    content: ""; position: absolute; left: 12px; top: 0; bottom: 0; width: 1px;
+    background: var(--zetis-glass-border);
+  }
+  .rm-item:first-child::before { top: 50%; }
+  .rm-item:last-child::before { bottom: 50%; }
+  .rm-item::after { /* le jalon */
+    content: ""; position: absolute; left: 8.5px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--zetis-bg); border: 1.5px solid var(--zetis-glass-border);
+    transition: all .18s ease;
+  }
+  .rm-item:hover { color: var(--zetis-fg); background: rgba(255,255,255,.04); }
+  .rm-item:hover::after { border-color: var(--zetis-cyan); }
+  .rm-item.on { color: #fff; background: rgba(217,70,239,.14); }
+  .rm-item.on::after { background: var(--zetis-fuchsia); border-color: var(--zetis-fuchsia);
+    box-shadow: 0 0 0 3px rgba(217,70,239,.22); }
+  .rm-key { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; opacity: .7; min-width: 12px; }
+  .rm-item.on .rm-key { opacity: 1; color: var(--zetis-fuchsia); }
+
+  /* sous-jalons : les 6 étapes de l'atelier */
+  .rm-sub-item { padding-left: 48px; font-size: 12px; font-weight: 700; }
+  .rm-sub-item::before { left: 30px; }
+  .rm-sub-item::after { left: 26.5px; width: 6px; height: 6px; }
+  .rm-note { font-size: 10.5px; color: var(--zetis-muted); line-height: 1.55;
+    margin-top: 22px; padding-top: 13px; border-top: 1px solid var(--zetis-glass-border); opacity: .7; }
+
+  .app { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; padding: 22px 20px 70px; }
+  .wordmark {
+    font-family: "Syncopate", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .35em;
+    text-align: center; margin-bottom: 16px; opacity: .9;
+  }
+  .wordmark span { color: var(--zetis-cyan); }
+
+  .screen { display: none; animation: fadeIn .25s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .scene-note {
+    font-size: 12px; line-height: 1.6; color: var(--zetis-muted);
+    border-left: 2px solid var(--zetis-fuchsia); padding: 4px 0 4px 11px; margin-bottom: 20px;
+  }
+  .scene-note b { color: #f0abfc; font-weight: 700; }
+
+  .back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .btn-back {
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); color: var(--zetis-fg);
+    border-radius: 12px; padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .subject-heading { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; }
+  .subj-chip { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 17px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  .section-label {
+    font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--zetis-muted); margin: 24px 4px 13px;
+  }
+
+  /* ══ Tuiles de leçon — les 4 états de la fiche personnelle ══ */
+  .fiche-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 620px) { .fiche-list { grid-template-columns: 1fr; } }
+  .tile {
+    position: relative; text-align: left; cursor: pointer; font-family: inherit; color: var(--zetis-fg);
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-left: 3px solid var(--accent); border-radius: 14px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 7px; transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+  .t-chapter { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--zetis-muted); font-weight: 700; }
+  .t-title { font-size: 15.5px; font-weight: 800; line-height: 1.25; }
+  .t-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+    padding: 4px 10px; font-size: 11.5px; font-weight: 800; letter-spacing: .01em;
+  }
+  .pill.mine   { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); }
+  .pill.draft  { background: rgba(251,191,36,.14); color: var(--warm); border: 1px solid rgba(251,191,36,.36); }
+  .pill.zetis  { background: rgba(34,211,238,.12); color: var(--zetis-cyan); border: 1px solid rgba(34,211,238,.34); }
+  .pill.todo   { background: rgba(255,255,255,.05); color: var(--zetis-muted); border: 1px solid var(--zetis-glass-border); }
+  .t-hint { font-size: 11.5px; color: var(--zetis-muted); }
+  .mini-pips { display: inline-flex; gap: 3px; }
+  .mini-pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.16); }
+  .mini-pips i.on { background: var(--warm); }
+
+  /* ══ Bulles ══ */
+  .zbubble {
+    display: flex; gap: 11px; align-items: flex-start; margin: 0 0 14px;
+  }
+  .zavatar {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px;
+    background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.16), rgba(255,255,255,.02) 62%), var(--zetis-bg);
+    border: 1px solid rgba(34,211,238,.4); box-shadow: 0 0 14px rgba(34,211,238,.22);
+  }
+  .zsay {
+    flex: 1; background: rgba(34,211,238,.07); border: 1px solid rgba(34,211,238,.24);
+    border-radius: 4px 15px 15px 15px; padding: 11px 14px; font-size: 14.5px; line-height: 1.55;
+  }
+  .zsay .say-row { display: flex; align-items: flex-start; gap: 10px; }
+  .zsay p + p { margin-top: 7px; }
+  .btn-voice {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 14px;
+    background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.34); color: var(--zetis-cyan);
+  }
+  .btn-voice:hover { background: rgba(34,211,238,.22); }
+  .btn-voice.playing { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(34,211,238,.12); } }
+  .msay {
+    margin: 0 0 14px 45px; background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 15px 4px 15px 15px; padding: 10px 14px; font-size: 14.5px; line-height: 1.5;
+  }
+
+  /* ══ Atelier : slots + candidates ══ */
+  .workbench { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 20px; padding: 18px; margin-bottom: 16px; }
+  .wb-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; flex-wrap: wrap; }
+  .wb-label { display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; }
+  .counter { font-size: 12.5px; font-weight: 800; color: var(--zetis-muted); }
+  .counter b { color: var(--accent); font-size: 15px; }
+  .slots { display: grid; gap: 8px; }
+  .slot {
+    display: flex; align-items: center; gap: 11px; min-height: 46px;
+    border: 1px dashed var(--zetis-glass-border); border-radius: 12px; padding: 9px 12px;
+    font-size: 13.5px; line-height: 1.45; color: var(--zetis-muted); transition: all .18s ease;
+  }
+  .slot .num { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 11.5px; font-weight: 800; background: rgba(255,255,255,.07); color: var(--zetis-muted); }
+  .slot.filled { border-style: solid; border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+    background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--zetis-fg); cursor: pointer; }
+  .slot.filled .num { background: var(--accent); color: #06281c; }
+  .slot .x { margin-left: auto; opacity: .45; font-size: 15px; font-weight: 800; }
+  .slot.filled:hover .x { opacity: 1; color: #fb7185; }
+
+  .cand-grid { display: grid; gap: 8px; margin-top: 6px; }
+  .cand {
+    text-align: left; font-family: inherit; cursor: pointer; font-size: 13.5px; line-height: 1.45;
+    background: rgba(255,255,255,.04); border: 1px solid var(--zetis-glass-border); color: var(--zetis-fg);
+    border-radius: 12px; padding: 10px 13px; transition: all .15s ease;
+  }
+  .cand:hover { border-color: var(--zetis-cyan); transform: translateX(2px); }
+  .cand.used { opacity: .28; pointer-events: none; }
+  .cand.dimmed { opacity: .22; pointer-events: none; filter: grayscale(.6); }
+  .cand .tag-copy { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--warm); border: 1px solid rgba(251,191,36,.4); border-radius: 6px; padding: 1px 6px; margin-right: 7px; vertical-align: 1px; }
+
+  .actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 15px; }
+  .btn {
+    font-family: inherit; cursor: pointer; border-radius: 12px; padding: 11px 16px;
+    font-size: 14px; font-weight: 800; border: 1px solid transparent;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--zetis-primary), var(--zetis-cyan)); color: #05121a; }
+  .btn-primary:disabled { opacity: .32; cursor: not-allowed; }
+  .btn-ghost { background: var(--zetis-glass); border-color: var(--zetis-glass-border); color: var(--zetis-fg); }
+  .btn-ghost:hover { border-color: var(--zetis-cyan); }
+  .btn-quiet { background: none; border: none; color: var(--zetis-muted); font-weight: 700; font-size: 13px;
+    text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-family: inherit; padding: 11px 4px; }
+  .btn-quiet:hover { color: var(--zetis-fg); }
+
+  /* ══ Retour d'analyse ══ */
+  .feedback { display: grid; gap: 11px; }
+  .win {
+    display: flex; gap: 11px; align-items: flex-start; border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.55;
+    background: color-mix(in srgb, var(--accent) 11%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .win .ic { font-size: 17px; }
+  .remark { border-radius: 14px; padding: 12px 14px; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.28); }
+  .rk-head { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--warm); margin-bottom: 7px; }
+  .rk-quote { font-size: 13.5px; line-height: 1.5; padding: 9px 12px; border-radius: 10px; background: rgba(255,255,255,.045); margin-bottom: 9px; }
+  .rk-quote mark { background: rgba(251,191,36,.26); color: #fde68a; border-radius: 4px; padding: 1px 3px; }
+  .rk-msg { font-size: 14px; line-height: 1.55; }
+  .rk-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+  .escalade { margin-top: 11px; display: none; }
+  .escalade.on { display: block; animation: fadeIn .2s ease; }
+  .choices { display: grid; gap: 7px; margin-top: 9px; }
+  .choice {
+    text-align: left; font-family: inherit; cursor: pointer; font-size: 13.5px; line-height: 1.45;
+    background: rgba(255,255,255,.045); border: 1px solid var(--zetis-glass-border); color: var(--zetis-fg);
+    border-radius: 11px; padding: 10px 13px;
+  }
+  .choice:hover { border-color: var(--accent); }
+  .choice.none { color: var(--zetis-muted); font-style: italic; }
+  .kept { display: none; font-size: 13px; color: var(--accent); font-weight: 700; margin-top: 10px; }
+  .kept.on { display: block; animation: fadeIn .2s ease; }
+
+  /* ══ La fiche (format fermé, repris du contrat visuel) ══ */
+  .fiche { position: relative; border-radius: 22px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)), var(--zetis-bg);
+    border: 1px solid var(--zetis-glass-border); box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  .fiche-header { position: relative; padding: 16px 20px 14px; display: flex; align-items: center; gap: 13px;
+    background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 60%), rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--zetis-glass-border); }
+  .fiche-header::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); }
+  .fh-ico { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; font-size: 21px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent) 20%, transparent); border: 1px solid var(--zetis-glass-border); }
+  .fh-chapter { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 800; margin-bottom: 3px; }
+  .fh-title { font-size: 19px; font-weight: 800; line-height: 1.2; }
+  .fh-subject { font-size: 11.5px; color: var(--zetis-muted); margin-top: 3px; }
+  .by-badge { margin-left: auto; flex-shrink: 0; }
+  .fiche-body { padding: 17px 20px 6px; }
+  .fsec { margin-bottom: 15px; }
+  .fsec-label { display: flex; align-items: center; gap: 7px; font-size: 11.5px; letter-spacing: .12em;
+    text-transform: uppercase; font-weight: 800; margin-bottom: 8px; opacity: .95; }
+  .essentiel { font-size: 14.5px; line-height: 1.55; background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 14px; padding: 12px 14px; }
+  .keys { list-style: none; display: grid; gap: 7px; }
+  .keys li { position: relative; padding-left: 24px; font-size: 14px; line-height: 1.5; }
+  .keys li::before { content: "▸"; position: absolute; left: 4px; top: 0; color: var(--accent); font-weight: 800; }
+  .fiche-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 13px 20px 18px;
+    border-top: 1px solid var(--zetis-glass-border); margin-top: 4px; }
+  .badge-mine { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent); color: var(--accent);
+    border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 800; margin-right: auto; }
+  .badge-cours { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,211,238,.12);
+    border: 1px solid rgba(34,211,238,.35); color: var(--zetis-cyan); border-radius: 999px;
+    padding: 5px 12px; font-size: 12px; font-weight: 700; margin-right: auto; }
+
+  /* ══ Versions ══ */
+  .versions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+  .vchip {
+    font-family: inherit; cursor: pointer; border-radius: 11px; padding: 8px 13px; font-size: 12.5px; font-weight: 800;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); color: var(--zetis-muted);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .vchip small { font-weight: 700; opacity: .75; }
+  .vchip.on { border-color: var(--accent); color: var(--zetis-fg); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .vchip:hover { color: var(--zetis-fg); }
+  .shrink-note { font-size: 12.5px; color: var(--zetis-muted); line-height: 1.6; margin-top: 13px;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); padding-left: 11px; }
+  .shrink-note b { color: var(--accent); }
+
+  /* ══ Côte à côte (corrigé) ══ */
+  .side { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+  @media (max-width: 720px) { .side { grid-template-columns: 1fr; } }
+  .col-head { display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .1em;
+    text-transform: uppercase; font-weight: 800; margin-bottom: 10px; }
+  .cmp { list-style: none; display: grid; gap: 7px; }
+  .cmp li { position: relative; padding: 9px 12px 9px 32px; font-size: 13px; line-height: 1.45; border-radius: 10px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--zetis-glass-border); }
+  .cmp li::before { position: absolute; left: 10px; top: 9px; font-weight: 800; }
+  .cmp li.same::before { content: "✓"; color: var(--accent); }
+  .cmp li.same { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .cmp li.extra::before { content: "+"; color: var(--zetis-cyan); }
+  .cmp li.miss::before { content: "·"; color: var(--warm); font-size: 20px; top: 4px; }
+  .cmp li.miss { border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.06); }
+
+  /* ══ Champs libres ══ */
+  .field { background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border); border-radius: 16px; padding: 15px 16px; margin-bottom: 13px; }
+  .field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .field-label { display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; }
+  .amorce { font-size: 15px; line-height: 1.6; color: var(--zetis-muted); margin-bottom: 2px; font-weight: 700; }
+  .writer {
+    width: 100%; font-family: inherit; font-size: 15px; line-height: 1.6; color: var(--zetis-fg);
+    background: none; border: none; outline: none; resize: none; min-height: 64px;
+  }
+  .writer::placeholder { color: rgba(139,145,184,.5); }
+  .writer-wrap { border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--zetis-glass-border); padding: 11px 13px; transition: border-color .18s ease; }
+  .writer-wrap:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+  .field-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  /* Le budget se montre comme de la PLACE, jamais comme un compteur qui punit. */
+  .room { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--zetis-muted); }
+  .room-bar { width: 92px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.09); overflow: hidden; }
+  .room-fill { height: 100%; width: 0%; border-radius: 3px; background: color-mix(in srgb, var(--accent) 70%, transparent); transition: width .2s ease; }
+  .btn-mic {
+    display: inline-flex; align-items: center; gap: 7px; font-family: inherit; cursor: pointer;
+    background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+    color: var(--accent); border-radius: 12px; padding: 9px 14px; font-size: 13.5px; font-weight: 800;
+  }
+  .btn-mic:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .btn-mic.rec { animation: pulse 1.1s ease-in-out infinite; }
+  .silence-note { font-size: 12px; color: var(--zetis-muted); font-style: italic; opacity: .85; margin-top: 9px; }
+
+  /* ══ Définitions : terme donné, définition écrite ══ */
+  .defrow { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; gap: 12px; align-items: start;
+    padding: 11px 0; border-bottom: 1px dashed var(--zetis-glass-border); }
+  .defrow:last-child { border-bottom: none; }
+  @media (max-width: 560px) { .defrow { grid-template-columns: 1fr; gap: 6px; } }
+  .defterm { font-weight: 800; color: var(--zetis-cyan); font-size: 14px; padding-top: 9px; }
+  .defterm small { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--zetis-muted); font-weight: 700; margin-top: 3px; }
+  .defwrite { border-radius: 11px; background: rgba(255,255,255,.035); border: 1px solid var(--zetis-glass-border); padding: 9px 12px; }
+  .defwrite input { width: 100%; font-family: inherit; font-size: 14px; color: var(--zetis-fg); background: none; border: none; outline: none; }
+  .defwrite input::placeholder { color: rgba(139,145,184,.5); }
+  .defwrite.done { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+
+  /* ══ Pièges venus de SES erreurs ══ */
+  .trap { border-radius: 14px; padding: 13px 15px; margin-bottom: 10px;
+    background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.26); }
+  .trap.kept { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
+  .trap.gone { opacity: .35; }
+  .trap-evidence { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--warm); margin-bottom: 8px; }
+  .trap.kept .trap-evidence { color: var(--accent); }
+  .trap-txt { font-size: 14px; line-height: 1.5; margin-bottom: 10px; }
+  .trap-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ══ Mnémonique ══ */
+  .mnemo-box { border-radius: 16px; padding: 15px 16px; margin-bottom: 13px;
+    background: rgba(217,70,239,.07); border: 1px solid rgba(217,70,239,.26); }
+  .mnemo-list { list-style: none; display: grid; gap: 5px; margin: 9px 0 13px; }
+  .mnemo-list li { position: relative; padding-left: 26px; font-size: 13.5px; line-height: 1.5; }
+  .mnemo-list li b { color: var(--zetis-fuchsia); }
+  .mnemo-list li::before { counter-increment: m; content: counter(m); position: absolute; left: 0; top: 1px;
+    width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 800;
+    background: rgba(217,70,239,.2); color: #f0abfc; }
+  .mnemo-list { counter-reset: m; }
+  .reveal { display: none; margin-top: 13px; }
+  .reveal.on { display: block; animation: fadeIn .22s ease; }
+  .empty-case { font-size: 12.5px; line-height: 1.6; color: var(--zetis-muted); margin-top: 14px;
+    border-left: 2px solid var(--zetis-glass-border); padding-left: 11px; }
+  .empty-case b { color: var(--zetis-fg); }
+
+  /* ══════════ ÉTAPES VERTICALES — la fiche en train de se faire ══════════ */
+  .progress-line { display: flex; align-items: center; gap: 11px; margin-bottom: 18px;
+    font-size: 12.5px; color: var(--zetis-muted); }
+  .progress-line b { color: var(--accent); font-size: 14px; }
+  .progress-track { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .progress-done { height: 100%; width: 0%; border-radius: 3px; transition: width .25s ease;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, transparent), var(--zetis-cyan)); }
+
+  .stepper { position: relative; }
+  .step { position: relative; padding-left: 46px; padding-bottom: 12px; }
+  /* le rail qui relie les étapes */
+  .step::before {
+    content: ""; position: absolute; left: 15px; top: 30px; bottom: -2px; width: 2px;
+    background: linear-gradient(180deg, var(--zetis-glass-border), rgba(255,255,255,.05));
+  }
+  .step:last-child::before { display: none; }
+  .step-dot {
+    position: absolute; left: 4px; top: 6px; width: 25px; height: 25px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 11.5px; font-weight: 800; z-index: 2;
+    background: var(--zetis-bg); border: 2px solid var(--zetis-glass-border); color: var(--zetis-muted);
+    transition: all .2s ease;
+  }
+  .step.doing .step-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+  .step.done .step-dot { border-color: var(--accent); background: var(--accent); color: #06281c; }
+  .step.done::before { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .step.locked .step-dot { opacity: .45; }
+
+  .step-head {
+    width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--zetis-glass); border: 1px solid var(--zetis-glass-border);
+    border-radius: 14px; padding: 11px 14px; color: var(--zetis-fg);
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .step-head:hover { border-color: var(--zetis-cyan); }
+  .step.doing .step-head { border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 14px 14px 0 0; }
+  .step-name { font-size: 14.5px; font-weight: 800; }
+  .step-state { margin-left: auto; font-size: 11.5px; font-weight: 800; color: var(--zetis-muted); }
+  .step.done .step-state { color: var(--accent); }
+  .step-chev { font-size: 12px; color: var(--zetis-muted); transition: transform .2s ease; }
+  .step.doing .step-chev { transform: rotate(90deg); }
+
+  .step-body { display: none; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-top: none; border-radius: 0 0 14px 14px; padding: 15px 14px 16px;
+    background: rgba(255,255,255,.02); animation: fadeIn .2s ease; }
+  .step.doing .step-body { display: block; }
+  /* aperçu de ce qui est déjà écrit, quand l'étape est repliée */
+  .step-preview { display: none; font-size: 12.5px; line-height: 1.55; color: var(--zetis-muted);
+    padding: 8px 14px 2px; }
+  .step.done:not(.doing) .step-preview { display: block; }
+  .step-preview li { margin-left: 15px; }
+  .step-hint { display: none; font-size: 12px; color: var(--zetis-muted); opacity: .8; padding: 7px 14px 2px; font-style: italic; }
+  .step:not(.done):not(.doing) .step-hint { display: block; }
+
+  .step-foot { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .conditional-tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 800;
+    color: var(--zetis-fuchsia); border: 1px solid rgba(217,70,239,.4); border-radius: 6px; padding: 2px 7px; }
+
+  .fsec-by { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 800;
+    border-radius: 5px; padding: 2px 6px; margin-left: auto; }
+  .by-m { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  .by-z { background: rgba(34,211,238,.14); color: var(--zetis-cyan); }
+  .by-h { background: rgba(251,191,36,.14); color: var(--warm); }
+
+  .footnote { text-align: center; color: var(--zetis-muted); font-size: 12px; margin-top: 34px; opacity: .7; line-height: 1.6; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="neon-backdrop"><div class="halo-cyan"></div></div>
+
+<div class="layout">
+
+<!-- ══════ ROADMAP DE RELECTURE — ne fait pas partie de l'app ══════ -->
+<nav class="roadmap">
+  <div class="rm-title">Scénarios</div>
+  <div class="rm-sub">Outil de relecture — ne fait pas partie de l'app.</div>
+  <div id="rm-body"></div>
+  <p class="rm-note">Addendum ADR-0015 — « La fiche que Massimo fabrique lui-même ».
+    Tokens repris de <code>mockup-page-fiches.html</code>.</p>
+</nav>
+
+<div class="app">
+  <div class="wordmark">ZET<span>IS</span></div>
+
+  <!-- ══════ A — Le deck : les 4 états, dont LA REPRISE ══════ -->
+  <section class="screen active" id="sc-deck">
+    <div class="back-row">
+      <button class="btn-back">← Mes decks</button>
+      <div class="subject-heading"><span class="subj-chip">🌱</span><span>SVT</span></div>
+    </div>
+    <p class="scene-note">Point neuf du cadrage : <b>Massimo doit pouvoir revenir sur une fiche déjà faite.</b>
+      Quatre états cohabitent dans la même liste — sa fiche finie, son brouillon, une leçon pas encore commencée,
+      et une leçon où seule la fiche ZETIS existe. <b>Aucun état n'est un reproche</b> : le brouillon n'affiche pas
+      « inachevé », et rien ne compte de jours manqués.</p>
+
+    <div class="section-label">Tes fiches</div>
+    <div class="fiche-list">
+      <button class="tile" onclick="go('sc-reprise')">
+        <div class="t-chapter">La Terre change</div>
+        <div class="t-title">Les séismes</div>
+        <div class="t-foot">
+          <span class="pill mine">✍️ Ta fiche</span>
+          <span class="t-hint">2 versions · la dernière il y a 5 jours</span>
+        </div>
+      </button>
+
+      <button class="tile" onclick="go('sc-atelier')">
+        <div class="t-chapter">La Terre change</div>
+        <div class="t-title">Les volcans</div>
+        <div class="t-foot">
+          <span class="pill draft">✏️ Commencée</span>
+          <span class="mini-pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>
+          <span class="t-hint">tu en as choisi 3</span>
+        </div>
+      </button>
+
+      <button class="tile" onclick="go('sc-atelier')">
+        <div class="t-chapter">Le corps humain</div>
+        <div class="t-title">La digestion</div>
+        <div class="t-foot">
+          <span class="pill todo">🧩 À fabriquer</span>
+          <span class="t-hint">≈ 5 minutes</span>
+        </div>
+      </button>
+
+      <button class="tile" onclick="go('sc-zetis-seule')">
+        <div class="t-chapter">Le corps humain</div>
+        <div class="t-title">La respiration</div>
+        <div class="t-foot">
+          <span class="pill zetis">⭐ Fiche ZETIS</span>
+          <span class="t-hint">à lire</span>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ══════ B — L'ATELIER : les étapes de la fiche, à la verticale ══════ -->
+  <section class="screen" id="sc-atelier">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-deck')">← SVT</button>
+      <div class="subject-heading"><span class="subj-chip">🌱</span><span>Les séismes</span></div></div>
+    <p class="scene-note"><b>Une seule page, six étapes empilées.</b> Un assistant en six écrans cacherait
+      l'avancement et imposerait un ordre ; la colonne montre <b>la fiche en train de se faire</b> et laisse
+      remplir <b>dans n'importe quel ordre</b>. Chaque étape a son <b>mode d'auteur</b> (choix, champ libre,
+      hybride, confirmation). <b>Aucune étape n'est obligatoire</b> — et on peut s'arrêter à tout moment,
+      la fiche reste commencée. <b>Interactif</b> : clique un titre pour ouvrir une étape.</p>
+
+    <div class="progress-line">
+      <span><b id="pg-n">1</b> étape sur 6 a quelque chose</span>
+      <div class="progress-track"><div class="progress-done" id="pg-bar"></div></div>
+    </div>
+
+    <div class="stepper">
+
+      <!-- ① À retenir — mode CHOIX -->
+      <div class="step doing" id="st1">
+        <div class="step-dot">1</div>
+        <button class="step-head" onclick="openStep(1)">
+          <span>🔑</span><span class="step-name">À retenir</span>
+          <span class="step-state" id="st1-state">0 / 5</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">5 idées à choisir dans ton cours · aucune écriture</div>
+        <div class="step-preview" id="st1-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p id="z-line">Ton cours fait 3 pages. Une fiche, c'est 5 idées.
+                <b>Lesquelles tu gardes ?</b></p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="slots" id="slots"></div>
+          <div class="section-label" style="margin:18px 4px 11px">Les phrases de ton cours</div>
+          <div class="cand-grid" id="cands"></div>
+          <div class="step-foot">
+            <button class="btn btn-ghost" onclick="aideMoi()">Aide-moi</button>
+            <button class="btn-quiet" onclick="go('sc-seche')">Je sèche sur cette étape</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② L'essentiel — mode CHAMP LIBRE -->
+      <div class="step" id="st2">
+        <div class="step-dot">2</div>
+        <button class="step-head" onclick="openStep(2)">
+          <span>⭐</span><span class="step-name">L'essentiel</span>
+          <span class="step-state" id="st2-state">vide</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">le résumer en deux phrases, avec tes mots — ou à voix haute</div>
+        <div class="step-preview" id="st2-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p>En <b>deux phrases</b> : c'est quoi, un séisme ? Dis-le comme tu l'expliquerais
+                à un copain.</p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="amorce">Un séisme, c'est…</div>
+          <div class="writer-wrap">
+            <textarea class="writer" id="ess" rows="3" oninput="room()"
+              placeholder="…continue avec tes mots"></textarea>
+          </div>
+          <div class="field-foot">
+            <div class="room">
+              <div class="room-bar"><div class="room-fill" id="room-fill"></div></div>
+              <span id="room-txt">de la place pour 3 lignes</span>
+            </div>
+            <button class="btn-mic" id="mic" onclick="dictee()">🎙️ Le dire à voix haute</button>
+          </div>
+          <p class="silence-note" id="silence">ZETIS ne dit rien pendant que tu écris.
+            Il regardera quand tu lui demanderas.</p>
+          <div class="step-foot">
+            <button class="btn-quiet" onclick="go('sc-seche')">Je sèche sur cette étape</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ Les mots — mode HYBRIDE -->
+      <div class="step" id="st3">
+        <div class="step-dot">3</div>
+        <button class="step-head" onclick="openStep(3)">
+          <span>📖</span><span class="step-name">Les mots à connaître</span>
+          <span class="step-state" id="st3-state">1 / 3</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">ZETIS donne le mot, tu écris ce qu'il veut dire</div>
+        <div class="step-preview" id="st3-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p>Trois mots de ton cours. <b>Explique-les comme tu les as compris</b> —
+                pas comme le livre les dit.</p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="defrow">
+            <div class="defterm">Le foyer<small>ZETIS</small></div>
+            <div class="defwrite done"><input value="L'endroit où ça casse, sous la terre." oninput="defOk(this)"></div>
+          </div>
+          <div class="defrow">
+            <div class="defterm">L'épicentre<small>ZETIS</small></div>
+            <div class="defwrite"><input placeholder="à toi…" oninput="defOk(this)"></div>
+          </div>
+          <div class="defrow">
+            <div class="defterm">La magnitude<small>ZETIS</small></div>
+            <div class="defwrite"><input placeholder="à toi…" oninput="defOk(this)"></div>
+          </div>
+          <div class="step-foot">
+            <button class="btn btn-ghost">🎙️ Les dire à voix haute</button>
+            <button class="btn-quiet">Je sèche sur un mot</button>
+          </div>
+          <p class="silence-note">Chaque définition devient une carte : <b>recto</b> le mot de ZETIS,
+            <b>verso</b> ta phrase. C'est <i>ta</i> formulation que tu réviseras.</p>
+        </div>
+      </div>
+
+      <!-- ④ Les pièges — mode CONFIRMATION (pré-rempli depuis SES erreurs) -->
+      <div class="step" id="st4">
+        <div class="step-dot">4</div>
+        <button class="step-head" onclick="openStep(4)">
+          <span>⚠️</span><span class="step-name">Pièges à éviter</span>
+          <span class="step-state" id="st4-state">2 proposés</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">ZETIS a regardé tes erreurs — tu gardes ou tu écartes</div>
+        <div class="step-preview" id="st4-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p>J'ai regardé <b>tes</b> erreurs sur ce chapitre. Il y en a deux qui reviennent.
+                Tu veux les mettre en pièges ?</p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="trap" id="trap1">
+            <div class="trap-evidence">📊 2 erreurs en quiz · 12 et 19 juillet</div>
+            <div class="trap-txt">Ne pas confondre <b>le foyer</b> (en profondeur) et
+              <b>l'épicentre</b> (en surface).</div>
+            <div class="trap-actions">
+              <button class="btn btn-ghost" onclick="trap('trap1','keep')">Oui, je le garde</button>
+              <button class="btn-quiet" onclick="trap('trap1','edit')">Le dire autrement</button>
+              <button class="btn-quiet" onclick="trap('trap1','drop')">Non, ça va</button>
+            </div>
+          </div>
+          <div class="trap" id="trap2">
+            <div class="trap-evidence">🗂️ carte de révision ratée 2 fois</div>
+            <div class="trap-txt">La magnitude ne dit <b>pas</b> les dégâts — deux séismes de même
+              magnitude peuvent faire des dégâts très différents.</div>
+            <div class="trap-actions">
+              <button class="btn btn-ghost" onclick="trap('trap2','keep')">Oui, je le garde</button>
+              <button class="btn-quiet" onclick="trap('trap2','edit')">Le dire autrement</button>
+              <button class="btn-quiet" onclick="trap('trap2','drop')">Non, ça va</button>
+            </div>
+          </div>
+          <p class="silence-note">Écarter un piège <b>n'efface aucune mesure</b> : l'erreur reste dans ton
+            historique, elle ne va simplement pas sur la fiche.</p>
+        </div>
+      </div>
+
+      <!-- ⑤ Un exemple — mode CHAMP LIBRE -->
+      <div class="step" id="st5">
+        <div class="step-dot">5</div>
+        <button class="step-head" onclick="openStep(5)">
+          <span>💡</span><span class="step-name">Un exemple</span>
+          <span class="step-state" id="st5-state">vide</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">facultatif — mais c'est la meilleure preuve que tu as compris</div>
+        <div class="step-preview" id="st5-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p>Tu vois quelque chose <b>de ta vie</b> qui ressemble à ça ?
+                Même de loin, même bizarre.</p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="amorce">C'est un peu comme…</div>
+          <div class="writer-wrap">
+            <textarea class="writer" id="exm" rows="2" oninput="stepState()"
+              placeholder="…à toi de trouver"></textarea>
+          </div>
+          <div class="step-foot">
+            <button class="btn-mic">🎙️ Le dire à voix haute</button>
+            <button class="btn-quiet">Je sèche sur cette étape</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ Mnemonics — CONDITIONNEL -->
+      <div class="step" id="st6">
+        <div class="step-dot">6</div>
+        <button class="step-head" onclick="openStep(6)">
+          <span>🎩</span><span class="step-name">Mnemonics</span>
+          <span class="conditional-tag">occasion trouvée</span>
+          <span class="step-state" id="st6-state">vide</span><span class="step-chev">›</span>
+        </button>
+        <div class="step-hint">il y a 5 étapes dans l'ordre — ça, ça se retient avec un truc</div>
+        <div class="step-preview" id="st6-prev"></div>
+        <div class="step-body">
+          <div class="zbubble">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p>Là, il y a <b>5 étapes dans l'ordre</b>. Ça, ça se retient avec un truc.</p>
+                <p>Invente le tien — <b>plus c'est bête, mieux ça marche.</b></p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <ul class="mnemo-list">
+            <li><b>C</b>ontraintes qui s'accumulent</li>
+            <li><b>R</b>upture des roches</li>
+            <li><b>O</b>ndes qui partent</li>
+            <li><b>S</b>ecousse en surface</li>
+            <li><b>R</b>épliques</li>
+          </ul>
+          <div class="writer-wrap">
+            <textarea class="writer" id="mnemo" rows="2" oninput="stepState()"
+              placeholder="Ton truc à toi… (C-R-O-S-R)"></textarea>
+          </div>
+          <div class="step-foot">
+            <button class="btn btn-primary" onclick="revealMnemo()">C'est trouvé</button>
+            <button class="btn-quiet" onclick="revealMnemo()">Je sèche — montre le tien</button>
+          </div>
+          <div class="reveal" id="mnemo-reveal">
+            <div class="zbubble" style="margin:13px 0 0">
+              <div class="zavatar">🪐</div>
+              <div class="zsay"><div class="say-row">
+                <div><p>Le mien : <b>« Carotte Rôtie Ou Salade Râpée »</b>. Il est bête —
+                  garde le tien s'il te parle plus, c'est le tien qui se retiendra.</p></div>
+                <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+              </div></div>
+            </div>
+          </div>
+          <p class="empty-case"><b>Sur la plupart des leçons, cette étape n'apparaît pas du tout.</b>
+            Il n'y a pas de mnémonique pour « pourquoi la Terre tremble » — et un acronyme forcé serait
+            plus dur à retenir que la chose elle-même.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-look" disabled onclick="go('sc-retour')">ZETIS, regarde ma fiche</button>
+      <button class="btn btn-ghost" onclick="go('sc-deck')">J'ai fini pour aujourd'hui</button>
+    </div>
+    <p class="footnote" id="save-note">Tout est gardé au fur et à mesure — tu peux fermer et revenir
+      demain. <b>Une fiche à deux étapes est une fiche.</b></p>
+  </section>
+
+  <!-- ══════ C — « Je sèche » ══════ -->
+  <section class="screen" id="sc-seche">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-atelier')">← Ma fiche</button></div>
+    <p class="scene-note">Règle 4 du contrat : <b>« je sèche » est toujours visible et ne coûte rien.</b>
+      Réponse <b>jamais déçue</b>, pas de « tu es sûr ? », pas de relance culpabilisante. Si le dire est gratuit,
+      il le dit — sinon il recopie son cours.</p>
+    <div class="zbubble">
+      <div class="zavatar">🪐</div>
+      <div class="zsay"><div class="say-row">
+        <div>
+          <p>D'accord. Choisir ce qui compte, c'est le plus dur — c'est normal que ça bloque.</p>
+          <p>On fait autrement : je t'en écarte 7, il t'en reste 5. Tu regardes juste si elles te parlent.</p>
+        </div>
+        <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+      </div></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="go('sc-atelier')">D'accord, montre</button>
+      <button class="btn btn-ghost" onclick="go('sc-deck')">Une autre fois</button>
+    </div>
+    <p class="footnote">« Une autre fois » ramène au deck. La fiche reste <b>commencée</b>, jamais « abandonnée ».</p>
+  </section>
+
+  <!-- ══════ D — Le retour d'analyse ══════ -->
+  <section class="screen" id="sc-retour">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-atelier')">← Ma fiche</button></div>
+    <p class="scene-note">Retour <b>borné à 2 remarques</b>, toujours précédé d'<b>une réussite nommée précisément</b>.
+      Ici une remarque de type <b><code>recopie</code></b> — détectée par recouvrement de n-grammes,
+      <b>déterministe, sans LLM et sans faux positif</b>. <b>Interactif</b> : « aide-moi » escalade en trois crans.</p>
+
+    <div class="zbubble">
+      <div class="zavatar">🪐</div>
+      <div class="zsay"><div class="say-row">
+        <div><p>J'ai regardé. <b>Deux choses</b>, pas plus.</p></div>
+        <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+      </div></div>
+    </div>
+
+    <div class="feedback">
+      <div class="win">
+        <span class="ic">⭐</span>
+        <div>Ton idée sur <b>l'épicentre</b>, c'est exactement celle que ton cours met en gras.
+          Tu as attrapé la plus importante.</div>
+      </div>
+
+      <div class="remark">
+        <div class="rk-head">✍️ Une phrase à toi</div>
+        <div class="rk-quote">« <mark>La magnitude mesure l'énergie libérée par le séisme au niveau du foyer</mark> »</div>
+        <div class="rk-msg">Ces mots-là viennent de ton cours, mot pour mot. <b>Tu peux le dire avec les tiens ?</b></div>
+        <div class="rk-actions">
+          <button class="btn btn-ghost" onclick="escalade()">Aide-moi</button>
+          <button class="btn-quiet" onclick="garde(this)">Je garde ma phrase</button>
+        </div>
+        <div class="escalade" id="esc1">
+          <div class="zbubble" style="margin-top:12px">
+            <div class="zavatar">🪐</div>
+            <div class="zsay"><div class="say-row">
+              <div><p id="esc-txt">Si tu devais garder <b>5 mots</b> dans cette phrase, lesquels tu prendrais ?</p></div>
+              <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+            </div></div>
+          </div>
+          <div class="choices" id="esc-choices" style="display:none">
+            <button class="choice">« La magnitude, c'est la force du séisme. »</button>
+            <button class="choice">« Plus la magnitude est grande, plus le séisme est puissant. »</button>
+            <button class="choice">« La magnitude mesure l'énergie du séisme. »</button>
+            <button class="choice none">Aucune des trois — j'écris la mienne</button>
+          </div>
+        </div>
+        <div class="kept" id="kept1">✓ Gardée. C'est ta fiche.</div>
+      </div>
+
+      <div class="remark">
+        <div class="rk-head">🧩 Une idée qui manque</div>
+        <div class="rk-msg">Il reste <b>une idée importante</b> dans ton cours, du côté de ce qui se passe
+          <b>avant</b> le séisme. Tu vois laquelle ?</div>
+        <div class="rk-actions">
+          <button class="btn btn-ghost">Aide-moi</button>
+          <button class="btn-quiet">Plus tard</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="go('sc-corrige')">Voir la fiche de ZETIS</button>
+      <button class="btn btn-ghost" onclick="go('sc-finie')">Garder ma fiche comme ça</button>
+    </div>
+  </section>
+
+  <!-- ══════ E — Le corrigé, côte à côte ══════ -->
+  <section class="screen" id="sc-corrige">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-retour')">← Mon retour</button></div>
+    <p class="scene-note">§3 <b>révisé le 2026-08-12</b> — « lire avant de fabriquer, c'est ok » :
+      <b>rien n'est verrouillé</b>. La fiche ZETIS est toujours à un clic ; ce qui change, c'est seulement
+      <b>ce qui s'ouvre en premier</b> (sa fiche ou son atelier). Un <b>défaut</b>, pas un gate — un verrou
+      serait un objectif subi, ce que <code>CLAUDE.md</code> proscrit. La comparaison reste <b>proposée après
+      une tentative</b>, parce que c'est là qu'elle a du sens. Les deux fiches ayant <b>la même forme
+      fermée</b>, elle est champ à champ.</p>
+    <div class="side">
+      <div>
+        <div class="col-head" style="color:var(--accent)">✍️ Ta fiche</div>
+        <ul class="cmp">
+          <li class="same">L'épicentre est le point à la surface, juste au-dessus du foyer.</li>
+          <li class="same">Un séisme vient d'une cassure brutale des roches en profondeur.</li>
+          <li class="same">La magnitude, c'est la force du séisme.</li>
+          <li class="extra">Il y a des répliques après le séisme principal.</li>
+          <li class="same">Les séismes sont fréquents à la limite des plaques.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="col-head" style="color:var(--zetis-cyan)">⭐ La fiche de ZETIS</div>
+        <ul class="cmp">
+          <li class="same">Le foyer est le lieu de la rupture, l'épicentre est à la verticale en surface.</li>
+          <li class="same">Un séisme est la libération brutale d'énergie accumulée dans les roches.</li>
+          <li class="same">La magnitude mesure l'énergie libérée.</li>
+          <li class="miss">Les contraintes s'accumulent lentement <b>avant</b> la rupture.</li>
+          <li class="same">Les séismes se concentrent aux frontières de plaques.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="shrink-note"><b>4 idées sur 5 en commun</b>, dites avec tes mots. Une idée en plus que ZETIS
+      n'avait pas mise — <b>elle reste</b>, c'est ta fiche. Et une qui manque encore : celle d'avant la rupture.</p>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="go('sc-finie')">Voir ma fiche finie</button>
+      <button class="btn btn-ghost" onclick="go('sc-atelier')">Retoucher la mienne</button>
+    </div>
+  </section>
+
+  <!-- ══════ F — Sa fiche finie ══════ -->
+  <section class="screen" id="sc-finie">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-deck')">← SVT</button></div>
+    <p class="scene-note">Les <b>six</b> sections, avec <b>qui a rempli quoi</b> — c'est le vrai apport du
+      plan : les sections ne changent pas, leur <b>mode d'auteur</b> diffère.
+      <code>FicheSpec</code> reste le même format fermé, même rendu, même export A5 ; seul
+      <code>author='massimo'</code> change, plus la 6ᵉ section conditionnelle.</p>
+    <div class="fiche">
+      <div class="fiche-header">
+        <div class="fh-ico">🌱</div>
+        <div>
+          <div class="fh-chapter">La Terre change</div>
+          <div class="fh-title">Les séismes</div>
+          <div class="fh-subject">SVT · 4ᵉ</div>
+        </div>
+        <span class="pill mine by-badge">✍️ v2</span>
+      </div>
+      <div class="fiche-body">
+        <div class="fsec">
+          <div class="fsec-label">⭐ L'essentiel <span class="fsec-by by-m">écrit</span></div>
+          <div class="essentiel">Un séisme, c'est quand les roches cassent d'un coup en profondeur.
+            Ça secoue jusqu'à la surface.</div>
+        </div>
+        <div class="fsec">
+          <div class="fsec-label">📖 Les mots à connaître <span class="fsec-by by-z">terme ZETIS · définition écrite</span></div>
+          <div class="defs" style="display:grid;gap:8px">
+            <div class="def" style="display:grid;grid-template-columns:minmax(90px,32%) 1fr;gap:12px;font-size:13.5px;line-height:1.5;padding:7px 0;border-bottom:1px dashed var(--zetis-glass-border)">
+              <span class="term" style="font-weight:800;color:var(--zetis-cyan)">Le foyer</span>
+              <span>L'endroit où ça casse, sous la terre.</span></div>
+            <div class="def" style="display:grid;grid-template-columns:minmax(90px,32%) 1fr;gap:12px;font-size:13.5px;line-height:1.5;padding:7px 0">
+              <span class="term" style="font-weight:800;color:var(--zetis-cyan)">L'épicentre</span>
+              <span>Le point juste au-dessus, mais en surface.</span></div>
+          </div>
+        </div>
+        <div class="fsec">
+          <div class="fsec-label">🔑 À retenir <span class="fsec-by by-m">choisi</span></div>
+          <ul class="keys">
+            <li>Un séisme vient d'une cassure brutale des roches en profondeur.</li>
+            <li>L'épicentre est le point à la surface, juste au-dessus du foyer.</li>
+            <li>La magnitude, c'est la force du séisme.</li>
+            <li>Il y a des répliques après le séisme principal.</li>
+            <li>Les séismes sont fréquents à la limite des plaques.</li>
+          </ul>
+        </div>
+        <div class="fsec">
+          <div class="fsec-label">⚠️ Pièges à éviter <span class="fsec-by by-h">ses erreurs · confirmé</span></div>
+          <ul class="pieges" style="list-style:none;display:grid;gap:7px">
+            <li style="position:relative;padding-left:26px;font-size:13.5px;line-height:1.5;color:#fecdd3">
+              <span style="position:absolute;left:5px;top:0;color:#fb7185;font-weight:800">✕</span>
+              Ne pas confondre le foyer (en profondeur) et l'épicentre (en surface).</li>
+            <li style="position:relative;padding-left:26px;font-size:13.5px;line-height:1.5;color:#fecdd3">
+              <span style="position:absolute;left:5px;top:0;color:#fb7185;font-weight:800">✕</span>
+              La magnitude ne dit pas les dégâts.</li>
+          </ul>
+        </div>
+        <div class="fsec">
+          <div class="fsec-label">💡 Un exemple <span class="fsec-by by-m">écrit</span></div>
+          <div class="exemple" style="font-size:14px;line-height:1.55;font-style:italic;background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.30);border-radius:14px;padding:12px 15px">
+            Comme quand tu plies une règle en plastique de plus en plus fort : ça résiste, ça résiste,
+            et d'un coup ça claque.</div>
+        </div>
+        <div class="fsec">
+          <div class="fsec-label">🎩 Mnemonics <span class="fsec-by by-m">inventé</span></div>
+          <div class="exemple" style="font-size:14px;line-height:1.55;background:rgba(217,70,239,.09);border:1px solid rgba(217,70,239,.28);border-radius:14px;padding:12px 15px">
+            <b style="color:#f0abfc">« Ça Râle, On Se Réveille »</b> — Contraintes, Rupture, Ondes,
+            Secousse, Répliques.</div>
+        </div>
+      </div>
+      <div class="fiche-footer">
+        <span class="badge-mine">✍️ Ta fiche · écrite le 7 août</span>
+        <button class="btn btn-ghost">🃏 En faire des cartes</button>
+        <button class="btn btn-ghost">🖼️ Image A5</button>
+      </div>
+    </div>
+    <p class="footnote">Le pont vers les cartes SRS s'ouvre <b>depuis sa fiche</b> — sa production alimente le
+      système au lieu de finir dans un classeur. Les définitions y passent telles quelles :
+      <b>recto</b> le terme de ZETIS, <b>verso</b> la phrase de Massimo.</p>
+  </section>
+
+  <!-- ══════ G — Revenir sur une fiche déjà faite ══════ -->
+  <section class="screen" id="sc-reprise">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-deck')">← SVT</button>
+      <div class="subject-heading"><span class="subj-chip">🌱</span><span>Les séismes</span></div></div>
+    <p class="scene-note"><b>Le point neuf.</b> Rouvrir une fiche finie ne doit ni l'écraser, ni être interdit.
+      Reprendre <b>ouvre une version</b> — l'ancienne reste lisible. C'est ce qui rend visible
+      « la fiche qui rétrécit » (§7 de l'addendum) : <b>de longue et recopiée à courte et dans ses mots</b>.</p>
+
+    <div class="versions">
+      <button class="vchip" onclick="setV(this,1)">v1 <small>· 12 juil.</small></button>
+      <button class="vchip on" onclick="setV(this,2)">v2 <small>· 7 août</small></button>
+    </div>
+
+    <div class="zbubble">
+      <div class="zavatar">🪐</div>
+      <div class="zsay"><div class="say-row">
+        <div><p id="v-line">Ta v2 tient en <b>5 lignes</b>, et il n'y a plus une seule phrase recopiée.
+          Ta v1 en avait 3.</p></div>
+        <button class="btn-voice" onclick="speak(this)" aria-label="Écouter">🔊</button>
+      </div></div>
+    </div>
+
+    <div class="fiche">
+      <div class="fiche-header">
+        <div class="fh-ico">🌱</div>
+        <div>
+          <div class="fh-chapter">La Terre change</div>
+          <div class="fh-title">Les séismes</div>
+          <div class="fh-subject">SVT · 4ᵉ</div>
+        </div>
+        <span class="pill mine by-badge" id="v-badge">✍️ v2</span>
+      </div>
+      <div class="fiche-body">
+        <div class="fsec">
+          <div class="fsec-label">🔑 À retenir</div>
+          <ul class="keys" id="v-keys"></ul>
+        </div>
+      </div>
+      <div class="fiche-footer">
+        <span class="badge-mine" id="v-foot">✍️ Ta fiche · v2</span>
+        <button class="btn btn-ghost" onclick="go('sc-atelier')">✏️ La retravailler</button>
+        <button class="btn btn-ghost">🃏 En faire des cartes</button>
+      </div>
+    </div>
+
+    <p class="shrink-note" id="v-note"><b>3 phrases recopiées → 0.</b> Ce n'est pas un score, c'est une trajectoire —
+      et c'est le seul endroit du produit qui montre « sait-il ce qui compte », au lieu de « sait-il répondre ».</p>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="go('sc-atelier')">La retravailler (v3)</button>
+      <button class="btn btn-ghost" onclick="go('sc-corrige')">Comparer à la fiche de ZETIS</button>
+    </div>
+  </section>
+
+  <!-- ══════ H — Fiche ZETIS seule (l'existant, inchangé) ══════ -->
+  <section class="screen" id="sc-zetis-seule">
+    <div class="back-row"><button class="btn-back" onclick="go('sc-deck')">← SVT</button></div>
+    <p class="scene-note">Leçon <b>sans</b> fiche personnelle : le comportement actuel de l'ADR-0015 est
+      <b>strictement inchangé</b> — fiche ZETIS validée, servie en lecture. Le §3 révisé ne verrouille
+      plus rien nulle part : il ne décide que de <b>ce qui s'ouvre en premier</b> là où une fiche
+      personnelle existe.</p>
+    <div class="fiche">
+      <div class="fiche-header">
+        <div class="fh-ico">🌱</div>
+        <div>
+          <div class="fh-chapter">Le corps humain</div>
+          <div class="fh-title">La respiration</div>
+          <div class="fh-subject">SVT · 4ᵉ</div>
+        </div>
+      </div>
+      <div class="fiche-body">
+        <div class="fsec">
+          <div class="fsec-label">⭐ L'essentiel</div>
+          <div class="essentiel">La respiration permet d'apporter du dioxygène aux organes et d'évacuer le
+            dioxyde de carbone. Les échanges se font dans les alvéoles pulmonaires.</div>
+        </div>
+      </div>
+      <div class="fiche-footer">
+        <span class="badge-cours">📚 D'après ton cours</span>
+        <button class="btn btn-ghost">📖 Voir le cours</button>
+        <button class="btn btn-ghost">🖨️ Imprimer</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="go('sc-atelier')">🧩 En faire ma fiche</button>
+    </div>
+    <p class="footnote">L'entrée dans l'atelier depuis une fiche ZETIS existante — <b>tranchée le
+      2026-08-12 : lire d'abord puis fabriquer, c'est ok.</b> Le bouton s'ouvre sans condition, ici comme
+      depuis le cours. On ne résume pas ce qu'on n'a pas lu.</p>
+  </section>
+
+
+  <p class="footnote">Contrat visuel de l'addendum ADR-0015.</p>
+</div>
+</div>
+
+<script>
+  /* ── Roadmap de relecture : jalons groupés, 6 sous-jalons pour l'atelier ── */
+  const ROADMAP = [
+    ['Entrée', [
+      ['A', 'Le deck — 4 états', 'sc-deck'],
+    ]],
+    ['Fabriquer', [
+      ['B', 'L\'atelier — 6 étapes', 'sc-atelier'],
+      ['①', 'À retenir — je choisis',   'sc-atelier', 1],
+      ['②', 'L\'essentiel — champ libre', 'sc-atelier', 2],
+      ['③', 'Les mots — terme / définition', 'sc-atelier', 3],
+      ['④', 'Les pièges — ses erreurs', 'sc-atelier', 4],
+      ['⑤', 'Un exemple — champ libre', 'sc-atelier', 5],
+      ['⑥', 'Mnemonics — conditionnel', 'sc-atelier', 6],
+      ['C', '« Je sèche »', 'sc-seche'],
+    ]],
+    ['Se relire', [
+      ['D', 'Le retour d\'analyse', 'sc-retour'],
+      ['E', 'Le corrigé, côte à côte', 'sc-corrige'],
+    ]],
+    ['Garder', [
+      ['F', 'Sa fiche finie — 6 sections', 'sc-finie'],
+      ['G', 'Revenir sur une fiche faite', 'sc-reprise'],
+    ]],
+    ['L\'existant', [
+      ['H', 'Fiche ZETIS seule — inchangé', 'sc-zetis-seule'],
+    ]],
+  ];
+  const rmBody = document.getElementById('rm-body');
+  ROADMAP.forEach(([group, items]) => {
+    const g = document.createElement('div');
+    g.className = 'rm-group'; g.textContent = group; rmBody.appendChild(g);
+    const list = document.createElement('div');
+    list.className = 'rm-list';
+    items.forEach(([key, label, target, step]) => {
+      const b = document.createElement('button');
+      b.className = 'rm-item' + (step ? ' rm-sub-item' : '');
+      b.innerHTML = `<span class="rm-key">${key}</span><span>${label}</span>`;
+      b.dataset.target = target; if (step) b.dataset.step = step;
+      b.onclick = () => go(target, step);
+      list.appendChild(b);
+    });
+    rmBody.appendChild(list);
+  });
+
+  function go(id, step) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    document.querySelectorAll('.rm-item').forEach(b => b.classList.toggle('on',
+      b.dataset.target === id && (b.dataset.step || undefined) === (step ? String(step) : undefined)));
+    if (step) openStep(step);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ── L'atelier vertical : accordéon + avancement ── */
+  const STEPS = 6;
+  function openStep(n) {
+    for (let i = 1; i <= STEPS; i++) document.getElementById('st' + i).classList.toggle('doing', i === n);
+    stepState();
+  }
+  /* Ce qu'une étape a de rempli — sert au point, à l'état et à l'aperçu quand elle est repliée. */
+  function stepState() {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    const data = {
+      1: { n: chosen.length, tot: 5, label: `${chosen.length} / 5`,
+           prev: chosen.map(i => `<li>${CANDS[i].t}</li>`).join('') },
+      2: { n: v('ess') ? 1 : 0, tot: 1, label: v('ess') ? 'écrit' : 'vide',
+           prev: v('ess') ? `Un séisme, c'est ${v('ess')}` : '' },
+      3: { n: document.querySelectorAll('#st3 .defwrite.done').length, tot: 3,
+           label: `${document.querySelectorAll('#st3 .defwrite.done').length} / 3`,
+           prev: [...document.querySelectorAll('#st3 .defrow')].filter(r => r.querySelector('.done'))
+                  .map(r => `<li><b>${r.querySelector('.defterm').firstChild.textContent}</b> — ${r.querySelector('input').value}</li>`).join('') },
+      4: { n: document.querySelectorAll('#st4 .trap.kept').length, tot: 2,
+           label: (k => k ? `${k} gardé${k > 1 ? 's' : ''}` : '2 proposés')(
+                    document.querySelectorAll('#st4 .trap.kept').length),
+           prev: [...document.querySelectorAll('#st4 .trap.kept .trap-txt')].map(t => `<li>${t.textContent}</li>`).join('') },
+      5: { n: v('exm') ? 1 : 0, tot: 1, label: v('exm') ? 'écrit' : 'vide',
+           prev: v('exm') ? `C'est un peu comme ${v('exm')}` : '' },
+      6: { n: v('mnemo') ? 1 : 0, tot: 1, label: v('mnemo') ? 'trouvé' : 'vide',
+           prev: v('mnemo') },
+    };
+    let remplies = 0;
+    for (let i = 1; i <= STEPS; i++) {
+      const el = document.getElementById('st' + i), d = data[i];
+      el.classList.toggle('done', d.n > 0);
+      if (d.n > 0) remplies++;
+      document.getElementById(`st${i}-state`).textContent = d.label;
+      const prev = document.getElementById(`st${i}-prev`);
+      prev.innerHTML = d.prev ? (d.prev.startsWith('<li>') ? `<ul>${d.prev}</ul>` : d.prev) : '';
+    }
+    document.getElementById('pg-n').textContent = remplies;
+    document.getElementById('pg-bar').style.width = Math.round((remplies / STEPS) * 100) + '%';
+    /* « regarde ma fiche » s'ouvre dès qu'UNE étape a quelque chose :
+       aucune étape n'est obligatoire (addendum §7). */
+    document.getElementById('btn-look').disabled = remplies === 0;
+  }
+
+  /* ── Atelier « je choisis » — 12 phrases, 5 emplacements ──
+     Les 7 non retenues NE SONT PAS FAUSSES : elles sont vraies mais secondaires.
+     C'est ce qui fait travailler le jugement, et ce qui interdit tout « c'est faux ». */
+  const CANDS = [
+    { t: "Un séisme vient d'une cassure brutale des roches en profondeur.", key: true },
+    { t: "Le 26 décembre 2004, un séisme a frappé Sumatra.", key: false },
+    { t: "L'épicentre est le point à la surface, juste au-dessus du foyer.", key: true },
+    { t: "La magnitude mesure l'énergie libérée par le séisme au niveau du foyer.", key: true, copie: true },
+    { t: "Le sismographe a été inventé au XIXᵉ siècle.", key: false },
+    { t: "Les séismes sont fréquents à la limite des plaques.", key: true },
+    { t: "Certains animaux semblent sentir les séismes avant nous.", key: false },
+    { t: "Il y a des répliques après le séisme principal.", key: true },
+    { t: "L'échelle de Richter porte le nom d'un sismologue américain.", key: false },
+    { t: "En France, les Antilles sont la zone la plus exposée.", key: false },
+    { t: "Les ondes sismiques se propagent dans toutes les directions.", key: false },
+    { t: "On construit des bâtiments parasismiques dans les zones à risque.", key: false },
+  ];
+  const chosen = [];
+  const slotsEl = document.getElementById('slots');
+  const candsEl = document.getElementById('cands');
+
+  function renderSlots() {
+    slotsEl.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      const idx = chosen[i];
+      if (idx === undefined) {
+        d.className = 'slot';
+        d.innerHTML = `<span class="num">${i + 1}</span><span>…</span>`;
+      } else {
+        d.className = 'slot filled';
+        d.innerHTML = `<span class="num">${i + 1}</span><span>${CANDS[idx].t}</span><span class="x">✕</span>`;
+        d.onclick = () => { chosen.splice(i, 1); render(); };
+      }
+      slotsEl.appendChild(d);
+    }
+  }
+  function renderCands() {
+    candsEl.innerHTML = '';
+    CANDS.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'cand' + (chosen.includes(i) ? ' used' : '');
+      b.innerHTML = (c.copie ? '<span class="tag-copy">mot pour mot</span>' : '') + c.t;
+      b.onclick = () => { if (chosen.length < 5 && !chosen.includes(i)) { chosen.push(i); render(); } };
+      candsEl.appendChild(b);
+    });
+  }
+  function render() {
+    renderSlots(); renderCands();
+    document.getElementById('z-line').innerHTML = chosen.length === 0
+      ? "Ton cours fait 3 pages. Une fiche, c'est 5 idées. <b>Lesquelles tu gardes ?</b>"
+      : chosen.length < 5
+        ? `Tu en as ${chosen.length}. Prends ton temps — tu peux en retirer une si tu changes d'avis.`
+        : "C'est complet. Tu veux que je regarde ?";
+    stepState();
+  }
+  render();
+  go('sc-deck');
+
+  /* « Aide-moi » : l'échafaudage DESCEND — ZETIS écarte des candidates, il n'en choisit aucune. */
+  let aideNiveau = 0;
+  function aideMoi() {
+    aideNiveau++;
+    const cards = candsEl.querySelectorAll('.cand');
+    if (aideNiveau === 1) {
+      CANDS.forEach((c, i) => { if (!c.key && i % 2 === 1) cards[i].classList.add('dimmed'); });
+      document.getElementById('z-line').innerHTML =
+        "J'en écarte quelques-unes : elles sont vraies, mais ce sont des <b>détails</b>. Regarde celles qui restent.";
+    } else if (aideNiveau === 2) {
+      CANDS.forEach((c, i) => { if (!c.key) cards[i].classList.add('dimmed'); });
+      document.getElementById('z-line').innerHTML =
+        "Il en reste 5. <b>Je ne te dis pas dans quel ordre</b> — c'est ta fiche, tu les places.";
+    } else {
+      document.getElementById('z-line').innerHTML =
+        "Je t'ai déjà donné tout ce que je peux donner sans faire à ta place. <b>Essaie</b> — tu peux te tromper.";
+    }
+  }
+
+  /* ── Escalade sur une remarque : montre → oriente → 2-3 formulations ── */
+  let escNiveau = 0;
+  function escalade() {
+    escNiveau++;
+    document.getElementById('esc1').classList.add('on');
+    if (escNiveau === 1) {
+      document.getElementById('esc-txt').innerHTML =
+        "Si tu devais garder <b>5 mots</b> dans cette phrase, lesquels tu prendrais ?";
+    } else if (escNiveau === 2) {
+      document.getElementById('esc-txt').innerHTML =
+        "Le mot qui compte, c'est <b>magnitude</b>. Le reste, c'est de l'explication. Essaie en une ligne.";
+    } else {
+      document.getElementById('esc-txt').innerHTML =
+        "Voilà <b>trois façons</b> de le dire. Prends celle qui te ressemble — ou aucune.";
+      document.getElementById('esc-choices').style.display = 'grid';
+    }
+  }
+  /* Règle 6 — le dernier mot est à Massimo : un clic, silencieux, aucune confirmation. */
+  function garde(btn) {
+    document.getElementById('kept1').classList.add('on');
+    document.getElementById('esc1').classList.remove('on');
+    btn.closest('.rk-actions').style.display = 'none';
+  }
+
+  /* ── Champ libre : le budget se montre comme de la PLACE ──
+     FICHE_BUDGETS.essentiel = 600 caractères (borne serveur, packages/types/src/fiche.ts).
+     À l'écran : jamais « 412/600 », jamais de rouge. Et ZETIS reste MUET pendant la frappe. */
+  const BUDGET_ESSENTIEL = 600, PAR_LIGNE = 160;
+  function room() {
+    const n = document.getElementById('ess').value.length;
+    const pct = Math.min(100, Math.round((n / BUDGET_ESSENTIEL) * 100));
+    const lignes = Math.max(0, Math.round((BUDGET_ESSENTIEL - n) / PAR_LIGNE));
+    document.getElementById('room-fill').style.width = pct + '%';
+    document.getElementById('room-txt').textContent =
+      lignes > 0 ? `de la place pour ${lignes} ligne${lignes > 1 ? 's' : ''}` : 'ta fiche est pleine — et c\'est très bien';
+    stepState();
+  }
+  /* Dictée : Whisper local (ADR-0012). ZETIS se TAIT pendant l'enregistrement (pas de barge-in :
+     sans écouteurs, sa voix repartirait droit dans le micro). */
+  function dictee() {
+    const b = document.getElementById('mic');
+    const on = b.classList.toggle('rec');
+    b.innerHTML = on ? '⏹️ J\'ai fini de parler' : '🎙️ Le dire à voix haute';
+    document.getElementById('silence').textContent = on
+      ? 'ZETIS s\'est tu — il ne parle jamais pendant que tu enregistres.'
+      : 'ZETIS ne dit rien pendant que tu écris. Il regardera quand tu lui demanderas.';
+    document.querySelectorAll('#sc-essentiel .btn-voice').forEach(v => v.disabled = on);
+  }
+  /* Définitions : le champ passe au vert dès qu'il y a une phrase de Massimo. */
+  function defOk(input) {
+    input.parentElement.classList.toggle('done', input.value.trim().length > 0);
+    stepState();
+  }
+  /* Pièges : garder / reformuler / écarter — écarter n'efface AUCUNE mesure. */
+  function trap(id, action) {
+    const el = document.getElementById(id);
+    el.classList.remove('kept', 'gone');
+    if (action === 'keep') {
+      el.classList.add('kept');
+      el.querySelector('.trap-evidence').innerHTML = '✓ Sur ta fiche';
+      el.querySelector('.trap-actions').innerHTML =
+        '<button class="btn-quiet" onclick="trap(\'' + id + '\',\'reset\')">Finalement, non</button>';
+    } else if (action === 'drop') {
+      el.classList.add('gone');
+      el.querySelector('.trap-actions').innerHTML =
+        '<button class="btn-quiet" onclick="trap(\'' + id + '\',\'reset\')">Remettre</button>';
+    } else if (action === 'edit') {
+      const t = el.querySelector('.trap-txt');
+      t.innerHTML = '<div class="writer-wrap"><textarea class="writer" rows="2" '
+        + 'placeholder="Dis-le avec tes mots…">' + t.textContent.trim() + '</textarea></div>';
+    }
+    stepState();
+  }
+  /* Mnémonique : le sien d'abord, celui de ZETIS APRÈS — patron du corrigé (§3). */
+  function revealMnemo() { document.getElementById('mnemo-reveal').classList.add('on'); }
+
+  /* ── Voix : toujours sur GESTE (AudioContext), jamais au chargement ── */
+  function speak(btn) {
+    btn.classList.add('playing');
+    setTimeout(() => btn.classList.remove('playing'), 1600);
+  }
+
+  /* ── Versions ── */
+  const V = {
+    1: {
+      keys: [
+        "La magnitude mesure l'énergie libérée par le séisme au niveau du foyer.",
+        "L'épicentre est le point situé à la surface de la Terre, à la verticale du foyer.",
+        "Les séismes se produisent lorsque les contraintes accumulées dépassent la résistance des roches.",
+        "Il y a des répliques.",
+        "Les plaques bougent.",
+      ],
+      line: "Ta v1 fait <b>8 lignes</b>, et <b>3 phrases</b> viennent directement du cours.",
+      note: "<b>3 phrases recopiées.</b> C'est le point de départ normal — personne ne sait résumer du premier coup.",
+    },
+    2: {
+      keys: [
+        "Un séisme vient d'une cassure brutale des roches en profondeur.",
+        "L'épicentre est le point à la surface, juste au-dessus du foyer.",
+        "La magnitude, c'est la force du séisme.",
+        "Il y a des répliques après le séisme principal.",
+        "Les séismes sont fréquents à la limite des plaques.",
+      ],
+      line: "Ta v2 tient en <b>5 lignes</b>, et il n'y a plus une seule phrase recopiée. Ta v1 en avait 3.",
+      note: "<b>3 phrases recopiées → 0.</b> Ce n'est pas un score, c'est une trajectoire — et c'est le seul endroit du produit qui montre « sait-il ce qui compte », au lieu de « sait-il répondre ».",
+    },
+  };
+  function setV(btn, n) {
+    document.querySelectorAll('.vchip').forEach(c => c.classList.remove('on'));
+    btn.classList.add('on');
+    document.getElementById('v-keys').innerHTML = V[n].keys.map(k => `<li>${k}</li>`).join('');
+    document.getElementById('v-line').innerHTML = V[n].line;
+    document.getElementById('v-note').innerHTML = V[n].note;
+    document.getElementById('v-badge').textContent = `✍️ v${n}`;
+    document.getElementById('v-foot').textContent = `✍️ Ta fiche · v${n}`;
+  }
+  setV(document.querySelectorAll('.vchip')[1], 2);
+</script>
+</body>
+</html>

@@ -1,5 +1,29 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.81.0 — Massimo fabrique sa fiche, ZETIS l'aide
+
+Jusqu'ici ZETIS fabriquait les fiches et Massimo les lisait. C'est l'inverse qui fait apprendre :
+**choisir ce qui compte** est la compétence visée, et elle ne s'acquiert pas en relisant.
+
+**Un atelier, une étape.** Depuis une leçon du cours, « 🧩 En faire ma fiche » ouvre une page en
+plein écran : douze phrases **tirées de son cours**, cinq emplacements, et un geste — il **glisse**
+celles qu'il garde. Rien à écrire : l'écriture est la friction n°1, et « choisir » suffit à
+travailler. Il ferme quand il veut, tout est gardé, il retrouve son état au retour.
+
+**ZETIS regarde, et ne dit que ce qu'il a vraiment vu.** « Regarde ma fiche » rend une ou deux
+**réussites précises** — celle que son cours met en gras, celle que ZETIS avait retenue aussi —
+jamais « bravo ! », jamais de note. Aucun modèle de langage n'intervient : tout est déterministe.
+
+**Sous le capot** — la table `fiches` reçoit un **second auteur** (`author`, `student_id`,
+`version`, migration `c3d4e5f6a7b2`). Le gate de sécurité est **reformulé, jamais affaibli** : il
+porte sur ce que ZETIS *sert*, jamais sur ce que Massimo *écrit* ; les dérivés d'une fiche
+personnelle repassent, eux, par le cycle normal. Deux **prédicats partagés** remplacent les
+clauses recopiées — le read-before-code avait trouvé **huit** requêtes lisant cette table là où le
+cadrage en annonçait trois, dont quatre sans aucun filtre de statut.
+
+**Reporté en slice 2, sciemment** : les cinq autres sections, la détection de recopiage (elle n'a
+de sens qu'à partir d'une section qui s'écrit) et le pont vers les cartes de révision.
+
 ## 0.80.2 — Le titre de page cesse d'être seul au bord de l'écran
 
 Sur l'Accueil de Massimo, « Bonjour Massimo 👋 » rejoint la colonne de texte des cartes. Idem sur

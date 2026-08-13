@@ -3,7 +3,20 @@
 // et non une consigne de prompt — garantit le « 1 page ». Cf. miroir Pydantic strict côté backend,
 // app/modules/fiches/schemas.py).
 
-export type FicheValidationStatus = "pending" | "validated" | "rejected";
+// `personal` et `personal_draft` sont HORS cycle éditorial (addendum ADR-0015 §2) : la fiche de
+// Massimo n'est ni validée ni rejetée — elle est à lui. Elles servent aussi de sécurité par
+// construction : un lecteur qui oublierait le filtre d'auteur garde son `=== "validated"`, donc
+// il exclut naturellement la fiche personnelle.
+export type FicheValidationStatus =
+  | "pending"
+  | "validated"
+  | "rejected"
+  | "personal"
+  | "personal_draft";
+
+// Le SECOND AXE. `source` (generated|manual) dit COMMENT la fiche a été produite ; `author` dit
+// À QUI elle est. Ne jamais fondre les deux.
+export type FicheAuthor = "zetis" | "massimo";
 
 export interface FicheDefinition {
   terme: string;
@@ -68,6 +81,80 @@ export interface FicheDetail {
   validation_status: FicheValidationStatus;
   spec: FicheSpec;
   seen: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// L'atelier — la fiche que Massimo fabrique lui-même (addendum ADR-0015).
+// ---------------------------------------------------------------------------
+
+// État INTERMÉDIAIRE : mêmes champs, tous optionnels, mêmes bornes MAX, aucune borne MIN.
+// Un brouillon n'est PAS un FicheSpec — il n'est ni servi, ni imprimable, ni dérivable ; il
+// DEVIENT une fiche le jour où il valide le schéma strict.
+export interface FicheDraft {
+  title?: string | null;
+  subject?: string | null;
+  level?: string | null;
+  chapter?: string | null;
+  essentiel?: string | null;
+  definitions: FicheDefinition[];
+  points_cles: string[];
+  erreurs_a_eviter: string[];
+  mini_exemple?: string | null;
+}
+
+export interface FicheDraftDetail {
+  id: number;
+  lesson_id: number;
+  subject_slug: string;
+  lesson_title: string;
+  chapter: string | null;
+  version: number;
+  draft: FicheDraft;
+}
+
+// Vocabulaire FERMÉ. La slice 1 n'implémente que `points_cles` — la seule section qui se
+// CHOISIT. `essentiel` est une synthèse : par définition absente du cours, donc rien à choisir.
+export type FicheSection =
+  | "essentiel"
+  | "definitions"
+  | "points_cles"
+  | "erreurs_a_eviter"
+  | "mini_exemple";
+
+// Une phrase tirée du cours, jamais écrite par ZETIS (règle 7 du §5).
+// ⚠️ Les candidates non retenues NE SONT PAS FAUSSES : vraies mais secondaires.
+export interface FicheCandidate {
+  index: number;
+  texte: string;
+}
+
+export interface FicheCandidates {
+  section: FicheSection;
+  candidates: FicheCandidate[];
+  slots: number; // emplacements offerts par la section (5 pour points_cles)
+}
+
+// `absent_du_cours` est hors périmètre v1 : seul type à faux positifs, et un faux positif ici
+// est une injustice. Il reste au vocabulaire pour que le contrat ne bouge pas en l'activant.
+export type FicheRemarqueType =
+  | "recopie"
+  | "trop_long"
+  | "idee_manquante"
+  | "absent_du_cours";
+
+export interface FicheRemarque {
+  section: FicheSection;
+  index: number;
+  type: FicheRemarqueType;
+  message: string;
+  piste?: string | null; // une QUESTION, jamais la phrase corrigée
+}
+
+// Objet fermé à budget : 1–2 réussites (jamais vide), 0–2 remarques MAXIMUM.
+// Sept remarques ne sont pas de l'aide, c'est un bulletin — et un enfant abandonne.
+export interface FicheFeedback {
+  reussites: string[];
+  remarques: FicheRemarque[];
 }
 
 // Budgets structurels de la fiche (« 1 leçon = 1 page ») — MIROIR du schéma Pydantic

@@ -12,6 +12,7 @@ import { RevisionPage } from "./pages/RevisionPage";
 import { RevisionSessionPage } from "./pages/RevisionSessionPage";
 import { FichesPage } from "./pages/FichesPage";
 import { FicheSubjectPage } from "./pages/FicheSubjectPage";
+import { AtelierPage } from "./pages/AtelierPage";
 import { QuizPage } from "./pages/QuizPage";
 import { QuizSessionPage } from "./pages/QuizSessionPage";
 import { DiagnosticPage } from "./pages/DiagnosticPage";
@@ -48,6 +49,8 @@ export default function App() {
         <Route path="/revision/session" element={<RevisionSessionPage />} />
         <Route path="/fiches" element={<FichesPage />} />
         <Route path="/fiches/:slug" element={<FicheSubjectPage />} />
+        {/* L'atelier est une PAGE, pas une quatrième vue de `FicheSubjectPage` (addendum §12). */}
+        <Route path="/fiches/:slug/:lessonId/atelier" element={<AtelierPage />} />
         <Route path="/diagnostic" element={<DiagnosticPage />} />
         <Route path="/eli5" element={<Eli5Page />} />
         <Route path="/mindmaps" element={<MindmapsPage />} />

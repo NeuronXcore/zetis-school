@@ -44,6 +44,7 @@ from app.db.models import (
     SpacedReviewAttempt,
     SpacedReviewCard,
 )
+from app.modules.fiches.population import zetis_authored
 from app.modules.production.journal import KINDS, _consumed_sets
 
 _MODEL = {
@@ -79,8 +80,28 @@ def is_consumed(db: Session, kind: str, piece_id: int) -> bool:
     return piece_id in _consumed_sets(db, buckets)[kind]
 
 
+def _fiches_de_massimo(db: Session, lesson_id: int) -> list[int]:
+    """Les fiches que MASSIMO a fabriquées à partir de ce cours (addendum ADR-0015 §2).
+
+    ⚠️ Le veto **direct** ne peut déjà pas les atteindre : `_get_or_404` refuse toute pièce sans
+    `production_run_id`, et une fiche personnelle n'en a pas. Mais la **cascade** d'un retrait de
+    cours court-circuite ce garde-fou en appelant `_delete_one` sans repasser par lui — c'est ce
+    trou-là que ce prédicat ferme.
+    """
+    return list(
+        db.scalars(select(Fiche.id).where(Fiche.lesson_id == lesson_id, ~zetis_authored()))
+    )
+
+
 def _derivatives_of_lesson(db: Session, lesson_id: int) -> dict[str, list[int]]:
-    """Ce qu'un cours emporte avec lui. Les cartes SRS passent par les notions de la leçon."""
+    """Ce qu'un cours emporte avec lui. Les cartes SRS passent par les notions de la leçon.
+
+    ⚠️ Les fiches de Massimo sont **volontairement comprises** dans la liste des `fiche` : la FK
+    `fiches.lesson_id` est NOT NULL et sans `ON DELETE`, donc en laisser une derrière ferait
+    échouer la suppression de la leçon en base. Ce n'est pas pour autant qu'on les supprime —
+    leur présence **interdit** le retrait en amont (`preview_removal`), et la cascade n'est
+    jamais atteinte.
+    """
     skill_ids = db.scalars(
         select(LessonSkill.skill_id).where(LessonSkill.lesson_id == lesson_id)
     ).all()
@@ -116,6 +137,20 @@ def preview_removal(db: Session, *, kind: str, piece_id: int) -> dict:
         return {"removable": True, "reason": None, "cascade": {}}
 
     cascade = _derivatives_of_lesson(db, piece_id)
+
+    # Testé AVANT la consommation : une fiche qu'il a écrite est un motif plus fort qu'un contenu
+    # qu'il a ouvert, et elle mérite d'être nommée pour ce qu'elle est. Papa ne supprime pas le
+    # travail de son fils par un geste qui visait un cours (addendum ADR-0015 §2).
+    if _fiches_de_massimo(db, piece_id):
+        return {
+            "removable": False,
+            "reason": (
+                "Massimo a fabriqué sa propre fiche à partir de ce cours. "
+                "Le retirer effacerait son travail : corrigez le cours plutôt."
+            ),
+            "cascade": {k: v for k, v in cascade.items() if v},
+        }
+
     consumed = _consumed_sets(db, {**{k: [] for k in KINDS}, **cascade})
     blocking = {k: sorted(set(cascade[k]) & consumed[k]) for k in cascade if consumed[k]}
     if blocking:

@@ -35,6 +35,7 @@ from app.db.models import (
     Subject,
 )
 from app.modules.ai.canonical_context import is_stale
+from app.modules.fiches.population import zetis_authored
 from app.modules.memory.service import INACTIVE_CARD_STATUSES
 
 CellState = Literal["absent", "pending", "validated", "stale", "blocked"]
@@ -144,10 +145,17 @@ def actionable_gaps(db: Session, year_id: int | None) -> dict[str, int]:
             )
         )
         or 0,
+        # ⚠️ `zetis_authored()` : une leçon où seul MASSIMO a fabriqué sa fiche n'est pas une
+        # leçon couverte — sans ce filtre, elle sortirait du reste-à-produire et ZETIS
+        # n'écrirait jamais la sienne.
         "fiche": db.scalar(
             select(func.count())
             .select_from(servables)
-            .where(~select(Fiche.id).where(Fiche.lesson_id == servables.c.id).exists())
+            .where(
+                ~select(Fiche.id)
+                .where(Fiche.lesson_id == servables.c.id, zetis_authored())
+                .exists()
+            )
         )
         or 0,
         "quiz": db.scalar(
@@ -203,7 +211,15 @@ def _lesson_rows(db: Session, subject_id: int, year_id: int) -> list[tuple]:
             )
             .select_from(Chapter)
             .join(Lesson, Lesson.chapter_id == Chapter.id)
-            .outerjoin(Fiche, Fiche.lesson_id == Lesson.id)
+            # ⚠️ Le filtre d'auteur est dans la clause **ON**, jamais en `WHERE` : en `WHERE`, ce
+            # `LEFT JOIN` redeviendrait un `INNER JOIN` et les leçons sans fiche disparaîtraient
+            # de la matrice. Même forme que le `Quiz` deux lignes plus bas.
+            #
+            # Sans lui, les `MAX()` groupés juste au-dessus mentent : sur des chaînes,
+            # `pending` < `personal` < `rejected` < `validated`, donc une leçon avec une fiche
+            # ZETIS `pending` + la fiche de Massimo remonterait **`personal`** — un statut qui
+            # n'est celui d'aucune fiche ZETIS.
+            .outerjoin(Fiche, (Fiche.lesson_id == Lesson.id) & zetis_authored())
             .outerjoin(Mindmap, Mindmap.lesson_id == Lesson.id)
             .outerjoin(Quiz, (Quiz.lesson_id == Lesson.id) & (Quiz.status != "archived"))
             .join(
