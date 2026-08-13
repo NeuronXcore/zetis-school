@@ -6,10 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — la fiche que Massimo fabrique lui-même (addendum ADR-0015, slice 1)
+### ✅ CHANTIER MERGÉ — la fiche que Massimo fabrique lui-même (PR #122, squash `1b78f3d`)
 
-**Branche `feat/fiche-de-massimo`, base `dcf32f9`. RIEN n'est commité ni poussé.** L'état exact du
-travail se lit par `git status` et `git log --oneline main..HEAD` — pas ici.
+**Base `dcf32f9`. Branche `feat/fiche-de-massimo` supprimée** (locale **et** serveur),
+`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-13, étape
+4bis faite dans la foulée du merge. **26 fichiers, +4 713 / −333.**
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la SIXIÈME fois**, sur six merges consécutifs.
+> Après `--delete-branch`, il listait **toujours** `origin/feat/fiche-de-massimo` ;
+> `git ls-remote --heads origin` ne rendait que `main`. `git fetch --prune` a élagué la référence
+> périmée. **Ce n'est pas une distraction, c'est le contrat de la commande** — elle se rejouera au
+> merge suivant, et le réflexe ne s'automatise pas.
 
 > **Le besoin, en une phrase** : ZETIS fabriquait les fiches et Massimo les lisait. On inverse —
 > **il fabrique la sienne, ZETIS l'aide.** Faire sa fiche fait apprendre ; la lire, non.
@@ -140,13 +147,20 @@ test ajusté pour passer — mais la règle veut que ce soit nommé.
 
 #### ▶ PROCHAIN PAS
 
-1. **L'humain vérifie** (diff + tests) puis **committe**, **push**, ouvre la **PR** et **merge**.
-2. **Étape 4bis** (`WORKFLOW.md §5`) : revenir mettre ce fichier au réel — squash, n° de PR,
-   branche supprimée **des deux côtés** (⚠️ `git branch -r` ment, `git ls-remote --heads origin`
-   tranche), « rien à pousser ».
-3. 🔴 **Essayer le glisser au doigt sur un vrai iPhone** — la dette n°1 ci-dessus.
-4. **Slice 2** : `essentiel` (champ libre + dictée) et `definitions` (terme ZETIS / définition
-   Massimo), qui apportent avec elles **`recopie`** et le **pont SRS**.
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #122, squash `1b78f3d`), branche
+supprimée des deux côtés, étape 4bis faite dans la foulée. Arbre propre, chaque fait revérifié par
+commande.
+
+1. 🔴 **Essayer le glisser au doigt sur un vrai iPhone.** C'est la dette n°1, et elle est partie
+   en `main` sans être levée : le geste central de la fonctionnalité n'a **jamais** été exercé par
+   un doigt. `touch-action: none` et `select-none` sont mesurés dans le DOM, la mécanique est
+   celle de `NodeBank` — mais c'est un raisonnement, pas une preuve.
+2. **Slice 2** : `essentiel` (champ libre + dictée) et `definitions` (terme ZETIS / définition
+   Massimo), qui apportent avec elles **`recopie`** et le **pont SRS**. Y trancher au passage la
+   dette `new_fiches_count` (« NOUVEAU jamais DÛ ») ci-dessus.
+3. **En prod** : la migration `c3d4e5f6a7b2` peut maintenant être posée — elle est sur `main`.
+   Suivre `migrer-la-base-prod-zetis` ; ⚠️ la variable est `ZETIS_DATABASE_URL`, `DATABASE_URL` est
+   **ignorée en silence**.
 
 #### 🔴 LE PIÈGE DE CE CHANTIER — il est armé sur la base de dev
 

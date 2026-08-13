@@ -139,8 +139,9 @@ Il retirerait `faster-whisper`, `ctranslate2`, `piper-tts` et `onnxruntime` — 
 
 ### ⚠️ `git branch -r` ment après un `--delete-branch`
 
-Il lit les références de suivi **locales**. Le piège s'est rejoué **cinq fois sur cinq merges** :
-c'est le comportement normal de la commande, donc il se rejouera.
+Il lit les références de suivi **locales**. Le piège s'est rejoué **six fois sur six merges** —
+la sixième au merge de la PR #122, le jour même où cette entrée était écrite. C'est le
+comportement **normal** de la commande, donc il se rejouera : le réflexe ne s'automatise pas.
 
 **Parade** : `git ls-remote --heads origin` interroge le serveur ; `git fetch --prune` élague.
 ⚠️ Même famille : `git merge-base --is-ancestor` ne peut **jamais** confirmer un merge en squash
