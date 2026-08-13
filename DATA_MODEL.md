@@ -838,17 +838,56 @@ Fiche de révision d’UNE leçon (ADR-0015), dérivée du cours canonique valid
 id
 lesson_id                # FK lessons (index) — une fiche = 1 leçon
 spec_json                # FicheSpec typé (JSON) : essentiel, definitions≤4, points_cles≤5, erreurs_a_eviter≤3, mini_exemple?
-validation_status        # pending | validated | rejected (gate `validated` avant tout accès Massimo)
+validation_status        # pending | validated | rejected | personal | personal_draft
+                           # Les DEUX dernières sont hors cycle éditorial (addendum ADR-0015 §2) :
+                           # la fiche de Massimo n'est ni validée ni rejetée, elle est à lui.
+                           # `personal_draft` = brouillon — PAS une fiche : ni servi, ni imprimable,
+                           # ni dérivable (il ne valide pas encore `FicheSpec`).
 validated_at optional      # horodatage de la validation (addendum ADR-0011 §F)
 validated_by optional      # parent | parent_bulk | system — QUI a laissé passer ; NULL = non validé, ou antérieur à la traçabilité (aucune rétro-attribution)
 created_at / updated_at    # DEFAULT now() NOT NULL depuis `e6f7a8b9c0d1` — étaient nullable sans
                            # défaut serveur (divergence avec le TimestampMixin) : une fiche naissait
                            # à NULL et la Couverture la lisait « absente ».
-source                   # generated | manual
+source                   # generated | manual — COMMENT c'est produit (≠ `author`, cf. ci-dessous)
 program_version optional # version de programme (traçabilité, ex: 2020)
+author                   # zetis | massimo — À QUI c'est (migration `c3d4e5f6a7b2`), DEFAULT 'zetis'
+student_id optional      # FK student_profiles — NULL = fiche ZETIS (elle appartient à une leçon,
+                           # pas à un enfant). Renseigné pour une fiche personnelle.
+version                  # 1, 2, 3… — rouvrir une fiche FINIE crée une version, l'ancienne reste
+                           # lisible ; rouvrir un BROUILLON reprend en place (addendum §7).
+                           # `lesson_id` étant indexé NON unique, plusieurs fiches par leçon
+                           # étaient déjà supportées : il ne manquait qu'un numéro.
 created_at
 updated_at
 ```
+
+Index `(student_id, lesson_id)` : c'est la requête de reprise (« retrouve mon brouillon »).
+
+> 🔴 **`author` et `source` sont DEUX AXES, jamais un seul.** `source` dit *comment* la pièce a été
+> produite, `author` dit *à qui* elle est. Ajouter `massimo` à `source` aurait privé une fiche
+> personnelle assistée de toute valeur juste, et donné à tout lecteur existant de `source` un sens
+> qu'il n'attend pas.
+
+#### 🔴 Règle de lecture — ne JAMAIS interroger `fiches` sans dire de quelle population on parle
+
+Depuis que la table porte deux auteurs, une requête qui ne filtre ni le statut ni l'auteur répond
+à une question mal posée. **Deux prédicats partagés**, dans `app/modules/fiches/population.py`,
+sont la seule porte :
+
+| Prédicat | Pour qui | Ce qu'il rend |
+|---|---|---|
+| `readable_by_student(student_id)` | le flux élève | fiches ZETIS `validated` **+** les siennes, brouillons exclus |
+| `zetis_authored()` | production, couverture, équipement, veto, pilotage | `author == 'zetis'` |
+
+⚠️ **Le read-before-code du 2026-08-13 a compté HUIT requêtes lisant `fiches`** là où le cadrage en
+annonçait trois — dont **quatre hors du module `fiches`, sans aucun filtre de statut**
+(`production/equipment.py`, deux dans `production/coverage.py`, la cascade de `production/veto.py`).
+Sur celles-là, la « sécurité par construction » de `personal` **ne joue pas** : elle ne protège que
+les lecteurs qui filtrent déjà sur `validated`.
+
+⚠️ **`zetis_authored()` se place dans la clause `ON` d'un `outerjoin`, jamais dans le `WHERE`** —
+en `WHERE`, un `LEFT JOIN` redevient un `INNER JOIN` et les leçons **sans** fiche disparaissent du
+résultat.
 
 ### FicheView
 

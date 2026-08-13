@@ -97,11 +97,20 @@ export {
 } from "./agenda";
 export { type CapsuleSpec, type CapsuleScene } from "./capsule";
 export {
+  type FicheAuthor,
+  type FicheCandidate,
+  type FicheCandidates,
   type FicheDefinition,
   type FicheDetail,
+  type FicheDraft,
+  type FicheDraftDetail,
+  type FicheFeedback,
   type FicheListItem,
   type FichePilotageLesson,
   type FichePilotageTree,
+  type FicheRemarque,
+  type FicheRemarqueType,
+  type FicheSection,
   type FichesSummary,
   type FichesSummarySubject,
   type FicheSpec,

@@ -31,6 +31,7 @@ from app.db.models import (
     SpacedReviewCard,
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
+from app.modules.fiches.population import zetis_authored
 from app.modules.lesson_resolution import lessons_of_skill
 from app.modules.provenance import PARENT_BULK, ValidatedBy
 
@@ -68,9 +69,19 @@ def _skill_lesson(db: Session, skill_id: int) -> Lesson | None:
 
 # Existence = « déjà créé » (tout statut, y compris un brouillon de Papa) : on ne régénère JAMAIS,
 # on génère uniquement ce qui manque (ADR-0021). On récupère l'entité pour la valider si besoin.
+#
+# 🔴 **`zetis_authored()` n'est pas décoratif ici.** Sans lui, la fiche que MASSIMO fabrique sur
+# une leçon devient « la dernière fiche » de cette leçon (`ORDER BY id DESC`), avec deux effets
+# opposés et tous deux graves : ZETIS croit sa propre fiche déjà faite et ne la produit plus, et
+# l'appelant — qui valide l'entité rendue si besoin — **validerait la fiche personnelle de
+# Massimo** (`parent_bulk`). Elle perdrait son statut `personal`, entrerait dans le circuit servi
+# et apparaîtrait dans le pilotage de Papa : la négation exacte de l'addendum ADR-0015 §2.
 def _existing_fiche(db: Session, lesson_id: int) -> Fiche | None:
     return db.scalar(
-        select(Fiche).where(Fiche.lesson_id == lesson_id).order_by(Fiche.id.desc()).limit(1)
+        select(Fiche)
+        .where(Fiche.lesson_id == lesson_id, zetis_authored())
+        .order_by(Fiche.id.desc())
+        .limit(1)
     )
 
 

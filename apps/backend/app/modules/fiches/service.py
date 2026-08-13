@@ -39,6 +39,7 @@ from app.modules.ai.canonical_context import (
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.service import get_default_student
+from app.modules.fiches.population import AUTHOR_ZETIS, readable_by_student
 from app.modules.fiches.schemas import FicheSpec
 from app.modules.provenance import PARENT, ValidatedBy, mark_validated
 from app.modules.subjects.resolver import subject_of_lesson
@@ -423,10 +424,11 @@ def seen_fiche_ids(db: Session, student_id: int) -> set[int]:
 
 
 def list_subject_fiches(db: Session, subject_slug: str) -> list[dict]:
-    """Fiches VALIDÉES d'une matière (leçons validées de l'année active), ordre du référentiel.
+    """Fiches LISIBLES d'une matière (leçons validées de l'année active), ordre du référentiel.
 
     Route neutre (réutilisable). 404 si la matière est inconnue ; `[]` (état positif) si elle n'a
-    encore aucune fiche validée. Ne fuit jamais une fiche `pending`/`rejected`.
+    encore aucune fiche lisible. Ne fuit jamais une fiche ZETIS `pending`/`rejected` — le
+    prédicat partagé porte la règle, cette fonction ne la réécrit pas.
     """
     subject = db.scalar(select(Subject).where(Subject.slug == subject_slug))
     if subject is None:
@@ -436,14 +438,15 @@ def list_subject_fiches(db: Session, subject_slug: str) -> list[dict]:
     lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
     if not lesson_ids:
         return []
-    seen = seen_fiche_ids(db, get_default_student(db).id)
+    student = get_default_student(db)
+    seen = seen_fiche_ids(db, student.id)
     rows = db.execute(
         select(Fiche, Chapter.name)
         .join(Lesson, Lesson.id == Fiche.lesson_id)
         .join(Chapter, Chapter.id == Lesson.chapter_id)
         .where(
             Fiche.lesson_id.in_(lesson_ids),
-            Fiche.validation_status == "validated",
+            readable_by_student(student.id),
         )
         .order_by(Chapter.sort_order, Lesson.sort_order, Fiche.id)
     ).all()
@@ -461,16 +464,20 @@ def list_subject_fiches(db: Session, subject_slug: str) -> list[dict]:
 
 
 def fiches_summary(db: Session) -> dict:
-    """Compteur de fiches validées par matière de l'année active (grille de decks Massimo).
+    """Compteur de fiches LISIBLES par matière de l'année active (grille de decks Massimo).
 
     Liste TOUTES les matières de l'année active (celles sans fiche apparaissent avec un
-    compteur 0 → deck « bientôt »). `new_count` = fiches validées jamais ouvertes. Même
+    compteur 0 → deck « bientôt »). `new_count` = fiches lisibles jamais ouvertes. Même
     esprit que `/notions/summary` : une seule requête pour l'écran d'accueil.
+
+    ⚠️ Le compteur additionne les fiches ZETIS **validées** et les fiches de **Massimo** : un deck
+    où il n'a que ses propres fiches n'est pas « bientôt » (spec `page-fiches.md`).
     """
     year = _active_year(db)
     if year is None:
         return {"subjects": []}
-    seen = seen_fiche_ids(db, get_default_student(db).id)
+    student = get_default_student(db)
+    seen = seen_fiche_ids(db, student.id)
     subjects = list(
         db.scalars(
             select(Subject)
@@ -487,7 +494,7 @@ def fiches_summary(db: Session) -> dict:
                 db.scalars(
                     select(Fiche.id).where(
                         Fiche.lesson_id.in_(lesson_ids),
-                        Fiche.validation_status == "validated",
+                        readable_by_student(student.id),
                     )
                 )
             )
@@ -519,20 +526,56 @@ def new_fiches_count(db: Session, student_id: int) -> int:
     return sum(s["new_count"] for s in fiches_summary(db)["subjects"])
 
 
-def get_student_fiche(db: Session, fiche_id: int) -> dict:
-    """La fiche pour Massimo — 404 si absente OU non `validated` (aucune fuite de brouillon)."""
-    row = db.get(Fiche, fiche_id)
-    if row is None or row.validation_status != "validated":
+def _readable_or_404(db: Session, fiche_id: int, student_id: int) -> Fiche:
+    """La fiche telle que l'élève a le droit de la voir, ou 404.
+
+    Trois causes de 404, une seule réponse : absente, ZETIS non validée, ou personnelle
+    appartenant à quelqu'un d'autre. **Un seul endroit interroge la règle** — la version
+    précédente la recopiait ligne à ligne ici ET dans `mark_seen`, et c'est exactement ce que
+    l'addendum §2 interdit.
+    """
+    row = db.scalar(select(Fiche).where(Fiche.id == fiche_id, readable_by_student(student_id)))
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Fiche introuvable.")
-    seen = fiche_id in seen_fiche_ids(db, get_default_student(db).id)
+    return row
+
+
+def get_student_fiche(db: Session, fiche_id: int) -> dict:
+    """La fiche pour Massimo — 404 si elle ne lui est pas lisible (aucune fuite de brouillon)."""
+    student = get_default_student(db)
+    row = _readable_or_404(db, fiche_id, student.id)
+    seen = fiche_id in seen_fiche_ids(db, student.id)
     return fiche_out(db, row, seen=seen)
 
 
-def mark_seen(db: Session, student_id: int, fiche_id: int) -> None:
-    """Marque la fiche vue (idempotent). 404 si la fiche n'est pas `validated`."""
-    row = db.get(Fiche, fiche_id)
-    if row is None or row.validation_status != "validated":
+def fiche_zetis_de_lecon(db: Session, lesson_id: int) -> dict:
+    """Le corrigé : la fiche ZETIS validée de cette leçon.
+
+    ⚠️ **Aucune condition de tentative** — le §3 a été révisé le 2026-08-12 : *« lire avant de
+    fabriquer, c'est ok »*. Il n'y a donc **ni 403, ni état « a-t-il tenté ? » à tenir côté
+    serveur**. Ce qui reste du §3, c'est un défaut d'ouverture côté écran, pas un verrou ici.
+    """
+    row = db.scalar(
+        select(Fiche)
+        .where(
+            Fiche.lesson_id == lesson_id,
+            Fiche.author == AUTHOR_ZETIS,
+            Fiche.validation_status == "validated",
+        )
+        .order_by(Fiche.id.desc())
+    )
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Fiche introuvable.")
+    return fiche_out(db, row)
+
+
+def mark_seen(db: Session, student_id: int, fiche_id: int) -> None:
+    """Marque la fiche vue (idempotent). 404 si la fiche ne lui est pas lisible.
+
+    ⚠️ **Quatrième lecteur du gate**, que le cadrage de l'addendum avait manqué : sans lui, ouvrir
+    sa propre fiche renverrait 404 sur `POST /seen` et son badge « nouveau » ne partirait jamais.
+    """
+    _readable_or_404(db, fiche_id, student_id)
     existing = db.scalar(
         select(FicheView).where(
             FicheView.student_id == student_id, FicheView.fiche_id == fiche_id

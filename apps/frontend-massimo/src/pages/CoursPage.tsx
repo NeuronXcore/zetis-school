@@ -230,6 +230,19 @@ export function CoursPage() {
                             🎯 Quiz
                           </button>
                         )}
+                        {/* Le sens cours → fiche n'existait PAS : cette page menait au quiz et
+                            jamais aux fiches (addendum §12, « se crée sans réserve »). Aucune
+                            condition, aucun gate : le §3 a été révisé — lire avant de fabriquer
+                            est permis. */}
+                        {lesson.has_content && (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-cyan-400/50 px-3 py-1.5 text-sm font-semibold text-cyan-200"
+                            onClick={() => navigate(`/fiches/${slug}/${lesson.id}/atelier`)}
+                          >
+                            🧩 En faire ma fiche
+                          </button>
+                        )}
                         {lesson.has_content ? (
                           <button
                             type="button"

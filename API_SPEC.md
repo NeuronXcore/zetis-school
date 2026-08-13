@@ -622,17 +622,60 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
 - **GET `/api/fiches/pilotage/{subject_id}`** — arbre matière → leçons validées → leurs fiches
   (leçons sans fiche incluses ; miroir de `quiz-pilotage`).
 
-### Flux élève — Massimo (`/api/student`, gate `validated`, 404 sinon)
+### Flux élève — Massimo (`/api/student`)
 
-- **GET `/api/student/fiches/summary`** — grille de decks : compteur de fiches `validated` +
-  `new_count` (jamais ouvertes) par matière de l'année active.
-- **GET `/api/student/subjects/{slug}/fiches`** — deck d'une matière (fiches `validated`, `seen`).
-- **GET `/api/student/fiches/{id}`** — la fiche (spec complet) ; **404** si non `validated`.
+> 🔴 **Le gate n'est plus « `validated`, 404 sinon ».** Depuis l'addendum ADR-0015, il porte sur ce
+> que ZETIS **sert**, jamais sur ce que Massimo **écrit** : les quatre lecteurs ci-dessous passent
+> par le prédicat partagé `readable_by_student()` (`modules/fiches/population.py`) — fiches ZETIS
+> `validated` **+** les fiches personnelles de l'élève, **brouillons exclus**. Les **dérivés**
+> d'une fiche personnelle (cartes SRS, quiz), eux, repassent par le gate normal.
+
+- **GET `/api/student/fiches/summary`** — grille de decks : compteur de fiches **lisibles** +
+  `new_count` (jamais ouvertes) par matière de l'année active. ⚠️ Le compteur additionne les
+  fiches ZETIS validées **et** celles de Massimo : un deck où il n'a que les siennes n'est pas
+  « bientôt ».
+- **GET `/api/student/subjects/{slug}/fiches`** — deck d'une matière (fiches lisibles, `seen`).
+- **GET `/api/student/fiches/{id}`** — la fiche (spec complet) ; **404** si non lisible.
 - **POST `/api/student/fiches/{id}/seen`** — marque la fiche vue (retrait du badge « nouveau »).
+  ⚠️ **Quatrième lecteur du gate**, oublié au cadrage : sans lui, ouvrir sa propre fiche renvoie
+  404 et son badge « nouveau » ne part jamais.
+
+### L'atelier — la fiche que Massimo fabrique (addendum ADR-0015, slice 1)
+
+Toutes sous `/api/student`. **Aucun LLM** : la slice 1 est intégralement déterministe (règle 7 du
+§5 — *ZETIS n'écrit jamais dans la fiche à la place de Massimo*). L'appartenance est vérifiée
+côté serveur sur chaque route : une fiche personnelle n'a pas de cycle éditorial, donc rien
+d'autre ne la protège.
+
+- **POST `/api/student/fiches/draft`** `{lesson_id}` → `FicheDraftOut`. Ouvre **ou retrouve** le
+  brouillon d'une leçon. **Idempotent** : deux ouvertures ne font pas deux brouillons.
+- **PATCH `/api/student/fiches/draft/{id}`** `{draft: FicheDraft}` → `FicheDraftOut`. Sauvegarde
+  **partielle**, appelée à chaque geste — c'est elle qui tient « tout est gardé au fur et à
+  mesure ». ⚠️ **Remplacement franc**, pas une fusion : une fusion rendrait impossible de **vider**
+  un emplacement, ce qui est la moitié du geste « je choisis ».
+- **GET `/api/student/fiches/draft/{id}/candidates?section=points_cles`** → `FicheCandidatesOut`.
+  Les 12 phrases **tirées du cours**, déterministes et **stables d'une session à l'autre** (les
+  emplacements retenus renvoient à des index). **400** sur toute autre section : `essentiel` est
+  une synthèse, absente du cours par définition. **409** si le cours n'est pas écrit — dire
+  pourquoi plutôt que rendre une liste vide.
+- **POST `/api/student/fiches/draft/{id}/review`** → `FicheFeedback`. « ZETIS, regarde ma fiche ».
+  **En slice 1 : 1 à 2 réussites, ZÉRO remarque** — en mode « je choisis », les points-clés *sont*
+  des phrases du cours, donc `recopie` flaguerait les cinq. **409** si rien n'est encore choisi.
+- **POST `/api/student/fiches/draft/{id}/finish`** → `FicheDraftOut`. `FicheDraft` → `FicheSpec` :
+  le moment où la fiche existe. **422** si le schéma strict ne passe pas — la réponse **nomme les
+  champs** manquants (`{message, champs}`), l'écran doit les traduire en langage d'enfant.
+- **POST `/api/student/fiches/{id}/rework`** → `FicheDraftOut`. « La retravailler » : **nouvelle
+  version**, l'ancienne reste lisible. Idempotent si une version est déjà en cours.
+- **GET `/api/student/lessons/{id}/fiche-zetis`** → `FicheOut`. Le corrigé. ⚠️ **Aucune condition
+  de tentative** (§3 révisé le 2026-08-12 : *lire avant de fabriquer, c'est ok*) — ni 403, ni état
+  « a-t-il tenté ? » à tenir côté serveur.
 
 > Le viewer Massimo affiche le cours source **à côté** de la fiche (bouton « Voir le cours »,
 > réutilise `GET /api/student/lessons/{id}/cours`) et exporte la fiche en **image A5** (PNG) /
-> impression A5. Le pilotage Papa édite le `FicheSpec` via un **formulaire structuré**.
+> impression A5. ⚠️ **Un brouillon n'est ni exportable ni imprimable** : il n'est pas encore un
+> `FicheSpec` valide. Le pilotage Papa édite le `FicheSpec` via un **formulaire structuré**, et
+> **exclut `author='massimo'`** — Papa ne valide pas, ne rejette pas, n'édite pas la fiche de son
+> fils.
 
 ## Missions
 

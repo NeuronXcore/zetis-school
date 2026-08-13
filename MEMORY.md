@@ -6,309 +6,197 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 📐 CADRAGE FAIT — la fiche que Massimo fabrique lui-même (addendum ADR-0015)
+### ✅ CHANTIER COMPLET — la fiche que Massimo fabrique lui-même (addendum ADR-0015, slice 1)
 
-**Session de cadrage sur `main`, base `2d6ac01`. AUCUNE ligne de code.** Rien n'est commité :
-deux lots à séparer (cf. PROCHAIN PAS). **Aucune branche n'existe encore** — c'est `/ouverture`
-qui la créera.
+**Branche `feat/fiche-de-massimo`, base `dcf32f9`. RIEN n'est commité ni poussé.** L'état exact du
+travail se lit par `git status` et `git log --oneline main..HEAD` — pas ici.
 
-> **Le besoin, en une phrase** : aujourd'hui ZETIS fabrique les fiches et Massimo les lit. On
-> inverse — **il fabrique la sienne, ZETIS l'aide**. Faire sa fiche fait apprendre ; la lire, non.
+> **Le besoin, en une phrase** : ZETIS fabriquait les fiches et Massimo les lisait. On inverse —
+> **il fabrique la sienne, ZETIS l'aide.** Faire sa fiche fait apprendre ; la lire, non.
 
-**Ce qui a été produit (4 fichiers) :**
+**Vérifié en fin de session** : backend **1241** verts, Massimo **680**, Papa **814**, les deux
+`tsc -b` propres. **Aucun test existant modifié**, sauf 4 signalés au §« ce qui a changé de
+comportement » ci-dessous.
 
-| Fichier | État |
-|---|---|
-| `docs/decisions/adr-0015-addendum-fiche-de-massimo.md` | **créé**, 12 §, Proposé |
-| `DECISIONS.md` | ligne d'index sous `adr-0015` |
-| `docs/frontend-massimo/page-fiches.md` | **86 → 431 lignes** (spec de page) |
-| `docs/frontend-massimo/mockup/mockup-fiche-de-massimo.html` | **créé**, 8 écrans, 14 jalons |
+#### ✅ CE QUI EST FAIT
 
-#### 🔓 CE QUE L'ADDENDUM DÉBLOQUE — une décision différée depuis 5 semaines
+**Temps 1 — le socle, livré à COMPORTEMENT CONSTANT (1212 → 1212, zéro test touché).**
+Migration `c3d4e5f6a7b2` (`author`, `student_id`, `version`), 4ᵉ valeur `personal`, et surtout
+**deux prédicats partagés** dans `modules/fiches/population.py` : `readable_by_student()` pour le
+flux élève, `zetis_authored()` pour la production et le pilotage. Les **8** requêtes qui lisent
+`fiches` y passent. C'est ce temps-là qui rend le reste sûr — voir « ce que le read-before-code a
+corrigé ».
 
-L'ADR-0015 avait explicitement **différé** « fiche générée par Massimo lui-même », bloquée par
-« seul le contenu validé atteint Massimo ». **Le blocage était une formulation, pas une règle** :
+**Temps 2 — la slice 1.** `modules/fiches/atelier.py` : brouillon idempotent (`personal_draft`),
+sauvegarde partielle à chaque geste, 12 phrases candidates **déterministes** tirées du cours,
+`review` en réussites seules, `finish` (`FicheDraft` → `FicheSpec`, 422 qui **nomme** les champs
+manquants), `rework` versionné. **Zéro LLM** — c'est la règle 7, pas un raccourci.
+7 routes élève, miroirs TS dans `packages/types/src/fiche.ts`.
 
-> **Le gate `validated` porte sur ce que ZETIS SERT, jamais sur ce que Massimo ÉCRIT.**
-> Les **dérivés** de sa fiche (cartes SRS, quiz) repassent, eux, par le gate normal.
-
-La catégorie existait déjà — « productions de Massimo » est une classe de source RAG de
-`CLAUDE.md`. Aucune règle de sécurité n'est affaiblie.
+**Frontend.** `pages/AtelierPage.tsx` en plein écran (patron ADR-0052 : overlay CSS + état React,
+`CloseFullscreenButton`, Échap, verrou de défilement), route
+`/fiches/:slug/:lessonId/atelier`, entrée **« 🧩 En faire ma fiche »** sur chaque leçon de
+`CoursPage`. **Glisser-déposer par événements POINTEUR** (mécanique de `NodeBank` des mindmaps),
+la croix restant au clic.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Un seul objet, deux auteurs** : colonnes `author` (`zetis|massimo`) + `student_id` nullable
-   sur `fiches`. **PAS de table parallèle**, et surtout **pas** une valeur `massimo` ajoutée à
-   `source` (`generated|manual`) : `source` dit COMMENT, `author` dit À QUI — deux axes.
-2. **`FicheSpec` reste littéralement INCHANGÉ.** Le schéma fermé à budgets, conçu pour brider le
-   LLM, devient **l'échafaudage pédagogique de l'enfant** (« tu n'as droit qu'à 5 points-clés,
-   choisis ») et rend la comparaison **champ à champ** possible.
-3. **`FicheDraft`** — un brouillon n'est **pas** un `FicheSpec` (3 points sur 5 sans `essentiel`
-   ne passe aucune borne). Second schéma permissif, bornes MAX conservées, aucune MIN. Un brouillon
-   n'est **ni exportable ni dérivable**.
-4. **§3 RÉVISÉ le 2026-08-12** — ~~corrigé déverrouillé après tentative~~ : **rien n'est
-   verrouillé**, « lire avant de fabriquer, c'est ok ». Seul change **ce qui s'ouvre en premier**.
-   **Un défaut, pas un gate** — un verrou serait un objectif SUBI, la faute même que le §4 refuse
-   ailleurs.
-5. **Échafaudage implicite** — 3 niveaux dans le code, **aucun menu à l'écran**. Massimo choisit
-   « un coup de main **maintenant** », jamais un niveau.
-6. **7 règles de bienveillance** dans `fiche_coach.py`, dont la 7ᵉ qui porte tout : **ZETIS n'écrit
-   JAMAIS dans la fiche à la place de Massimo**.
-7. **Le plan ne change pas, le MODE D'AUTEUR si** : `points_cles` se **choisit** ; `essentiel` ne
-   peut **pas** se choisir (synthèse, absente du cours) ; `erreurs_a_eviter` **se constate**, depuis
-   ses erreurs mesurées.
-8. **`mnemonique`, 6ᵉ section CONDITIONNELLE**, libellé écran **« Mnemonics »** (anglais, arbitré).
-9. **L'atelier est une page PLEIN ÉCRAN**, sur le patron `adr-0052` réutilisé — **jamais** dans
-   `ActivityModal`.
+1. **`author` est un SECOND AXE, pas une valeur de `source`.** `source` dit *comment* c'est
+   produit, `author` dit *à qui* c'est. Pas de table parallèle.
+2. **`FicheSpec` est littéralement inchangé.** Il part au modèle via `model_json_schema()` : lui
+   ajouter un champ changerait la génération de **toutes** les fiches ZETIS. Le brouillon est un
+   **second schéma**, `FicheDraft` — bornes MAX conservées, aucune MIN.
+3. **Le gate porte sur ce que ZETIS SERT, jamais sur ce que Massimo ÉCRIT.** Les **dérivés** de sa
+   fiche repassent, eux, par le gate normal.
+4. 🔴 **Ne JAMAIS lire `fiches` sans dire de quelle population on parle.** Les deux prédicats de
+   `population.py` sont la seule porte. Une clause recopiée à la main est le piège de l'agenda.
+5. **`personal_draft` est une 5ᵉ valeur, ajoutée par ce chantier** — l'addendum n'en nomme que
+   quatre. Le §1 bis exige de persister l'incomplet et l'écran 2 distingue brouillon et fiche
+   finie. Le brouillon est **exclu** de `readable_by_student` : ce n'est pas une fiche.
+6. **Un brouillon se reprend EN PLACE ; une fiche finie se retravaille en NOUVELLE VERSION.**
+   L'ancienne reste lisible — la trajectoire dans le temps est le seul endroit du produit qui
+   montre « sait-il ce qui compte ».
+7. **Le pont SRS est reporté en slice 2** (arbitrage du 2026-08-13). `schedule_review` crée **une**
+   carte par notion et **écrase** front/back/intervalle/statut : le brancher sur `points_cles`
+   aurait détruit la carte ZETIS de la notion et remis sa planification à zéro. `definitions`
+   (slice 2) lui donne sa forme naturelle, recto/verso, sans transformation.
+8. **`recopie` est reporté en slice 2** (même arbitrage). En mode « je choisis », les points-clés
+   **sont** des phrases du cours mot pour mot : `recopie` flaguerait les cinq et dirait à Massimo
+   que tout son travail est du copiage. Le type n'a de sens qu'à partir de la première section qui
+   s'**écrit** (`essentiel`).
+9. **Les candidates sont FILTRÉES du discours pédagogique** (arbitrage : « écarter le discours,
+   garder les énoncés »). Sans filtre, cinq des douze étaient l'introduction du cours.
+10. **La colonne ne montre qu'UNE étape.** Les cinq autres ne sont **pas rendues grisées** — même
+    principe que l'étape « Mnemonics » que le §10 interdit d'afficher quand elle n'a rien à offrir.
+11. **Le tiroir de cours de l'atelier est HORS PÉRIMÈTRE** (arbitrage d'ouverture). `CoursPanel`
+    n'a pas été touché — sa mesure en `vh` reste la dette nommée par le §12.
 
-#### 🔴 LES 4 CONSTATS DE CODE QUI COMMANDENT L'IMPLÉMENTATION
+#### 🔴 CE QUE LE READ-BEFORE-CODE A CORRIGÉ — l'ADR annonçait 3 lecteurs, il y en avait 8
 
-À **relire avant** d'écrire une ligne — ils ont été mesurés dans le code réel, pas supposés :
+C'est le fait central du chantier. Détail complet et parades dans `TROUBLESHOOTING.md`.
 
-1. **Le gate `validated` est appliqué par PLUSIEURS lecteurs du flux élève**, chacun avec sa clause
-   (`list_subject_fiches` `service.py:446`, `fiches_summary`, lecture unitaire). **Motif exact du
-   piège de l'agenda.** → **prédicat unique partagé**, et `validation_status='personal'` rend
-   l'oubli **fail-safe**.
-2. **Toute édition d'un spec renvoie la fiche en `pending`** (`service.py:264`, sans condition) →
-   un enrichissement **en lot** retirerait **toutes** les fiches à Massimo en même temps.
-3. **`FicheSpec` est en `extra="forbid"`** → un champ optionnel se lit sans casse sur les
-   `spec_json` existants (**aucune migration de données**), **mais le schéma part au modèle** :
-   ajouter un champ change la génération de **toutes** les fiches.
-4. **`CoursPanel` n'est `sticky` qu'au-dessus de `lg`** et se mesure en **`vh`** → sous `lg`,
-   « Voir le cours » empile le cours **sous** six étapes, donc **inatteignable**.
+- **4 lecteurs dans le module** (l'ADR en nommait 3) — `mark_seen` manquait : sans lui,
+  `POST /seen` renvoie **404 sur la fiche de l'enfant** et son badge « nouveau » ne part jamais.
+- **4 requêtes hors module, sans AUCUN filtre de statut** — `equipment._existing_fiche`,
+  deux requêtes de `coverage`, la cascade de `veto`. Sur celles-là, la « sécurité par
+  construction » de `personal` **ne joue pas** : elle ne protège que ce qui filtre déjà.
+- 🔴 Le pire : `_existing_fiche` prend « la dernière fiche par id, tout statut ». Une fiche
+  personnelle serait prise pour la fiche ZETIS de la leçon → ZETIS ne produirait plus la sienne,
+  et l'appelant **validerait la fiche de l'enfant** en `parent_bulk`.
+- **`ForeignKey("students.id")` de l'ADR §1 nomme une table qui n'existe pas** — c'est
+  `student_profiles`.
+- **La 4ᵉ valeur `personal` ne coûte rien** : `validation_status` est un `String(20)`, pas un enum
+  SQL. L'ADR la comptait dans ses coûts de migration.
 
-#### 🧾 DETTES ET RÉSIDUS DE CE CADRAGE
+#### 🔴 SEPT DÉFAUTS TROUVÉS EN REGARDANT L'ÉCRAN — cinq invisibles à 2 700 tests verts
 
-- ⚠️ **`page-fiches.md` et le mockup sont dans l'arbre de travail, PAS sur une branche.** Ils
-  attendent que `/ouverture` crée `feat/fiche-de-massimo`. **Ne pas les committer sur `main`.**
-- ⚠️ **Aucun test, aucune vérification de code** — c'est un cadrage. Les 4 constats ci-dessus sont
-  des **lectures**, pas des exécutions.
-- ⚠️ **Le mockup a été vérifié dans le DOM** (accordéon, avancement, aperçus, escalade, budget),
-  **jamais sur un appareil réel** — ni iPhone, ni iPad.
-- ⚠️ **Choix d'implémentation laissé ouvert** : `CoursPanel` en deux `variant` (`aside`/`drawer`)
-  ou deux composants ? Il n'a **qu'un seul consommateur** aujourd'hui — le coût est faible
-  **maintenant**.
-- ⚠️ **Ce serait le 3ᵉ plein écran de l'app** (galaxie, mindmaps, atelier). Le patron mérite d'être
-  **extrait** — **pas dans ce chantier**, signalé pour plus tard.
-- ⚠️ **`DATA_MODEL.md` et `API_SPEC.md` NON touchés, délibérément** : l'addendum **décide** des
-  colonnes (`author`, `student_id`, `version`, `personal`) et **7 endpoints**, mais rien n'existe.
-  Ils s'écriront **à l'implémentation**, pas au cadrage.
-- ✅ **SOLDÉ le 2026-08-13 — les 13 branches sont supprimées DU SERVEUR.** Trouvé en vérifiant les
-  faits de cette clôture : le commit `618c8f5` (« les 13 branches périmées sont supprimées ») était
-  **vrai en local, faux sur le serveur** — `git branch --list 'feat/*' 'fix/*'` rendait **0**, mais
-  `git ls-remote --heads origin` rendait **13**, toutes de PR mergées. **Le dépôt portait un
-  enregistrement faux**, et c'était ça le défaut.
-  **Contrôle avant suppression, plus fort que « la PR est mergée »** : pour chacune des 13, la
-  **tête distante** était exactement le `headRefOid` que GitHub avait mergé — aucune ne portait de
-  commit resté sur le serveur et jamais fusionné. Les 13 SHA sont dans le message de commit ;
-  `git reflog` et les PR #98–#110 les gardent.
-  **Après** : `git ls-remote --heads origin` rend **`main` seul**, `git branch -r` rend 0 hors
-  `main`, `main` intact à `df2ba1b`.
-  ⚠️ *Le piège reste vrai et se rejouera* : la suppression locale ne touche pas le serveur, et
-  **aucun contrôle par `git branch` ne peut le voir** — seul `git ls-remote` tranche.
+Ils sont la justification vivante de `WORKFLOW.md §5bis`. Tous corrigés.
 
-#### ⚠️ PENDANT LE CHANTIER : REVENIR SUR `main` CASSE LE DÉMARRAGE DU BACKEND
+| | Défaut | Comment il est sorti |
+|---|---|---|
+| 1 | Guillemets français : phrases tronquées, fragment ouvrant sur un `»` orphelin | à l'écran |
+| 2 | `elles .` — le gras du cours laissait une espace avant le point | à l'écran |
+| 3 | Les 12 candidates étaient l'introduction du cours | à l'écran |
+| 4 | La correction du 1 créait une **sous-coupure** : 3 phrases collées en 187 car. | au débogage |
+| 5 | Deux gestes dans le même tick : le second perdu (fermeture périmée) | à l'écran |
+| 6 | Croix à 36 px, sous la cible tactile de 44 px du projet | mesuré dans le DOM |
+| 7 | Un glisser parti à côté sélectionnait le texte (loupe iOS) | à l'écran |
 
-**Déroulé normal** — branche, PR, merge, branche supprimée à la fin. *(Une consigne « garder la
-branche vivante pour essayer au calme » a été posée puis **retirée le 2026-08-13** ; elle ne
-s'applique pas.)* Mais le chantier ajoute une **migration** (`author`, `student_id`, `version`,
-valeur `personal`), et le va-et-vient branche ↔ `main` a un coût qui n'était écrit nulle part :
+⚠️ **Deux FAUX défauts ont été écartés au lieu d'être rapportés** : la page ne se remet pas en haut
+à chaque clic (contenu 1095 = visible 1095), et un décalage de clic venait de l'outil, pas du
+produit. *Mesurer avant de conclure vaut dans les deux sens.*
 
-> `pnpm dev` passe par `scripts/dev.sh:25`, qui fait **`alembic upgrade head` EN DEV AUSSI**. Une
-> fois la migration appliquée, revenir sur `main` et lancer `pnpm dev` fait échouer Alembic sur
-> *« Can't locate revision identified by … »* — la révision n'est pas dans l'historique de `main` —
-> et **le backend NE DÉMARRE PAS**.
+#### ⚠️ CE QUI A CHANGÉ DE COMPORTEMENT — 4 tests existants modifiés, à dessein
 
-Ce n'est **pas** un problème de données (colonnes additives, SQLAlchemy nomme les siennes), c'est un
-problème de **démarrage**. Trois façons de s'en sortir :
+`AtelierPage.test.tsx` posait une phrase **au clic** ; le geste est devenu un **glisser** à la
+demande du commanditaire. Les 4 tests concernés ont été réécrits en conséquence. Ce n'est pas un
+test ajusté pour passer — mais la règle veut que ce soit nommé.
 
-- **`pnpm dev:back`** — c'est le chemin de `.claude/launch.json`, il ne joue **aucune** migration.
-  Suffisant si on revient sur `main` juste pour lire ou comparer ;
-- **`alembic downgrade <révision de main>`** avant de repasser sur `main`, si on doit vraiment y
-  faire tourner la stack complète ;
-- **une base séparée** (`ZETIS_DATABASE_URL='…/zetis_fiches' pnpm dev`, restaurée par `pg_dump`) —
-  utile seulement si le va-et-vient devient fréquent. ⚠️ **`ZETIS_DATABASE_URL`, jamais
-  `DATABASE_URL`** : préfixe `ZETIS_` + `extra="ignore"` (`config.py:18-21`) → une variable mal
-  nommée est **avalée en silence**. Et **jamais dans `.env`** : `env_file` lit la racine **et**
-  `apps/backend`, donc les deux branches.
+#### 🧾 DETTES OUVERTES — nées de ce chantier
 
-🔴 **En prod : ne JAMAIS poser cette migration avant le merge** (`migrer-la-base-prod-zetis` —
-l'entrypoint de prod fait lui aussi `upgrade head` au démarrage).
+- 🔴 **Le glisser au DOIGT n'a jamais été essayé sur un vrai appareil.** `touch-action: none` et
+  `user-select: none` sont **mesurés dans le DOM**, la mécanique est celle des mindmaps — mais
+  aucun doigt ne l'a exercée. C'est la vérification la plus importante qui reste.
+- ⚠️ **Une garde REDONDANTE ne peut pas se prouver par un sabotage unique** : l'espace avant la
+  ponctuation est corrigé **deux fois** (retrait d'emphase + substitution `\s+([.,])`). Retirer les
+  deux fait rougir ; retirer l'une ne fait rien. Ce n'est pas une contre-épreuve réussie.
+- ⚠️ **`new_fiches_count` hérite du nouveau compteur** : une fiche que Massimo vient d'écrire
+  comptera comme « nouvelle » tant qu'il ne l'a pas rouverte. Sans effet tant qu'il n'en a pas
+  fait, mais ça heurte la règle « NOUVEAU jamais DÛ » de l'ADR-0030. **À trancher en slice 2.**
+- ⚠️ **Un commentaire de `coverage.py` devient faux en slice 2** : *« une leçon porte 0..1
+  fiche/mindmap »* — les versions du §7 le contredisent déjà.
+- ⚠️ **L'entrée depuis le cours est toujours « 🧩 En faire ma fiche »**, jamais « ✍️ Ma fiche »
+  quand elle existe (§12) : il faudrait savoir, **par leçon**, si une fiche personnelle existe.
+  Aucune route ne le dit.
+- ⚠️ **L'écran 2 de la spec (une tuile par leçon, 4 états) n'est PAS implémenté.**
+  `FicheSubjectPage` liste des **fiches**, pas des leçons ; il y faudrait un endpoint
+  leçon-centré. C'est pourquoi l'entrée passe par le cours — ce que l'ADR §12 autorise
+  explicitement (« se crée sans réserve »).
+- ⚠️ **Le veto d'un cours devient impossible dès que Massimo a fait sa fiche dessus.** Choix de
+  ce chantier, faute de mieux : la FK `fiches.lesson_id` est NOT NULL sans `ON DELETE`, donc
+  l'exclure de la cascade ferait **échouer** la suppression. Le cul-de-sac est réel — Papa ne
+  pourra plus retirer ce cours-là.
+- ⚠️ **Aucun linter Python** dans le venv (`ruff` absent, rien dans `pyproject.toml`).
 
 #### ▶ PROCHAIN PAS
 
-🔴 **DEUX commits, dans cet ordre — ils ne vont pas sur la même ref.**
+1. **L'humain vérifie** (diff + tests) puis **committe**, **push**, ouvre la **PR** et **merge**.
+2. **Étape 4bis** (`WORKFLOW.md §5`) : revenir mettre ce fichier au réel — squash, n° de PR,
+   branche supprimée **des deux côtés** (⚠️ `git branch -r` ment, `git ls-remote --heads origin`
+   tranche), « rien à pousser ».
+3. 🔴 **Essayer le glisser au doigt sur un vrai iPhone** — la dette n°1 ci-dessus.
+4. **Slice 2** : `essentiel` (champ libre + dictée) et `definitions` (terme ZETIS / définition
+   Massimo), qui apportent avec elles **`recopie`** et le **pont SRS**.
 
-1. **Lot `main`** (l'humain committe, après vérification) : `adr-0015-addendum-fiche-de-massimo.md`
-   + `DECISIONS.md` + `MEMORY.md` + `TROUBLESHOOTING.md`.
-2. **Puis `/ouverture`** → crée `feat/fiche-de-massimo`. ⚠️ **Elle s'arrête si `DECISIONS.md` est
-   encore modifié** — d'où l'ordre.
-3. **Lot branche** : `page-fiches.md` + `mockup-fiche-de-massimo.html`.
-4. Puis `/slice` sur la **slice 1**, volontairement minuscule : **une notion**, **une seule
-   section** (`points_cles`), échafaudage « je choisis » (12 phrases → 5, **aucune écriture**),
-   `recopie` seul, `FicheDraft` + reprise, → cartes SRS.
-5. **Clôture normale en fin de chantier** : commit → push → PR → merge → étape 4bis, **branche
-   supprimée** (des deux côtés — cf. le piège `git ls-remote` ci-dessous). Aucune réserve.
+#### 🔴 LE PIÈGE DE CE CHANTIER — il est armé sur la base de dev
 
-**Contrainte qui prime sur tout le reste** : *la première fiche que Massimo fabrique doit prendre
-**moins de 5 minutes** et produire quelque chose qu'il ait envie de garder.*
-⚠️ **Le risque n'est pas technique, il est motivationnel.**
+La migration `c3d4e5f6a7b2` **est posée sur la base de dev**. Sur cette branche, `pnpm dev` va
+bien. **Revenir sur `main` et lancer `pnpm dev` fait échouer Alembic au démarrage** (`scripts/dev.sh`
+joue `upgrade head` en dev aussi) — le backend ne démarre pas.
 
-### ✅ CHANTIER MERGÉ — le titre de page cesse d'être seul au bord (PR #121, squash `ced50a2`)
+- **Cible de repli connue** : `alembic downgrade b2c3d4e5f9a1` (tête de `main`) ;
+- ou **`pnpm dev:back`** sur `main`, qui ne joue aucune migration ;
+- 🔴 **jamais `pnpm prod:up` depuis cette branche** — `infra/docker/backend-entrypoint.sh` joue
+  `upgrade head` au démarrage du conteneur, ce qui poserait la migration en prod avant le merge.
 
-**Base `618c8f5`.** **Branche `fix/accueil-titre-coupe` supprimée** (locale **et** serveur),
-`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-12, étape
-4bis faite dans la foulée du merge. **Plus aucune branche locale hors `main`.**
+⚠️ **Les serveurs de dev tournent encore** (backend 8000, massimo 5173) — lancés pour la relecture
+visuelle, **non arrêtés**. *La bonne question à la reprise est « que tourne-t-il ? »
+(`preview_list`), pas « mes deux serveurs tournent-ils ? ».*
 
-> 🔴 **Le piège de `git branch -r` s'est rejoué pour la CINQUIÈME fois**, sur cinq merges
-> consécutifs. Après `--delete-branch`, il listait **toujours** `origin/fix/accueil-titre-coupe` ;
-> `git ls-remote --heads origin` rendait vide. Cinq occurrences suffisent à conclure : **ce n'est
-> pas une distraction, c'est le contrat de la commande.** Elle se rejouera au merge suivant.
+---
 
-🔴 **Pas d'ADR, délibérément** (comme le chantier précédent) : correction visuelle, aucune décision
-produit figée. **Le prochain élagage ne doit pas en chercher un.**
+## ⬆️ REMONTÉ de l'élagage du chantier `fix/accueil-titre-coupe` (PR #121, squash `ced50a2`)
 
-**4 fichiers, `frontend-massimo` seulement.** Aucun backend, aucune migration, aucune route.
+> Le récit est retiré. **Contrôles : ADR non requis (le chantier l'assumait), `CHANGELOG.md` ✅
+> (`0.80.2`) — mais `TROUBLESHOOTING.md` n'avait AUCUNE section**, alors que quatre pièges
+> d'outillage y avaient leur place. Ils y ont été écrits le 2026-08-13. Ce qui suit est ce qui
+> restait **ouvert**.
 
-### 🔴 LA MESURE A CORRIGÉ L'ÉNONCÉ — c'est le cœur du chantier
-
-Le défaut était noté « *« Bonjour Massimo » est COUPÉ À GAUCHE sur iPhone* ». **Rien n'était
-coupé.** À 390 px, le texte tenait sur **une ligne avec 136 px de marge**, et l'Accueil ne débordait
-pas d'un pixel (`scrollWidth == clientWidth`).
-
-Le vrai défaut : le titre était le **seul** texte de la page à `x = 16`. Les quarante autres
-commençaient à **33, 37 ou 41**, selon le padding de leur carte. L'œil prend la colonne des cartes
-pour la marge de la page ; un titre qui en sort **se lit comme coupé**. Même chose vécue, autre
-chose à réparer.
-
-⚠️ **La maquette v3 donne raison au code existant** (`padding: 26px 20px`, `h1` sans retrait) : les
-cartes gardent le bord du conteneur. On n'a pas corrigé le design — on a sorti le titre de la seule
-position que plus rien d'autre n'occupait.
-
-### 🔴 CE QUI A FAIT RECULER LE CHANTIER — le correctif évident était faux
-
-`PageHeader` titre **dix** pages : une ligne semblait tout régler. Elle y a été posée, **puis
-retirée après mesure**.
-
-| Page | Textes au bord `x = 16` | Le retrait y serait |
-|---|---|---|
-| Accueil · Matières · Missions | 0 | juste — le titre est seul |
-| **`/agenda`** | **7** — « Aujourd'hui », « Demain », « Ce qui arrive »… | **faux** |
-| **`/revision`** | **2** — « Mélanges », « Par matière » | **faux** |
-
-La moitié de ces pages alignent leurs **libellés de section** sur le bord du conteneur, hors des
-cartes. Le titre n'y est **pas seul** : il leur est *aligné*. Le rentrer aurait cassé cet
-alignement — **un défaut neuf pour en corriger un autre**.
-
-### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
-
-1. 🔴 **`RETRAIT_TITRE_PAGE` ne va PAS dans `PageHeader`, et ce n'est pas un oubli.** La règle est
-   **conditionnelle par page** — *ce retrait s'applique quand le titre serait le seul texte au bord
-   du conteneur* — donc elle ne peut pas vivre dans un composant partagé. Le raisonnement complet
-   est dans `lib/pageTitle.ts`, et un commentaire dans `PageHeader.tsx` prévient celui qui voudrait
-   « factoriser » de bonne foi.
-2. **16 px, et pas une autre valeur.** Elle aligne le titre sur le texte d'une carte `p-4` aux
-   **deux** points de rupture : mobile 16 + 16 = 32 contre 33 ; bureau 24 + 16 = 40 contre 40.
-3. **Les cartes ne bougent pas.** Elles gardent le bord du conteneur, conforme à la maquette v3.
-4. **Périmètre : Accueil et Matières seulement.** Les titres d'ELI5 et de Placeholder sont
-   **centrés** — ils ne touchent aucun bord, ils n'étaient pas concernés.
-5. **Aucun test ajouté, délibérément.** jsdom n'a **pas de moteur de mise en page** :
-   `getBoundingClientRect` y rend des zéros. Un test n'aurait pu qu'assurer la présence d'une
-   classe — il se serait senti utile sans rien voir. **La preuve de ce chantier est visuelle.**
-
-### 🎯 CE QUE LE READ-BEFORE-CODE A CORRIGÉ
-
-- Il existe un composant `PageHeader` **utilisé par dix pages** ; quatre pages roulent leur propre
-  `h1`. Le défaut touchait donc potentiellement 14 titres — et finalement 2.
-- `MatieresPage` **annule le padding de `main` puis le rétablit** (`-m-6 … p-6`) : son titre retombe
-  au même bord que les autres, et au même défaut.
-- Le `h1` de `PlaceholderPage` et celui d'`Eli5Page` sont dans des conteneurs `text-center` : ils ne
-  touchent aucun bord.
-
-### 🧾 DETTES OUVERTES
-
-- ⚠️ **NOUVELLE — `/matieres` déborde de 8 px horizontalement** (`main.scrollWidth 398` pour
-  `clientWidth 390`). **Préexistant, mesuré AVANT le changement**, cause : le `-m-6 p-6` qui déborde
-  la boîte de contenu de `main`. Sur écran tactile, la page se laisse tirer de côté — exactement le
-  genre d'effet qui se rapporte comme « c'est coupé ». L'Accueil, lui, est à zéro.
-- ⚠️ **NOUVELLE — unifier titre ET libellés de section** sur toutes les pages (les rentrer tous à
-  32) est une décision de **design** qui mérite un ADR, pas un passage en force. En l'état, deux
-  familles de pages coexistent, chacune cohérente avec elle-même.
-- ⚠️ **`filterwarnings = ["error"]` est gratuit AUJOURD'HUI seulement.** Mesuré : les 1212 tests
-  backend passaient déjà sous `-W error` avant qu'on pose le réglage. Le prochain `uv lock` qui
-  monte un paquet peut le rendre payant. La parade sera un `ignore` **sur un message précis**,
-  jamais sur une catégorie.
+- ⚠️ **`/matieres` déborde de 8 px horizontalement** (`scrollWidth 398` pour `clientWidth 390`),
+  cause identifiée : le `-m-6 p-6`. La page se laisse tirer de côté au doigt.
+- ⚠️ **Unifier titre ET libellés de section** sur toutes les pages est une décision de **design**
+  qui mérite un ADR. Deux familles de pages coexistent, chacune cohérente.
+- ⚠️ **`filterwarnings = ["error"]` est gratuit AUJOURD'HUI seulement.** Le prochain `uv lock` qui
+  monte un paquet peut le rendre payant. La parade sera un `ignore` **sur un message précis**.
+  *(Il a déjà mordu ce chantier : `HTTP_422_UNPROCESSABLE_ENTITY` déprécié.)*
 - ⚠️ **La branche « leçon inconnue » de `_check_lesson_belongs`** (`agenda/service.py:505`) n'est
-  couverte par **aucun** test. Découverte de biais le 2026-08-12.
-- ⚠️ **`httpx>=0.27` figure DEUX fois** dans `apps/backend/pyproject.toml` (dépendance principale
-  **et** extra `dev`). Redondant, sans effet. Laissé sciemment.
-- 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé.** Aucune mission des données
-  de dev ne porte d'étape `mindmap`. Le `z-50` au-dessus du `z-40` d'`ActivityModal` et l'Échap en
-  capture avec `stopPropagation` sont **écrits et typés, pas prouvés à l'écran**. Idem pour
-  l'**aperçu Papa**, dont le test **mocke** le workspace.
-- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à 390 px)
-  — **au `BACKLOG.md`**, avec la piste : le même panneau tient sur la page matière.
+  couverte par **aucun** test.
+- ⚠️ **`httpx>=0.27` figure DEUX fois** dans `apps/backend/pyproject.toml`. Laissé sciemment.
+- 🔴 **Le plein écran depuis la MODALE DE MISSION n'a JAMAIS été exercé** — aucune mission de dev
+  ne porte d'étape `mindmap`. Écrit et typé, **pas prouvé à l'écran**.
+- 🔴 **Le panneau de notion de `/galaxy` SORT DE L'ÉCRAN sur téléphone** (94 px hors cadre à
+  390 px) — au `BACKLOG.md`, piste : le même panneau tient sur la page matière.
 - 🔴 **Le repli `PROFILE` affiche des chiffres FAUX** (niveau 7, 1240 XP) en cas de panne réseau.
-  Décision **produit** (montrer un faux nombre, ou rien), pas un nettoyage.
-- ⚠️ **En Reconstruire sur téléphone, ça reste serré** : la banque prend 278 px, le canvas 388 même
-  en plein écran. Mesuré, pas jugé.
-- ⚠️ **28 tests de MONTAGE ne sont pas une suite** : ils ne disent rien de ce que les composants
-  font. C'est leur nature, pas une étape vers autre chose.
-- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`, conditionnel à
-  une réponse de ZETIS. Vérification **non jouée**.
+  Décision **produit**, pas un nettoyage.
+- ⚠️ **En Reconstruire sur téléphone, ça reste serré** : banque 278 px, canvas 388 même en plein
+  écran. Mesuré, pas jugé.
+- ⚠️ **28 tests de MONTAGE ne sont pas une suite** — c'est leur nature, pas une étape.
+- **La 5ᵉ surface d'`ACTION_UI` n'a jamais été vue** — le menu de notion du `/chat`.
 - ⚠️ **`cursor: default` sur les 29 boutons** (Tailwind v4) — toujours ouvert.
 - ⚠️ **Le rail arrive après ~1 500 px de défilement** sur la page matière. Signalé, non tranché.
-- ⚠️ **« Points solides / À renforcer » sur `/matieres`** : moitié livrée, moitié refusée (la donnée
-  vit derrière `require_parent`, un équivalent enfant créerait un classement par faiblesse —
-  ADR-0024 §5). Signalé, non redemandé.
+- ⚠️ **« Points solides / À renforcer » sur `/matieres`** : moitié livrée, moitié refusée
+  (ADR-0024 §5). Signalé, non redemandé.
 - ⚠️ **`maquette-massimo-galaxy.html` porte encore l'ancien libellé** « Reconstruire la carte ».
-  Une maquette n'est pas une spec de page — laissée sciemment.
-
-### ▶ PROCHAIN PAS
-
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #121, squash `ced50a2`), branche
-supprimée des deux côtés, **étape 4bis faite dans la foulée du merge**. `main == origin/main`, arbre
-propre, chaque fait revérifié par commande.
-
-✅ **Résidu soldé : les serveurs de dev sont arrêtés** (2026-08-12). Aucun processus n'écoute plus
-sur 8000, 8001 ni 5176.
-
-⚠️ **Ils étaient TROIS, pas deux.** La clôture n'en avait consigné que deux — `backend-dev` (8001)
-et `massimo-dev` (5176), ceux que cette session avait lancés — et `backend` (8000) tournait aussi.
-Le contrôle `lsof` de l'étape 4bis n'avait sondé que les deux ports **déjà écrits** : *une
-vérification qui ne contrôle que sa propre liste ne peut pas trouver ce qui en manque.* La bonne
-question était « que tourne-t-il ? » (`preview_list`), pas « mes deux serveurs tournent-ils ? ».
-
-**▶ CE QUI ATTEND ENSUITE, par ordre de coût pour Massimo :**
-
-1. 🔴 **Le panneau de notion de `/galaxy` sort de l'écran de 94 px sur téléphone** — au `BACKLOG.md`,
-   avec sa piste : le **même** panneau tient parfaitement sur la page matière (`NotionPanel`).
-2. ⚠️ **Les 8 px de débordement de `/matieres`** — petit, mais c'est un écran qui se laisse tirer de
-   côté au doigt, et la cause est identifiée (`-m-6 p-6`).
-3. 🔴 **Le plein écran depuis la modale de mission n'a jamais été exercé** — il faudrait fabriquer
-   une mission à étape `mindmap` côté Papa.
-4. Le reste est dans « DETTES OUVERTES » ci-dessus.
-
-### 🧰 QUATRE RÉFLEXES D'OUTILLAGE, payés cher, à ne pas reperdre
-
-- 🔴 **Un padding interne ne déplace PAS la boîte.** `element.getBoundingClientRect().left` d'un
-  `h1` en `pl-4` rend toujours le bord du conteneur : c'est le **texte** qui bouge, pas la boîte.
-  Mesuré à tort le 2026-08-12, au point de croire le correctif sans effet. **Parade** : mesurer le
-  contenu par un `Range` — `const r = document.createRange(); r.selectNodeContents(el);
-  r.getBoundingClientRect()`.
-- 🔴 **`uv sync` CASSERAIT le venv backend.** Il retirerait `faster-whisper`, `ctranslate2`,
-  `piper-tts` et `onnxruntime` — les extras `stt`/`tts`, non sélectionnés — donc la **dictée ELI5**
-  et la **voix des capsules**. Pour ajouter un paquet : `VIRTUAL_ENV=.venv uv pip install <p>`
-  (additif), puis `uv lock` (n'écrit que le lockfile).
-- ⚠️ **`git branch -r` ment après un `--delete-branch`** : il lit les références de suivi locales.
-  `git ls-remote --heads origin` interroge le serveur, `git fetch --prune` élague. Le piège s'est
-  rejoué **cinq fois**, sur cinq merges consécutifs — c'est le comportement **normal** de la
-  commande, donc il se rejouera : le réflexe ne s'automatise pas.
-  ⚠️ **Même famille : `git merge-base --is-ancestor` ne peut JAMAIS confirmer un merge en squash**
-  (le squash crée un commit neuf), et déclare donc « non fusionnées » toutes les branches déjà
-  mergées. Passer par `gh pr list --head <branche> --state all`.
-- ⚠️ **`npx tsc` attrape un faux binaire** et ne vérifie **rien** (il rend un message d'aide et sort
-  en 0). Utiliser `./node_modules/.bin/tsc -b` **depuis chaque app**.
 
 ## ⬆️ REMONTÉ de l'élagage de l'ADR-0051 (PR #113, squash `239d6e9`)
 

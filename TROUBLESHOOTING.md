@@ -4,6 +4,148 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/fiche-de-massimo` — 2026-08-13
+
+### 🔴 Un cadrage qui compte les lecteurs d'une table ne compte que SON module
+
+L'addendum ADR-0015 annonçait **trois** lecteurs du gate `validated` sur `fiches`, et marquait le
+constat 🔴 en le comparant au piège de l'agenda. Le read-before-code en a trouvé **huit** :
+quatre dans le module (`mark_seen` manquait à l'appel — sans lui, `POST /seen` renvoie 404 sur la
+fiche de l'enfant), et **quatre hors du module, sans aucun filtre de statut** —
+`production/equipment.py`, deux requêtes de `production/coverage.py`, la cascade de
+`production/veto.py`.
+
+La conséquence dépasse le confort : `_existing_fiche` prend « la dernière fiche par id, tout
+statut », donc une fiche personnelle serait prise pour la fiche ZETIS de la leçon — ZETIS ne
+produirait plus la sienne, et l'appelant **validerait la fiche de l'enfant** en `parent_bulk`.
+
+⚠️ **La « sécurité par construction » d'un statut hors-cycle ne protège QUE les lecteurs qui
+filtrent déjà sur le statut.** Ceux qui ne filtrent sur rien ne voient pas la différence.
+
+**Parade** — le recensement ne se fait pas de mémoire :
+
+```bash
+grep -rn "Fiche\." apps/backend/app --include="*.py" | grep -v "/fiches/"
+graphify affected "<fonction partagée>"
+```
+
+### 🔴 Trois contre-épreuves VERTES d'affilée, toutes mal visées
+
+Après avoir corrigé trois défauts, les trois sabotages sont restés verts. Aucun ne prouvait rien,
+et les trois causes étaient **différentes** :
+
+| Sabotage | Pourquoi il ne mordait pas |
+|---|---|
+| fermeture de phrase sur `»` retirée | le bloc non coupé **dépassait la borne de longueur** et disparaissait — le symptôme visé (un `»` orphelin) n'apparaissait donc pas |
+| retrait d'emphase re-remplacé par une espace | **deux gardes redondantes** : la substitution `\s+([.,])` rattrapait seule |
+| filtre d'illustration `: «` neutralisé | le test n'exerçait que la branche des **préfixes**, pas celle-là |
+
+**Parade** : un sabotage vert n'autorise **jamais** à conclure « le test est bon ». Il faut
+**diagnostiquer pourquoi** — imprimer le pipeline réel, pas relire le code. Deux corollaires :
+une garde **redondante** ne peut pas se prouver par un sabotage unique (il faut retirer les deux,
+et le dire) ; et une fonction à **plusieurs branches** demande un verrou **par branche**.
+
+### 🔴 Corriger une sur-coupure crée une sous-coupure
+
+Le découpage en phrases coupait sur le point **interne** d'un `« … . »`, produisant une phrase
+tronquée et un fragment ouvrant sur un `»` orphelin. Ajouter un drapeau « dans une citation » a
+supprimé la sur-coupure — et créé l'inverse : une phrase qui **se termine** par `. »` ne se
+fermait plus jamais, collant trois phrases en un bloc de 187 caractères, **écarté par la borne de
+longueur**, emportant avec lui l'idée qui suivait.
+
+**Parade** : sur `»`, fermer la phrase si ce qui précède se termine par `.!?`. Et surtout —
+**vérifier une correction de découpage en imprimant les phrases produites**, jamais en relisant la
+règle.
+
+### ⚠️ `students` n'existe pas — c'est `student_profiles`
+
+Le bloc de code de l'ADR écrivait `ForeignKey("students.id")`. Aucune table de ce nom dans le
+dépôt ; les ~20 autres FK pointent `student_profiles.id` (`db/models/user.py`). Une migration
+écrite d'après l'ADR aurait échoué à la pose.
+
+### ⚠️ Deux résolveurs voisins, deux signatures
+
+`subject_of_lesson(db, lesson: Lesson)` prend **l'objet** ; `subject_id_for_lesson(db, lesson_id:
+int)` prend **l'id**. Les appeler l'un pour l'autre donne
+`AttributeError: 'int' object has no attribute 'chapter_id'`, loin du point d'appel.
+
+### 🔴 `npx tsc` — piège DÉJÀ consigné, et repayé quand même
+
+Il attrape un paquet homonyme, affiche un message d'aide et **sort en 0**. Chaîné en `&&`, il fait
+afficher un « OK » entièrement faux. Le piège était **écrit dans `MEMORY.md`** — mais pas ici, et
+`MEMORY.md` s'élague. **C'est la démonstration que ce fichier-ci est le bon endroit.**
+
+**Parade** : `pnpm --filter @zetis/frontend-<app> typecheck` (qui lance `tsc -b --noEmit`).
+
+### ⚠️ `app.routes` n'expose pas `.path` — les routers montés sont des `_IncludedRouter`
+
+Inspecter `app.routes` en cherchant un chemin rend **zéro route**, y compris pour des routes qui
+existent et répondent. Conclusion fausse garantie.
+
+**Parade** : `app.openapi()["paths"]`, seule vue fidèle des chemins réellement servis.
+
+### 🔴 `fireEvent.click` vide la file d'état ENTRE deux appels
+
+Deux `fireEvent.click` successifs ne reproduisent **jamais** un bug de fermeture périmée (deux
+gestes dans le même tick) : React re-rend entre les deux, donc la seconde poignée lit un état
+frais. Un test écrit ainsi reste vert sur le code fautif — vérifié.
+
+**Parade** : émettre les deux dans **un seul `act`** :
+
+```js
+await act(async () => { croix[1].click(); croix[0].click(); });
+```
+
+### ⚠️ jsdom n'implémente pas `elementFromPoint`
+
+`vi.spyOn(document, "elementFromPoint")` échoue — *« The property is not defined on the object »* —
+parce qu'on ne peut pas espionner une propriété **absente**. Tout test de glisser-déposer par
+pointeur en dépend.
+
+**Parade** : la **poser** avant, la retirer après (sauvegarder l'original, réassigner).
+
+### ⚠️ `HTTP_422_UNPROCESSABLE_ENTITY` est déprécié — et le dépôt traite les avertissements en erreurs
+
+Avec `filterwarnings = ["error"]`, la constante dépréciée lève une `StarletteDeprecationWarning`
+**à la place** de la `HTTPException` : le test voit une exception qui n'a pas de `status_code`.
+Le dépôt utilise partout `HTTP_422_UNPROCESSABLE_CONTENT`.
+
+### ⚠️ Un glisser qui démarre à côté d'une puce SÉLECTIONNE le texte
+
+`select-none` sur les seules puces ne suffit pas : un départ à quelques pixels sélectionne la
+colonne, et sur iPhone une sélection déclenche la loupe et le menu Copier au milieu du travail.
+**Parade** : `select-none` sur toute la zone de manipulation.
+
+---
+
+> **Remonté de l'élagage du chantier `fix/accueil-titre-coupe` (PR #121)** — sa clôture n'avait
+> écrit **aucune** section ici, alors que quatre pièges de son « outillage » y avaient leur place.
+> Le contrôle 2 de l'élagage l'a rattrapé le 2026-08-13.
+
+### 🔴 Un padding interne ne déplace PAS la boîte
+
+`element.getBoundingClientRect().left` d'un `h1` en `pl-4` rend toujours le bord du **conteneur** :
+c'est le texte qui bouge, pas la boîte. Mesuré à tort, au point de croire un correctif sans effet.
+
+**Parade** : mesurer le **contenu** par un `Range` —
+`const r = document.createRange(); r.selectNodeContents(el); r.getBoundingClientRect()`.
+
+### 🔴 `uv sync` casserait le venv backend
+
+Il retirerait `faster-whisper`, `ctranslate2`, `piper-tts` et `onnxruntime` — les extras
+`stt`/`tts`, non sélectionnés — donc la **dictée ELI5** et la **voix des capsules**.
+
+**Parade** : `VIRTUAL_ENV=.venv uv pip install <paquet>` (additif), puis `uv lock`.
+
+### ⚠️ `git branch -r` ment après un `--delete-branch`
+
+Il lit les références de suivi **locales**. Le piège s'est rejoué **cinq fois sur cinq merges** :
+c'est le comportement normal de la commande, donc il se rejouera.
+
+**Parade** : `git ls-remote --heads origin` interroge le serveur ; `git fetch --prune` élague.
+⚠️ Même famille : `git merge-base --is-ancestor` ne peut **jamais** confirmer un merge en squash
+(le squash crée un commit neuf) — passer par `gh pr list --head <branche> --state all`.
+
 ## Chantier `fix/quizpage-test-instable` — 2026-08-11
 
 ### 🔴 Attendre A pour asserter B est une COURSE, même quand A « vient après » B

@@ -16,8 +16,13 @@ from app.modules.ai import get_embedder, get_provider
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider
 from app.modules.auth.deps import get_current_user, require_parent
 from app.modules.eli5.service import get_default_student
-from app.modules.fiches import service
+from app.modules.fiches import atelier, service
 from app.modules.fiches.schemas import (
+    FicheCandidatesOut,
+    FicheDraftOpenRequest,
+    FicheDraftOut,
+    FicheDraftPatchRequest,
+    FicheFeedback,
     FicheGenerateRequest,
     FicheListItem,
     FicheOut,
@@ -129,6 +134,65 @@ def student_fiches_summary(db: Session = Depends(get_db)) -> dict:
 def student_subject_fiches(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Deck : fiches validées d'une matière (leçons validées de l'année active). Route neutre."""
     return service.list_subject_fiches(db, subject_slug)
+
+
+# ── L'atelier (addendum ADR-0015) ───────────────────────────────────────────────
+#
+# Déclaré AVANT `/fiches/{fiche_id}` pour la même raison que `/fiches/summary` : sinon « draft »
+# serait capté comme un identifiant de fiche (→ 422). Le piège est déjà consigné juste en dessous,
+# on le relit plutôt que de le repayer.
+
+
+@student_router.post("/fiches/draft", response_model=FicheDraftOut)
+def student_open_draft(req: FicheDraftOpenRequest, db: Session = Depends(get_db)) -> dict:
+    """Ouvre — ou retrouve — le brouillon de fiche d'une leçon. Idempotent."""
+    return atelier.open_or_get_draft(
+        db, student_id=get_default_student(db).id, lesson_id=req.lesson_id
+    )
+
+
+@student_router.patch("/fiches/draft/{draft_id}", response_model=FicheDraftOut)
+def student_patch_draft(
+    draft_id: int, req: FicheDraftPatchRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Sauvegarde partielle, à chaque geste — c'est elle qui tient « tu peux revenir demain »."""
+    return atelier.patch_draft(
+        db, draft_id=draft_id, student_id=get_default_student(db).id, draft=req.draft
+    )
+
+
+@student_router.get("/fiches/draft/{draft_id}/candidates", response_model=FicheCandidatesOut)
+def student_draft_candidates(
+    draft_id: int, section: str = "points_cles", db: Session = Depends(get_db)
+) -> dict:
+    """Les 12 phrases tirées du cours parmi lesquelles il choisit (aucune écrite par ZETIS)."""
+    return atelier.candidates(
+        db, draft_id=draft_id, student_id=get_default_student(db).id, section=section
+    )
+
+
+@student_router.post("/fiches/draft/{draft_id}/review", response_model=FicheFeedback)
+def student_review_draft(draft_id: int, db: Session = Depends(get_db)) -> dict:
+    """« ZETIS, regarde ma fiche » — en slice 1, des réussites, aucune remarque (cf. le service)."""
+    return atelier.review_draft(db, draft_id=draft_id, student_id=get_default_student(db).id)
+
+
+@student_router.post("/fiches/draft/{draft_id}/finish", response_model=FicheDraftOut)
+def student_finish_draft(draft_id: int, db: Session = Depends(get_db)) -> dict:
+    """`FicheDraft` → `FicheSpec` : le moment où la fiche existe. 422 s'il manque l'obligatoire."""
+    return atelier.finish_draft(db, draft_id=draft_id, student_id=get_default_student(db).id)
+
+
+@student_router.post("/fiches/{fiche_id}/rework", response_model=FicheDraftOut)
+def student_rework_fiche(fiche_id: int, db: Session = Depends(get_db)) -> dict:
+    """« La retravailler » : nouvelle version, l'ancienne reste lisible (§7)."""
+    return atelier.rework(db, fiche_id=fiche_id, student_id=get_default_student(db).id)
+
+
+@student_router.get("/lessons/{lesson_id}/fiche-zetis", response_model=FicheOut)
+def student_fiche_zetis(lesson_id: int, db: Session = Depends(get_db)) -> dict:
+    """Le corrigé — **aucune condition de tentative** (§3 révisé) : ni 403, ni état à tenir."""
+    return service.fiche_zetis_de_lecon(db, lesson_id)
 
 
 # Déclaré APRÈS `/fiches/summary` : sinon « summary » serait capté comme un {fiche_id} (→ 422).
