@@ -45,6 +45,31 @@ export interface FicheListItem {
   seen: boolean;
 }
 
+// Une tuile par LEÇON — l'écran de fabrication (`page-fiches.md` écran 2).
+//
+// ⚠️ Leçon-centré, pas fiche-centré : la liste fiche-centrée ne peut montrer ni un travail
+// COMMENCÉ (un brouillon n'est pas une fiche) ni une leçon À FABRIQUER (il n'y a pas d'objet).
+// Une fiche interrompue était donc perdue de vue, alors que le serveur la gardait.
+//
+// **Aucun état n'est un reproche** : « commencée » ne dit jamais « inachevé », et rien ne
+// décompte de jours.
+export type FicheTileEtat = "commencee" | "ma_fiche" | "zetis" | "a_fabriquer";
+
+export interface FicheTile {
+  lesson_id: number;
+  title: string;
+  chapter: string | null;
+  subject_slug: string;
+  etat: FicheTileEtat;
+  draft_id: number | null; // son brouillon à reprendre
+  fiche_id: number | null; // sa fiche finie, ou à défaut celle de ZETIS
+  zetis_fiche_id: number | null; // le corrigé, toujours à un clic
+  seen: boolean;
+  versions: number;
+  etapes_remplies: number;
+  points_choisis: number;
+}
+
 // Arbre de pilotage Papa d'une matière : leçons validées + leurs fiches (1 appel).
 export interface FichePilotageLesson {
   lesson_id: number;
@@ -128,10 +153,24 @@ export interface FicheCandidate {
   texte: string;
 }
 
+// Ce qu'une section offre pour DÉMARRER — et chaque section démarre autrement :
+//   points_cles → 12 phrases du cours, il CHOISIT
+//   definitions → jusqu'à 4 TERMES, ZETIS donne le mot, il ÉCRIT la définition
+//   essentiel   → aucune candidate, une AMORCE : c'est une synthèse, absente du cours
 export interface FicheCandidates {
   section: FicheSection;
   candidates: FicheCandidate[];
   slots: number; // emplacements offerts par la section (5 pour points_cles)
+  // Début de phrase posé dans le champ. Règle 1 des champs libres : jamais de zone vide —
+  // la page blanche est ce qui fait recopier le cours.
+  amorce?: string | null;
+}
+
+// Ce que la dictée rend : du TEXTE, jamais un brouillon modifié. La règle 7 vaut aussi pour sa
+// propre voix — ZETIS n'écrit jamais dans la fiche à la place de Massimo.
+export interface FicheTranscript {
+  transcript: string;
+  duration_seconds: number;
 }
 
 // `absent_du_cours` est hors périmètre v1 : seul type à faux positifs, et un faux positif ici

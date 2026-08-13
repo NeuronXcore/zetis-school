@@ -39,7 +39,13 @@ from app.modules.ai.canonical_context import (
 )
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
 from app.modules.eli5.service import get_default_student
-from app.modules.fiches.population import AUTHOR_ZETIS, readable_by_student
+from app.modules.fiches.population import (
+    AUTHOR_MASSIMO,
+    AUTHOR_ZETIS,
+    STATUS_DRAFT,
+    STATUS_PERSONAL,
+    readable_by_student,
+)
 from app.modules.fiches.schemas import FicheSpec
 from app.modules.provenance import PARENT, ValidatedBy, mark_validated
 from app.modules.subjects.resolver import subject_of_lesson
@@ -461,6 +467,112 @@ def list_subject_fiches(db: Session, subject_slug: str) -> list[dict]:
         }
         for row, chapter_name in rows
     ]
+
+
+def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
+    """Une tuile par LEÇON — l'écran 2 (`page-fiches.md`), avec ses quatre états.
+
+    Pourquoi une seconde lecture à côté de `list_subject_fiches` plutôt qu'un élargissement :
+    celle-là est **fiche-centrée** et sert le deck de révision (« ouvre une fiche pour réviser »),
+    contrat qu'on ne casse pas. Celle-ci est **leçon-centrée** et sert la fabrication — elle doit
+    pouvoir montrer ce qui n'est pas encore une fiche : un brouillon, ou une leçon vierge.
+
+    🔴 **L'ordre de priorité des états n'est pas arbitraire.** Un brouillon passe AVANT une fiche
+    finie : s'il a rouvert sa fiche pour la retravailler (§7), c'est ce travail-là qu'il veut
+    reprendre, pas relire la version précédente.
+    """
+    subject = db.scalar(select(Subject).where(Subject.slug == subject_slug))
+    if subject is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=f"Matière « {subject_slug} » inconnue."
+        )
+    lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
+    if not lesson_ids:
+        return []
+
+    student = get_default_student(db)
+    vues = seen_fiche_ids(db, student.id)
+    rows = db.execute(
+        select(Lesson, Chapter.name)
+        .join(Chapter, Chapter.id == Lesson.chapter_id)
+        .where(Lesson.id.in_(lesson_ids))
+        .order_by(Chapter.sort_order, Lesson.sort_order, Lesson.id)
+    ).all()
+
+    # UNE requête pour toutes les fiches des leçons de la matière : la tuile ne doit pas coûter
+    # une requête par leçon (le deck peut en porter trente).
+    # ⚠️ `ORDER BY id` : le même ordre stable que `atelier.open_or_get_draft`. Sans lui, la tuile
+    # et l'atelier peuvent désigner DEUX brouillons différents quand il en existe plusieurs —
+    # constaté en base le 2026-08-13. Deux lectures qui ne s'accordent pas sur l'objet montrent
+    # à Massimo une fiche vide là où son travail est resté.
+    par_lecon: dict[int, list[Fiche]] = {}
+    for f in db.scalars(
+        select(Fiche).where(Fiche.lesson_id.in_(lesson_ids)).order_by(Fiche.id)
+    ):
+        par_lecon.setdefault(f.lesson_id, []).append(f)
+
+    tuiles: list[dict] = []
+    for lesson, chapter_name in rows:
+        toutes = par_lecon.get(lesson.id, [])
+        siennes = [
+            f for f in toutes if f.author == AUTHOR_MASSIMO and f.student_id == student.id
+        ]
+        brouillon = next((f for f in siennes if f.validation_status == STATUS_DRAFT), None)
+        finies = sorted(
+            (f for f in siennes if f.validation_status == STATUS_PERSONAL),
+            key=lambda f: f.version,
+        )
+        zetis = next(
+            (
+                f
+                for f in toutes
+                if f.author == AUTHOR_ZETIS and f.validation_status == "validated"
+            ),
+            None,
+        )
+        # Une leçon sans cours ÉCRIT et sans fiche lisible n'a rien à offrir : la montrer
+        # afficherait une porte qui ne s'ouvre pas.
+        if not lesson.content_markdown and not finies and not zetis:
+            continue
+
+        if brouillon is not None:
+            etat = "commencee"
+        elif finies:
+            etat = "ma_fiche"
+        elif zetis is not None:
+            etat = "zetis"
+        elif lesson.content_markdown:
+            etat = "a_fabriquer"
+        else:
+            continue
+
+        draft_spec = (brouillon.spec_json or {}) if brouillon else {}
+        points = [p for p in draft_spec.get("points_cles", []) if str(p).strip()]
+        remplies = sum(
+            [
+                bool(points),
+                bool(str(draft_spec.get("essentiel") or "").strip()),
+                bool(draft_spec.get("definitions")),
+            ]
+        )
+        sienne = finies[-1] if finies else None
+        tuiles.append(
+            {
+                "lesson_id": lesson.id,
+                "title": lesson.title,
+                "chapter": chapter_name,
+                "subject_slug": subject.slug,
+                "etat": etat,
+                "draft_id": brouillon.id if brouillon else None,
+                "fiche_id": (sienne or zetis).id if (sienne or zetis) else None,
+                "zetis_fiche_id": zetis.id if zetis else None,
+                "seen": bool(sienne or zetis) and (sienne or zetis).id in vues,
+                "versions": len(finies),
+                "etapes_remplies": remplies,
+                "points_choisis": len(points),
+            }
+        )
+    return tuiles
 
 
 def fiches_summary(db: Session) -> dict:

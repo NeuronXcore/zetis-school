@@ -6,6 +6,8 @@ import {
   type FicheDraft,
   type FicheDraftDetail,
   type FicheFeedback,
+  type FicheSection,
+  type FicheTranscript,
 } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 
@@ -60,11 +62,35 @@ export async function saveDraft(id: number, draft: FicheDraft): Promise<FicheDra
   );
 }
 
-/** `GET …/draft/{id}/candidates` — les phrases du cours parmi lesquelles il choisit. */
-export async function fetchCandidates(id: number): Promise<FicheCandidates> {
+/** `GET …/draft/{id}/candidates` — ce que la section offre pour DÉMARRER.
+ *
+ * Selon la section : 12 phrases à choisir (`points_cles`), jusqu'à 4 termes à définir
+ * (`definitions`), ou une simple amorce (`essentiel`, qui est une synthèse et n'a donc aucune
+ * candidate possible).
+ */
+export async function fetchCandidates(
+  id: number,
+  section: FicheSection = "points_cles",
+): Promise<FicheCandidates> {
   return asJson(
-    await fetch(`${API_URL}/api/student/fiches/draft/${id}/candidates?section=points_cles`, {
+    await fetch(`${API_URL}/api/student/fiches/draft/${id}/candidates?section=${section}`, {
       headers: headers(),
+    }),
+  );
+}
+
+/** `POST …/draft/{id}/transcribe` — « Le dire à voix haute » (Whisper LOCAL, ADR-0012).
+ *
+ * Rend du TEXTE : c'est Massimo qui décide de le garder. Le serveur ne remplit rien.
+ */
+export async function transcribeForDraft(id: number, audio: Blob): Promise<FicheTranscript> {
+  const form = new FormData();
+  form.append("file", audio, "dictee.webm");
+  return asJson(
+    await fetch(`${API_URL}/api/student/fiches/draft/${id}/transcribe`, {
+      method: "POST",
+      headers: headers(), // pas de Content-Type : le navigateur pose la frontière multipart
+      body: form,
     }),
   );
 }

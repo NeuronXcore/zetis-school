@@ -18,7 +18,7 @@ MAX_POINTS_CLES = 5
 MAX_ERREURS = 3
 MAX_ESSENTIEL_LEN = 600  # ~2-3 phrases
 MAX_MINI_EXEMPLE_LEN = 400  # 0-1 court exemple
-_MAX_TERME = 80
+MAX_TERME = 80
 _MAX_DEFINITION = 300
 _MAX_LIGNE = 160  # une puce / une erreur : courte
 
@@ -32,7 +32,7 @@ _LigneDraft = Annotated[str, Field(max_length=_MAX_LIGNE)]
 class FicheDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    terme: str = Field(min_length=1, max_length=_MAX_TERME)
+    terme: str = Field(min_length=1, max_length=MAX_TERME)
     definition: str = Field(min_length=1, max_length=_MAX_DEFINITION)
 
 
@@ -225,10 +225,62 @@ class FicheCandidate(BaseModel):
 
 
 class FicheCandidatesOut(BaseModel):
+    """Ce qu'une section offre pour DÉMARRER — et chaque section démarre autrement.
+
+    | Section | `candidates` | `amorce` | Mode d'auteur |
+    |---|---|---|---|
+    | `points_cles` | 12 phrases du cours | — | il **choisit** |
+    | `definitions` | jusqu'à 4 **termes** | — | ZETIS donne le mot, il **écrit** la définition |
+    | `essentiel` | aucune | le début de phrase | il **écrit**, seul |
+
+    ⚠️ `essentiel` n'a **aucune** candidate, et ce n'est pas un manque : c'est une **synthèse**,
+    par définition absente du cours. Aucune phrase existante ne peut la porter (§8).
+    """
+
     section: FicheSection
     candidates: list[FicheCandidate]
     # Combien d'emplacements la section offre (5 pour `points_cles`) : l'écran affiche « n / 5 ».
     slots: int
+    # Début de phrase posé dans le champ. Règle 1 des champs libres (§9) : **jamais de zone
+    # vide** — la page blanche est ce qui fait recopier le cours.
+    amorce: str | None = None
+
+
+FicheTileEtat = Literal["commencee", "ma_fiche", "zetis", "a_fabriquer"]
+
+
+class FicheTile(BaseModel):
+    """Une tuile par LEÇON — l'écran 2 de `page-fiches.md`.
+
+    ⚠️ **Leçon-centré, pas fiche-centré**, et c'est tout l'intérêt : la liste fiche-centrée ne
+    pouvait pas montrer un travail **commencé** (un brouillon n'est pas une fiche) ni une leçon
+    **à fabriquer** (il n'y a pas encore d'objet). Une fiche interrompue était donc perdue de vue,
+    alors que le serveur la gardait parfaitement — constaté à l'usage le 2026-08-13.
+
+    **Aucun état n'est un reproche** : « commencée » ne dit jamais « inachevé » ni « abandonné »,
+    et rien ne décompte de jours.
+    """
+
+    lesson_id: int
+    title: str
+    chapter: str | None = None
+    subject_slug: str = ""
+    etat: FicheTileEtat
+    # Ce qu'il faut ouvrir au clic, selon l'état.
+    draft_id: int | None = None  # son brouillon à reprendre
+    fiche_id: int | None = None  # sa fiche finie, ou à défaut la fiche ZETIS
+    zetis_fiche_id: int | None = None  # le corrigé, toujours à un clic (§3 révisé)
+    seen: bool = False
+    versions: int = 0  # ses versions à lui
+    etapes_remplies: int = 0  # sur un brouillon : combien de sections ont quelque chose
+    points_choisis: int = 0  # « tu en as choisi 3 »
+
+
+class FicheTranscriptOut(BaseModel):
+    """Ce que la dictée rend : du TEXTE, jamais un brouillon modifié (règle 7)."""
+
+    transcript: str
+    duration_seconds: float
 
 
 class FicheRemarque(BaseModel):

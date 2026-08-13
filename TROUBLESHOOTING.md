@@ -4,6 +4,90 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/fiche-de-massimo-slice-2` — 2026-08-13
+
+### 🔴 Un `db.scalar` sans `ORDER BY` + `StrictMode` = deux lecteurs, DEUX brouillons
+
+Constaté **en base de dev** : **4 brouillons pour 2 leçons**, alors qu'`open_or_get_draft` se
+voulait idempotent. Deux causes qui s'additionnent, et la seconde est la vraie :
+
+1. `StrictMode` monte deux fois en dev — **et un double-tap sur téléphone fait exactement pareil**.
+   Deux `POST /draft` partent ensemble, aucune transaction ne voit l'autre, chacune crée le sien.
+   L'idempotence « je regarde s'il existe, sinon je crée » **n'est pas idempotente sous course**.
+2. 🔴 Le symptôme grave n'est pas le doublon, c'est que `db.scalar(select(...))` **sans `ORDER BY`
+   rend une ligne arbitraire** : l'atelier lisait le brouillon rempli pendant que la tuile de
+   l'écran 2 lisait le vide. Massimo aurait vu son travail **disparaître de sa liste** alors que le
+   serveur le gardait parfaitement.
+
+→ **Parade, en trois couches — aucune ne suffit seule** :
+- **`ORDER BY <clé stable>` sur TOUS les lecteurs d'un objet qui peut exister en plusieurs
+  exemplaires.** Ça ne supprime pas le doublon, ça garantit que tout le monde parle du même.
+- **Un index unique PARTIEL en base** (`d4e5f6a7b8c3`) : c'est la seule chose qui empêche
+  réellement la course. ⚠️ Partiel, sinon il interdirait aussi les **versions** légitimes.
+- **Rattraper l'`IntegrityError`** — `db.rollback()`, relire, rendre le gagnant. *Interdire n'est
+  pas gérer* : sans ça, le perdant de la course reçoit une **500** pour avoir ouvert deux fois.
+
+Le test de la course se fait en **aveuglant la première lecture** (`patch.object` sur le prédicat,
+qui rend `false()` au premier appel) : la course est alors réellement simulée, pas décrite.
+
+### ⚠️ La transcription Whisper vivait sous le namespace ELI5
+
+La dictée de l'atelier semblait « déjà faite » : une route de transcription existe depuis
+l'ADR-0012. Elle est **`POST /api/ai/eli5/transcribe`**, et sa logique (400 vide, 413 trop gros,
+trace `AIJob`, 503 `SttUnavailable`, 502 sinon) était **dans `eli5/service.py`**.
+
+L'appeler depuis l'atelier aurait rangé la dictée d'une fiche sous le journal d'ELI5, et fait
+dépendre `fiches` d'`eli5` pour une mécanique qui n'appartient à aucun des deux.
+
+→ **Parade** : `app/modules/stt/service.py::transcribe_upload(db, stt, file, job_type=…)` — helper
+**neutre**, extrait **à comportement constant** avant d'écrire quoi que ce soit de neuf (Temps 1).
+`eli5.transcribe` n'est plus qu'une ligne. Chercher le **service**, pas la route : une route porte
+un préfixe, un service porte la logique.
+
+### ⚠️ `Skill.name` fait 160 caractères, `terme` en accepte 80
+
+`_termes_de_la_lecon` tire les termes des **notions** de la leçon. `Skill.name` est un
+`String(160)` ([school.py:114](apps/backend/app/db/models/school.py:114)) ; `FicheDefinition.terme`
+est borné à `MAX_TERME = 80`. Une notion au nom long fait donc **échouer la validation Pydantic**
+au moment de finir la fiche — c'est-à-dire au pire moment, sur un travail déjà fait.
+
+→ **Parade** : filtrer **à la source** (`len(terme) > MAX_TERME` écarté dans le producteur), et non
+tronquer à l'arrivée — un terme coupé au milieu d'un mot est pire qu'un terme absent. Le corollaire
+général : **quand une colonne alimente un schéma, comparer les deux bornes**, elles n'ont aucune
+raison d'être égales.
+
+### 🔴 Une ancre de sabotage mangée par le shell — « 19 passed » ne voulait rien dire
+
+Un sabotage posé par une commande shell dont l'ancre contenait des **backticks** : le shell les a
+interprétés (substitution de commande) avant que le remplacement ne parte, l'ancre reçue ne
+correspondait à rien, **le fichier n'a pas été modifié** — et la suite est passée au vert. J'ai
+failli conclure « le verrou ne mord pas ».
+
+→ **Parade** : un sabotage se pose depuis un **fichier de script Python**, jamais par une commande
+shell portant du texte source. Et surtout — **vérifier que le sabotage a bien été appliqué**
+(`git diff --stat` sur le fichier saboté) **avant** de lire le résultat des tests. Un sabotage qui
+ne s'applique pas produit exactement le même vert qu'un test qui ne mord pas.
+
+### ⚠️ Une baseline ROUGE avant toute modification — `test_auth.py` exige un vrai Postgres
+
+Mesure de départ : **2 échecs**, avant d'avoir touché une ligne. Ce n'était pas la branche :
+`test_auth.py` a besoin d'un **vrai Postgres**, et l'infra Docker avait été arrêtée à la fin de la
+session précédente (`pnpm infra:down`). La vraie baseline était **1241**.
+
+→ **Parade** : `pnpm infra:up` **avant** de mesurer une baseline, et devant une baseline rouge,
+trancher « est-ce moi ? » **avant** d'enquêter — `git stash` puis relancer. Un `pnpm infra:down` de
+fin de session laisse une mine pour la session suivante ; c'est le prix, il faut juste le savoir.
+
+### ⚠️ `min-w-0` sur un enfant de flex — piège DÉJÀ consigné, repayé quand même
+
+L'en-tête replié d'une étape (titre long) **poussait le conteneur** au lieu de rétrécir : un enfant
+de flex a `min-width: auto`, il ne descend pas sous la largeur `min-content` de son texte. La
+parade — `min-w-0 flex-1` — est **déjà écrite dans ce fichier** (§ « `sm:` vaut 640 px — donc
+AUCUN téléphone ne l'atteint »), et je l'ai quand même repayée.
+
+→ **Rappel** : tout bloc de texte dans un `flex` qui doit pouvoir rétrécir prend `min-w-0`. Sans
+exception, et sans attendre de le voir déborder.
+
 ## Chantier `feat/fiche-de-massimo` — 2026-08-13
 
 ### 🔴 Un cadrage qui compte les lecteurs d'une table ne compte que SON module

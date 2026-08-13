@@ -7,7 +7,7 @@ Deux routeurs :
   (une fiche `pending` n'existe pas dans ce que Massimo reçoit).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -24,6 +24,8 @@ from app.modules.fiches.schemas import (
     FicheDraftPatchRequest,
     FicheFeedback,
     FicheGenerateRequest,
+    FicheTile,
+    FicheTranscriptOut,
     FicheListItem,
     FicheOut,
     FichePilotageTree,
@@ -32,6 +34,9 @@ from app.modules.fiches.schemas import (
 )
 from app.modules.ai import travaux
 from app.modules.ai.schemas import TravailAccepteOut
+from app.modules.stt import get_stt
+from app.modules.stt.provider import SttProvider
+from app.modules.stt.service import transcribe_upload
 from app.modules.subjects.resolver import subject_id_for_lesson
 
 router = APIRouter(prefix="/api/fiches", tags=["fiches"], dependencies=[Depends(require_parent)])
@@ -130,6 +135,18 @@ def student_fiches_summary(db: Session = Depends(get_db)) -> dict:
     return service.fiches_summary(db)
 
 
+@student_router.get("/subjects/{subject_slug}/fiche-tiles", response_model=list[FicheTile])
+def student_subject_fiche_tiles(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
+    """Une tuile par LEÇON — l'écran de fabrication (`page-fiches.md` écran 2).
+
+    ⚠️ Route SÉPARÉE de `/fiches` ci-dessous, et non un élargissement : celle-là est
+    fiche-centrée et sert le deck de révision, contrat qu'on ne casse pas. Celle-ci est
+    leçon-centrée et doit pouvoir montrer ce qui n'est PAS encore une fiche — un brouillon
+    commencé, une leçon vierge. Sans elle, un travail interrompu était perdu de vue.
+    """
+    return service.subject_fiche_tiles(db, subject_slug)
+
+
 @student_router.get("/subjects/{subject_slug}/fiches", response_model=list[FicheListItem])
 def student_subject_fiches(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Deck : fiches validées d'une matière (leçons validées de l'année active). Route neutre."""
@@ -169,6 +186,25 @@ def student_draft_candidates(
     return atelier.candidates(
         db, draft_id=draft_id, student_id=get_default_student(db).id, section=section
     )
+
+
+@student_router.post("/fiches/draft/{draft_id}/transcribe", response_model=FicheTranscriptOut)
+def student_transcribe_for_draft(
+    draft_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    stt: SttProvider = Depends(get_stt),
+) -> dict:
+    """Dictée dans l'atelier — « Le dire à voix haute » (ADR-0012, Whisper LOCAL).
+
+    Portée par le BROUILLON, pas par une surface générique : c'est ce qui fait vérifier
+    l'appartenance avant de transcrire, et ce qui donne au travail son `job_type` propre.
+
+    ⚠️ Le serveur **ne remplit rien** : il rend le texte, et c'est Massimo qui décide de le
+    garder. La règle 7 vaut aussi pour sa propre voix — ZETIS n'écrit jamais dans la fiche.
+    """
+    atelier.assert_draft_is_mine(db, draft_id=draft_id, student_id=get_default_student(db).id)
+    return transcribe_upload(db, stt, file, job_type="fiche_transcribe")
 
 
 @student_router.post("/fiches/draft/{draft_id}/review", response_model=FicheFeedback)

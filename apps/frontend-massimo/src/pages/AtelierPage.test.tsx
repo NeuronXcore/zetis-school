@@ -15,11 +15,18 @@ const api = vi.hoisted(() => ({
   saveDraft: vi.fn(),
   reviewDraft: vi.fn(),
   finishDraft: vi.fn(),
+  transcribeForDraft: vi.fn(),
 }));
 vi.mock("../lib/atelier", () => api);
 
 const voix = vi.hoisted(() => ({ speak: vi.fn() }));
 vi.mock("../lib/speech", () => voix);
+
+const dictee = vi.hoisted(() => ({
+  isDictationSupported: vi.fn(() => true),
+  startRecording: vi.fn(),
+}));
+vi.mock("../lib/dictation", () => dictee);
 
 import { AtelierPage } from "./AtelierPage";
 
@@ -64,12 +71,39 @@ function monter() {
   );
 }
 
+// Chaque section offre autre chose pour démarrer — le mock doit le refléter, sinon les tests
+// des étapes ② et ③ mesureraient les candidates de l'étape ①.
+const ESSENTIEL: FicheCandidates = {
+  section: "essentiel",
+  slots: 1,
+  candidates: [],
+  amorce: "Les séismes, c'est…",
+};
+const DEFINITIONS: FicheCandidates = {
+  section: "definitions",
+  slots: 2,
+  candidates: [
+    { index: 0, texte: "épicentre" },
+    { index: 1, texte: "magnitude" },
+  ],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.openDraft.mockResolvedValue(DRAFT);
-  api.fetchCandidates.mockResolvedValue(CANDIDATES);
+  api.fetchCandidates.mockImplementation((_id: number, section = "points_cles") =>
+    Promise.resolve(
+      section === "essentiel" ? ESSENTIEL : section === "definitions" ? DEFINITIONS : CANDIDATES,
+    ),
+  );
   api.saveDraft.mockResolvedValue(DRAFT);
+  dictee.isDictationSupported.mockReturnValue(true);
 });
+
+/** Déplie une étape de l'accordéon en cliquant sur son titre. */
+async function deplier(titre: RegExp) {
+  fireEvent.click(await screen.findByText(titre));
+}
 
 /** Glisse une phrase du cours sur un emplacement — événements POINTEUR, comme la banque de
  *  nœuds des mindmaps. `elementFromPoint` n'existe pas dans jsdom : on le remplace le temps du
@@ -150,7 +184,7 @@ describe("AtelierPage", () => {
       },
     });
     monter();
-    await screen.findByText(/2 idées sur 5/);
+    await screen.findByText(/1 étape sur 3/);
 
     // ⚠️ Les deux clics DOIVENT partir dans le même `act` : `fireEvent.click` vide la file
     // d'état entre deux appels, donc deux `fireEvent` successifs ne reproduisent JAMAIS le
@@ -163,7 +197,7 @@ describe("AtelierPage", () => {
 
     await waitFor(() => expect(api.saveDraft).toHaveBeenCalledTimes(2));
     expect(api.saveDraft.mock.calls[1][1].points_cles).toEqual([]);
-    expect(await screen.findByText(/0 idée sur 5/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 3/)).toBeInTheDocument();
   });
 
   it("reprend exactement où il s'était arrêté", async () => {
@@ -173,7 +207,7 @@ describe("AtelierPage", () => {
     });
     monter();
 
-    expect(await screen.findByText(/1 idée sur 5/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 étape sur 3/)).toBeInTheDocument();
     expect(screen.getAllByText(/un emplacement libre/)).toHaveLength(4);
   });
 
@@ -227,20 +261,132 @@ describe("AtelierPage", () => {
   });
 
   it("ne montre AUCUNE étape non implémentée", async () => {
-    // Le gabarit de la spec compte six étapes ; la slice 1 n'en tient qu'une. Une étape visible
+    // Le gabarit de la spec compte six étapes ; **la slice 2 en tient trois**. Une étape visible
     // mais morte est une promesse que le produit ne tient pas — même principe que l'étape
     // « Mnemonics », que l'addendum §10 interdit d'afficher grisée.
+    //
+    // ⚠️ **Liste MISE À JOUR en slice 2** : `L'essentiel` et `Les mots à connaître` sont passés
+    // du côté des présentes. Ce n'est pas le test qui s'assouplit, c'est le produit qui livre.
     monter();
     await screen.findByText(/Les séismes/);
-    for (const absente of [/L'essentiel/, /Les mots à connaître/, /Pièges à éviter/, /Mnemonics/]) {
+    for (const presente of [/L'essentiel/, /Les mots à connaître/]) {
+      expect(screen.getByText(presente)).toBeInTheDocument();
+    }
+    for (const absente of [/Pièges à éviter/, /Un exemple/, /Mnemonics/]) {
       expect(screen.queryByText(absente)).not.toBeInTheDocument();
     }
+  });
+
+  // ── Slice 2 : les deux étapes qui s'ÉCRIVENT ────────────────────────────────
+
+  it("ne déplie qu'UNE étape à la fois", async () => {
+    // Le plan reste visible, le travail reste concentré (spec § gabarit de la colonne).
+    monter();
+    // ① est ouverte au départ : ses phrases sont là.
+    expect(await screen.findByText(CANDIDATES.candidates[0].texte)).toBeInTheDocument();
+
+    await deplier(/L'essentiel/);
+    await waitFor(() =>
+      expect(screen.queryByText(CANDIDATES.candidates[0].texte)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText(/L'essentiel, avec tes mots/)).toBeInTheDocument();
+  });
+
+  it("pose une AMORCE et ne laisse jamais la zone vide", async () => {
+    // Règle 1 des champs libres (§9) : la page blanche est ce qui fait recopier le cours.
+    monter();
+    await deplier(/L'essentiel/);
+    expect(await screen.findByText(/Les séismes, c'est…/)).toBeInTheDocument();
+  });
+
+  it("montre le budget comme de la PLACE, jamais comme un compteur", async () => {
+    // « il te reste de la place pour 9 lignes », jamais « 412 / 600 », jamais de rouge (§9).
+    monter();
+    await deplier(/L'essentiel/);
+    expect(await screen.findByText(/il te reste de la place pour \d+ lignes?/)).toBeInTheDocument();
+    expect(screen.queryByText(/\d+\s*\/\s*600/)).not.toBeInTheDocument();
+  });
+
+  it("n'analyse RIEN pendant que Massimo écrit", async () => {
+    // §6 : un correcteur qui commente chaque phrase au moment où elle sort est un évaluateur
+    // par-dessus l'épaule — l'enfant cesse d'écrire, ou écrit pour plaire.
+    monter();
+    await deplier(/L'essentiel/);
+    const champ = await screen.findByLabelText(/L'essentiel, avec tes mots/);
+    fireEvent.change(champ, { target: { value: "Un séisme, c'est quand ça tremble." } });
+    fireEvent.change(champ, { target: { value: "Un séisme, c'est quand la terre tremble." } });
+
+    expect(api.reviewDraft).not.toHaveBeenCalled();
+  });
+
+  it("se TAIT pendant l'enregistrement de la dictée", async () => {
+    // Sans écouteurs, sa voix repartirait droit dans le micro Whisper (§5 bis, pas de barge-in).
+    let arreter: () => void = () => {};
+    dictee.startRecording.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          arreter = () => resolve({ stop: async () => new Blob(), cancel: () => {}, analyser: null });
+          arreter();
+        }),
+    );
+    monter();
+    await deplier(/L'essentiel/);
+    fireEvent.click(await screen.findByRole("button", { name: /Le dire à voix haute/ }));
+
+    const haut_parleur = await screen.findByRole("button", { name: /Écouter ZETIS/ });
+    await waitFor(() => expect(haut_parleur).toBeDisabled());
+  });
+
+  it("donne le mot et laisse Massimo écrire la définition", async () => {
+    // L'hybride du §8 : ZETIS a le terme, Massimo a la phrase. C'est SA formulation qu'il
+    // révisera — et c'est un test de récupération, pas une lecture.
+    monter();
+    await deplier(/Les mots à connaître/);
+
+    const champ = await screen.findByLabelText("épicentre");
+    expect(champ).toHaveValue("");
+    fireEvent.change(champ, { target: { value: "le point juste au-dessus du foyer" } });
+    fireEvent.blur(champ);
+
+    await waitFor(() => expect(api.saveDraft).toHaveBeenCalled());
+    const dernier = api.saveDraft.mock.calls.at(-1)![1];
+    expect(dernier.definitions).toEqual([
+      { terme: "épicentre", definition: "le point juste au-dessus du foyer" },
+    ]);
+  });
+
+  it("laisse le dernier mot à Massimo sur une remarque", async () => {
+    // Règle 6 du §5 : il refuse et garde sa phrase, EN UN CLIC, sans confirmation ni commentaire.
+    api.reviewDraft.mockResolvedValue({
+      reussites: ["Ton essentiel tient en deux phrases."],
+      remarques: [
+        {
+          section: "essentiel",
+          index: 0,
+          type: "recopie",
+          message: "Ces mots viennent de ton cours, mot pour mot.",
+          piste: "Tu peux le dire avec les tiens ?",
+        },
+      ],
+    });
+    monter();
+    await deplier(/L'essentiel/);
+    fireEvent.change(await screen.findByLabelText(/L'essentiel, avec tes mots/), {
+      target: { value: "Une proposition est un groupe de mots." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /regarde ma fiche/i }));
+
+    expect(await screen.findByText(/mot pour mot/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Je garde ma phrase/ }));
+
+    expect(await screen.findByText(/C'est ta fiche/)).toBeInTheDocument();
+    expect(screen.queryByText(/mot pour mot/)).not.toBeInTheDocument();
   });
 
   it("ne décompte jamais ce qui manque", async () => {
     // `CLAUDE.md` § Gamification : on compte ce qui est commencé, jamais ce qui reste dû.
     monter();
-    expect(await screen.findByText(/0 idée sur 5/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 3/)).toBeInTheDocument();
     expect(screen.queryByText(/il te reste/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/plus que/i)).not.toBeInTheDocument();
   });

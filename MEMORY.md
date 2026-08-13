@@ -6,178 +6,204 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — la fiche que Massimo fabrique lui-même (PR #122, squash `1b78f3d`)
+### ✅ CHANTIER COMPLET — slice 2 : l'essentiel et les définitions (addendum ADR-0015 §8-§9)
 
-**Base `dcf32f9`. Branche `feat/fiche-de-massimo` supprimée** (locale **et** serveur),
-`main == origin/main`, **rien à pousser** — les quatre vérifiés par commande le 2026-08-13, étape
-4bis faite dans la foulée du merge. **26 fichiers, +4 713 / −333.**
+Branche **`feat/fiche-de-massimo-slice-2`**, base **`3b2fe6f`** (tête de `main` au départ, et
+toujours : `main == origin/main`, rien à pousser sur `main`). L'état commité de la branche se lit
+par `git log --oneline main..HEAD` — **au moment d'écrire ces lignes, rien n'était encore
+commité** : le geste est celui du commanditaire, après vérification du diff et des tests.
 
-> 🔴 **Le piège de `git branch -r` s'est rejoué pour la SIXIÈME fois**, sur six merges consécutifs.
-> Après `--delete-branch`, il listait **toujours** `origin/feat/fiche-de-massimo` ;
-> `git ls-remote --heads origin` ne rendait que `main`. `git fetch --prune` a élagué la référence
-> périmée. **Ce n'est pas une distraction, c'est le contrat de la commande** — elle se rejouera au
-> merge suivant, et le réflexe ne s'automatise pas.
+> **Le besoin, en une phrase** : la slice 1 apprenait à Massimo à **choisir** (12 phrases → 5).
+> Celle-ci lui apprend à **écrire** — la synthèse qui n'existe nulle part dans le cours, et la
+> définition d'un mot que ZETIS lui donne. C'est la partie difficile, et c'est elle qui fait
+> apprendre.
 
-> **Le besoin, en une phrase** : ZETIS fabriquait les fiches et Massimo les lisait. On inverse —
-> **il fabrique la sienne, ZETIS l'aide.** Faire sa fiche fait apprendre ; la lire, non.
-
-**Vérifié en fin de session** : backend **1241** verts, Massimo **680**, Papa **814**, les deux
-`tsc -b` propres. **Aucun test existant modifié**, sauf 4 signalés au §« ce qui a changé de
-comportement » ci-dessous.
+**Vérifié en fin de session** : backend **1257** verts, Massimo **694**, Papa **814**, `tsc -b`
+propres sur les deux fronts. Départs : 1241 / 680 / 814.
 
 #### ✅ CE QUI EST FAIT
 
-**Temps 1 — le socle, livré à COMPORTEMENT CONSTANT (1212 → 1212, zéro test touché).**
-Migration `c3d4e5f6a7b2` (`author`, `student_id`, `version`), 4ᵉ valeur `personal`, et surtout
-**deux prédicats partagés** dans `modules/fiches/population.py` : `readable_by_student()` pour le
-flux élève, `zetis_authored()` pour la production et le pilotage. Les **8** requêtes qui lisent
-`fiches` y passent. C'est ce temps-là qui rend le reste sûr — voir « ce que le read-before-code a
-corrigé ».
+**Temps 1 — à comportement constant (aucun test touché).** La transcription Whisper vivait
+**dans** `eli5/service.py`, avec ses 400/413/503 et sa trace `AIJob`. Elle est devenue un helper
+neutre — `app/modules/stt/service.py::transcribe_upload(db, stt, file, job_type=…)` — et
+`eli5.transcribe` n'est plus qu'une ligne qui l'appelle. Sans ce temps-là, la dictée de l'atelier
+aurait recopié cent lignes de garde, ou pire, appelé une route du **namespace ELI5**.
 
-**Temps 2 — la slice 1.** `modules/fiches/atelier.py` : brouillon idempotent (`personal_draft`),
-sauvegarde partielle à chaque geste, 12 phrases candidates **déterministes** tirées du cours,
-`review` en réussites seules, `finish` (`FicheDraft` → `FicheSpec`, 422 qui **nomme** les champs
-manquants), `rework` versionné. **Zéro LLM** — c'est la règle 7, pas un raccourci.
-7 routes élève, miroirs TS dans `packages/types/src/fiche.ts`.
+**Backend — les deux sections.**
+- `essentiel` : **aucune candidate, et c'est une décision** (§8). Une synthèse est absente du
+  cours par définition. Ce que la section rend, c'est une **amorce** — le titre de la leçon coupé
+  à son premier `:` / `—`, suivi de « , c'est… » — parce que la règle 1 des champs libres est
+  *jamais de zone vide* : la page blanche est ce qui fait recopier le cours.
+- `definitions` : ZETIS donne le **terme**, Massimo écrit la définition. Les termes viennent des
+  **notions de la leçon** (`Skill.name` via `LessonSkill`), puis du **gras du cours** en
+  complément — arbitrage du commanditaire.
+- `recopie` : n-grammes de **8 mots**, comparaison sur des mots normalisés, mais le passage rendu
+  est le **texte original** (offsets `re.finditer(r"\w+")`). Il ne s'applique qu'aux sections qui
+  s'**écrivent** — jamais à `points_cles`, où recopier *est* le geste demandé.
+- `review_draft` : **1 à 2 réussites** (jamais zéro) et **0 à 2 remarques**. C'est le premier
+  moment du produit où ZETIS dit autre chose que du positif, et la borne à 2 est ce qui l'empêche
+  de devenir un correcteur au-dessus de l'épaule.
 
-**Frontend.** `pages/AtelierPage.tsx` en plein écran (patron ADR-0052 : overlay CSS + état React,
-`CloseFullscreenButton`, Échap, verrou de défilement), route
-`/fiches/:slug/:lessonId/atelier`, entrée **« 🧩 En faire ma fiche »** sur chaque leçon de
-`CoursPage`. **Glisser-déposer par événements POINTEUR** (mécanique de `NodeBank` des mindmaps),
-la croix restant au clic.
+**Dictée** — `POST /api/student/fiches/draft/{id}/transcribe`, Whisper **local** (ADR-0012).
+Portée par le **brouillon**, pas par une surface générique : c'est ce qui fait vérifier
+l'appartenance avant de transcrire. ⚠️ Le serveur **ne remplit rien** — il rend du texte, Massimo
+décide de le garder. La règle 7 vaut aussi pour sa propre voix.
+
+**Frontend** — `AtelierPage` passe à un **accordéon de 3 étapes** (une seule ouverte), la dictée,
+et le budget montré **comme de la place** (« de la place pour 2 lignes »), jamais « 412/600 ».
+
+**Écran 2 — demandé en cours de session** (« je n'arrive pas à retrouver comment modifier ces
+fiches ou les voir : quel est le chemin ? »). `GET /api/student/subjects/{slug}/fiche-tiles` rend
+**une tuile par leçon** à quatre états — `commencee` · `ma_fiche` · `zetis` · `a_fabriquer` — et
+`FicheSubjectPage` les affiche. La page n'avait **aucun test de rendu** ; elle en a 7.
+
+**Un seul brouillon par leçon, tenu par la BASE.** Migration `d4e5f6a7b8c3` : dédoublonnage
+(`MIN(id)`, la règle que la lecture applique déjà) puis index unique **partiel**
+`uq_fiches_brouillon_par_lecon` sur `(student_id, lesson_id) WHERE validation_status =
+'personal_draft'`.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **`author` est un SECOND AXE, pas une valeur de `source`.** `source` dit *comment* c'est
-   produit, `author` dit *à qui* c'est. Pas de table parallèle.
-2. **`FicheSpec` est littéralement inchangé.** Il part au modèle via `model_json_schema()` : lui
-   ajouter un champ changerait la génération de **toutes** les fiches ZETIS. Le brouillon est un
-   **second schéma**, `FicheDraft` — bornes MAX conservées, aucune MIN.
-3. **Le gate porte sur ce que ZETIS SERT, jamais sur ce que Massimo ÉCRIT.** Les **dérivés** de sa
-   fiche repassent, eux, par le gate normal.
-4. 🔴 **Ne JAMAIS lire `fiches` sans dire de quelle population on parle.** Les deux prédicats de
-   `population.py` sont la seule porte. Une clause recopiée à la main est le piège de l'agenda.
-5. **`personal_draft` est une 5ᵉ valeur, ajoutée par ce chantier** — l'addendum n'en nomme que
-   quatre. Le §1 bis exige de persister l'incomplet et l'écran 2 distingue brouillon et fiche
-   finie. Le brouillon est **exclu** de `readable_by_student` : ce n'est pas une fiche.
-6. **Un brouillon se reprend EN PLACE ; une fiche finie se retravaille en NOUVELLE VERSION.**
-   L'ancienne reste lisible — la trajectoire dans le temps est le seul endroit du produit qui
-   montre « sait-il ce qui compte ».
-7. **Le pont SRS est reporté en slice 2** (arbitrage du 2026-08-13). `schedule_review` crée **une**
-   carte par notion et **écrase** front/back/intervalle/statut : le brancher sur `points_cles`
-   aurait détruit la carte ZETIS de la notion et remis sa planification à zéro. `definitions`
-   (slice 2) lui donne sa forme naturelle, recto/verso, sans transformation.
-8. **`recopie` est reporté en slice 2** (même arbitrage). En mode « je choisis », les points-clés
-   **sont** des phrases du cours mot pour mot : `recopie` flaguerait les cinq et dirait à Massimo
-   que tout son travail est du copiage. Le type n'a de sens qu'à partir de la première section qui
-   s'**écrit** (`essentiel`).
-9. **Les candidates sont FILTRÉES du discours pédagogique** (arbitrage : « écarter le discours,
-   garder les énoncés »). Sans filtre, cinq des douze étaient l'introduction du cours.
-10. **La colonne ne montre qu'UNE étape.** Les cinq autres ne sont **pas rendues grisées** — même
-    principe que l'étape « Mnemonics » que le §10 interdit d'afficher quand elle n'a rien à offrir.
-11. **Le tiroir de cours de l'atelier est HORS PÉRIMÈTRE** (arbitrage d'ouverture). `CoursPanel`
-    n'a pas été touché — sa mesure en `vh` reste la dette nommée par le §12.
+1. **Le pont SRS est HORS PÉRIMÈTRE** (arbitrage d'ouverture : « sors le pont SRS du périmètre,
+   les 4 points sont validés »). Il reste dû, et `definitions` lui donne enfin sa forme naturelle
+   — recto/verso, sans transformation.
+2. **`essentiel` ne peut pas se choisir.** Aucune phrase du cours ne peut la porter. C'est un
+   champ libre, avec amorce — et c'est la section la plus dure du produit.
+3. **Les termes viennent des notions PUIS du gras**, dans cet ordre. Une notion est un objet du
+   référentiel ; le gras n'est qu'un indice typographique.
+4. **La transcription est un helper NEUTRE, pas une route partagée.** Appeler
+   `/api/student/eli5/transcribe` depuis l'atelier aurait rangé la dictée d'une fiche sous le
+   journal d'ELI5 — et fait dépendre un module d'un autre pour une mécanique qui n'appartient
+   ni à l'un ni à l'autre.
+5. **`recopie` rend le passage ORIGINAL, jamais sa forme normalisée.** Montrer à Massimo
+   « les temps simples et les temps composes » sans accents ni ponctuation, c'est lui montrer un
+   texte qu'il n'a pas écrit.
+6. **L'écran 2 est une seconde lecture, PAS un élargissement de la première.**
+   `list_subject_fiches` est fiche-centrée et sert le deck de révision — contrat qu'on ne casse
+   pas. `subject_fiche_tiles` est leçon-centrée et doit montrer ce qui n'est **pas** une fiche.
+7. **L'index est PARTIEL, et il ne peut pas en être autrement.** `student_id` est renseigné sur
+   toutes les fiches personnelles, finies comprises, et une leçon peut en porter **plusieurs
+   versions** (§7). Sans la condition, l'unicité interdirait les versions — la décision fondatrice
+   du §7, détruite par une ligne d'index.
+8. **Interdire n'est pas gérer.** `open_or_get_draft` rattrape l'`IntegrityError`, rejoue la
+   lecture et rend le brouillon du gagnant. Sans ça, la seconde de deux ouvertures simultanées
+   rendrait une **500** à Massimo — alors qu'il a seulement ouvert son atelier deux fois.
+9. **Un ordre stable (`ORDER BY Fiche.id`) sur tout lecteur de brouillon** — vérifié : quatre
+   `select` répartis sur trois lecteurs (`open_or_get_draft` et son rattrapage, `rework`,
+   `subject_fiche_tiles`). L'index empêche désormais la situation, mais l'ordre reste la garantie
+   que l'atelier et la tuile désignent le **même** objet, y compris sur les versions finies.
 
-#### 🔴 CE QUE LE READ-BEFORE-CODE A CORRIGÉ — l'ADR annonçait 3 lecteurs, il y en avait 8
+#### ⚠️ CE QUI A CHANGÉ DE COMPORTEMENT — 6 tests existants touchés, chacun nommé
 
-C'est le fait central du chantier. Détail complet et parades dans `TROUBLESHOOTING.md`.
+Aucun n'a été « ajusté pour passer ». Chaque modification suit un changement voulu. **Liste
+établie par comparaison mécanique avec `main`**, pas de mémoire (`git show HEAD:<fichier>`,
+découpage test par test) — c'est ce contrôle qui a corrigé une première version de ce tableau :
 
-- **4 lecteurs dans le module** (l'ADR en nommait 3) — `mark_seen` manquait : sans lui,
-  `POST /seen` renvoie **404 sur la fiche de l'enfant** et son badge « nouveau » ne part jamais.
-- **4 requêtes hors module, sans AUCUN filtre de statut** — `equipment._existing_fiche`,
-  deux requêtes de `coverage`, la cascade de `veto`. Sur celles-là, la « sécurité par
-  construction » de `personal` **ne joue pas** : elle ne protège que ce qui filtre déjà.
-- 🔴 Le pire : `_existing_fiche` prend « la dernière fiche par id, tout statut ». Une fiche
-  personnelle serait prise pour la fiche ZETIS de la leçon → ZETIS ne produirait plus la sienne,
-  et l'appelant **validerait la fiche de l'enfant** en `parent_bulk`.
-- **`ForeignKey("students.id")` de l'ADR §1 nomme une table qui n'existe pas** — c'est
-  `student_profiles`.
-- **La 4ᵉ valeur `personal` ne coûte rien** : `validation_status` est un `String(20)`, pas un enum
-  SQL. L'ADR la comptait dans ses coûts de migration.
+| Test | Ce qui a changé |
+|---|---|
+| `test_seul_points_cles_se_choisit` → **renommé** `test_essentiel_n_offre_aucune_candidate_mais_une_amorce` | `essentiel` rend une **amorce** au lieu d'un **400**. Le test change de sujet, donc de nom |
+| `test_regarder_une_fiche_vide_invite_au_lieu_de_planter` | `review` rend désormais des **remarques** en plus des réussites |
+| *« reprend exactement où il s'était arrêté »* (`AtelierPage`) | clic → **glisser** |
+| *« n'en perd aucun quand deux gestes s'enchaînent dans le même tick »* | clic → **glisser** |
+| *« ne décompte jamais ce qui manque »* | compteur « idées » → « **étapes** » |
+| *« ne montre AUCUNE étape non implémentée »* | ② et ③ passent d'**absentes** à **présentes** |
 
-#### 🔴 SEPT DÉFAUTS TROUVÉS EN REGARDANT L'ÉCRAN — cinq invisibles à 2 700 tests verts
+Volume : backend `test_fiche_atelier.py` **21 → 37** tests, `AtelierPage.test.tsx` **12 → 19**,
+`FicheSubjectPage.test.tsx` **0 → 7** (la page n'en avait aucun).
 
-Ils sont la justification vivante de `WORKFLOW.md §5bis`. Tous corrigés.
+#### 🧾 DETTES OUVERTES
 
-| | Défaut | Comment il est sorti |
-|---|---|---|
-| 1 | Guillemets français : phrases tronquées, fragment ouvrant sur un `»` orphelin | à l'écran |
-| 2 | `elles .` — le gras du cours laissait une espace avant le point | à l'écran |
-| 3 | Les 12 candidates étaient l'introduction du cours | à l'écran |
-| 4 | La correction du 1 créait une **sous-coupure** : 3 phrases collées en 187 car. | au débogage |
-| 5 | Deux gestes dans le même tick : le second perdu (fermeture périmée) | à l'écran |
-| 6 | Croix à 36 px, sous la cible tactile de 44 px du projet | mesuré dans le DOM |
-| 7 | Un glisser parti à côté sélectionnait le texte (loupe iOS) | à l'écran |
+**Nées de cette slice :**
 
-⚠️ **Deux FAUX défauts ont été écartés au lieu d'être rapportés** : la page ne se remet pas en haut
-à chaque clic (contenu 1095 = visible 1095), et un décalage de clic venait de l'outil, pas du
-produit. *Mesurer avant de conclure vaut dans les deux sens.*
+- 🔴 **Sur iPhone (812 px), les étapes ② et ③ restent à ~56 px SOUS LA PLIURE** quand une étape est
+  dépliée. Mesuré, pas corrigé — l'accordéon réduit le problème sans le supprimer.
+- ⚠️ **La migration `d4e5f6a7b8c3` est posée sur la base de DEV** (voir le piège armé, plus bas).
+- ⚠️ **Deux brouillons subsistent en base de dev** après le dédoublonnage — données de travail,
+  pas de recette.
+- 🔴 **AUCUNE fiche personnelle n'a jamais été TERMINÉE en vrai.** Vérifié en base à la clôture :
+  `author='massimo'` ne porte que **2 `personal_draft`** et **zéro `personal`**. Le parcours
+  complet — remplir les trois étapes, `finish`, revoir sa fiche finie dans la liste, la
+  retravailler en version 2 — n'a été exercé que par les **tests**. Les états `ma_fiche` et
+  `versions` de l'écran 2 n'ont donc jamais été vus avec de vraies données.
+- ⚠️ **La dictée n'a jamais été exercée avec un vrai micro dans l'atelier.** Le helper est celui
+  d'ELI5, éprouvé ; le câblage de l'atelier, non.
 
-#### ⚠️ CE QUI A CHANGÉ DE COMPORTEMENT — 4 tests existants modifiés, à dessein
+**Remontées de la slice 1 — elles ont survécu à leur chantier :**
 
-`AtelierPage.test.tsx` posait une phrase **au clic** ; le geste est devenu un **glisser** à la
-demande du commanditaire. Les 4 tests concernés ont été réécrits en conséquence. Ce n'est pas un
-test ajusté pour passer — mais la règle veut que ce soit nommé.
-
-#### 🧾 DETTES OUVERTES — nées de ce chantier
-
-- 🔴 **Le glisser au DOIGT n'a jamais été essayé sur un vrai appareil.** `touch-action: none` et
-  `user-select: none` sont **mesurés dans le DOM**, la mécanique est celle des mindmaps — mais
-  aucun doigt ne l'a exercée. C'est la vérification la plus importante qui reste.
-- ⚠️ **Une garde REDONDANTE ne peut pas se prouver par un sabotage unique** : l'espace avant la
-  ponctuation est corrigé **deux fois** (retrait d'emphase + substitution `\s+([.,])`). Retirer les
-  deux fait rougir ; retirer l'une ne fait rien. Ce n'est pas une contre-épreuve réussie.
-- ⚠️ **`new_fiches_count` hérite du nouveau compteur** : une fiche que Massimo vient d'écrire
-  comptera comme « nouvelle » tant qu'il ne l'a pas rouverte. Sans effet tant qu'il n'en a pas
-  fait, mais ça heurte la règle « NOUVEAU jamais DÛ » de l'ADR-0030. **À trancher en slice 2.**
-- ⚠️ **Un commentaire de `coverage.py` devient faux en slice 2** : *« une leçon porte 0..1
-  fiche/mindmap »* — les versions du §7 le contredisent déjà.
+- 🔴 **Le glisser au DOIGT n'a toujours jamais été essayé sur un vrai iPhone.** C'est la dette
+  n°1, et elle est **partie en `main`** sans être levée (PR #122). `touch-action: none` et
+  `select-none` sont mesurés dans le DOM, la mécanique est celle de `NodeBank` — c'est un
+  raisonnement, pas une preuve.
+- ⚠️ **`new_fiches_count` n'a PAS été tranché**, alors que la slice 1 l'annonçait « à trancher en
+  slice 2 ». Une fiche que Massimo vient d'écrire comptera comme « nouvelle » tant qu'il ne l'a
+  pas rouverte — ça heurte la règle « NOUVEAU jamais DÛ » de l'ADR-0030. Sans effet visible tant
+  qu'il n'a pas fini de fiche.
+- ⚠️ **Le commentaire de `coverage.py:364`** — *« une leçon porte 0..1 fiche/mindmap »* — est
+  maintenant faux **deux fois** : les versions du §7, et les fiches personnelles.
 - ⚠️ **L'entrée depuis le cours est toujours « 🧩 En faire ma fiche »**, jamais « ✍️ Ma fiche »
-  quand elle existe (§12) : il faudrait savoir, **par leçon**, si une fiche personnelle existe.
-  Aucune route ne le dit.
-- ⚠️ **L'écran 2 de la spec (une tuile par leçon, 4 états) n'est PAS implémenté.**
-  `FicheSubjectPage` liste des **fiches**, pas des leçons ; il y faudrait un endpoint
-  leçon-centré. C'est pourquoi l'entrée passe par le cours — ce que l'ADR §12 autorise
-  explicitement (« se crée sans réserve »).
-- ⚠️ **Le veto d'un cours devient impossible dès que Massimo a fait sa fiche dessus.** Choix de
-  ce chantier, faute de mieux : la FK `fiches.lesson_id` est NOT NULL sans `ON DELETE`, donc
-  l'exclure de la cascade ferait **échouer** la suppression. Le cul-de-sac est réel — Papa ne
-  pourra plus retirer ce cours-là.
+  quand elle existe (§12). **La dette a changé de nature** : la slice 1 disait « aucune route ne
+  le dit » — c'est désormais faux, `fiche-tiles` le dit par leçon. Il ne manque que le câblage de
+  `CoursPage`.
+- ⚠️ **Le veto d'un cours reste impossible dès que Massimo a fait sa fiche dessus.** La FK
+  `fiches.lesson_id` est NOT NULL sans `ON DELETE` : l'exclure de la cascade ferait **échouer** la
+  suppression. Papa ne peut plus retirer ce cours-là.
 - ⚠️ **Aucun linter Python** dans le venv (`ruff` absent, rien dans `pyproject.toml`).
+
+**Reporté en slice 3, sciemment :** le **pont SRS**, `erreurs_a_eviter` (la seule section que
+ZETIS peut pré-remplir sans enfreindre la règle 7 — il rappelle un **fait** de Massimo),
+`mini_exemple`, `mnemonique` (§10), `absent_du_cours`, l'**enrichissement** des fiches existantes
+(fiche par fiche, jamais en lot — §11), la **surface Papa** de lecture, le **tiroir de cours** de
+l'atelier et la dé-`vh`-isation de `CoursPanel` (§12), `FICHE_PROMPT_VERSION` v1 → v2, et
+l'**extraction du patron plein écran** (ce serait le 3ᵉ de l'app).
 
 #### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #122, squash `1b78f3d`), branche
-supprimée des deux côtés, étape 4bis faite dans la foulée. Arbre propre, chaque fait revérifié par
-commande.
+Le chantier est **fini** — il ne reste que le geste git, qui est celui du commanditaire :
 
-1. 🔴 **Essayer le glisser au doigt sur un vrai iPhone.** C'est la dette n°1, et elle est partie
-   en `main` sans être levée : le geste central de la fonctionnalité n'a **jamais** été exercé par
-   un doigt. `touch-action: none` et `select-none` sont mesurés dans le DOM, la mécanique est
-   celle de `NodeBank` — mais c'est un raisonnement, pas une preuve.
-2. **Slice 2** : `essentiel` (champ libre + dictée) et `definitions` (terme ZETIS / définition
-   Massimo), qui apportent avec elles **`recopie`** et le **pont SRS**. Y trancher au passage la
-   dette `new_fiches_count` (« NOUVEAU jamais DÛ ») ci-dessus.
-3. **En prod** : la migration `c3d4e5f6a7b2` peut maintenant être posée — elle est sur `main`.
-   Suivre `migrer-la-base-prod-zetis` ; ⚠️ la variable est `ZETIS_DATABASE_URL`, `DATABASE_URL` est
+1. **Vérifier** le diff et relancer les trois suites (`WORKFLOW.md §2.4` — un « c'est vert »
+   rapporté ne compte pas).
+2. **Commit → push → PR → merge**, puis l'étape **4bis** (`WORKFLOW.md §5`) : revenir écrire ici
+   le squash, le n° de PR, « branche supprimée », « rien à pousser », et les résidus.
+3. **En prod** : la migration `d4e5f6a7b8c3` ne se pose qu'**après le merge**. Suivre
+   `migrer-la-base-prod-zetis` ; ⚠️ la variable est `ZETIS_DATABASE_URL`, `DATABASE_URL` est
    **ignorée en silence**.
+4. Puis, au choix : la **slice 3** (liste ci-dessus), ou le **glisser au doigt sur un vrai
+   iPhone**, qui est la dette la plus ancienne et la seule qui porte sur le geste central.
 
 #### 🔴 LE PIÈGE DE CE CHANTIER — il est armé sur la base de dev
 
-La migration `c3d4e5f6a7b2` **est posée sur la base de dev**. Sur cette branche, `pnpm dev` va
-bien. **Revenir sur `main` et lancer `pnpm dev` fait échouer Alembic au démarrage** (`scripts/dev.sh`
-joue `upgrade head` en dev aussi) — le backend ne démarre pas.
+La migration `d4e5f6a7b8c3` **est posée sur la base de dev**. Sur cette branche, `pnpm dev` va
+bien. **Revenir sur `main` et lancer `pnpm dev` fait échouer Alembic au démarrage**
+(`scripts/dev.sh` joue `upgrade head` en dev aussi) — le backend ne démarre pas.
 
-- **Cible de repli connue** : `alembic downgrade b2c3d4e5f9a1` (tête de `main`) ;
+- **Cible de repli connue** : `alembic downgrade c3d4e5f6a7b2` (tête de `main`) ;
 - ou **`pnpm dev:back`** sur `main`, qui ne joue aucune migration ;
 - 🔴 **jamais `pnpm prod:up` depuis cette branche** — `infra/docker/backend-entrypoint.sh` joue
   `upgrade head` au démarrage du conteneur, ce qui poserait la migration en prod avant le merge.
 
-⚠️ **Les serveurs de dev tournent encore** (backend 8000, massimo 5173) — lancés pour la relecture
-visuelle, **non arrêtés**. *La bonne question à la reprise est « que tourne-t-il ? »
-(`preview_list`), pas « mes deux serveurs tournent-ils ? ».*
+⚠️ **L'infra Docker tourne encore, les serveurs de dev NON** — vérifié par commande à la clôture :
+`zetis-postgres-1`, `zetis-redis-1`, `zetis-minio-1` sont `Up`, et **rien n'écoute sur 8000 ni sur
+5173**. L'infra a été **relancée en cours de session** parce que `test_auth.py` exige un vrai
+Postgres ; les serveurs de dev, eux, sont restés arrêtés depuis la fin du chantier précédent.
+*La bonne question à la reprise est « que tourne-t-il ? » (`docker ps`, `lsof -nP -iTCP -sTCP:LISTEN`),
+pas « mes deux serveurs tournent-ils ? ».*
 
 ---
+
+## ⬆️ REMONTÉ de l'élagage de la slice 1 « la fiche de Massimo » (PR #122, squash `1b78f3d`)
+
+> Le récit est retiré : **les quatre contrôles passent.**
+> `docs/decisions/adr-0015-addendum-fiche-de-massimo.md` ✅ ·
+> `TROUBLESHOOTING.md` §`feat/fiche-de-massimo` (**14 sous-sections**, comptées ici) ✅ ·
+> `CHANGELOG.md` **0.81.0** ✅ · 4ᵉ contrôle — **six dettes étaient encore ouvertes**, elles sont
+> remontées dans « DETTES OUVERTES » de la section active ci-dessus (glisser au doigt,
+> `new_fiches_count`, commentaire de `coverage.py`, entrée `CoursPage`, veto d'un cours, linter
+> Python). Le détail se retrouve par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : le chantier a compté **huit** lecteurs d'une table là où son cadrage
+> en annonçait trois — et **sept défauts sont sortis en REGARDANT L'ÉCRAN**, dont cinq invisibles
+> à 2 700 tests verts. C'est la justification vivante du `WORKFLOW.md §5bis`.
+> ⚠️ Le piège de `git branch -r` s'y est rejoué pour la **sixième** fois d'affilée.
 
 ## ⬆️ REMONTÉ de l'élagage du chantier `fix/accueil-titre-coupe` (PR #121, squash `ced50a2`)
 

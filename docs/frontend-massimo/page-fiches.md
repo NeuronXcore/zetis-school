@@ -44,7 +44,16 @@ Une tuile par leçon. **Quatre états**, qui cohabitent dans la même liste :
 | Fiche ZETIS seule | `⭐ Fiche ZETIS` | « à lire » | écran 3 (viewer) |
 
 **Aucun état n'est un reproche.** Le brouillon n'affiche jamais « inachevé » ni « abandonné », et
-rien ne décompte de jours. Source : `GET /api/student/subjects/{slug}/fiches`.
+rien ne décompte de jours — tenu par un test.
+
+Source : **`GET /api/student/subjects/{slug}/fiche-tiles`** (livrée en slice 2). ⚠️ *Pas*
+`…/fiches`, qui est **fiche-centrée** et sert le deck de révision : elle ne peut montrer ni un
+brouillon ni une leçon vierge, faute d'objet à lister.
+
+🔴 **Priorité des états, quand plusieurs sont vrais** : `commencée` **avant** `ta fiche`. S'il a
+rouvert sa fiche pour la retravailler (écran 7), c'est ce travail-là qu'il veut reprendre, pas
+relire la version précédente. Puis `fiche ZETIS`, puis `à fabriquer`. Une leçon sans cours **ni**
+fiche lisible n'apparaît pas du tout.
 
 ### 3. La fiche (lecture)
 
@@ -424,10 +433,10 @@ pas grisée. Sur la plupart des leçons, la colonne fait **cinq** étapes.
 - `POST /api/student/fiches/{id}/seen` — marque vue.
 - `GET /api/student/lessons/{id}/cours` — cours source.
 
-> ⚠️ Les trois premiers lisent aujourd'hui `validation_status == 'validated'` **chacun avec leur
-> propre clause**. L'addendum §2 impose de les faire passer par **un prédicat unique et partagé**
-> avant d'ajouter quoi que ce soit — sans quoi soit la fiche de Massimo lui est invisible, soit
-> une fiche ZETIS non validée fuit.
+> ✅ **Fait en slice 1.** Les trois premiers lisaient `validation_status == 'validated'` **chacun
+> avec leur propre clause** ; ils passent désormais tous par le prédicat partagé
+> `readable_by_student()` (`modules/fiches/population.py`). Le read-before-code avait trouvé
+> **huit** requêtes lisant `fiches`, pas trois — cf. `DATA_MODEL.md` § Règle de lecture.
 
 **Livrées par la slice 1** (contrat que cette page exige) — détail dans `API_SPEC.md` :
 
@@ -442,22 +451,39 @@ pas grisée. Sur la plupart des leçons, la colonne fait **cinq** étapes.
 - `GET /api/student/lessons/{id}/fiche-zetis` — le corrigé. ⚠️ **Aucune condition de tentative**
   (addendum §3 révisé) : pas de 403, et **aucun état « a-t-il tenté ? » à tenir côté serveur**.
 
+**Ajoutées par la slice 2** :
+
+- `GET /api/student/subjects/{slug}/fiche-tiles` — **une tuile par LEÇON**, quatre états. C'est ce
+  qui rend l'**écran 2** possible : la route ci-dessus est fiche-centrée et ne peut pas montrer un
+  travail **commencé** (un brouillon n'est pas une fiche) ni une leçon **à fabriquer**.
+- `POST /api/student/fiches/draft/{id}/transcribe` — la **dictée** (Whisper local, ADR-0012).
+  Rend du texte ; **le serveur ne remplit rien** (règle 7).
+- `GET …/candidates?section=definitions` — jusqu'à **4 termes** : les **notions** de la leçon,
+  puis le **gras** du cours. `?section=essentiel` rend une **amorce** et zéro candidate.
+
 Pilotage Papa (génération, éditeur structuré) : voir `API_SPEC.md` § Fiches et
 `docs/design/design-system.md` § Pilotage.
 
-## Ce que la slice 1 rend RÉELLEMENT (2026-08-13)
+## Ce que les slices rendent RÉELLEMENT (2026-08-13)
 
-Cette page décrit l'écran **complet**, à six étapes. La slice 1 en livre **une**, et l'écart est
-volontaire :
+Cette page décrit l'écran **complet**, à six étapes. Les slices 1 et 2 en livrent **trois**, et
+l'écart est volontaire :
 
-| Décrit ici | État en slice 1 |
-|---|---|
-| Étape ① 🔑 À retenir (choix, 12 → 5) | ✅ livrée, au glisser-déposer |
-| Étapes ② à ⑥ | ❌ **pas rendues du tout** — ni grisées : une étape visible mais morte est une promesse que le produit ne tient pas (même principe que « Mnemonics », §10) |
-| Retour d'analyse | ✅ **réussites seules**. `recopie` est reporté : en mode « je choisis », les points-clés *sont* des phrases du cours, il flaguerait les cinq |
-| Pont « 🃏 En faire des cartes » | ❌ reporté en slice 2, avec `definitions` qui lui donne sa forme recto/verso |
-| Écran 2 — une tuile par leçon, 4 états | ❌ non implémenté : `FicheSubjectPage` liste des **fiches**, pas des leçons. L'entrée passe donc par **le cours** (§12, « se crée sans réserve ») |
-| Tiroir de cours dans l'atelier | ❌ hors périmètre — `CoursPanel` n'a pas été touché |
+| Décrit ici | Slice 1 | Slice 2 |
+|---|---|---|
+| Étape ① 🔑 À retenir (choix, 12 → 5) | ✅ au glisser-déposer | ✅ inchangée |
+| Étape ② ✍️ L'essentiel | ❌ | ✅ champ libre + **amorce** + **dictée** |
+| Étape ③ 📖 Les définitions | ❌ | ✅ terme donné, définition écrite |
+| Étapes ④ à ⑥ | ❌ | ❌ **toujours pas rendues** — ni grisées : une étape visible mais morte est une promesse que le produit ne tient pas (même principe que « Mnemonics », §10) |
+| Retour d'analyse | ✅ réussites seules | ✅ **1-2 réussites + 0-2 remarques**, dont `recopie` — mais **jamais sur `points_cles`**, où recopier *est* le geste demandé |
+| Pont « 🃏 En faire des cartes » | ❌ | ❌ **sorti du périmètre** de la slice 2 par arbitrage — reporté en slice 3 |
+| Écran 2 — une tuile par leçon, 4 états | ❌ l'entrée passait par **le cours** (§12) | ✅ **livré** — `GET …/fiche-tiles` + `FicheSubjectPage` |
+| Tiroir de cours dans l'atelier | ❌ hors périmètre | ❌ toujours hors périmètre — `CoursPanel` n'a pas été touché |
+
+> **Les trois étapes sont un ACCORDÉON** : une seule ouverte à la fois. Six étapes dépliées
+> violeraient la contrainte des 5 minutes, et une colonne qui défile fait perdre le fil.
+> 🔴 **Reste ouvert** : sur iPhone (812 px), ② et ③ tombent à ~56 px **sous la pliure** quand une
+> étape est dépliée. Mesuré, pas corrigé.
 
 ## Points ouverts
 

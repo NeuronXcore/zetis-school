@@ -863,6 +863,27 @@ updated_at
 
 Index `(student_id, lesson_id)` : c'est la requête de reprise (« retrouve mon brouillon »).
 
+#### 🔴 Contrainte — un seul BROUILLON par (élève, leçon), et la base le refuse
+
+```sql
+CREATE UNIQUE INDEX uq_fiches_brouillon_par_lecon ON fiches (student_id, lesson_id)
+  WHERE validation_status = 'personal_draft';        -- migration `d4e5f6a7b8c3`
+```
+
+⚠️ **PARTIEL, et il ne peut pas en être autrement.** `student_id` est renseigné sur **toutes** les
+fiches personnelles — brouillons **et** fiches finies — et une leçon peut en porter **plusieurs
+versions** (§7). Un index sans condition interdirait les versions : la décision fondatrice du §7,
+détruite par une ligne d'index. La condition porte donc sur le seul état dont l'unicité est vraie.
+
+⚠️ La migration **dédoublonne avant de contraindre** (une base ayant déjà vu la course refuserait
+l'index), en gardant le `MIN(id)` — **exactement la règle que le code applique en lecture**, donc
+aucun travail visible n'est détruit. Constat qui l'a motivée : **4 brouillons pour 2 leçons** en
+base de dev, `StrictMode` (et un double-tap sur téléphone) envoyant deux `POST /draft` simultanés.
+
+⚠️ **Interdire n'est pas gérer** : `open_or_get_draft` rattrape l'`IntegrityError`, rejoue la
+lecture et rend le brouillon du gagnant. Sans ce rattrapage, le perdant de la course recevrait une
+**500** pour avoir seulement ouvert son atelier deux fois.
+
 > 🔴 **`author` et `source` sont DEUX AXES, jamais un seul.** `source` dit *comment* la pièce a été
 > produite, `author` dit *à qui* elle est. Ajouter `massimo` à `source` aurait privé une fiche
 > personnelle assistée de toute valeur juste, et donné à tout lecteur existant de `source` un sens
@@ -888,6 +909,24 @@ les lecteurs qui filtrent déjà sur `validated`.
 ⚠️ **`zetis_authored()` se place dans la clause `ON` d'un `outerjoin`, jamais dans le `WHERE`** —
 en `WHERE`, un `LEFT JOIN` redevient un `INNER JOIN` et les leçons **sans** fiche disparaissent du
 résultat.
+
+⚠️ **Tout lecteur d'un brouillon ORDONNE par `Fiche.id`.** `db.scalar(select(...))` sans `ORDER BY`
+rend une ligne **arbitraire** : le 2026-08-13, l'atelier lisait le brouillon rempli pendant que la
+tuile de l'écran 2 lisait le vide — Massimo aurait vu son travail disparaître de sa liste alors que
+le serveur le gardait. L'index unique ci-dessus empêche désormais la situation ; l'ordre stable
+reste la garantie que **deux lectures désignent le même objet**, y compris sur les versions finies.
+
+#### Deux lectures d'une matière, et elles ne répondent PAS à la même question
+
+| Lecture | Centrée sur | Sert |
+|---|---|---|
+| `list_subject_fiches` | la **fiche** | le deck de révision — « ouvre une fiche pour réviser » |
+| `subject_fiche_tiles` | la **leçon** | la fabrication (écran 2) — 4 états `commencee` · `ma_fiche` · `zetis` · `a_fabriquer` |
+
+La seconde n'est **pas** un élargissement de la première : elle doit montrer ce qui n'est pas
+encore une fiche (un brouillon, une leçon vierge), là où la première a un contrat qu'on ne casse
+pas. 🔴 Priorité des états : **`commencee` avant `ma_fiche`** — s'il a rouvert sa fiche pour la
+retravailler, c'est ce travail-là qu'il veut reprendre, pas relire la version précédente.
 
 ### FicheView
 

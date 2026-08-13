@@ -1,5 +1,48 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.82.0 — Massimo écrit (et retrouve ce qu'il a commencé)
+
+La version précédente lui apprenait à **choisir**. Celle-ci lui apprend à **écrire** : la synthèse
+qui n'existe nulle part dans le cours, et la définition d'un mot que ZETIS lui donne. C'est la
+partie difficile, et c'est elle qui fait apprendre.
+
+**L'essentiel.** Une seule chose : *dis en deux phrases ce qu'il faut retenir*. Aucune phrase du
+cours ne peut la porter — une synthèse est par définition absente du texte. Le champ n'est donc
+jamais vide au départ : ZETIS y pose une **amorce**, le titre de la leçon suivi de « , c'est… ».
+La page blanche est ce qui fait recopier ; une amorce est ce qui fait commencer. Et s'il préfère
+**le dire à voix haute**, il dicte — Whisper, **en local**, comme partout ailleurs dans ZETIS.
+
+**Les définitions.** ZETIS donne le **mot** — tiré des notions de la leçon, puis de ce que le cours
+met en gras — et Massimo écrit ce qu'il veut dire. Le partage n'est pas décoratif : trouver le
+vocabulaire d'un chapitre est un travail d'adulte, l'expliquer avec ses mots est le travail de
+l'enfant.
+
+**ZETIS dit maintenant autre chose que du positif.** Une à deux **réussites** (jamais zéro), et
+**au plus deux remarques** — dont « ce passage vient mot pour mot du cours ». La borne à deux est
+ce qui l'empêche de devenir un correcteur au-dessus de l'épaule. ⚠️ Le recopiage n'est **jamais**
+signalé sur les points-clés : là, recopier *est* le geste demandé. Toujours **aucun modèle de
+langage** dans tout ça : phrases, termes, amorce et détection de copie sont déterministes.
+
+**Il retrouve enfin son travail.** La liste d'une matière montrait des **fiches** ; elle montre
+désormais une tuile par **leçon**, à quatre états — commencée · ta fiche · fiche ZETIS · à
+fabriquer. 🔴 **Un travail interrompu n'apparaissait nulle part**, alors que le serveur le gardait
+parfaitement. Le défaut n'est pas sorti d'un test : il est sorti d'une question — *« je n'arrive
+pas à retrouver comment voir ces fiches : quel est le chemin ? »*.
+
+> 🔴 **Sous le capot, la base a repris la main sur une promesse que le code ne tenait pas.**
+> « Un brouillon par leçon » était une intention : deux ouvertures simultanées — `StrictMode` en
+> dev, un double-tap sur téléphone — en créaient deux, et un `SELECT` sans ordre en désignait un
+> **au hasard**. Résultat mesuré en base : **4 brouillons pour 2 leçons**, l'atelier lisant le
+> plein pendant que la liste lisait le vide. Un index unique **partiel** (`d4e5f6a7b8c3`) le rend
+> désormais impossible — partiel, parce qu'une leçon garde le droit de porter **plusieurs versions
+> finies**. Et le perdant de la course reçoit son brouillon, pas une erreur : *interdire n'est pas
+> gérer*.
+
+**Reporté en slice 3, sciemment** : le pont vers les cartes de révision (sorti du périmètre par
+arbitrage), les erreurs à éviter — la seule section que ZETIS peut pré-remplir sans écrire à la
+place de Massimo, parce qu'il y rappelle un **fait** —, le mini-exemple, les mnémoniques, et
+l'enrichissement des fiches déjà écrites.
+
 ## 0.81.0 — Massimo fabrique sa fiche, ZETIS l'aide
 
 Jusqu'ici ZETIS fabriquait les fiches et Massimo les lisait. C'est l'inverse qui fait apprendre :
