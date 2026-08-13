@@ -107,6 +107,34 @@ La catégorie existait déjà — « productions de Massimo » est une classe de
   ⚠️ *Le piège reste vrai et se rejouera* : la suppression locale ne touche pas le serveur, et
   **aucun contrôle par `git branch` ne peut le voir** — seul `git ls-remote` tranche.
 
+#### ⚠️ PENDANT LE CHANTIER : REVENIR SUR `main` CASSE LE DÉMARRAGE DU BACKEND
+
+**Déroulé normal** — branche, PR, merge, branche supprimée à la fin. *(Une consigne « garder la
+branche vivante pour essayer au calme » a été posée puis **retirée le 2026-08-13** ; elle ne
+s'applique pas.)* Mais le chantier ajoute une **migration** (`author`, `student_id`, `version`,
+valeur `personal`), et le va-et-vient branche ↔ `main` a un coût qui n'était écrit nulle part :
+
+> `pnpm dev` passe par `scripts/dev.sh:25`, qui fait **`alembic upgrade head` EN DEV AUSSI**. Une
+> fois la migration appliquée, revenir sur `main` et lancer `pnpm dev` fait échouer Alembic sur
+> *« Can't locate revision identified by … »* — la révision n'est pas dans l'historique de `main` —
+> et **le backend NE DÉMARRE PAS**.
+
+Ce n'est **pas** un problème de données (colonnes additives, SQLAlchemy nomme les siennes), c'est un
+problème de **démarrage**. Trois façons de s'en sortir :
+
+- **`pnpm dev:back`** — c'est le chemin de `.claude/launch.json`, il ne joue **aucune** migration.
+  Suffisant si on revient sur `main` juste pour lire ou comparer ;
+- **`alembic downgrade <révision de main>`** avant de repasser sur `main`, si on doit vraiment y
+  faire tourner la stack complète ;
+- **une base séparée** (`ZETIS_DATABASE_URL='…/zetis_fiches' pnpm dev`, restaurée par `pg_dump`) —
+  utile seulement si le va-et-vient devient fréquent. ⚠️ **`ZETIS_DATABASE_URL`, jamais
+  `DATABASE_URL`** : préfixe `ZETIS_` + `extra="ignore"` (`config.py:18-21`) → une variable mal
+  nommée est **avalée en silence**. Et **jamais dans `.env`** : `env_file` lit la racine **et**
+  `apps/backend`, donc les deux branches.
+
+🔴 **En prod : ne JAMAIS poser cette migration avant le merge** (`migrer-la-base-prod-zetis` —
+l'entrypoint de prod fait lui aussi `upgrade head` au démarrage).
+
 #### ▶ PROCHAIN PAS
 
 🔴 **DEUX commits, dans cet ordre — ils ne vont pas sur la même ref.**
@@ -119,6 +147,8 @@ La catégorie existait déjà — « productions de Massimo » est une classe de
 4. Puis `/slice` sur la **slice 1**, volontairement minuscule : **une notion**, **une seule
    section** (`points_cles`), échafaudage « je choisis » (12 phrases → 5, **aucune écriture**),
    `recopie` seul, `FicheDraft` + reprise, → cartes SRS.
+5. **Clôture normale en fin de chantier** : commit → push → PR → merge → étape 4bis, **branche
+   supprimée** (des deux côtés — cf. le piège `git ls-remote` ci-dessous). Aucune réserve.
 
 **Contrainte qui prime sur tout le reste** : *la première fiche que Massimo fabrique doit prendre
 **moins de 5 minutes** et produire quelque chose qu'il ait envie de garder.*
