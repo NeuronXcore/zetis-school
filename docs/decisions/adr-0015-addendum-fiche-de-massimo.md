@@ -601,17 +601,44 @@ if card_type in seen:      # clé (student, skill, card_type) unique
 ```
 
 🔴 **Les deux moitiés du module ne sont pas d'accord sur la clé de la table.** La génération
-produit jusqu'à **trois** cartes par notion, une par type ; `schedule_review` en suppose **une**.
-Sur une notion qui porte déjà une carte `method` et une carte `example`, un `schedule_review`
-prend donc **une ligne arbitraire** et lui écrit une définition par-dessus, planification remise à
-zéro. **Aucune contrainte de base ne l'en empêche** : `SpacedReviewCard` n'a pas de
-`__table_args__`, et aucune des 50 migrations ne pose d'unicité sur cette table.
+produit jusqu'à **trois** cartes par notion, une par type ; `schedule_review` en suppose **une**,
+prend **une ligne arbitraire** et lui écrit une définition par-dessus, planification remise à zéro.
+**Aucune contrainte de base ne l'en empêche** : `SpacedReviewCard` n'a pas de `__table_args__`, et
+aucune des 50 migrations ne pose d'unicité sur cette table.
 
-⚠️ **Constaté par lecture, pas reproduit.** C'est un défaut **préexistant**, indépendant des
-fiches ; sa reproduction est le premier point du read-before-code de la slice 3. Il est du même
-motif exact que le doublon de brouillon corrigé la veille (`db.scalar` arbitraire + écrasement) —
-**sur une autre table, à un jour d'intervalle**. Ce n'est pas une coïncidence : c'est un patron du
-dépôt, et il vaut d'être cherché ailleurs.
+#### ⚠️ Mesuré le 2026-08-13 — le défaut est LATENT, pas manifeste (correction de ce §13)
+
+La première rédaction de ce paragraphe affirmait qu'un ELI5 ou une fin de mission *« écrit une
+définition par-dessus une carte `method` prise au hasard »*. **La reproduction dit autre chose**,
+et la correction est aussi importante que le constat :
+
+| Mesure (base de dev, 317 cartes) | Résultat |
+|---|---|
+| Notions portant **plusieurs** cartes | **106** — l'hypothèse « une carte par notion » est bien fausse |
+| Parmi elles, celles dont le `MIN(id)` est la carte `definition` | **106 / 106** |
+| Notions **sans** carte `definition` | **0** |
+| Doublons sur `(student_id, skill_id, card_type)` | **0** |
+
+Reproduction sur la notion 117 (3 cartes) en transaction annulée : la ligne écrasée est bien la
+`definition`. **Le défaut est neutralisé par accident** — `generation.py` émet `definition` en
+premier, elle porte donc le plus petit `id`, et le balayage séquentiel de Postgres la rend en
+premier. Rien ne le garantit : un `UPDATE` déplace physiquement une ligne, un `VACUUM` ou un autre
+plan change l'ordre.
+
+**Ce que ça change pour la décision** : on ne répare pas une panne, on **retire une dépendance
+accidentelle**. Le motif est plus faible, et il a été explicitement réarbitré à ce titre — la
+contrainte est retenue parce que `schedule_review` doit de toute façon apprendre `card_type` pour
+ne jamais toucher la carte personnelle, et parce qu'une clé vraie coûte ici une migration
+**sans aucun conflit à résoudre**.
+
+**Ce que ça change pour la migration** : le dédoublonnage prescrit ci-dessous est un **no-op
+mesuré** sur la base de dev. Il est conservé pour la **prod, non mesurée** — mais il ne faut pas
+lui prêter un travail qu'il ne fait pas.
+
+⚠️ Défaut **préexistant**, indépendant des fiches, et du même motif exact que le doublon de
+brouillon corrigé la veille (`db.scalar` arbitraire + écrasement) — **sur une autre table, à un
+jour d'intervalle**. Ce n'est pas une coïncidence : c'est un patron du dépôt, et il vaut d'être
+cherché ailleurs.
 
 #### Décision
 
@@ -630,18 +657,34 @@ dépôt, et il vaut d'être cherché ailleurs.
    correctif livrable sans toucher ELI5 ni les missions. *(Temps 1 au sens du `WORKFLOW.md §2.3`.)*
 4. **Le pont ne s'ouvre qu'après `finish`.** Un brouillon n'est pas dérivable (§1 bis) : une
    définition à moitié écrite n'a rien à faire dans un circuit de révision.
-5. **Les deux cartes vivent leur vie séparément** — chacune sa planification, chacune son échéance.
-   Elles ne testent pas la même chose : reconnaître la formulation de référence, et retrouver la
-   sienne. Le moteur SRS n'est **pas** touché ; il sait déjà porter trois cartes par notion.
-   ⚠️ **C'est le point à surveiller en usage** : si revoir deux fois la même notion est vécu comme
-   une redite, la réponse est de **ne servir que la sienne quand elle existe** — un réglage de
-   sélection dans la session, jamais une suppression de carte.
+5. 🔴 **Quand sa carte existe, c'est la SIENNE qu'on sert — et elle seule.** La carte ZETIS de la
+   notion n'est ni supprimée ni suspendue : elle garde sa planification et redevient servable le
+   jour où il n'a plus de carte personnelle. C'est un **masquage à la sélection**, pas une
+   suppression.
+   *Motif* : les deux cartes portent la même notion. Servir les deux, c'est poser deux fois la
+   même question à trois cartes d'intervalle — et le **deck matière ne les entrelace même pas**
+   (tri `due_at asc, id asc`, aucun `interleave` : elles se suivraient **dos à dos**). Entre la
+   formulation de ZETIS et la sienne, c'est la sienne qui compte : *c'est celle-là qu'il doit
+   pouvoir retrouver.*
+   *(Arbitrage du 2026-08-13, pris sur mesure : la première rédaction laissait les deux cartes se
+   servir et ne nommait le risque qu'en note.)*
+
+   ⚠️ **Le masquage doit valoir pour la SÉLECTION ET POUR LES COMPTEURS, sinon les nombres
+   mentent.** `build_session` sert, mais `get_reviews_summary` (`due_count`, `new_count`,
+   `session_size`, `flash_size`), `new_cards_count` et `chapter_servable_count(s)` **comptent** —
+   une carte masquée mais comptée annoncerait *« 8 cartes »* pour en servir 7. C'est le défaut
+   qu'`adr-0039` a payé sur la file de relecture (49 fiches annoncées, 10 lignes servies).
+   → **Un prédicat partagé unique**, sur le patron de `fiches/population.py` : *une* définition du
+   « servable », jamais une clause recopiée dans cinq lecteurs.
+
+6. **Le moteur SRS n'est pas touché** — intervalles, `ease_factor`, consolidation, XP. Il sait déjà
+   porter trois cartes par notion ; on ne lui apprend rien, on choisit seulement ce qu'on lui donne
+   à servir.
 
 #### Ce que ce paragraphe n'ouvre pas
 
 - **Le pont depuis les fiches ZETIS** (ADR-0015 §6) reste **stub**. On n'ouvre que celui de la
   fiche de Massimo, comme annoncé au hors-périmètre de la slice 1.
-- **Aucun changement du moteur** : intervalles, `ease_factor`, consolidation, XP — intouchés.
 - **`points_cles` ne devient pas des cartes.** Le périmètre de la slice 1 le prévoyait
   (« la sélection retenue devient ses cartes SRS ») ; `definitions` a depuis donné au pont sa forme
   **naturelle**, recto/verso sans transformation. Un point-clé est une phrase du cours, pas une
@@ -681,6 +724,14 @@ dépôt, et il vaut d'être cherché ailleurs.
   après avoir mesuré que les deux moitiés du module `memory` ne s'accordent déjà pas dessus.
   Une clé que la moitié du code ignore n'est pas une convention, c'est un bug en attente — et le
   dépôt vient d'en payer un exemplaire sur les brouillons de fiche, la veille.
+- **§13 — Servir les DEUX cartes de la notion** (rédaction initiale du point 5, réarbitrée le
+  2026-08-13). Écarté sur mesure : le deck matière n'entrelace pas, les deux cartes d'une notion
+  ont des échéances voisines et se suivraient **dos à dos** — la même question deux fois de suite.
+  Retenu à la place : **masquer la carte ZETIS tant que la sienne existe**, sans la supprimer.
+- **§13 — Suspendre ou supprimer la carte ZETIS quand la sienne arrive.** Écarté : `suspended` veut
+  dire *« plus aucun cours validé ne la couvre »* (ADR-0013), et lui donner un second sens rendrait
+  ce statut illisible ; supprimer perdrait une planification et la formulation de référence, pour
+  un gain nul — le masquage à la sélection produit le même effet et se défait tout seul.
 - **Rendre `mnemonique` systématique** (§10). Écarté : produirait des acronymes forcés sur la
   majorité des leçons, plus durs à retenir que la chose elle-même.
 - **Régénérer ou enrichir en lot les fiches déjà validées** (§11). Écarté : la première écrase les
