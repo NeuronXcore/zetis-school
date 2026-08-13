@@ -5948,3 +5948,102 @@ faux — un troisième serveur (`backend`, port 8000) tournait aussi, absent de 
 `pgrep`, `git branch`), pas la question **fermée** sur ce qu'on a déjà écrit. Une vérification
 fait-par-fait valide ce qui est écrit ; elle ne détecte aucune omission. Les deux contrôles sont
 complémentaires, et le second manquait.
+
+## Le cadrage « la fiche que Massimo fabrique lui-même » (addendum ADR-0015) — 2026-08-12
+
+> Session de **cadrage**, sur `main`, sans une ligne de code. Les quatre pièges sont des pièges de
+> **cadrage** : ils font écrire une décision fausse, ce qui coûte plus cher qu'un bug — un prompt de
+> slice fondé dessus envoie la session suivante construire la mauvaise chose.
+
+### 🔴 Un read-before-code qui reste du côté LECTURE rate ce que l'ÉCRITURE impose
+
+La première passe a lu le modèle `Fiche` et **tout le flux élève** : colonnes, gate `validated`,
+trois lecteurs, `fiche_views`. Constat juste, et **incomplet** — elle n'avait pas ouvert le chemin
+d'**écriture**.
+
+Deux faits, trouvés en **seconde passe** seulement, et chacun a changé une décision :
+
+| Fait | Où | Ce qu'il interdit |
+|---|---|---|
+| `update_fiche_spec` écrit `validation_status = "pending"` **sans condition** | `fiches/service.py:264` | tout enrichissement **en lot** des fiches validées : elles disparaîtraient **toutes** de chez Massimo à la fois |
+| `FicheSpec` est en `extra="forbid"` | `fiches/schemas.py:39` | croire qu'ajouter un champ ne concerne que les fiches **futures** — le schéma **part au modèle**, donc il change la génération de **toutes** |
+
+Le premier a fait réécrire entièrement la réponse à « mettre à jour les fiches déjà créées »
+(enrichissement **à la demande**, jamais en lot). Le second a rendu obligatoire un bump
+`FICHE_PROMPT_VERSION`.
+
+**Parade** : un read-before-code sur un objet servi doit lire **les deux sens** — ce qui le sert
+*et* ce qui le modifie. Le cycle de vie éditorial (`pending`/`validated`) vit du côté écriture, et
+c'est lui qui dit ce qu'une migration de contenu coûte. *Même famille que le piège de l'ADR-0051 :
+là c'était le module voisin, ici c'est le sens inverse du même module.*
+
+### 🔴 Un cadrage peut décrire entièrement CE QUE L'UTILISATEUR FAIT sans dire OÙ ÇA SE POSE
+
+Onze § écrits — objet, gate, échafaudage, contrat de ton, voix, analyse, versions, sections,
+champs libres, mnémonique, migration de contenu — et **pas une ligne** sur le gabarit d'écran. Le
+commanditaire l'a relevé (*« comment as-tu prévu ce refactor par rapport à la sidebar et les
+modales ? »*). Le relevé qui a suivi a trouvé **trois blocages en vingt minutes** :
+
+- la **sidebar est dans le flux** au-dessus de `md` (`md:static`) → sidebar + colonne de six étapes
+  + cours à droite = **trois colonnes**, intenable sur iPad ;
+- **`CoursPanel` n'est `sticky` qu'au-dessus de `lg`** → en dessous, « Voir le cours » empile le
+  cours **sous** la fiche, donc **sous six étapes** : inatteignable. **Défaut jumeau de celui que
+  l'`adr-0052` constate le même jour** sur la banque de nœuds des mindmaps ;
+- **`CoursPanel` se mesure en `vh`** (`max-h-[80vh]`), ce que l'`adr-0052` §2 venait de condamner.
+
+**Parade** : tout cadrage qui produit un **écran neuf** doit porter un § « gabarit » — dans quel
+conteneur il vit, ce qui occupe déjà la largeur, et ce que la modale de l'app impose en hauteur.
+Sans lui, on décide un contenu qui ne rentre nulle part. Contrôle minimal : `ActivityModal`
+(`max-h-[calc(100vh-4rem)]`), la sidebar, et le point de rupture des panneaux latéraux.
+
+### 🔴 Une règle qu'un document énonce peut être violée par un AUTRE § du même document
+
+Le §4 refusait un menu de niveaux d'aide, au motif écrit qu'un objectif imposé se fuit
+(`CLAUDE.md` §Gamification). Le §3, dans le **même document**, verrouillait la fiche ZETIS
+derrière une tentative — c'est-à-dire **exactement un objectif subi**, à un autre endroit. Personne
+ne l'a vu à la rédaction ; le commanditaire a tranché en sens inverse (« lire avant de fabriquer,
+c'est ok »), et la révision s'est révélée **plus simple** que la version initiale : plus de 403,
+plus d'état « a-t-il tenté ? » à tenir côté serveur.
+
+**Parade** : à la relecture d'un ADR, prendre chaque interdit qu'il pose (« on n'impose pas X »,
+« on ne verrouille pas Y ») et **le repasser sur ses propres autres §**. Un document long applique
+rarement sa propre règle partout du premier coup.
+
+### ⚠️ Un `Write` qui remplace un document en supprime des parties SANS le dire
+
+`page-fiches.md` a été réécrit d'un bloc pour passer de 86 à 329 lignes. La réécriture a **perdu**
+deux choses que personne n'aurait cherchées : le **wireframe de l'écran 3** (fiche + cours ouvert)
+et le renvoi vers `API_SPEC.md` § Fiches. Aucun outil ne l'a signalé — un `Write` réussi ne dit pas
+ce qu'il a effacé, et le compte de lignes (+255) **montait**.
+
+**Parade** : après tout remplacement complet d'un document, lire **les suppressions** —
+`git diff -U0 <fichier> | grep '^-'` — et justifier chaque ligne perdue. Un diff qui grossit peut
+quand même avoir perdu l'essentiel.
+
+> ⚠️ **Outillage, au passage** : dans le panneau navigateur, `computer {action:"scroll"}` **expire
+> au bout de 30 s** quand le panneau est masqué (« The Browser pane is currently hidden »), alors
+> que `javascript_tool` continue de répondre normalement. Pour vérifier une maquette, **affirmer
+> sur le DOM** (`querySelectorAll`, classes, textes) coûte moins cher et prouve davantage qu'une
+> capture d'écran suivie d'un défilement.
+
+### ⚠️ Supprimer une branche EN LOCAL ne la supprime pas du serveur — et `git branch` ne peut pas le voir
+
+Trouvé en vérifiant les faits de cette clôture, sur un enregistrement du dépôt vieux d'un jour. Le
+commit `618c8f5` annonce « les 13 branches périmées sont supprimées ». Mesuré :
+
+| Contrôle | Résultat |
+|---|---|
+| `git branch --list 'feat/*' 'fix/*'` | **0** — vrai, elles sont parties |
+| `git ls-remote --heads origin` (hors `main`) | **13** — elles sont toutes là |
+| `gh pr list --head <b> --state all` (#98, #110, #102) | **MERGED** |
+
+Sans gravité fonctionnelle, mais **le dépôt porte un enregistrement faux**, et c'est le défaut :
+une clôture suivante lira « supprimées » et ne recomptera pas.
+
+**Parade** : `git push origin --delete <branche>` (ou `--delete-branch` sur `gh pr merge`), puis
+`git fetch --prune`. Contrôle : `git ls-remote --heads origin`, **jamais** `git branch`.
+
+⚠️ **C'est l'inverse du piège déjà consigné** — celui-là dit que `git branch -r` **ment en
+affirmant qu'une branche existe** (ref de suivi périmée). Ici la suppression locale est réelle et
+c'est le **serveur** qui n'a pas été touché. Même commande, deux mensonges opposés : seul
+`git ls-remote` tranche, dans les deux sens.

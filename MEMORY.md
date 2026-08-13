@@ -6,6 +6,120 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+### 📐 CADRAGE FAIT — la fiche que Massimo fabrique lui-même (addendum ADR-0015)
+
+**Session de cadrage sur `main`, base `2d6ac01`. AUCUNE ligne de code.** Rien n'est commité :
+deux lots à séparer (cf. PROCHAIN PAS). **Aucune branche n'existe encore** — c'est `/ouverture`
+qui la créera.
+
+> **Le besoin, en une phrase** : aujourd'hui ZETIS fabrique les fiches et Massimo les lit. On
+> inverse — **il fabrique la sienne, ZETIS l'aide**. Faire sa fiche fait apprendre ; la lire, non.
+
+**Ce qui a été produit (4 fichiers) :**
+
+| Fichier | État |
+|---|---|
+| `docs/decisions/adr-0015-addendum-fiche-de-massimo.md` | **créé**, 12 §, Proposé |
+| `DECISIONS.md` | ligne d'index sous `adr-0015` |
+| `docs/frontend-massimo/page-fiches.md` | **86 → 431 lignes** (spec de page) |
+| `docs/frontend-massimo/mockup/mockup-fiche-de-massimo.html` | **créé**, 8 écrans, 14 jalons |
+
+#### 🔓 CE QUE L'ADDENDUM DÉBLOQUE — une décision différée depuis 5 semaines
+
+L'ADR-0015 avait explicitement **différé** « fiche générée par Massimo lui-même », bloquée par
+« seul le contenu validé atteint Massimo ». **Le blocage était une formulation, pas une règle** :
+
+> **Le gate `validated` porte sur ce que ZETIS SERT, jamais sur ce que Massimo ÉCRIT.**
+> Les **dérivés** de sa fiche (cartes SRS, quiz) repassent, eux, par le gate normal.
+
+La catégorie existait déjà — « productions de Massimo » est une classe de source RAG de
+`CLAUDE.md`. Aucune règle de sécurité n'est affaiblie.
+
+#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+
+1. **Un seul objet, deux auteurs** : colonnes `author` (`zetis|massimo`) + `student_id` nullable
+   sur `fiches`. **PAS de table parallèle**, et surtout **pas** une valeur `massimo` ajoutée à
+   `source` (`generated|manual`) : `source` dit COMMENT, `author` dit À QUI — deux axes.
+2. **`FicheSpec` reste littéralement INCHANGÉ.** Le schéma fermé à budgets, conçu pour brider le
+   LLM, devient **l'échafaudage pédagogique de l'enfant** (« tu n'as droit qu'à 5 points-clés,
+   choisis ») et rend la comparaison **champ à champ** possible.
+3. **`FicheDraft`** — un brouillon n'est **pas** un `FicheSpec` (3 points sur 5 sans `essentiel`
+   ne passe aucune borne). Second schéma permissif, bornes MAX conservées, aucune MIN. Un brouillon
+   n'est **ni exportable ni dérivable**.
+4. **§3 RÉVISÉ le 2026-08-12** — ~~corrigé déverrouillé après tentative~~ : **rien n'est
+   verrouillé**, « lire avant de fabriquer, c'est ok ». Seul change **ce qui s'ouvre en premier**.
+   **Un défaut, pas un gate** — un verrou serait un objectif SUBI, la faute même que le §4 refuse
+   ailleurs.
+5. **Échafaudage implicite** — 3 niveaux dans le code, **aucun menu à l'écran**. Massimo choisit
+   « un coup de main **maintenant** », jamais un niveau.
+6. **7 règles de bienveillance** dans `fiche_coach.py`, dont la 7ᵉ qui porte tout : **ZETIS n'écrit
+   JAMAIS dans la fiche à la place de Massimo**.
+7. **Le plan ne change pas, le MODE D'AUTEUR si** : `points_cles` se **choisit** ; `essentiel` ne
+   peut **pas** se choisir (synthèse, absente du cours) ; `erreurs_a_eviter` **se constate**, depuis
+   ses erreurs mesurées.
+8. **`mnemonique`, 6ᵉ section CONDITIONNELLE**, libellé écran **« Mnemonics »** (anglais, arbitré).
+9. **L'atelier est une page PLEIN ÉCRAN**, sur le patron `adr-0052` réutilisé — **jamais** dans
+   `ActivityModal`.
+
+#### 🔴 LES 4 CONSTATS DE CODE QUI COMMANDENT L'IMPLÉMENTATION
+
+À **relire avant** d'écrire une ligne — ils ont été mesurés dans le code réel, pas supposés :
+
+1. **Le gate `validated` est appliqué par PLUSIEURS lecteurs du flux élève**, chacun avec sa clause
+   (`list_subject_fiches` `service.py:446`, `fiches_summary`, lecture unitaire). **Motif exact du
+   piège de l'agenda.** → **prédicat unique partagé**, et `validation_status='personal'` rend
+   l'oubli **fail-safe**.
+2. **Toute édition d'un spec renvoie la fiche en `pending`** (`service.py:264`, sans condition) →
+   un enrichissement **en lot** retirerait **toutes** les fiches à Massimo en même temps.
+3. **`FicheSpec` est en `extra="forbid"`** → un champ optionnel se lit sans casse sur les
+   `spec_json` existants (**aucune migration de données**), **mais le schéma part au modèle** :
+   ajouter un champ change la génération de **toutes** les fiches.
+4. **`CoursPanel` n'est `sticky` qu'au-dessus de `lg`** et se mesure en **`vh`** → sous `lg`,
+   « Voir le cours » empile le cours **sous** six étapes, donc **inatteignable**.
+
+#### 🧾 DETTES ET RÉSIDUS DE CE CADRAGE
+
+- ⚠️ **`page-fiches.md` et le mockup sont dans l'arbre de travail, PAS sur une branche.** Ils
+  attendent que `/ouverture` crée `feat/fiche-de-massimo`. **Ne pas les committer sur `main`.**
+- ⚠️ **Aucun test, aucune vérification de code** — c'est un cadrage. Les 4 constats ci-dessus sont
+  des **lectures**, pas des exécutions.
+- ⚠️ **Le mockup a été vérifié dans le DOM** (accordéon, avancement, aperçus, escalade, budget),
+  **jamais sur un appareil réel** — ni iPhone, ni iPad.
+- ⚠️ **Choix d'implémentation laissé ouvert** : `CoursPanel` en deux `variant` (`aside`/`drawer`)
+  ou deux composants ? Il n'a **qu'un seul consommateur** aujourd'hui — le coût est faible
+  **maintenant**.
+- ⚠️ **Ce serait le 3ᵉ plein écran de l'app** (galaxie, mindmaps, atelier). Le patron mérite d'être
+  **extrait** — **pas dans ce chantier**, signalé pour plus tard.
+- ⚠️ **`DATA_MODEL.md` et `API_SPEC.md` NON touchés, délibérément** : l'addendum **décide** des
+  colonnes (`author`, `student_id`, `version`, `personal`) et **7 endpoints**, mais rien n'existe.
+  Ils s'écriront **à l'implémentation**, pas au cadrage.
+- 🔴 **TROUVÉ EN VÉRIFIANT — les 13 branches « supprimées » sont TOUJOURS SUR LE SERVEUR.** Le
+  commit `618c8f5` (« les 13 branches périmées sont supprimées ») est **vrai en local, faux sur
+  le serveur** : `git branch --list 'feat/*' 'fix/*'` rend **0**, mais
+  `git ls-remote --heads origin` rend **13**, PR **mergées** (vérifié sur #98, #110, #102).
+  Sans gravité — mais **le dépôt porte un enregistrement faux**, et c'est ça le défaut.
+  **Parade** : `git push origin --delete <branche>`, puis `git fetch --prune`.
+  *Famille connue* : le piège `git branch -r` déjà consigné disait « la ref locale ment » ; ici
+  c'est l'inverse — **la suppression locale ne touche pas le serveur**, et aucun contrôle par
+  `git branch` ne peut le voir.
+
+#### ▶ PROCHAIN PAS
+
+🔴 **DEUX commits, dans cet ordre — ils ne vont pas sur la même ref.**
+
+1. **Lot `main`** (l'humain committe, après vérification) : `adr-0015-addendum-fiche-de-massimo.md`
+   + `DECISIONS.md` + `MEMORY.md` + `TROUBLESHOOTING.md`.
+2. **Puis `/ouverture`** → crée `feat/fiche-de-massimo`. ⚠️ **Elle s'arrête si `DECISIONS.md` est
+   encore modifié** — d'où l'ordre.
+3. **Lot branche** : `page-fiches.md` + `mockup-fiche-de-massimo.html`.
+4. Puis `/slice` sur la **slice 1**, volontairement minuscule : **une notion**, **une seule
+   section** (`points_cles`), échafaudage « je choisis » (12 phrases → 5, **aucune écriture**),
+   `recopie` seul, `FicheDraft` + reprise, → cartes SRS.
+
+**Contrainte qui prime sur tout le reste** : *la première fiche que Massimo fabrique doit prendre
+**moins de 5 minutes** et produire quelque chose qu'il ait envie de garder.*
+⚠️ **Le risque n'est pas technique, il est motivationnel.**
+
 ### ✅ CHANTIER MERGÉ — le titre de page cesse d'être seul au bord (PR #121, squash `ced50a2`)
 
 **Base `618c8f5`.** **Branche `fix/accueil-titre-coupe` supprimée** (locale **et** serveur),
