@@ -6,10 +6,16 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — slice 3 : le pont SRS et les pièges (addendum ADR-0015 §13)
+### ✅ CHANTIER MERGÉ — slice 3 : le pont SRS et les pièges (PR #124, squash `9cda7b5`)
 
-Branche **`feat/fiche-de-massimo-slice-3`**, base **`4a20d70`**. L'état commité se lit par
-`git log --oneline main..HEAD` — au moment d'écrire, la clôture n'était pas encore commitée.
+Base **`4a20d70`**. Branche **`feat/fiche-de-massimo-slice-3`** supprimée (locale **et** serveur),
+`main == origin/main`, **rien à pousser**, arbre propre — les quatre vérifiés par commande le
+2026-08-13, étape 4bis faite dans la foulée. **24 fichiers, +1 788 / −223.**
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la HUITIÈME fois**, sur huit merges
+> consécutifs — **trois le même jour**. `git ls-remote --heads origin` ne rendait que `main`
+> quand `git branch -r` listait encore la branche ; `git fetch --prune` l'a élaguée. Le réflexe
+> ne s'automatise pas, et le savoir ne suffit pas à l'éviter.
 
 > **Le besoin, en une phrase** : ses définitions ne servaient à rien après la fiche. Elles
 > deviennent ses **cartes de révision** — recto le terme de ZETIS, verso *sa* phrase. Et ZETIS
@@ -119,25 +125,30 @@ l'**extraction du patron plein écran**.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **fini** — il ne reste que le geste git, qui est celui du commanditaire :
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #124, squash `9cda7b5`), branche
+supprimée des deux côtés, étape 4bis faite dans la foulée. Arbre propre, chaque fait revérifié.
 
-1. **Vérifier** le diff et relancer les suites (`WORKFLOW.md §2.4`).
-2. **Commit → push → PR → merge**, puis l'étape **4bis**.
-3. **En prod** : `e5f6a7b8c9d4` ne se pose qu'**après le merge**. ⚠️ Elle contient un `DELETE`
-   (dédoublonnage) — **no-op mesuré en dev, la prod n'a pas été mesurée**. Variable
-   `ZETIS_DATABASE_URL`, `DATABASE_URL` est **ignorée en silence**.
-4. **Refaire une fiche AVEC des définitions, sur un iPhone** — `finish` a désormais été exercé
-   en vrai (fiche 42), mais sans définition : le pont n'a donc rien eu à ponter. Une fiche qui en
-   porte lève **trois** dettes d'un coup — le glisser au doigt, le tap sur un piège, et le pont
-   vers les cartes.
+1. 🔴 **Faire une fiche AVEC des définitions, sur un iPhone.** C'est LA vérification qui reste, et
+   elle lève **trois** dettes d'un seul essai : le **pont** (jamais tourné en vrai), le **glisser
+   au doigt** (ouvert depuis la slice 1) et le **tap sur un piège**. `finish` a bien été exercé en
+   vrai le 2026-08-13 — mais sur une fiche **sans aucune définition**, donc le pont n'a rien eu à
+   ponter et son bouton est resté inerte. La paire LAN est prévue pour ça (`backend-lan` +
+   `massimo-lan`, `.claude/launch.json` — l'URL s'affiche au lancement).
+2. **En prod** : `e5f6a7b8c9d4` peut maintenant être posée — elle est sur `main`. ⚠️ Elle contient
+   un `DELETE` de dédoublonnage — **no-op mesuré en dev, la prod n'a PAS été mesurée** : compter
+   les conflits avant de la lancer. Variable `ZETIS_DATABASE_URL`, `DATABASE_URL` est **ignorée en
+   silence**.
+3. **Slice 4** : `mini_exemple`, `mnemonique` (§10), `absent_du_cours`, l'enrichissement des fiches
+   existantes (§11), la surface Papa de lecture.
 
-#### 🔴 LE PIÈGE DE CE CHANTIER — armé sur la base de dev
+#### ✅ LE PIÈGE DE CE CHANTIER EST REFERMÉ
 
-La migration `e5f6a7b8c9d4` **est posée sur la base de dev**. Revenir sur `main` et lancer
-`pnpm dev` fait échouer Alembic au démarrage.
+La migration `e5f6a7b8c9d4` était posée sur la base de dev **avant** d'être sur `main`. **Depuis
+le merge, `main` la porte** : `pnpm dev` va bien, il n'y a plus rien à contourner.
 
-- **Repli** : `alembic downgrade d4e5f6a7b8c3` (tête de `main`), ou **`pnpm dev:back`** ;
-- 🔴 **jamais `pnpm prod:up` depuis cette branche**.
+> Le patron reste vrai pour le chantier suivant : une migration posée en dev depuis une branche
+> non mergée arme ce piège ; le repli est `alembic downgrade <tête de main>` ou `pnpm dev:back`,
+> et **jamais `pnpm prod:up` depuis une branche non mergée**.
 
 ⚠️ **Ce qui tourne à la clôture** : l'infra Docker, **et la paire LAN** (`backend-lan` :8004 +
 `massimo-lan` :5180) — laissée EXPRÈS allumée pour l'essai iPhone. *La bonne question à la reprise

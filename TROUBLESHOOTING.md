@@ -307,10 +307,11 @@ Il retirerait `faster-whisper`, `ctranslate2`, `piper-tts` et `onnxruntime` — 
 
 ### ⚠️ `git branch -r` ment après un `--delete-branch`
 
-Il lit les références de suivi **locales**. Le piège s'est rejoué **sept fois sur sept merges** —
+Il lit les références de suivi **locales**. Le piège s'est rejoué **huit fois sur huit merges** —
 la sixième au merge de la PR #122, le jour même où cette entrée était écrite, et la **septième au
 merge de la PR #123 quelques heures plus tard**, alors que l'entrée annonçait explicitement qu'il
-se rejouerait. C'est le comportement **normal** de la commande : le réflexe ne s'automatise pas,
+se rejouerait — puis la **huitième au merge de la PR #124, le même jour**. Trois fois en une
+journée, sur une entrée qui décrit le piège en toutes lettres. C'est le comportement **normal** de la commande : le réflexe ne s'automatise pas,
 et le savoir ne suffit pas à l'éviter — seule la commande qui interroge le serveur le fait.
 
 **Parade** : `git ls-remote --heads origin` interroge le serveur ; `git fetch --prune` élague.
