@@ -6037,11 +6037,17 @@ commit `618c8f5` annonce « les 13 branches périmées sont supprimées ». Mesu
 | `git ls-remote --heads origin` (hors `main`) | **13** — elles sont toutes là |
 | `gh pr list --head <b> --state all` (#98, #110, #102) | **MERGED** |
 
-Sans gravité fonctionnelle, mais **le dépôt porte un enregistrement faux**, et c'est le défaut :
-une clôture suivante lira « supprimées » et ne recomptera pas.
+Sans gravité fonctionnelle, mais **le dépôt portait un enregistrement faux**, et c'est le défaut :
+une clôture suivante aurait lu « supprimées » et n'aurait pas recompté.
 
 **Parade** : `git push origin --delete <branche>` (ou `--delete-branch` sur `gh pr merge`), puis
 `git fetch --prune`. Contrôle : `git ls-remote --heads origin`, **jamais** `git branch`.
+
+✅ **Soldé le 2026-08-13** : les 13 supprimées du serveur, `git ls-remote` rend `main` seul.
+**Contrôle appliqué avant de supprimer, plus fort que « la PR est mergée »** — pour chacune, la
+**tête distante** devait être exactement le `headRefOid` que GitHub avait mergé (13/13 conformes,
+0 refusée). Une branche dont la tête distante s'écarte du `headRefOid` porte un commit poussé
+**jamais fusionné** : la supprimer le perdrait, et `state: MERGED` ne l'aurait pas dit.
 
 ⚠️ **C'est l'inverse du piège déjà consigné** — celui-là dit que `git branch -r` **ment en
 affirmant qu'une branche existe** (ref de suivi périmée). Ici la suppression locale est réelle et

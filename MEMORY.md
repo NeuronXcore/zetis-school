@@ -93,15 +93,19 @@ La catégorie existait déjà — « productions de Massimo » est une classe de
 - ⚠️ **`DATA_MODEL.md` et `API_SPEC.md` NON touchés, délibérément** : l'addendum **décide** des
   colonnes (`author`, `student_id`, `version`, `personal`) et **7 endpoints**, mais rien n'existe.
   Ils s'écriront **à l'implémentation**, pas au cadrage.
-- 🔴 **TROUVÉ EN VÉRIFIANT — les 13 branches « supprimées » sont TOUJOURS SUR LE SERVEUR.** Le
-  commit `618c8f5` (« les 13 branches périmées sont supprimées ») est **vrai en local, faux sur
-  le serveur** : `git branch --list 'feat/*' 'fix/*'` rend **0**, mais
-  `git ls-remote --heads origin` rend **13**, PR **mergées** (vérifié sur #98, #110, #102).
-  Sans gravité — mais **le dépôt porte un enregistrement faux**, et c'est ça le défaut.
-  **Parade** : `git push origin --delete <branche>`, puis `git fetch --prune`.
-  *Famille connue* : le piège `git branch -r` déjà consigné disait « la ref locale ment » ; ici
-  c'est l'inverse — **la suppression locale ne touche pas le serveur**, et aucun contrôle par
-  `git branch` ne peut le voir.
+- ✅ **SOLDÉ le 2026-08-13 — les 13 branches sont supprimées DU SERVEUR.** Trouvé en vérifiant les
+  faits de cette clôture : le commit `618c8f5` (« les 13 branches périmées sont supprimées ») était
+  **vrai en local, faux sur le serveur** — `git branch --list 'feat/*' 'fix/*'` rendait **0**, mais
+  `git ls-remote --heads origin` rendait **13**, toutes de PR mergées. **Le dépôt portait un
+  enregistrement faux**, et c'était ça le défaut.
+  **Contrôle avant suppression, plus fort que « la PR est mergée »** : pour chacune des 13, la
+  **tête distante** était exactement le `headRefOid` que GitHub avait mergé — aucune ne portait de
+  commit resté sur le serveur et jamais fusionné. Les 13 SHA sont dans le message de commit ;
+  `git reflog` et les PR #98–#110 les gardent.
+  **Après** : `git ls-remote --heads origin` rend **`main` seul**, `git branch -r` rend 0 hors
+  `main`, `main` intact à `df2ba1b`.
+  ⚠️ *Le piège reste vrai et se rejouera* : la suppression locale ne touche pas le serveur, et
+  **aucun contrôle par `git branch` ne peut le voir** — seul `git ls-remote` tranche.
 
 #### ▶ PROCHAIN PAS
 
