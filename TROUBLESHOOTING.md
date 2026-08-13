@@ -30,6 +30,26 @@ propre démontage (`annule` déjà vrai, donc jetées) pendant que le **second**
 rien redemander. `setDetail` passait — il arrive avant le démontage — les candidates non :
 **l'accordéon s'affichait, entièrement creux**, API parfaitement fonctionnelle derrière.
 
+🔴 **Et ce n'était PAS un défaut d'affichage — il DÉTRUISAIT du travail.** Constaté en base le
+même jour, après le correctif : la version 2 d'une fiche, née d'un `rework` qui **copie** le spec,
+était **entièrement vide** (`essentiel: null`, `points_cles: []`) alors que sa version 1 portait
+son contenu. Le mécanisme :
+
+```
+la page charge → l'état est jeté → les refs de contenu restent VIDES
+un geste, n'importe lequel → persister() écrit DEPUIS LES REFS
+→ le vide est sauvegardé par-dessus le travail
+```
+
+`...detail.draft` était bien étalé en premier dans le payload, mais les quatre clés de contenu
+étaient ensuite écrasées par les refs vides. **Un défaut de chargement qui déclenche une écriture
+est une perte de données, pas un problème d'écran** — et c'est le genre de chose qu'on classe à
+tort en cosmétique parce que le symptôme visible est un blanc.
+
+⚠️ **Ce qui a sauvé la mise, c'est le §7** : rouvrir une fiche finie crée une **nouvelle version**
+au lieu d'écraser. La version 1 est restée intacte et lisible. Une reprise « en place » sur
+l'objet fini aurait détruit le seul exemplaire.
+
 **Parade** — deux, et il faut les deux :
 - **mémoriser la PROMESSE, pas un drapeau** : les deux montages attendent le même appel, un seul
   POST, et le survivant remplit l'état ;
