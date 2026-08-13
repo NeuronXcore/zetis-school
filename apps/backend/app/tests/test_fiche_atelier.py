@@ -11,14 +11,16 @@ déterministe (règle 7 — ZETIS n'écrit jamais dans la fiche à la place de M
 """
 
 import re
+from unittest.mock import patch
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import false as sa_false, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Fiche
 from app.modules.eli5.service import get_default_student
 from app.modules.fiches import atelier, service
-from app.modules.fiches.population import STATUS_DRAFT, STATUS_PERSONAL
+from app.modules.fiches.population import STATUS_DRAFT, STATUS_PERSONAL  # noqa: F401
 from app.modules.fiches.schemas import FicheDraft
 from app.tests.test_fiche_service import _seed_validated_lesson
 
@@ -66,6 +68,97 @@ def test_ouvrir_deux_fois_ne_fait_pas_deux_brouillons(client_db) -> None:
         second = _ouvrir(db, lesson.id)
         assert premier["id"] == second["id"]
         assert _nb_fiches_de_massimo(db) == 1
+
+
+def test_un_SECOND_brouillon_est_refuse_par_la_base(client_db) -> None:
+    """🔴 Constaté en base le 2026-08-13 : 4 brouillons pour 2 leçons.
+
+    StrictMode monte deux fois en dev (et un double-tap fait pareil en vrai) : les deux `POST
+    /draft` partaient ensemble, aucune transaction ne voyait l'autre, chacune créait le sien.
+    L'atelier lisait ensuite le brouillon rempli pendant que la tuile lisait le vide — Massimo
+    aurait vu son travail disparaître de sa liste.
+
+    Depuis `d4e5f6a7b8c3`, **la base refuse**. L'idempotence cesse d'être une intention du code.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        premier = _ouvrir(db, lesson.id)
+
+        db.add(
+            Fiche(
+                lesson_id=lesson.id,
+                spec_json={},
+                validation_status=STATUS_DRAFT,
+                author="massimo",
+                student_id=student.id,
+                source="manual",
+                version=1,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+
+        # …et le brouillon d'origine est intact.
+        assert atelier.open_or_get_draft(db, student_id=student.id, lesson_id=lesson.id)["id"] == (
+            premier["id"]
+        )
+
+
+def test_la_course_perdue_rend_le_brouillon_du_gagnant_pas_une_500(client_db) -> None:
+    """Interdire n'est pas gérer. Sans rattrapage, la SECONDE des deux ouvertures simultanées
+    renverrait une 500 à Massimo — alors qu'il a juste ouvert son atelier deux fois.
+
+    On simule la course en aveuglant la première lecture : le code croit qu'aucun brouillon
+    n'existe, tente l'insertion, se fait refuser par l'index, et doit alors retrouver celui de
+    l'autre.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        gagnant = _ouvrir(db, lesson.id)
+
+        reel = atelier.draft_of_student
+        appels = {"n": 0}
+
+        def _aveugle_une_fois(sid, lid):
+            appels["n"] += 1
+            return sa_false() if appels["n"] == 1 else reel(sid, lid)
+
+        with patch.object(atelier, "draft_of_student", _aveugle_une_fois):
+            perdant = atelier.open_or_get_draft(
+                db, student_id=student.id, lesson_id=lesson.id
+            )
+
+        assert appels["n"] == 2  # la lecture a bien été rejouée après le refus
+        assert perdant["id"] == gagnant["id"]
+
+
+def test_tous_les_lecteurs_designent_le_MEME_brouillon(client_db) -> None:
+    """L'ordre stable reste, en ceinture : l'index empêche le doublon de naître, l'ordre garantit
+    que l'atelier et la tuile désignent le même objet quoi qu'il arrive."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        premier = _ouvrir(db, lesson.id)
+        atelier.patch_draft(
+            db,
+            draft_id=premier["id"],
+            student_id=student.id,
+            draft=FicheDraft(**{**premier["draft"], "essentiel": "Mon travail."}),
+        )
+
+        tuile = next(
+            t
+            for t in service.subject_fiche_tiles(db, "mathematiques")
+            if t["lesson_id"] == lesson.id
+        )
+        assert tuile["draft_id"] == premier["id"]
+        assert tuile["etapes_remplies"] == 1  # l'essentiel est bien vu
 
 
 def test_il_ferme_il_revient_il_retrouve_son_etat(client_db) -> None:
@@ -329,9 +422,365 @@ def test_un_cours_tout_en_discours_propose_quand_meme_quelque_chose(client_db) -
     assert len(atelier._phrases_du_cours(tout_discours)) >= 5
 
 
-def test_seul_points_cles_se_choisit(client_db) -> None:
-    """`essentiel` est une SYNTHÈSE : par définition absente du cours, donc aucune phrase
-    candidate ne peut la porter (§8). Le refus est explicite, pas une liste vide."""
+def test_essentiel_n_offre_aucune_candidate_mais_une_amorce(client_db) -> None:
+    """⚠️ **Comportement CHANGÉ en slice 2**, à dessein. En slice 1, `essentiel` renvoyait 400 —
+    la section n'existait pas encore. Le raisonnement, lui, n'a pas bougé : `essentiel` est une
+    **synthèse**, absente du cours par définition, donc aucune phrase candidate ne peut la porter
+    (§8). Ce qui change, c'est ce qu'on fait de ce vide : au lieu de refuser, on pose une
+    **amorce** — règle 1 des champs libres, la page blanche est ce qui fait recopier le cours.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=student.id, section="essentiel"
+        )
+        assert out["candidates"] == []  # rien à choisir, et c'est la décision
+        assert out["slots"] == 1
+        assert out["amorce"] and out["amorce"].endswith("c'est…")
+        # L'amorce parle de LA leçon, elle n'est pas un texte générique.
+        assert lesson.title in out["amorce"]
+
+
+def test_l_amorce_coupe_le_sous_titre_de_la_lecon(client_db) -> None:
+    """🔴 Vu à l'écran le 2026-08-13, invisible au test précédent qui utilisait un titre court.
+
+    Les titres du référentiel portent très souvent « Notion : précisions ». Collé tel quel à
+    « , c'est… », ça donne « La phrase complexe : juxtaposition et coordination, c'est… » —
+    illisible. Seule la TÊTE du titre est un groupe nominal qu'on peut suffixer.
+    """
+    assert (
+        atelier._amorce_essentiel("La phrase complexe : juxtaposition et coordination")
+        == "La phrase complexe, c'est…"
+    )
+    assert atelier._amorce_essentiel("Les séismes") == "Les séismes, c'est…"
+    # Un titre qui n'est QUE des précisions ne doit pas donner une amorce vide.
+    assert atelier._amorce_essentiel(": rien devant") == ": rien devant, c'est…"
+
+
+# ── Slice 2 : les deux sections qui s'ÉCRIVENT ─────────────────────────────────
+
+
+def test_les_termes_viennent_des_notions_PUIS_du_gras(client_db) -> None:
+    """L'ordre est un arbitrage (2026-08-13) : les **notions** portent le programme, le **gras**
+    complète — une leçon n'a souvent que deux ou trois notions alors que la fiche accepte quatre
+    définitions."""
+    _, Session = client_db
+    with Session() as db:
+        cours = (
+            "Un séisme casse les roches en profondeur.\n"
+            "L'**épicentre** est le point situé à la surface.\n"
+            "La **magnitude** mesure l'énergie libérée.\n"
+        )
+        lesson = _seed_validated_lesson(db, content=cours)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=student.id, section="definitions"
+        )
+        termes = [c["texte"] for c in out["candidates"]]
+        assert termes[0] == "Nombres relatifs"  # la notion de la leçon, en premier
+        assert "épicentre" in termes and "magnitude" in termes  # le gras, ensuite
+        assert out["slots"] == len(termes)
+
+
+def test_un_terme_trop_long_est_ecarte_A_LA_SOURCE(client_db) -> None:
+    """🔴 `Skill.name` accepte 160 caractères, `FicheDefinition.terme` en accepte 80. Un terme
+    trop long proposé ferait échouer la validation **au `finish`** — donc APRÈS que Massimo a
+    écrit sa définition. Le défaut serait tardif, invisible pendant tout le travail, et injuste.
+    """
+    _, Session = client_db
+    with Session() as db:
+        trop_long = "mot " * 30  # 120 caractères
+        lesson = _seed_validated_lesson(db, content=f"Une phrase. Un **{trop_long}** ici.\n")
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=student.id, section="definitions"
+        )
+        for c in out["candidates"]:
+            assert len(c["texte"]) <= 80, c["texte"]
+
+
+def test_recopie_ne_se_declenche_JAMAIS_sur_les_points_cles(client_db) -> None:
+    """🔴 Le verrou qui porte la décision de la slice 1, et qui doit survivre à la slice 2.
+
+    En mode « je choisis », les points-clés SONT des phrases du cours mot pour mot. Y appliquer
+    `recopie` dirait à Massimo que tout son travail est du copiage, alors qu'il a fait exactement
+    ce qu'on lui demandait.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS_REEL)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+        # Cinq phrases prises MOT POUR MOT dans le cours.
+        copiees = atelier._phrases_du_cours(_COURS_REEL)[:5]
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(**{**brouillon["draft"], "points_cles": copiees}),
+        )
+
+        retour = atelier.review_draft(db, draft_id=brouillon["id"], student_id=student.id)
+        assert retour["remarques"] == [], retour["remarques"]
+
+
+def test_recopie_se_declenche_sur_un_essentiel_recopie(client_db) -> None:
+    """Le signal le plus important pédagogiquement, et le moins cher : déterministe, zéro LLM,
+    zéro faux positif. ZETIS ne dit pas « c'est faux », il dit « ces mots viennent de ton cours »
+    — c'est **vérifiable**."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS_REEL)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+        recopie = "Une proposition est un groupe de mots qui contient un verbe conjugué."
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(**{**brouillon["draft"], "essentiel": recopie}),
+        )
+
+        retour = atelier.review_draft(db, draft_id=brouillon["id"], student_id=student.id)
+        assert len(retour["remarques"]) == 1
+        r = retour["remarques"][0]
+        assert r["type"] == "recopie" and r["section"] == "essentiel"
+        assert "mot pour mot" in r["message"]
+        # La piste est une QUESTION, jamais la phrase corrigée : ZETIS rend le défaut visible,
+        # il ne fournit pas la formulation (règle 7).
+        assert r["piste"].endswith("?")
+        assert recopie not in r["piste"]
+        # 🔴 ZETIS cite le texte DE MASSIMO, pas la forme normalisée qu'il compare en interne.
+        # Vu à l'écran le 2026-08-13 : il lui renvoyait sa phrase en minuscules, sans ponctuation
+        # — il ne s'y reconnaissait pas, et la remarque parlait de quelqu'un d'autre.
+        assert "Une proposition est un groupe" in r["message"]
+
+
+def test_un_essentiel_ecrit_avec_ses_mots_est_NOMME_comme_reussite(client_db) -> None:
+    """Règle 2 du §5 : nommer d'abord une réussite, et précisément. `essentiel` est la section la
+    plus difficile des six — la réussir mérite d'être dit, pas un « bravo » générique."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS_REEL)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(
+                **{
+                    **brouillon["draft"],
+                    "essentiel": "Quand deux idées tiennent dans une seule phrase, c'est complexe.",
+                }
+            ),
+        )
+
+        retour = atelier.review_draft(db, draft_id=brouillon["id"], student_id=student.id)
+        assert retour["remarques"] == []
+        assert any("tes mots" in r for r in retour["reussites"])
+        assert not any("bravo" in r.lower() for r in retour["reussites"])
+
+
+def test_le_retour_ne_depasse_JAMAIS_deux_remarques(client_db) -> None:
+    """Sept remarques ne sont pas de l'aide, c'est un bulletin — et un enfant abandonne. La borne
+    est dure côté serveur, pas une consigne d'écran."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS_REEL)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+        phrases = atelier._phrases_du_cours(_COURS_REEL)
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(
+                **{
+                    **brouillon["draft"],
+                    "essentiel": phrases[0],
+                    "definitions": [
+                        {"terme": f"mot {i}", "definition": p} for i, p in enumerate(phrases[1:4])
+                    ],
+                }
+            ),
+        )
+
+        retour = atelier.review_draft(db, draft_id=brouillon["id"], student_id=student.id)
+        assert len(retour["remarques"]) <= 2
+        assert 1 <= len(retour["reussites"]) <= 2
+
+
+# ── L'écran 2 : une tuile par LEÇON, quatre états ──────────────────────────────
+
+
+def _fiche_de_massimo(db, lesson_id: int, student_id: int) -> Fiche:
+    """Une fiche personnelle FINIE — l'état que `finish_draft` produit."""
+    row = Fiche(
+        lesson_id=lesson_id,
+        spec_json={
+            "title": "T",
+            "subject": "M",
+            "level": "4e",
+            "essentiel": "La sienne.",
+            "definitions": [],
+            "points_cles": [],
+            "erreurs_a_eviter": [],
+        },
+        validation_status=STATUS_PERSONAL,
+        author="massimo",
+        student_id=student_id,
+        source="manual",
+        version=1,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _fiche_zetis(db, lesson_id: int, *, status: str) -> Fiche:
+    row = Fiche(
+        lesson_id=lesson_id,
+        spec_json={
+            "title": "T",
+            "subject": "M",
+            "level": "4e",
+            "essentiel": "Celle de ZETIS.",
+            "definitions": [],
+            "points_cles": [],
+            "erreurs_a_eviter": [],
+        },
+        validation_status=status,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _lecon_soeur(db, modele, titre: str, *, content: str | None = _COURS):
+    """Une seconde leçon dans le MÊME chapitre — sans recréer une année active."""
+    from app.db.models import Lesson
+
+    l = Lesson(
+        chapter_id=modele.chapter_id,
+        title=titre,
+        status="validated",
+        created_by="ai",
+        content_markdown=content,
+        program_version="2020",
+        sort_order=modele.sort_order + 1,
+    )
+    db.add(l)
+    db.commit()
+    db.refresh(l)
+    return l
+
+
+def test_les_quatre_etats_de_l_ecran_2(client_db) -> None:
+    """🔴 Ce que la liste fiche-centrée ne pouvait PAS montrer : un travail commencé et une leçon
+    à fabriquer. Sans ces deux états, une fiche interrompue était perdue de vue — alors que le
+    serveur la gardait parfaitement. Constaté à l'usage le 2026-08-13."""
+    _, Session = client_db
+    with Session() as db:
+        a = _seed_validated_lesson(db, content=_COURS)  # → commencée
+        b = _lecon_soeur(db, a, "Leçon finie")  # → ma_fiche
+        c = _lecon_soeur(db, a, "Leçon ZETIS")  # → zetis
+        d = _lecon_soeur(db, a, "Leçon vierge")  # → à fabriquer
+        student = get_default_student(db)
+
+        atelier.open_or_get_draft(db, student_id=student.id, lesson_id=a.id)
+        fini = _fiche_de_massimo(db, b.id, student.id)
+        _fiche_zetis(db, c.id, status="validated")
+
+        par_lecon = {t["lesson_id"]: t for t in service.subject_fiche_tiles(db, "mathematiques")}
+        assert par_lecon[a.id]["etat"] == "commencee"
+        assert par_lecon[a.id]["draft_id"] is not None
+        assert par_lecon[b.id]["etat"] == "ma_fiche"
+        assert par_lecon[b.id]["fiche_id"] == fini.id
+        assert par_lecon[c.id]["etat"] == "zetis"
+        assert par_lecon[d.id]["etat"] == "a_fabriquer"
+
+
+def test_un_brouillon_passe_AVANT_une_fiche_finie(client_db) -> None:
+    """§7 : s'il a rouvert sa fiche pour la retravailler, c'est CE travail qu'il veut reprendre —
+    pas relire la version précédente. L'ordre de priorité n'est pas arbitraire."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        brouillon = atelier.open_or_get_draft(db, student_id=student.id, lesson_id=lesson.id)
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(**{**brouillon["draft"], "essentiel": "Version 1."}),
+        )
+        v1 = atelier.finish_draft(db, draft_id=brouillon["id"], student_id=student.id)
+        atelier.rework(db, fiche_id=v1["id"], student_id=student.id)  # une v2 est en cours
+
+        tuile = next(
+            t for t in service.subject_fiche_tiles(db, "mathematiques") if t["lesson_id"] == lesson.id
+        )
+        assert tuile["etat"] == "commencee"
+        assert tuile["versions"] == 1  # la v1 finie existe toujours
+
+
+def test_une_lecon_sans_cours_NI_fiche_n_apparait_pas(client_db) -> None:
+    """Montrer une tuile qui ne s'ouvre sur rien serait une porte peinte sur un mur."""
+    _, Session = client_db
+    with Session() as db:
+        a = _seed_validated_lesson(db, content=_COURS)
+        vide = _lecon_soeur(db, a, "Rien du tout", content=None)
+
+        ids = {t["lesson_id"] for t in service.subject_fiche_tiles(db, "mathematiques")}
+        assert a.id in ids
+        assert vide.id not in ids
+
+
+def test_le_corrige_ZETIS_reste_a_un_clic_meme_quand_il_a_sa_fiche(client_db) -> None:
+    """§3 révisé : rien n'est verrouillé. Ce qui change, c'est ce qui s'ouvre EN PREMIER."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        sienne = _fiche_de_massimo(db, lesson.id, student.id)
+        zetis = _fiche_zetis(db, lesson.id, status="validated")
+
+        tuile = next(
+            t for t in service.subject_fiche_tiles(db, "mathematiques") if t["lesson_id"] == lesson.id
+        )
+        assert tuile["etat"] == "ma_fiche"
+        assert tuile["fiche_id"] == sienne.id  # la SIENNE s'ouvre en premier
+        assert tuile["zetis_fiche_id"] == zetis.id  # le corrigé reste accessible
+
+
+def test_la_dictee_refuse_le_brouillon_d_un_autre(client_db) -> None:
+    """La dictée ne renvoie que du texte — mais elle consomme du Whisper local et laisse une
+    trace `ai_jobs`. La faire sur le brouillon d'un autre n'aurait aucun sens."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        brouillon = _ouvrir(db, lesson.id)
+        autre = get_default_student(db).id + 1
+
+        with pytest.raises(Exception) as err:
+            atelier.assert_draft_is_mine(db, draft_id=brouillon["id"], student_id=autre)
+        assert getattr(err.value, "status_code", None) == 404
+
+
+def test_une_section_non_implementee_refuse_explicitement(client_db) -> None:
+    """Refuser en nommant la section vaut mieux qu'une liste vide, qui se lirait
+    « il n'y a rien à retenir ici »."""
     _, Session = client_db
     with Session() as db:
         lesson = _seed_validated_lesson(db, content=_COURS)
@@ -340,7 +789,7 @@ def test_seul_points_cles_se_choisit(client_db) -> None:
 
         with pytest.raises(Exception) as err:
             atelier.candidates(
-                db, draft_id=brouillon["id"], student_id=student.id, section="essentiel"
+                db, draft_id=brouillon["id"], student_id=student.id, section="mnemonique"
             )
         assert getattr(err.value, "status_code", None) == 400
 
@@ -438,7 +887,12 @@ def test_une_reussite_nomme_ce_que_le_cours_met_en_gras(client_db) -> None:
 
 
 def test_regarder_une_fiche_vide_invite_au_lieu_de_planter(client_db) -> None:
-    """Le refus doit rester une invitation : « choisis au moins une idée, et je regarde »."""
+    """Le refus doit rester une invitation, jamais une erreur.
+
+    ⚠️ **Libellé CHANGÉ en slice 2** : « choisis au moins une idée » est devenu faux, puisqu'on
+    peut maintenant commencer en **écrivant** (`essentiel`, `definitions`) et pas seulement en
+    choisissant. Le comportement, lui, n'a pas bougé : 409 tant que rien n'est rempli.
+    """
     _, Session = client_db
     with Session() as db:
         lesson = _seed_validated_lesson(db, content=_COURS)
@@ -448,7 +902,7 @@ def test_regarder_une_fiche_vide_invite_au_lieu_de_planter(client_db) -> None:
         with pytest.raises(Exception) as err:
             atelier.review_draft(db, draft_id=brouillon["id"], student_id=student.id)
         assert getattr(err.value, "status_code", None) == 409
-        assert "au moins une idée" in err.value.detail
+        assert "Commence par quelque chose" in err.value.detail
 
 
 def test_le_corrige_s_ouvre_sans_condition_de_tentative(client_db) -> None:

@@ -21,9 +21,10 @@ import re
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Chapter, Fiche, Lesson
+from app.db.models import Chapter, Fiche, Lesson, LessonSkill, Skill
 from app.modules.fiches.population import (
     AUTHOR_MASSIMO,
     STATUS_DRAFT,
@@ -31,7 +32,9 @@ from app.modules.fiches.population import (
     draft_of_student,
 )
 from app.modules.fiches.schemas import (
+    MAX_DEFINITIONS,
     MAX_POINTS_CLES,
+    MAX_TERME,
     FicheDraft,
     FicheSpec,
 )
@@ -71,6 +74,15 @@ def _mine_or_404(db: Session, fiche_id: int, student_id: int, *, statuses: tuple
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Fiche introuvable.")
     return row
+
+
+def assert_draft_is_mine(db: Session, *, draft_id: int, student_id: int) -> None:
+    """404 si ce brouillon n'est pas le sien. Utile aux routes qui ne lisent pas la pièce.
+
+    La dictée en a besoin : elle ne renvoie que du texte, mais elle consomme du calcul local et
+    laisse une trace `ai_jobs` — la faire sur le brouillon d'un autre n'aurait aucun sens.
+    """
+    _mine_or_404(db, draft_id, student_id, statuses=(STATUS_DRAFT,))
 
 
 def _context(db: Session, lesson: Lesson) -> dict:
@@ -113,7 +125,17 @@ def open_or_get_draft(db: Session, *, student_id: int, lesson_id: int) -> dict:
     l'atelier deux fois de suite, ou depuis deux entrées différentes (la tuile, ou le cours).
     """
     lesson = _lesson_or_404(db, lesson_id)
-    existing = db.scalar(select(Fiche).where(draft_of_student(student_id, lesson_id)))
+    # 🔴 `ORDER BY id` n'est pas cosmétique. Sans lui, `db.scalar` rend une ligne ARBITRAIRE dès
+    # qu'il en existe plusieurs — et il en existe : deux ouvertures simultanées (StrictMode monte
+    # deux fois en dev, et un double-tap fait pareil en vrai) créent deux brouillons, aucune des
+    # deux requêtes ne voyant l'autre. Constaté en base le 2026-08-13 : 4 brouillons pour 2
+    # leçons, l'atelier lisant le rempli pendant que la tuile lisait le vide.
+    #
+    # L'ordre stable fait au moins que **tous les lecteurs voient le même**. La création en double
+    # reste possible tant qu'aucun index unique ne l'interdit — dette nommée.
+    existing = db.scalar(
+        select(Fiche).where(draft_of_student(student_id, lesson_id)).order_by(Fiche.id)
+    )
     if existing is not None:
         return _draft_out(db, existing)
 
@@ -145,7 +167,21 @@ def open_or_get_draft(db: Session, *, student_id: int, lesson_id: int) -> dict:
         version=(deja or 0) + 1,
     )
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 🔴 L'AUTRE moitié de l'idempotence. L'index unique `uq_fiches_brouillon_par_lecon`
+        # interdit désormais le doublon — mais interdire n'est pas gérer : sans ce rattrapage,
+        # la seconde des deux ouvertures simultanées rendrait une **500** à Massimo alors qu'il
+        # a simplement ouvert son atelier deux fois. On rejoue la lecture : l'autre transaction
+        # a gagné, son brouillon est le bon, et il est le sien.
+        db.rollback()
+        gagnant = db.scalar(
+            select(Fiche).where(draft_of_student(student_id, lesson_id)).order_by(Fiche.id)
+        )
+        if gagnant is None:  # pragma: no cover — l'index a mordu pour une autre raison
+            raise
+        return _draft_out(db, gagnant)
     db.refresh(row)
     return _draft_out(db, row)
 
@@ -198,7 +234,11 @@ def rework(db: Session, *, fiche_id: int, student_id: int) -> dict:
     « sait-il ce qui compte » plutôt que « sait-il répondre ». L'écraser la détruirait.
     """
     ancienne = _mine_or_404(db, fiche_id, student_id, statuses=(STATUS_PERSONAL,))
-    en_cours = db.scalar(select(Fiche).where(draft_of_student(student_id, ancienne.lesson_id)))
+    en_cours = db.scalar(
+        select(Fiche)
+        .where(draft_of_student(student_id, ancienne.lesson_id))
+        .order_by(Fiche.id)  # même raison qu'`open_or_get_draft` : un ordre stable
+    )
     if en_cours is not None:
         # Il retravaillait déjà : on ne fabrique pas une seconde version en parallèle.
         return _draft_out(db, en_cours)
@@ -332,33 +372,74 @@ def _passages_en_gras(markdown: str) -> list[str]:
     return [" ".join(m.split()).lower() for m in re.findall(r"\*\*(.+?)\*\*", markdown)]
 
 
+def _mots_normalises(texte: str) -> list[str]:
+    """Mots en minuscules, sans ponctuation — la forme sur laquelle on compare."""
+    return re.findall(r"\w+", texte.lower())
+
+
+# Longueur de la suite de mots qui fait la preuve. Huit est un choix mesuré : en dessous, une
+# tournure banale (« il y a plusieurs types de ») suffirait à accuser Massimo de recopier ; au
+# dessus, une phrase reprise mais légèrement raccourcie passerait entre les mailles.
+_NGRAMME = 8
+
+
+def _passage_recopie(texte: str, cours: str) -> str | None:
+    """Le passage de `texte` repris MOT POUR MOT du cours, ou `None`. **Déterministe, 0 faux positif.**
+
+    C'est le signal le plus important pédagogiquement — la phrase recopiée est le mode d'échec du
+    résumé non entraîné — et c'est aussi le moins cher : ni LLM, ni jugement. On ne dit jamais
+    « c'est faux », on dit « ces mots viennent de ton cours ». C'est **vérifiable**.
+
+    ⚠️ Ne s'applique QU'AUX sections qui s'ÉCRIVENT. Sur `points_cles`, où Massimo **choisit**
+    des phrases du cours, il flaguerait les cinq — et lui dirait que tout son travail est du
+    copiage alors qu'il a fait exactement ce qu'on lui demandait.
+    """
+    # ⚠️ On compare sur la forme normalisée, mais on RENVOIE le texte d'origine. Vu à l'écran le
+    # 2026-08-13 : citer la forme normalisée renvoyait à Massimo sa propre phrase en minuscules et
+    # sans ponctuation — « …une proposition est un groupe de mots qui… ». Il doit se reconnaître
+    # dans ce que ZETIS lui cite, sinon la remarque parle de quelqu'un d'autre.
+    positions = list(re.finditer(r"\w+", texte))
+    if len(positions) < _NGRAMME:
+        return None
+    reference = " ".join(_mots_normalises(cours))
+    for i in range(len(positions) - _NGRAMME + 1):
+        fenetre = positions[i : i + _NGRAMME]
+        suite = " ".join(m.group(0).lower() for m in fenetre)
+        if suite in reference:
+            return texte[fenetre[0].start() : fenetre[-1].end()]
+    return None
+
+
 def review_draft(db: Session, *, draft_id: int, student_id: int) -> dict:
-    """« ZETIS, regarde ma fiche » — **en slice 1, des réussites, et rien d'autre.**
+    """« ZETIS, regarde ma fiche » — réussites d'abord, puis 2 remarques au maximum.
 
-    🔴 Pourquoi aucune remarque ici, alors que le périmètre annonçait `recopie` : en mode
-    « je choisis », les points-clés **sont** des phrases du cours, mot pour mot, par construction.
-    `recopie` flaguerait donc les cinq — ZETIS dirait à Massimo que tout son travail est du
-    copiage alors qu'il a fait exactement ce qu'on lui demandait. Le type n'a de sens qu'à partir
-    de la première section qui s'ÉCRIT (`essentiel`, slice 2) ; il y arrivera avec elle.
+    **Jamais pendant la frappe** : cette fonction ne tourne que sur demande. Un correcteur qui
+    commente chaque phrase au moment où elle sort est un évaluateur par-dessus l'épaule — l'enfant
+    cesse d'écrire, ou écrit pour plaire (§6).
 
-    Les réussites sont **précises et déterministes** — jamais « bravo ! », qui est du bruit. Trois
-    sources, dans cet ordre de valeur, et la dernière ne peut pas échouer : ce qu'il a retenu et
-    que son cours met en gras ; ce qu'il a retenu et que ZETIS avait retenu aussi ; et le tri
-    lui-même, qui est le travail visé.
+    Composition, et l'ordre compte : **une réussite d'abord, toujours** (règle 2 du §5 — le
+    compliment générique est du bruit, le précis est une information), puis **0 à 2 remarques**.
+    Sept remarques ne sont pas de l'aide, c'est un bulletin — et un enfant abandonne.
     """
     row = _mine_or_404(db, draft_id, student_id, statuses=(STATUS_DRAFT,))
     draft = FicheDraft.model_validate(row.spec_json or {})
     choisis = [p for p in draft.points_cles if p.strip()]
-    if not choisis:
+    essentiel = (draft.essentiel or "").strip()
+    definitions = [d for d in draft.definitions if (d.definition or "").strip()]
+
+    if not (choisis or essentiel or definitions):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="Choisis au moins une idée, et je regarde.",
+            detail="Commence par quelque chose — une idée, une phrase — et je regarde.",
         )
 
     lesson = db.get(Lesson, row.lesson_id)
+    cours = (lesson.content_markdown or "") if lesson else ""
     reussites: list[str] = []
+    remarques: list[dict] = []
 
-    gras = _passages_en_gras(lesson.content_markdown or "") if lesson else []
+    # ── Les réussites, par ordre de valeur ──────────────────────────────────────
+    gras = _passages_en_gras(cours)
     for phrase in choisis:
         cible = phrase.lower()
         if any(g and g in cible for g in gras):
@@ -367,6 +448,14 @@ def review_draft(db: Session, *, draft_id: int, student_id: int) -> dict:
                 "Tu as attrapé une des plus importantes."
             )
             break
+
+    if essentiel and not _passage_recopie(essentiel, cours):
+        # Écrire l'essentiel AVEC SES MOTS est l'acte le plus difficile des six : il ne se
+        # trouve nulle part dans le cours, il faut le fabriquer. Le nommer quand il est réussi.
+        reussites.append(
+            "Ton essentiel est écrit avec tes mots — c'est la partie la plus dure, "
+            "et tu l'as faite."
+        )
 
     if len(reussites) < 2:
         zetis = db.scalar(
@@ -386,14 +475,50 @@ def review_draft(db: Session, *, draft_id: int, student_id: int) -> dict:
                 )
                 break
 
-    if not reussites or len(reussites) < 2:
+    if not reussites:
         # Toujours vraie, donc jamais vide : c'est ce qui tient la borne `min_length=1`.
+        faits = len(choisis) + len(definitions) + (1 if essentiel else 0)
         reussites.append(
-            f"Tu as gardé {len(choisis)} idée{'s' if len(choisis) > 1 else ''} "
-            "et laissé les autres de côté. Choisir, c'est exactement le travail."
+            f"Tu as déjà rempli {faits} chose{'s' if faits > 1 else ''} sur ta fiche. "
+            "Elle existe, maintenant."
         )
 
-    return {"reussites": reussites[:2], "remarques": []}
+    # ── Les remarques : `recopie` seul, et seulement sur ce qui s'ÉCRIT ─────────
+    if essentiel:
+        passage = _passage_recopie(essentiel, cours)
+        if passage:
+            remarques.append(
+                {
+                    "section": "essentiel",
+                    "index": 0,
+                    "type": "recopie",
+                    "message": (
+                        f"« …{_extrait(passage, 70)}… » — ces mots viennent de ton cours, "
+                        "mot pour mot."
+                    ),
+                    "piste": "Tu peux le dire avec les tiens ?",
+                }
+            )
+
+    for i, d in enumerate(draft.definitions):
+        if len(remarques) >= 2:
+            break
+        texte = (d.definition or "").strip()
+        passage = _passage_recopie(texte, cours) if texte else None
+        if passage:
+            remarques.append(
+                {
+                    "section": "definitions",
+                    "index": i,
+                    "type": "recopie",
+                    "message": (
+                        f"Pour « {d.terme} », tu as repris la phrase du cours mot pour mot."
+                    ),
+                    "piste": "C'est quoi, avec tes mots à toi ?",
+                }
+            )
+
+    return {"reussites": reussites[:2], "remarques": remarques[:2]}
 
 
 def _extrait(phrase: str, largeur: int = 60) -> str:
@@ -412,25 +537,104 @@ def _se_recoupent(a: str, b: str, seuil: int = 4) -> bool:
     return len(mots(a) & mots(b)) >= seuil
 
 
-def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> dict:
-    """Les 12 phrases parmi lesquelles Massimo choisit, pour la section demandée.
+def _termes_de_la_lecon(db: Session, lesson: Lesson) -> list[str]:
+    """Les mots que ZETIS propose de définir — **notions d'abord, gras du cours ensuite**.
 
-    ⚠️ La slice 1 n'ouvre que `points_cles` : c'est la seule section qui se **choisit**.
-    `essentiel` ne peut pas se choisir — c'est une synthèse, par définition absente du cours,
-    donc aucune phrase candidate ne peut la porter (§8).
+    Deux sources, dans cet ordre voulu (arbitrage du 2026-08-13) : les **notions** rattachées à la
+    leçon sont le référentiel, elles portent le programme ; le **gras du cours** complète, parce
+    qu'une leçon n'en porte souvent que deux ou trois alors que la fiche en accepte quatre.
+
+    🔴 **Le bornage se fait ICI, à la source.** `Skill.name` accepte 160 caractères quand
+    `FicheDefinition.terme` en accepte 80 : proposer un terme trop long ferait échouer la
+    validation **au `finish`**, c'est-à-dire APRÈS que Massimo a écrit sa définition. Le défaut
+    serait tardif, invisible pendant tout le travail, et injuste. On écarte à l'entrée.
     """
-    if section != "points_cles":
+    notions = list(
+        db.scalars(
+            select(Skill.name)
+            .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+            .where(LessonSkill.lesson_id == lesson.id)
+            .order_by(Skill.id)
+        )
+    )
+    gras = re.findall(r"\*\*(.+?)\*\*", lesson.content_markdown or "")
+
+    termes: list[str] = []
+    vus: set[str] = set()
+    for brut in [*notions, *gras]:
+        terme = " ".join(brut.split()).strip(" .,:;—-")
+        if not terme or len(terme) > MAX_TERME:
+            continue
+        cle = terme.lower()
+        if cle in vus:
+            continue
+        vus.add(cle)
+        termes.append(terme)
+        if len(termes) >= MAX_DEFINITIONS:
+            break
+    return termes
+
+
+def _amorce_essentiel(titre: str) -> str:
+    """Le début de phrase posé dans le champ — règle 1 des champs libres (§9).
+
+    Une zone de saisie vide est ce qui fait recopier le cours : devant la page blanche, un élève
+    non entraîné copie. L'amorce ne dit rien du CONTENU — elle enlève seulement le premier pas,
+    et c'est pour ça qu'elle ne viole pas la règle 7.
+
+    ⚠️ **On coupe au sous-titre.** Les titres de leçon du référentiel portent très souvent la
+    forme « Notion : précisions » — vu à l'écran le 2026-08-13 sur « La phrase complexe :
+    juxtaposition et coordination », qui donnait une amorce illisible. Seule la tête du titre est
+    un groupe nominal qu'on peut suffixer par « , c'est… ».
+    """
+    tete = re.split(r"\s*[:—–]\s*", titre.strip(), maxsplit=1)[0].strip()
+    return f"{tete or titre.strip()}, c'est…"
+
+
+def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> dict:
+    """Ce que la section offre pour DÉMARRER — le tableau est dans `FicheCandidatesOut`.
+
+    Trois sections ouvertes (slices 1 et 2). Les autres **refusent explicitement** plutôt que de
+    rendre une liste vide, qui se lirait « il n'y a rien ici ».
+    """
+    if section not in ("points_cles", "definitions", "essentiel"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Seule la section « points_cles » se choisit à cette étape.",
+            detail=f"La section « {section} » ne se prépare pas à cette étape.",
         )
     row = _mine_or_404(db, draft_id, student_id, statuses=(STATUS_DRAFT,))
     lesson = _lesson_or_404(db, row.lesson_id)
+
+    if section == "essentiel":
+        # Aucune candidate, et ce n'est pas un manque : `essentiel` est une SYNTHÈSE, elle
+        # n'existe nulle part dans le cours. C'est la section la plus difficile des six, et la
+        # seule aide légitime est de ne pas laisser la page blanche.
+        return {
+            "section": "essentiel",
+            "candidates": [],
+            "slots": 1,
+            "amorce": _amorce_essentiel(lesson.title),
+        }
+
     if not lesson.content_markdown:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Ce cours n'est pas encore écrit : il n'y a rien à choisir dedans.",
         )
+
+    if section == "definitions":
+        termes = _termes_de_la_lecon(db, lesson)
+        if not termes:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="Je n'ai pas trouvé de mot à définir dans cette leçon.",
+            )
+        return {
+            "section": "definitions",
+            "candidates": [{"index": i, "texte": t} for i, t in enumerate(termes)],
+            "slots": len(termes),
+        }
+
     phrases = _phrases_du_cours(lesson.content_markdown)[:NB_CANDIDATES]
     return {
         "section": "points_cles",

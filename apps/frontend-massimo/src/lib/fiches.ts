@@ -2,7 +2,12 @@
 // Frontend pur : routes livrées par la slice A backend (module `fiches`). Contrats :
 // @zetis/types (`packages/types/src/fiche.ts`) — aucun type redéclaré ici. Le serveur ne
 // sert QUE des fiches `validated` (gate côté backend) : le client n'a aucune logique métier.
-import { type FicheDetail, type FicheListItem, type FichesSummary } from "@zetis/types";
+import {
+  type FicheDetail,
+  type FicheListItem,
+  type FichesSummary,
+  type FicheTile,
+} from "@zetis/types";
 import { notifyNewsChanged } from "./newsEvents";
 import { API_URL, authClient } from "./authClient";
 
@@ -34,6 +39,18 @@ export async function fetchFichesSummary(): Promise<FichesSummary> {
 export async function fetchSubjectFiches(slug: string): Promise<FicheListItem[]> {
   return asJson(
     await fetch(`${API_URL}/api/student/subjects/${slug}/fiches`, { headers: headers() }),
+  );
+}
+
+/** `GET /api/student/subjects/{slug}/fiche-tiles` — une tuile par LEÇON, avec son état.
+ *
+ * ⚠️ Route distincte de `fetchSubjectFiches` : celle-là est fiche-centrée et sert le
+ * feuilletage du deck de révision ; celle-ci est leçon-centrée et sert la fabrication — elle
+ * seule peut montrer un brouillon commencé ou une leçon encore vierge.
+ */
+export async function fetchSubjectFicheTiles(slug: string): Promise<FicheTile[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/subjects/${slug}/fiche-tiles`, { headers: headers() }),
   );
 }
 

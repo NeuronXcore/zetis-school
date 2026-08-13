@@ -635,17 +635,27 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
   fiches ZETIS validées **et** celles de Massimo : un deck où il n'a que les siennes n'est pas
   « bientôt ».
 - **GET `/api/student/subjects/{slug}/fiches`** — deck d'une matière (fiches lisibles, `seen`).
+- **GET `/api/student/subjects/{slug}/fiche-tiles`** → `list[FicheTile]`. **Une tuile par LEÇON**
+  (écran 2 de `page-fiches.md`), à quatre états : `commencee` · `ma_fiche` · `zetis` ·
+  `a_fabriquer`. ⚠️ **Route séparée, pas un élargissement de la précédente** : celle du dessus est
+  **fiche-centrée** et sert le deck de révision — contrat qu'on ne casse pas ; celle-ci est
+  **leçon-centrée** et doit montrer ce qui n'est *pas* encore une fiche. Sans elle, un travail
+  interrompu était **perdu de vue** alors que le serveur le gardait (constaté à l'usage le
+  2026-08-13). Une leçon sans cours **ni** fiche lisible est omise. Coût : **une** requête pour
+  toutes les fiches de la matière, jamais une par leçon.
 - **GET `/api/student/fiches/{id}`** — la fiche (spec complet) ; **404** si non lisible.
 - **POST `/api/student/fiches/{id}/seen`** — marque la fiche vue (retrait du badge « nouveau »).
   ⚠️ **Quatrième lecteur du gate**, oublié au cadrage : sans lui, ouvrir sa propre fiche renvoie
   404 et son badge « nouveau » ne part jamais.
 
-### L'atelier — la fiche que Massimo fabrique (addendum ADR-0015, slice 1)
+### L'atelier — la fiche que Massimo fabrique (addendum ADR-0015, slices 1 et 2)
 
-Toutes sous `/api/student`. **Aucun LLM** : la slice 1 est intégralement déterministe (règle 7 du
-§5 — *ZETIS n'écrit jamais dans la fiche à la place de Massimo*). L'appartenance est vérifiée
-côté serveur sur chaque route : une fiche personnelle n'a pas de cycle éditorial, donc rien
-d'autre ne la protège.
+Toutes sous `/api/student`. **Aucun LLM** — et toujours pas en slice 2 : phrases candidates,
+termes, amorce, détection de recopiage et retour de ZETIS sont **intégralement déterministes**
+(règle 7 du §5 — *ZETIS n'écrit jamais dans la fiche à la place de Massimo*). Seule la **dictée**
+appelle un modèle, Whisper, **en local**, et elle ne fait que rendre du texte.
+L'appartenance est vérifiée côté serveur sur chaque route : une fiche personnelle n'a pas de cycle
+éditorial, donc rien d'autre ne la protège.
 
 - **POST `/api/student/fiches/draft`** `{lesson_id}` → `FicheDraftOut`. Ouvre **ou retrouve** le
   brouillon d'une leçon. **Idempotent** : deux ouvertures ne font pas deux brouillons.
@@ -653,14 +663,31 @@ d'autre ne la protège.
   **partielle**, appelée à chaque geste — c'est elle qui tient « tout est gardé au fur et à
   mesure ». ⚠️ **Remplacement franc**, pas une fusion : une fusion rendrait impossible de **vider**
   un emplacement, ce qui est la moitié du geste « je choisis ».
-- **GET `/api/student/fiches/draft/{id}/candidates?section=points_cles`** → `FicheCandidatesOut`.
-  Les 12 phrases **tirées du cours**, déterministes et **stables d'une session à l'autre** (les
-  emplacements retenus renvoient à des index). **400** sur toute autre section : `essentiel` est
-  une synthèse, absente du cours par définition. **409** si le cours n'est pas écrit — dire
+- **GET `/api/student/fiches/draft/{id}/candidates?section=…`** → `FicheCandidatesOut`.
+  **Chaque section démarre autrement** — c'est le contrat de cette route :
+
+  | `section` | `candidates` | `amorce` | Mode d'auteur |
+  |---|---|---|---|
+  | `points_cles` | 12 phrases du cours, déterministes et **stables d'une session à l'autre** | — | il **choisit** |
+  | `definitions` | jusqu'à **4 termes** — les **notions** de la leçon, puis le **gras** du cours | — | ZETIS donne le mot, il **écrit** |
+  | `essentiel` | **aucune** | le début de phrase | il **écrit**, seul |
+
+  ⚠️ `essentiel` rend une **amorce et zéro candidate** — ce n'est pas un manque : une synthèse est
+  absente du cours par définition (§8). L'amorce est le titre de la leçon coupé à son premier
+  `:` / `—`, parce que la règle 1 des champs libres est *jamais de zone vide*. *(Avant la slice 2,
+  cette route répondait **400** sur `essentiel`.)* **409** si le cours n'est pas écrit — dire
   pourquoi plutôt que rendre une liste vide.
+- **POST `/api/student/fiches/draft/{id}/transcribe`** (multipart `file`) → `FicheTranscriptOut`
+  `{transcript, duration_seconds}`. La **dictée** — Whisper **local** (ADR-0012), `job_type =
+  fiche_transcribe`. Portée par le **brouillon** et non par une surface générique : c'est ce qui
+  fait vérifier l'appartenance avant de transcrire. ⚠️ **Le serveur ne remplit rien** — il rend du
+  texte, Massimo décide de le garder (règle 7). **413** au-delà de 25 Mo, **503** si la dépendance
+  optionnelle `[stt]` n'est pas installée (le micro est alors masqué côté écran).
 - **POST `/api/student/fiches/draft/{id}/review`** → `FicheFeedback`. « ZETIS, regarde ma fiche ».
-  **En slice 1 : 1 à 2 réussites, ZÉRO remarque** — en mode « je choisis », les points-clés *sont*
-  des phrases du cours, donc `recopie` flaguerait les cinq. **409** si rien n'est encore choisi.
+  **1 à 2 réussites** (jamais zéro) et **0 à 2 remarques** — la borne à 2 est ce qui empêche ZETIS
+  de devenir un correcteur au-dessus de l'épaule. ⚠️ `recopie` ne s'applique qu'aux sections qui
+  s'**écrivent** : sur `points_cles`, recopier *est* le geste demandé, et le signaler dirait à
+  Massimo que tout son travail est du copiage. **409** si rien n'est encore choisi.
 - **POST `/api/student/fiches/draft/{id}/finish`** → `FicheDraftOut`. `FicheDraft` → `FicheSpec` :
   le moment où la fiche existe. **422** si le schéma strict ne passe pas — la réponse **nomme les
   champs** manquants (`{message, champs}`), l'écran doit les traduire en langage d'enfant.

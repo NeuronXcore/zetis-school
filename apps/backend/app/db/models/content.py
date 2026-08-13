@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -63,6 +63,21 @@ class Fiche(Base, TimestampMixin):
     """
 
     __tablename__ = "fiches"
+    # ⚠️ Index PARTIEL, et il ne peut pas en être autrement : `student_id` est renseigné sur
+    # TOUTES les fiches personnelles — brouillons et fiches finies — et une leçon peut en porter
+    # **plusieurs versions** (addendum §7). Sans la condition, l'unicité interdirait les versions,
+    # c'est-à-dire la décision fondatrice du §7. Elle porte donc sur le seul état dont l'unicité
+    # est vraie : `personal_draft`. Migration `d4e5f6a7b8c3`.
+    __table_args__ = (
+        Index(
+            "uq_fiches_brouillon_par_lecon",
+            "student_id",
+            "lesson_id",
+            unique=True,
+            postgresql_where=text("validation_status = 'personal_draft'"),
+            sqlite_where=text("validation_status = 'personal_draft'"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
