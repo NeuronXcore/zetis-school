@@ -85,12 +85,16 @@ l'ADR-0015 §6.
 
 **Nées de cette slice :**
 
-- ⚠️ **La migration `e5f6a7b8c9d4` est posée sur la base de DEV** (piège armé, plus bas).
 - 🔴 **Le tap sur un piège n'a jamais été exercé par un vrai geste.** Le panneau navigateur a
   expiré sur le clic et `aria-pressed` n'a jamais basculé. Couvert par un test sabotage-vérifié —
   ce n'est pas la même chose.
-- 🔴 **Le pont n'a JAMAIS été vu à l'écran** : il exige une fiche **finie**, et il n'en existe
-  aucune en base (voir ci-dessous).
+- 🔴 **Le pont n'a jamais été DÉCLENCHÉ.** Son bouton, lui, a été vu et mesuré après le merge
+  (un seul, désactivé, infobulle « Bientôt ») : la seule fiche finie ne porte aucune définition.
+- 🔴 **Le bouton du pont fait 34 px de haut** — mesuré dans le DOM le 2026-08-13, **sous la cible
+  tactile de 44 px** du projet. ⚠️ Le pied de `FicheCard` est **préexistant** et tout entier à
+  cette taille (« Image A5 », « Imprimer ») — mais ce bouton-là était **inerte** jusqu'ici, et le
+  câbler en fait une **vraie cible au doigt**. Rendre vivant un bouton trop petit est un défaut
+  neuf sur un style ancien. Correctif hors chantier : il touche un pied partagé.
 - ⚠️ **`review_load` de Papa comptera des cartes masquées** (décision active n°9).
 
 **Remontées des slices 1 et 2 — elles ont survécu :**
@@ -98,18 +102,20 @@ l'ADR-0015 §6.
 - 🔴 **Le glisser au DOIGT n'a toujours jamais été essayé sur un vrai iPhone.** Dette n°1, partie
   en `main` sans être levée depuis la PR #122. La paire LAN existe pour ça : `backend-lan` +
   `massimo-lan` (`.claude/launch.json`), l'URL s'affiche au lancement.
-- ⚠️ **UNE fiche a enfin été terminée en vrai** — vérifié en base à la clôture, et c'est l'essai
-  à l'écran du 2026-08-13 qui l'a produite (la dette « jamais terminée » des slices 1-2 est donc
-  levée à moitié). État réel : fiche **42** (leçon 7) en `personal`, **version 1**, plus deux
-  brouillons (**44** leçon 1, **51** leçon 7 — le `rework` a bien créé une reprise en place).
-  🔴 **Mais elle porte ZÉRO définition** : le bouton du pont y reste donc **inerte**, et
-  `spaced_review_cards` ne contient **aucune** carte `definition_perso`. **Le pont n'a jamais
-  tourné en vrai**, l'état `versions` de l'écran 2 non plus (aucune fiche en version 2).
-  → La vérification qui reste vaut d'être faite dans cet ordre : **écrire une définition**, finir,
-  puis appuyer sur « 🃏 Ajouter à mes cartes ».
+- ⚠️ **UNE fiche a enfin été terminée en vrai** (essai à l'écran du 2026-08-13) : fiche **42**,
+  leçon 7, `personal`, **version 1**. La dette « jamais terminée » des slices 1-2 est levée à
+  moitié. 🔴 **Mais elle porte ZÉRO définition** : le pont n'a donc rien eu à ponter, et
+  `spaced_review_cards` ne contient **aucune** carte `definition_perso`. L'état `versions` de
+  l'écran 2 n'a jamais été vu non plus.
+  → Ordre de la vérification qui reste : **écrire une définition**, finir, puis « 🃏 Ajouter à mes
+  cartes », puis **aller dans Révision** — c'est la seule preuve possible du masquage sur de
+  vraies données.
+  ⚠️ **État de la base après la passe navigateur du 2026-08-13** : fiche **42** (`personal`) et
+  brouillon **44** (leçon 1). Le brouillon **51** — version 2 **vidée par le défaut StrictMode**,
+  pas par un `rework` fautif — a été **supprimé** après inspection (`fiche_views` n'y référait
+  rien) ; la tuile est revenue à **✍️ Ta fiche**.
 - 🔴 **Les étapes sous la pliure sur iPhone** — mesuré en slice 2 sur ② et ③. L'étape ④ dépliée,
   elle, tient : y = 412 et 482 pour 812 de haut, mesuré dans le DOM le 2026-08-13.
-- ⚠️ **Deux brouillons subsistent en base de dev** — données de travail, pas de recette.
 - ⚠️ **La dictée n'a jamais été exercée avec un vrai micro.**
 - ⚠️ **Le commentaire de `coverage.py:364`** — *« une leçon porte 0..1 fiche/mindmap »* — reste
   faux deux fois (versions du §7, fiches personnelles).
