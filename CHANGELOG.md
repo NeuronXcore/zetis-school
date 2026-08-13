@@ -1,5 +1,47 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.83.0 — Ce qu'il écrit devient ce qu'il révise
+
+Ses définitions restaient sur la fiche. Elles deviennent ses **cartes de révision** : recto le
+mot que ZETIS lui a donné, verso **sa** phrase à lui, sans aucune transformation. C'est sa
+formulation qu'il reverra dans trois jours — pas celle d'un modèle.
+
+**Un seul bouton, celui qui attendait depuis le début.** « 🃏 Ajouter à mes cartes » existait au
+pied de chaque fiche, grisé, avec pour infobulle *« Bientôt »*. Il s'allume. Sur une fiche de
+ZETIS il reste inerte : ce pont-là n'est pas encore construit.
+
+**Et il dit la vérité sur ce qu'il a fait.** Une carte a besoin d'une notion du programme ; les
+mots que ZETIS a repérés dans le gras du cours n'en ont pas. Le retour annonce donc **deux**
+nombres — les cartes créées, et les mots restés sur la fiche. Annoncer le premier sans le second
+serait flatteur et faux.
+
+**⚠️ Les pièges — la seule chose que ZETIS remplit à sa place.** Une quatrième étape apparaît dans
+l'atelier : *« Je me souviens de ce sur quoi tu t'es trompé. On en met sur ta fiche ? »* Ce ne
+sont pas des conseils, ce sont **ses propres erreurs** — questions de quiz ratées, cartes qu'il a
+notées « à revoir » —, chacune avec son compte. Un piège ne se rédige pas, ça se constate. Il
+garde, il reformule, il écarte : **écarter n'efface aucune mesure**, l'erreur reste dans son
+historique, elle ne va simplement pas sur la fiche. Et quand ZETIS n'a rien mesuré, il le dit
+sans reproche.
+
+**Sa propre fiche ne clignote plus « nouveau ».** On ne découvre pas ce qu'on vient d'écrire.
+
+> 🔴 **Sous le capot, deux moitiés du même module ne s'accordaient pas.** La génération de cartes
+> croyait à la clé *(élève, notion, type)* — jusqu'à trois cartes par notion — pendant que la
+> planification en cherchait **une** par notion, sans regarder le type, et écrasait ce qu'elle
+> trouvait. Rien en base ne tranchait. **Le défaut ne se produisait pas** : mesuré, la carte
+> visée était la bonne 106 fois sur 106, par pur effet de l'ordre physique des lignes — qu'un
+> `VACUUM` suffit à défaire. On n'a donc pas réparé une panne, on a **retiré une dépendance
+> accidentelle**, et la clé est devenue une vraie contrainte (`e5f6a7b8c9d4`).
+
+> **Quand sa carte existe, ZETIS s'efface.** Les deux cartes porteraient la même notion et se
+> suivraient dos à dos dans le deck matière — la même question deux fois. La carte de ZETIS est
+> donc **masquée tant que la sienne vit**, sans être supprimée : elle garde sa planification et
+> revient si la sienne disparaît. ⚠️ Le masquage vaut aussi pour **les compteurs** — sans quoi le
+> deck annoncerait huit cartes pour en servir sept.
+
+**Reporté en slice 4** : le mini-exemple, les mnémoniques, l'enrichissement des fiches déjà
+écrites, et la surface de lecture pour Papa.
+
 ## 0.82.0 — Massimo écrit (et retrouve ce qu'il a commencé)
 
 La version précédente lui apprenait à **choisir**. Celle-ci lui apprend à **écrire** : la synthèse

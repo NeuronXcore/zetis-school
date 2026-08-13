@@ -16,6 +16,19 @@ from app.db.models import (
 from app.modules.activity.events import EVENT_REVIEW_ATTEMPTED, log_learning_event
 from app.modules.gamification.service import award_xp
 from app.modules.lesson_resolution import ordered_chapter_skill_ids
+from app.modules.memory.population import (  # noqa: F401 — ré-export, cf. ci-dessous
+    CARD_TYPE_DEFINITION,
+    CARD_TYPE_DEFINITION_PERSO,
+    INACTIVE_CARD_STATUSES,
+    servable,
+)
+
+# ⚠️ `INACTIVE_CARD_STATUSES` est **ré-exporté** ici volontairement : `galaxy/service.py`,
+# `dashboard/service.py` et `production/coverage.py` l'importent depuis ce module depuis
+# toujours. Le déplacer sans ré-export aurait cassé trois imports pour un gain nul — et ces
+# trois-là ne sont PAS concernés par le masquage (cf. `servable()`), c'est une décision, pas un
+# oubli : ils répondent à des questions de Papa (charge, couverture), pas à « que reçoit
+# Massimo ? ».
 
 
 def interval_from_score(score: int) -> int:
@@ -28,17 +41,49 @@ def interval_from_score(score: int) -> int:
 
 
 def schedule_review(
-    db: Session, *, student_id: int, skill_id: int, interval: int, front: str, back: str
+    db: Session,
+    *,
+    student_id: int,
+    skill_id: int,
+    interval: int,
+    front: str,
+    back: str,
+    card_type: str = CARD_TYPE_DEFINITION,
 ) -> SpacedReviewCard:
-    """Crée ou met à jour LA carte de révision d'une notion (due_at = now + intervalle)."""
+    """Crée ou met à jour la carte **de ce type** pour cette notion (due_at = now + intervalle).
+
+    🔴 **La clé est `(student_id, skill_id, card_type)`, pas `(student_id, skill_id)`** — addendum
+    ADR-0015 §13. Cette fonction cherchait la carte **sans le type et sans ordre**, alors que
+    `generation.py` en produit jusqu'à trois par notion, une par type, et commente déjà la clé à
+    trois colonnes. Les deux moitiés du module ne s'accordaient pas.
+
+    ⚠️ **Le défaut était LATENT, pas manifeste** (mesuré le 2026-08-13) : sur les 106 notions
+    multi-cartes de la base, le plus petit `id` est la carte `definition` **106 fois sur 106**, et
+    le balayage séquentiel la rendait donc en premier. Ça marchait **par coïncidence d'ordre
+    physique** — qu'un `UPDATE`, un `VACUUM` ou un autre plan suffit à défaire. Ajouter le type
+    (et l'ordre) ne répare pas une panne : ça **retire une dépendance accidentelle**.
+
+    Le défaut `"definition"` garde les quatre appelants — ELI5 `reverse_evaluate` et les trois
+    chemins de missions — à comportement **strictement constant**. Le seul cas où l'ancienne et la
+    nouvelle version divergent est une notion portant des cartes mais **aucune `definition`** :
+    l'ancienne écrasait alors une carte d'un autre type, la nouvelle en crée une. Ce cas est
+    **inexistant en base** (0 notion mesurée) — et c'est exactement le cas qu'on veut voir traité
+    correctement le jour où il apparaît.
+    """
     now = datetime.now(timezone.utc)
     due = now + timedelta(days=interval)
 
     card = db.scalar(
-        select(SpacedReviewCard).where(
+        select(SpacedReviewCard)
+        .where(
             SpacedReviewCard.student_id == student_id,
             SpacedReviewCard.skill_id == skill_id,
+            SpacedReviewCard.card_type == card_type,
         )
+        # Ordre stable : la clé à trois colonnes n'est pas encore contrainte en base au moment où
+        # cette ligne est écrite, et un `db.scalar` sans `ORDER BY` rend une ligne ARBITRAIRE —
+        # le motif exact du doublon de brouillon de fiche corrigé la veille.
+        .order_by(SpacedReviewCard.id)
     )
     if card is None:
         card = SpacedReviewCard(
@@ -46,7 +91,7 @@ def schedule_review(
             skill_id=skill_id,
             front_markdown=front,
             back_markdown=back,
-            card_type="definition",
+            card_type=card_type,
             interval_days=interval,
             due_at=due,
             status="scheduled",
@@ -102,26 +147,22 @@ XP_REASON_REVIEW_CHAPTER = "review_chapter"
 RATING_INTERVALS = {"again": 1, "hard": 3, "good": 7, "easy": 14}
 VALID_RATINGS = frozenset(RATING_INTERVALS)
 
-# Une carte « active » (`scheduled`/`new`) est révisable ; on exclut les états non-servis
-# (ADR-0013) : `pending` = générée sans cours validé (cas dégradé) ; `suspended` = orpheline
-# (plus aucun cours validé ne la couvre, planification conservée) ; `archived` = réserve.
-# Le gate `due_at IS NOT NULL` (cf. `_due_conditions`) exclut déjà `pending` (due_at null) ;
-# ce filtre de statut protège aussi les cartes suspendues (qui gardent leur due_at).
-INACTIVE_CARD_STATUSES = frozenset({"pending", "suspended", "archived"})
-
-
 def _now() -> datetime:
     """Instant courant (UTC = timezone serveur). Isolé pour être figé dans les tests."""
     return datetime.now(timezone.utc)
 
 
 def _due_conditions(student_id: int, now: datetime):
-    """Clauses WHERE communes : cartes dues et actives d'un élève."""
+    """Clauses WHERE communes : cartes **servables** et dues d'un élève.
+
+    L'échéance se compose par-dessus `servable()` (addendum ADR-0015 §13) — elle est légitime
+    ici et interdite ailleurs, d'où la séparation des deux.
+    """
     return (
         SpacedReviewCard.student_id == student_id,
         SpacedReviewCard.due_at.is_not(None),
         SpacedReviewCard.due_at <= now,
-        SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+        servable(),
     )
 
 
@@ -151,7 +192,7 @@ def get_reviews_summary(db: Session, student: StudentProfile) -> dict:
     active_conditions = (
         SpacedReviewCard.student_id == student.id,
         SpacedReviewCard.due_at.is_not(None),
-        SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+        servable(),
     )
     due_expr = func.count(case((SpacedReviewCard.due_at <= now, SpacedReviewCard.id)))
     new_expr = func.count(
@@ -227,7 +268,7 @@ def new_cards_count(db: Session, student_id: int) -> int:
             select(func.count(SpacedReviewCard.id)).where(
                 SpacedReviewCard.student_id == student_id,
                 SpacedReviewCard.last_reviewed_at.is_(None),
-                SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+                servable(),
             )
         )
         or 0
@@ -285,7 +326,7 @@ def chapter_card_conditions(db: Session, student_id: int):
     return (
         SpacedReviewCard.student_id == student_id,
         SpacedReviewCard.due_at.is_not(None),
-        SpacedReviewCard.status.not_in(INACTIVE_CARD_STATUSES),
+        servable(),
     )
 
 

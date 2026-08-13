@@ -13,11 +13,23 @@ déterministe (règle 7 — ZETIS n'écrit jamais dans la fiche à la place de M
 import re
 from unittest.mock import patch
 
+from datetime import datetime, timezone
+
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import false as sa_false, func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import Fiche
+from app.db.models import (
+    Fiche,
+    Quiz,
+    QuizAnswer,
+    QuizAttempt,
+    QuizQuestion,
+    Skill,
+    SpacedReviewAttempt,
+    SpacedReviewCard,
+)
 from app.modules.eli5.service import get_default_student
 from app.modules.fiches import atelier, service
 from app.modules.fiches.population import STATUS_DRAFT, STATUS_PERSONAL  # noqa: F401
@@ -929,3 +941,320 @@ def test_le_corrige_s_ouvre_sans_condition_de_tentative(client_db) -> None:
 
         # Aucun brouillon, aucune tentative : le corrigé s'ouvre quand même.
         assert service.fiche_zetis_de_lecon(db, lesson.id)["id"] == zetis.id
+
+
+# ── Le pont : ses définitions deviennent ses cartes (addendum ADR-0015 §13) ────────
+
+
+def _fiche_avec_definitions(db, lesson_id: int, student_id: int, definitions: list[dict]) -> Fiche:
+    row = _fiche_de_massimo(db, lesson_id, student_id)
+    row.spec_json = {**row.spec_json, "definitions": definitions}
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _cartes(db, student_id: int) -> dict:
+    return {
+        (c.skill_id, c.card_type): c
+        for c in db.scalars(
+            select(SpacedReviewCard).where(SpacedReviewCard.student_id == student_id)
+        )
+    }
+
+
+def test_une_definition_sur_une_NOTION_devient_une_carte(client_db) -> None:
+    """Recto le terme de ZETIS, verso la phrase de Massimo — aucune transformation (§8).
+
+    C'est **sa** formulation qu'il révisera : c'est tout l'intérêt du pont.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        fiche = _fiche_avec_definitions(
+            db, lesson.id, eleve,
+            [{"terme": "Nombres relatifs", "definition": "Des nombres avec un signe devant."}],
+        )
+
+        res = atelier.cartes_depuis_la_fiche(db, fiche_id=fiche.id, student_id=eleve)
+        assert res == {"cartes": 1, "termes_sans_notion": []}
+
+        cartes = _cartes(db, eleve)
+        (carte,) = [c for (_, t), c in cartes.items() if t == "definition_perso"]
+        assert carte.front_markdown == "Nombres relatifs"
+        assert carte.back_markdown == "Des nombres avec un signe devant."
+
+
+def test_un_terme_SANS_notion_ne_donne_pas_de_carte_ET_LE_DIT(client_db) -> None:
+    """🔴 Le nombre ne doit pas mentir.
+
+    ZETIS propose les termes en deux temps : les notions de la leçon, **puis le gras du cours**.
+    Un terme venu du gras n'a aucune notion derrière lui — donc aucune carte possible
+    (`skill_id` est NOT NULL). Annoncer « 2 cartes » pour en créer 1 serait le défaut de la file
+    de relecture (`adr-0039`).
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        fiche = _fiche_avec_definitions(
+            db, lesson.id, eleve,
+            [
+                {"terme": "Nombres relatifs", "definition": "Avec un signe."},
+                {"terme": "mot en gras du cours", "definition": "Ce que j'en dis."},
+            ],
+        )
+
+        res = atelier.cartes_depuis_la_fiche(db, fiche_id=fiche.id, student_id=eleve)
+        assert res["cartes"] == 1
+        assert res["termes_sans_notion"] == ["mot en gras du cours"]
+
+
+def test_le_pont_N_ECRASE_PAS_la_carte_de_ZETIS(client_db) -> None:
+    """🔴 La raison d'être de tout le §13 : deux cartes coexistent sur la même notion."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        skill = db.scalar(select(Skill).where(Skill.name == "Nombres relatifs"))
+        db.add(
+            SpacedReviewCard(
+                student_id=eleve, skill_id=skill.id, card_type="definition",
+                front_markdown="La définition de ZETIS.", back_markdown="Sa réponse.",
+                interval_days=7, status="scheduled",
+            )
+        )
+        db.commit()
+
+        fiche = _fiche_avec_definitions(
+            db, lesson.id, eleve,
+            [{"terme": "Nombres relatifs", "definition": "Ma définition à moi."}],
+        )
+        atelier.cartes_depuis_la_fiche(db, fiche_id=fiche.id, student_id=eleve)
+
+        cartes = _cartes(db, eleve)
+        assert set(t for (_, t) in cartes) == {"definition", "definition_perso"}
+        assert cartes[(skill.id, "definition")].front_markdown == "La définition de ZETIS."
+        assert cartes[(skill.id, "definition_perso")].back_markdown == "Ma définition à moi."
+
+
+def test_rejouer_le_pont_MET_A_JOUR_au_lieu_de_dupliquer(client_db) -> None:
+    """Il corrige une définition et refait le geste : la carte suit, elle ne se dédouble pas."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        fiche = _fiche_avec_definitions(
+            db, lesson.id, eleve,
+            [{"terme": "Nombres relatifs", "definition": "Première version."}],
+        )
+        atelier.cartes_depuis_la_fiche(db, fiche_id=fiche.id, student_id=eleve)
+
+        fiche.spec_json = {
+            **fiche.spec_json,
+            "definitions": [{"terme": "Nombres relatifs", "definition": "Version corrigée."}],
+        }
+        db.commit()
+        atelier.cartes_depuis_la_fiche(db, fiche_id=fiche.id, student_id=eleve)
+
+        cartes = [c for (_, t), c in _cartes(db, eleve).items() if t == "definition_perso"]
+        assert len(cartes) == 1
+        assert cartes[0].back_markdown == "Version corrigée."
+
+
+def test_le_pont_ne_s_ouvre_PAS_sur_un_brouillon(client_db) -> None:
+    """§1 bis : un brouillon n'est ni exportable ni dérivable. C'est ce qui empêche un
+    demi-travail d'entrer dans le circuit de révision."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        brouillon = _ouvrir(db, lesson.id)
+
+        with pytest.raises(HTTPException) as err:
+            atelier.cartes_depuis_la_fiche(db, fiche_id=brouillon["id"], student_id=eleve)
+        assert err.value.status_code == 404
+
+
+# ── `erreurs_a_eviter` : ZETIS rappelle un FAIT, il n'invente pas (§8) ─────────────
+
+
+def _rater_un_quiz(db, lesson_id: int, skill_id: int, student_id: int, combien: int) -> None:
+    subject_id = db.scalar(select(Skill.subject_id).where(Skill.id == skill_id))
+    quiz = Quiz(subject_id=subject_id, lesson_id=lesson_id, title="Quiz", status="validated")
+    db.add(quiz)
+    db.flush()
+    question = QuizQuestion(quiz_id=quiz.id, skill_id=skill_id, prompt_markdown="Une question ?")
+    db.add(question)
+    db.flush()
+    for _ in range(combien):
+        essai = QuizAttempt(quiz_id=quiz.id, student_id=student_id)
+        db.add(essai)
+        db.flush()
+        db.add(QuizAnswer(attempt_id=essai.id, question_id=question.id, is_correct=False))
+    db.commit()
+
+
+def test_un_piege_vient_de_ses_ERREURS_avec_le_compte(client_db) -> None:
+    """Un piège ne se rédige pas, ça se CONSTATE. La raison porte le fait, pas un conseil."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        skill = db.scalar(select(Skill).where(Skill.name == "Nombres relatifs"))
+        _rater_un_quiz(db, lesson.id, skill.id, eleve, 2)
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=eleve, section="erreurs_a_eviter"
+        )
+        assert out["slots"] == 3
+        assert out["candidates"] == [
+            {
+                "index": 0,
+                "texte": "Attention à : Nombres relatifs",
+                "raison": "tu t'es trompé 2 fois là-dessus",
+            }
+        ]
+
+
+def test_une_carte_RATEE_compte_aussi_mais_pas_un_RE_TOUR(client_db) -> None:
+    """⚠️ `is_consolidation` veut dire « cet essai n'a pas mesuré l'oubli » (ADR-0049).
+
+    Le compter gonflerait le nombre sans qu'aucune erreur nouvelle n'ait eu lieu — et le
+    nombre est précisément ce qui rend la proposition crédible.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        skill = db.scalar(select(Skill).where(Skill.name == "Nombres relatifs"))
+        carte = SpacedReviewCard(
+            student_id=eleve, skill_id=skill.id, card_type="definition",
+            front_markdown="R", back_markdown="V", interval_days=1, status="scheduled",
+        )
+        db.add(carte)
+        db.flush()
+        maintenant = datetime.now(timezone.utc)
+        db.add(SpacedReviewAttempt(card_id=carte.id, student_id=eleve, rating="again",
+                                   reviewed_at=maintenant, is_consolidation=False))
+        db.add(SpacedReviewAttempt(card_id=carte.id, student_id=eleve, rating="again",
+                                   reviewed_at=maintenant, is_consolidation=True))
+        db.commit()
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=eleve, section="erreurs_a_eviter"
+        )
+        assert out["candidates"][0]["raison"] == "tu t'es trompé une fois là-dessus"
+
+
+def test_aucune_erreur_mesuree_ne_donne_AUCUN_piege(client_db) -> None:
+    """🔴 État légitime, pas un manque à combler.
+
+    Un enfant qui n'a pas encore travaillé cette leçon n'a pas de piège à en tirer. Inventer
+    un piège pour remplir la section serait exactement ce que la règle 7 interdit.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        brouillon = _ouvrir(db, lesson.id)
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=get_default_student(db).id,
+            section="erreurs_a_eviter",
+        )
+        assert out["candidates"] == []
+
+
+def test_les_pieges_ne_dependent_PAS_du_cours_ecrit(client_db) -> None:
+    """Un piège vient de ses erreurs, pas du texte de la leçon : le 409 « cours non écrit »
+    n'a rien à faire ici — ce serait un refus sans rapport avec la question posée."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=None)
+        eleve = get_default_student(db).id
+        skill = db.scalar(select(Skill).where(Skill.name == "Nombres relatifs"))
+        _rater_un_quiz(db, lesson.id, skill.id, eleve, 1)
+        brouillon = _ouvrir(db, lesson.id)
+
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=eleve, section="erreurs_a_eviter"
+        )
+        assert len(out["candidates"]) == 1
+
+
+def test_une_lecon_SANS_NOTION_ne_fait_rien_inventer(client_db) -> None:
+    """🔴 Verrou ajouté après un sabotage VERT — la branche « aucune notion » n'était couverte
+    par aucun test, alors que c'est celle où l'invention est la plus tentante.
+
+    Le motif est déjà consigné : *une fonction à plusieurs branches demande un verrou par
+    branche*. Le test précédent passe par une leçon QUI A une notion (le décor en crée une) ;
+    saboter la sortie anticipée ne le faisait donc pas rougir.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS, with_skill=False)
+        brouillon = _ouvrir(db, lesson.id)
+        out = atelier.candidates(
+            db, draft_id=brouillon["id"], student_id=get_default_student(db).id,
+            section="erreurs_a_eviter",
+        )
+        assert out["candidates"] == [], "aucune notion ⇒ aucun piège, jamais un piège inventé"
+
+
+# ── « NOUVEAU jamais DÛ » vaut aussi pour sa propre fiche (adr-0030) ───────────────
+
+
+def test_sa_propre_fiche_ne_compte_JAMAIS_comme_nouvelle(client_db) -> None:
+    """🔴 On ne DÉCOUVRE pas ce qu'on vient d'écrire.
+
+    Sans cette exclusion, finir sa fiche allumait un badge « NOUVEAU » qui ne s'éteignait qu'en
+    la rouvrant : un témoin qui s'allume tout seul, c'est-à-dire la règle de l'`adr-0030` prise
+    à revers. Elle compte bien dans son deck — mais pas comme une nouveauté.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        _fiche_de_massimo(db, lesson.id, get_default_student(db).id)
+
+        resume = service.fiches_summary(db)
+        maths = next(s for s in resume["subjects"] if s["slug"] == "mathematiques")
+        assert maths["fiche_count"] == 1, "sa fiche est bien dans son deck"
+        assert maths["new_count"] == 0, "…mais elle n'est pas une NOUVEAUTÉ pour lui"
+
+
+def test_une_fiche_de_ZETIS_jamais_ouverte_RESTE_nouvelle(client_db) -> None:
+    """Contre-partie : la règle ne doit pas éteindre le cas légitime.
+
+    Une fiche que ZETIS a produite et que Massimo n'a pas lue est exactement ce que le témoin
+    de nouveauté existe pour signaler.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        _fiche_zetis(db, lesson.id, status="validated")
+
+        resume = service.fiches_summary(db)
+        maths = next(s for s in resume["subjects"] if s["slug"] == "mathematiques")
+        assert maths["fiche_count"] == 1
+        assert maths["new_count"] == 1
+
+
+def test_le_temoin_de_NAVIGATION_dit_la_meme_chose_que_le_deck(client_db) -> None:
+    """Les deux compteurs restent d'accord — `new_fiches_count` DÉLÈGUE à `fiches_summary`.
+
+    Une seconde définition de « fiche nouvelle » finirait par diverger de celle que voit la
+    grille, et le badge de navigation mentirait sur ce que la page affiche.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        eleve = get_default_student(db).id
+        _fiche_de_massimo(db, lesson.id, eleve)
+        _fiche_zetis(db, lesson.id, status="validated")
+
+        resume = service.fiches_summary(db)
+        assert service.new_fiches_count(db, eleve) == sum(
+            s["new_count"] for s in resume["subjects"]
+        ) == 1

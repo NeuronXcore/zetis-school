@@ -693,7 +693,9 @@ student_id
 skill_id
 front_markdown
 back_markdown
-card_type          # definition | method | example | error_correction
+card_type          # definition | method | example | error_correction | definition_perso
+                     # 🔴 `definition_perso` = la définition que MASSIMO a écrite dans sa fiche
+                     # (addendum ADR-0015 §13). Recto le terme de ZETIS, verso SA phrase.
 interval_days
 ease_factor
 due_at
@@ -710,6 +712,47 @@ status             # scheduled/new (actives) | pending (dégradé) | suspended (
 > conservée, réactivable) ; **le flux de génération/réconciliation ne supprime jamais**. Cas
 > dégradé (sans cours validé) → `pending`, filtrée serveur. Filtrage :
 > `INACTIVE_CARD_STATUSES = {pending, suspended, archived}` (module `memory`).
+
+#### 🔴 Contrainte — la clé à trois colonnes, désormais tenue par la BASE
+
+```sql
+ALTER TABLE spaced_review_cards
+  ADD CONSTRAINT uq_srs_cards_student_skill_type
+  UNIQUE (student_id, skill_id, card_type);        -- migration `e5f6a7b8c9d4`
+```
+
+⚠️ **Elle n'ajoute pas un invariant, elle rend VRAI celui que la moitié du code croyait déjà
+avoir.** `generation.py` commentait « clé (student, skill, card_type) unique » et produisait
+jusqu'à **trois** cartes par notion ; `memory/service.py::schedule_review` en cherchait **une**
+par `(student_id, skill_id)`, sans type ni `ORDER BY`, puis écrasait recto/verso/planification.
+Aucune des 50 migrations ne posait d'unicité sur cette table.
+
+⚠️ **Défaut LATENT, pas manifeste** (mesuré le 2026-08-13) : sur les 106 notions multi-cartes, le
+`MIN(id)` est la carte `definition` **106 fois sur 106** — le balayage rendait donc toujours la
+bonne. Ça marchait **par coïncidence d'ordre physique**. Le dédoublonnage de la migration est un
+**no-op mesuré** en dev (`DELETE 0`).
+
+#### 🔴 Règle de lecture — « servable » a UNE définition, dans `memory/population.py`
+
+| Prédicat | Ce qu'il rend |
+|---|---|
+| `servable()` | carte active **et non masquée** — la seule porte du flux élève |
+| `masquee_par_sa_carte()` | vrai pour la carte `definition` de ZETIS **quand une `definition_perso` ACTIVE existe** sur la même notion |
+
+**Quand Massimo a écrit sa définition, on ne sert que la sienne.** La carte ZETIS n'est ni
+supprimée ni suspendue — elle garde sa planification et redevient servable si la sienne disparaît.
+*(`suspended` veut déjà dire « plus aucun cours validé ne la couvre » : lui donner un second sens
+rendrait le statut illisible.)*
+
+⚠️ **Le masquage vaut pour la SÉLECTION ET pour les COMPTEURS** — `build_session`,
+`get_reviews_summary`, `new_cards_count`, `chapter_card_conditions`, `_due_conditions`. Une carte
+masquée mais comptée ferait annoncer « 8 cartes » pour en servir 7, le défaut que l'`adr-0039` a
+payé sur la file de relecture.
+
+⚠️ **Trois lecteurs HORS du module ne sont PAS masqués**, et c'est une décision : `galaxy`,
+`dashboard` (`review_load`) et `production/coverage` répondent à des questions de Papa (charge,
+couverture), pas à « que reçoit Massimo ? ». Conséquence assumée : `review_load` compte des cartes
+que Massimo ne recevra pas.
 > **Actions manuelles Papa** (page « Cartes de révision ») : éditer le recto/verso d'une carte
 > (`PATCH /api/memory/cards/{card_id}`, planification préservée — même invariant) ; supprimer
 > une carte (`DELETE /api/memory/cards/{card_id}`) ou toutes les cartes d'une notion

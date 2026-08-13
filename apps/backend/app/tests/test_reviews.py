@@ -763,3 +763,235 @@ def test_agenda_item_carries_its_revisable_count(client_db):
     assert items["Contrôle Révolution"]["revisable_cards"] == 1
     # 🔴 Zéro ⇒ la surface ne rend AUCUNE porte. Le champ doit EXISTER et valoir 0, pas manquer.
     assert items["Contrôle vide"]["revisable_cards"] == 0
+
+
+# --- `schedule_review` : la clé est (élève, notion, TYPE) — addendum ADR-0015 §13 ---
+#
+# 🔴 Cette fonction n'avait AUCUN test avant le 2026-08-13, et c'est un sabotage qui l'a
+# démontré : casser son filtre de recherche laissait les 1257 tests VERTS. « Aucun test touché »
+# ne prouvait donc rien de son comportement — la fonction n'était simplement jamais exercée.
+# Les deux verrous ci-dessous existent pour que la prochaine modification ait quelque chose
+# à faire rougir.
+
+
+def _skill(db, subject, name="notion partagée"):
+    skill = m.Skill(subject_id=subject.id, name=name, level="4e")
+    db.add(skill)
+    db.flush()
+    return skill
+
+
+def _carte_typee(db, student, skill, card_type, *, front, back="Verso."):
+    card = m.SpacedReviewCard(
+        student_id=student.id,
+        skill_id=skill.id,
+        front_markdown=front,
+        back_markdown=back,
+        card_type=card_type,
+        interval_days=7,
+        due_at=datetime.now(timezone.utc) + timedelta(days=7),
+        status="scheduled",
+    )
+    db.add(card)
+    db.flush()
+    return card
+
+
+def test_schedule_review_reprend_la_carte_du_MEME_type(client_db):
+    """Deux révisions planifiées sur une notion ne font pas deux cartes.
+
+    C'est le verrou que le sabotage du filtre fait rougir : sans lui, la fonction pouvait
+    créer une carte à chaque appel sans qu'aucun test ne s'en aperçoive.
+    """
+    _, Session = client_db
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "mathematiques")
+        skill = _skill(db, subj)
+        db.commit()
+
+        srv.schedule_review(
+            db, student_id=student.id, skill_id=skill.id, interval=3,
+            front="Première question ?", back="Première réponse.",
+        )
+        db.commit()
+        srv.schedule_review(
+            db, student_id=student.id, skill_id=skill.id, interval=7,
+            front="Question corrigée ?", back="Réponse corrigée.",
+        )
+        db.commit()
+
+        cartes = db.scalars(
+            select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id)
+        ).all()
+        assert len(cartes) == 1, "une seconde planification doit REPRENDRE la carte, pas en créer une"
+        assert cartes[0].front_markdown == "Question corrigée ?"
+        assert cartes[0].interval_days == 7
+
+
+def test_schedule_review_ne_touche_PAS_une_carte_d_un_AUTRE_type(client_db):
+    """🔴 Le cœur du §13 : une notion porte jusqu'à 3 cartes générées, une par type.
+
+    Avant ce chantier, la recherche ignorait `card_type` — elle prenait une ligne
+    **arbitraire** et lui écrivait une définition par-dessus, planification remise à zéro.
+    Le défaut était neutralisé par un ordre physique que rien ne garantit (mesuré : le
+    `MIN(id)` était la `definition` 106 fois sur 106).
+    """
+    _, Session = client_db
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "mathematiques")
+        skill = _skill(db, subj)
+        methode = _carte_typee(db, student, skill, "method", front="Comment reconnaître… ?")
+        db.commit()
+        id_methode, recto_methode = methode.id, methode.front_markdown
+
+        srv.schedule_review(
+            db, student_id=student.id, skill_id=skill.id, interval=3,
+            front="Qu'est-ce que… ?", back="C'est…",
+        )
+        db.commit()
+
+        db.refresh(methode)
+        assert methode.id == id_methode
+        assert methode.front_markdown == recto_methode, "la carte `method` a été ÉCRASÉE"
+        assert methode.card_type == "method"
+
+        types = sorted(
+            c.card_type
+            for c in db.scalars(
+                select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id)
+            )
+        )
+        assert types == ["definition", "method"]
+
+
+def test_schedule_review_cree_le_type_DEMANDE(client_db):
+    """Le paramètre existe pour la carte personnelle de Massimo (`definition_perso`, §13).
+
+    Sans lui, le pont fiche → SRS écraserait la carte ZETIS de la notion.
+    """
+    _, Session = client_db
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "mathematiques")
+        skill = _skill(db, subj)
+        _carte_typee(db, student, skill, "definition", front="La définition de ZETIS.")
+        db.commit()
+
+        srv.schedule_review(
+            db, student_id=student.id, skill_id=skill.id, interval=3,
+            front="Le terme", back="Ce que Massimo en dit.", card_type="definition_perso",
+        )
+        db.commit()
+
+        cartes = {
+            c.card_type: c
+            for c in db.scalars(
+                select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id)
+            )
+        }
+        assert set(cartes) == {"definition", "definition_perso"}
+        assert cartes["definition"].front_markdown == "La définition de ZETIS."
+        assert cartes["definition_perso"].back_markdown == "Ce que Massimo en dit."
+
+
+def test_une_SECONDE_carte_du_MEME_type_est_refusee_par_la_base(client_db):
+    """🔴 La clé à trois colonnes est une CONTRAINTE, pas une convention (migration `e5f6a7b8c9d4`).
+
+    Avant, `SpacedReviewCard` n'avait aucun `__table_args__` et aucune des 50 migrations ne posait
+    d'unicité : `generation.py` croyait à la clé `(student, skill, card_type)`, `schedule_review`
+    à `(student, skill)`, et **rien ne tranchait**. Ce verrou est ce qui rend l'accord réel.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    _, Session = client_db
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "mathematiques")
+        skill = _skill(db, subj)
+        _carte_typee(db, student, skill, "definition", front="La première.")
+        db.commit()
+
+        # ⚠️ Le refus tombe au `flush` (dans `_carte_typee`), pas au `commit` — SQLAlchemy écrit
+        # dès qu'il a besoin d'un id. Attendre le `commit` pour l'attraper fait rougir le test
+        # pour la MAUVAISE raison : l'erreur passe à côté du `try`.
+        try:
+            _carte_typee(db, student, skill, "definition", front="La seconde, interdite.")
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+        else:
+            raise AssertionError("la base a ACCEPTÉ deux cartes de même type sur la même notion")
+
+        # ...et l'autre sens : un type différent reste permis (c'est tout l'objet du §13).
+        _carte_typee(db, student, skill, "definition_perso", front="La sienne.")
+        db.commit()
+        types = sorted(
+            c.card_type
+            for c in db.scalars(
+                select(m.SpacedReviewCard).where(m.SpacedReviewCard.skill_id == skill.id)
+            )
+        )
+        assert types == ["definition", "definition_perso"]
+
+
+# --- Le masquage : quand sa carte existe, on ne sert que la sienne (§13 décision 5) ---
+
+
+def _paire(db, student, subj, *, statut_perso="scheduled"):
+    """Une notion portant la carte de ZETIS ET celle de Massimo, toutes deux DUES."""
+    skill = _skill(db, subj, name="notion à deux cartes")
+    passe = datetime.now(timezone.utc) - timedelta(days=2)
+    zetis = _carte_typee(db, student, skill, "definition", front="La définition de ZETIS.")
+    zetis.due_at = passe
+    sienne = _carte_typee(db, student, skill, "definition_perso", front="Le terme")
+    sienne.due_at = passe
+    sienne.status = statut_perso
+    db.commit()
+    return skill, zetis, sienne
+
+
+def test_sa_carte_MASQUE_celle_de_ZETIS_dans_la_session(client_db):
+    """Les deux cartes portent la même notion : les servir toutes les deux, c'est poser deux
+    fois la même question — et le deck matière n'entrelace pas, elles se suivraient dos à dos."""
+    client, Session = client_db
+    with Session() as db:
+        _paire(db, _student(db), _subject(db, "mathematiques"))
+
+    cartes = client.post("/api/student/reviews/session", json={"deck": "mix_day"}).json()
+    rectos = [c["front_markdown"] for c in cartes]
+    assert rectos == ["Le terme"], "seule SA carte doit être servie"
+
+
+def test_le_masquage_vaut_aussi_pour_les_COMPTEURS(client_db):
+    """🔴 Le verrou central : une carte masquée mais COMPTÉE ferait annoncer 2 cartes pour en
+    servir 1 — le défaut que l'`adr-0039` a payé sur la file de relecture."""
+    client, Session = client_db
+    with Session() as db:
+        _paire(db, _student(db), _subject(db, "mathematiques"))
+
+    resume = client.get("/api/student/reviews/summary").json()
+    maths = next(s for s in resume["subjects"] if s["slug"] == "mathematiques")
+    servies = len(client.post("/api/student/reviews/session", json={"deck": "mix_day"}).json())
+
+    assert maths["due_count"] == servies == 1, "le compteur doit dire ce que la session sert"
+    assert resume["total_due"] == 1
+    assert maths["session_size"] == 1
+
+
+def test_la_carte_de_ZETIS_REVIENT_si_la_sienne_n_est_plus_active(client_db):
+    """⚠️ Le masquage exige que sa carte soit elle-même active.
+
+    Sans cette condition, une carte personnelle suspendue ferait disparaître la notion de la
+    révision **des deux côtés** : un silence, c'est-à-dire le pire mode d'échec possible ici.
+    """
+    client, Session = client_db
+    with Session() as db:
+        _paire(db, _student(db), _subject(db, "mathematiques"), statut_perso="suspended")
+
+    cartes = client.post("/api/student/reviews/session", json={"deck": "mix_day"}).json()
+    rectos = [c["front_markdown"] for c in cartes]
+    assert rectos == ["La définition de ZETIS."], (
+        "sa carte suspendue ne doit pas emporter celle de ZETIS avec elle"
+    )

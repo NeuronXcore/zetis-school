@@ -24,15 +24,29 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Chapter, Fiche, Lesson, LessonSkill, Skill
+from app.db.models import (
+    Chapter,
+    Fiche,
+    Lesson,
+    LessonSkill,
+    QuizAnswer,
+    QuizAttempt,
+    QuizQuestion,
+    Skill,
+    SpacedReviewAttempt,
+    SpacedReviewCard,
+)
 from app.modules.fiches.population import (
     AUTHOR_MASSIMO,
     STATUS_DRAFT,
     STATUS_PERSONAL,
     draft_of_student,
 )
+from app.modules.memory.population import CARD_TYPE_DEFINITION_PERSO
+from app.modules.memory.service import schedule_review
 from app.modules.fiches.schemas import (
     MAX_DEFINITIONS,
+    MAX_ERREURS,
     MAX_POINTS_CLES,
     MAX_TERME,
     FicheDraft,
@@ -575,6 +589,79 @@ def _termes_de_la_lecon(db: Session, lesson: Lesson) -> list[str]:
     return termes
 
 
+def _erreurs_de_la_lecon(db: Session, lesson: Lesson, student_id: int) -> list[tuple[str, str]]:
+    """Les pièges que Massimo a RÉELLEMENT rencontrés sur les notions de cette leçon.
+
+    Deux sources mesurées, additionnées par notion :
+
+    | Source | Ce qui compte comme erreur |
+    |---|---|
+    | quiz | `QuizAnswer.is_correct is False` sur une question rattachée à la notion |
+    | révision espacée | un essai noté **`again`** sur une carte de la notion |
+
+    ⚠️ **Les re-tours de consolidation sont exclus** (`is_consolidation`) : ils veulent dire
+    *« cet essai n'a pas mesuré l'oubli »* (ADR-0049), les compter gonflerait le nombre sans
+    qu'aucune erreur nouvelle n'ait eu lieu.
+
+    Rendu trié par **nombre d'erreurs décroissant** — ce sur quoi il bute le plus vient en
+    premier —, puis par ordre du programme à égalité. Aucune invention : le texte nomme la
+    notion, la raison donne le compte. C'est exactement l'exemple du §8 (« tu t'es trompé deux
+    fois sur foyer / épicentre, on le met en piège ? »).
+
+    Rend `[]` quand rien n'a été mesuré, et c'est un état LÉGITIME : un enfant qui n'a pas
+    encore travaillé cette leçon n'a pas de piège à en tirer. L'écran doit le dire ainsi, et
+    surtout pas inventer un piège pour remplir la section.
+    """
+    notions = db.execute(
+        select(Skill.id, Skill.name)
+        .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+        .where(LessonSkill.lesson_id == lesson.id)
+        .order_by(Skill.id)
+    ).all()
+    if not notions:
+        return []
+    par_id = {sid: nom for sid, nom in notions}
+
+    ratees: dict[int, int] = {}
+    for skill_id, n in db.execute(
+        select(QuizQuestion.skill_id, func.count(QuizAnswer.id))
+        .join(QuizAnswer, QuizAnswer.question_id == QuizQuestion.id)
+        .join(QuizAttempt, QuizAttempt.id == QuizAnswer.attempt_id)
+        .where(
+            QuizAttempt.student_id == student_id,
+            QuizAnswer.is_correct.is_(False),
+            QuizQuestion.skill_id.in_(par_id),
+        )
+        .group_by(QuizQuestion.skill_id)
+    ).all():
+        ratees[skill_id] = ratees.get(skill_id, 0) + n
+
+    for skill_id, n in db.execute(
+        select(SpacedReviewCard.skill_id, func.count(SpacedReviewAttempt.id))
+        .join(SpacedReviewAttempt, SpacedReviewAttempt.card_id == SpacedReviewCard.id)
+        .where(
+            SpacedReviewAttempt.student_id == student_id,
+            SpacedReviewAttempt.rating == "again",
+            SpacedReviewAttempt.is_consolidation.is_(False),
+            SpacedReviewCard.skill_id.in_(par_id),
+        )
+        .group_by(SpacedReviewCard.skill_id)
+    ).all():
+        ratees[skill_id] = ratees.get(skill_id, 0) + n
+
+    ordre = {sid: rang for rang, (sid, _) in enumerate(notions)}
+    classees = sorted(ratees.items(), key=lambda kv: (-kv[1], ordre[kv[0]]))
+    return [
+        (
+            f"Attention à : {par_id[sid]}",
+            "tu t'es trompé une fois là-dessus"
+            if n == 1
+            else f"tu t'es trompé {n} fois là-dessus",
+        )
+        for sid, n in classees[:MAX_ERREURS]
+    ]
+
+
 def _amorce_essentiel(titre: str) -> str:
     """Le début de phrase posé dans le champ — règle 1 des champs libres (§9).
 
@@ -597,7 +684,7 @@ def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> 
     Trois sections ouvertes (slices 1 et 2). Les autres **refusent explicitement** plutôt que de
     rendre une liste vide, qui se lirait « il n'y a rien ici ».
     """
-    if section not in ("points_cles", "definitions", "essentiel"):
+    if section not in ("points_cles", "definitions", "essentiel", "erreurs_a_eviter"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=f"La section « {section} » ne se prépare pas à cette étape.",
@@ -614,6 +701,24 @@ def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> 
             "candidates": [],
             "slots": 1,
             "amorce": _amorce_essentiel(lesson.title),
+        }
+
+    if section == "erreurs_a_eviter":
+        # 🔴 **La seule section que ZETIS peut pré-remplir sans enfreindre la règle 7** (§8) :
+        # il ne propose pas une idée, il rappelle **un fait de Massimo**. Un piège ne se rédige
+        # pas, ça se constate — et écarter une proposition n'efface aucune mesure : l'erreur
+        # reste dans son historique, elle ne va simplement pas sur la fiche.
+        #
+        # ⚠️ Aucun gate sur le cours : un piège vient de ses ERREURS, pas du texte de la leçon.
+        # Refuser ici faute de cours serait un refus sans rapport avec la question posée.
+        erreurs = _erreurs_de_la_lecon(db, lesson, student_id)
+        return {
+            "section": "erreurs_a_eviter",
+            "candidates": [
+                {"index": i, "texte": texte, "raison": raison}
+                for i, (texte, raison) in enumerate(erreurs)
+            ],
+            "slots": MAX_ERREURS,
         }
 
     if not lesson.content_markdown:
@@ -641,3 +746,76 @@ def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> 
         "candidates": [{"index": i, "texte": p} for i, p in enumerate(phrases)],
         "slots": MAX_POINTS_CLES,
     }
+
+
+# --- Le pont : ses définitions deviennent ses cartes (addendum ADR-0015 §13) ---------------
+#
+# 🔴 **Pourquoi ce sont les DÉFINITIONS et pas les points-clés.** Le périmètre de la slice 1
+# prévoyait que « la sélection retenue devient ses cartes SRS ». `definitions` a depuis donné au
+# pont sa forme **naturelle** : recto le terme de ZETIS, verso la phrase de Massimo, aucune
+# transformation. Un point-clé est une phrase du cours, pas une question — en faire un recto
+# demanderait de l'inventer, donc d'écrire à la place de Massimo (règle 7).
+
+# Une carte qui vient d'être écrite se revoit VITE : il a la formulation en tête, le premier
+# rappel doit tomber pendant qu'elle est encore fraîche. Le moteur reprend la main ensuite.
+INTERVALLE_PREMIERE_CARTE = 1
+
+
+def _cle_terme(brut: str) -> str:
+    """Même normalisation que `_termes_de_la_lecon`, sinon le rapprochement rate en silence."""
+    return " ".join(brut.split()).strip(" .,:;—-").lower()
+
+
+def cartes_depuis_la_fiche(db: Session, *, fiche_id: int, student_id: int) -> dict:
+    """« 🃏 En faire des cartes » — une carte `definition_perso` par définition écrite.
+
+    ⚠️ **Seulement depuis une fiche FINIE** (§13 décision 4) : un brouillon n'est pas dérivable,
+    une définition à moitié écrite n'a rien à faire dans un circuit de révision.
+
+    🔴 **Toutes les définitions ne peuvent PAS devenir des cartes, et c'est structurel.** Une
+    carte exige un `skill_id` (NOT NULL) : elle est accrochée à une **notion**. Or ZETIS propose
+    les termes en deux temps — les notions de la leçon **puis le gras du cours** — et un terme
+    venu du gras n'a aucune notion derrière lui. Ceux-là ne peuvent pas donner de carte.
+
+    Le compte est donc **rendu au client**, jamais deviné : `cartes` et `termes_sans_notion`.
+    Annoncer « 4 cartes » pour en créer 2 serait exactement le défaut que l'`adr-0039` a payé
+    sur la file de relecture.
+
+    **Idempotent par construction** : `schedule_review` retrouve la carte par
+    `(élève, notion, type)` et la met à jour. Rejouer le geste après avoir corrigé une définition
+    met la carte à jour au lieu d'en créer une seconde — et la contrainte `e5f6a7b8c9d4` le
+    garantit désormais en base.
+    """
+    fiche = _mine_or_404(db, fiche_id, student_id, statuses=(STATUS_PERSONAL,))
+    definitions = (fiche.spec_json or {}).get("definitions") or []
+
+    notions = {
+        _cle_terme(nom): sid
+        for sid, nom in db.execute(
+            select(Skill.id, Skill.name)
+            .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+            .where(LessonSkill.lesson_id == fiche.lesson_id)
+            .order_by(Skill.id)
+        ).all()
+    }
+
+    cartes, sans_notion = 0, []
+    for definition in definitions:
+        terme = str(definition.get("terme") or "")
+        texte = str(definition.get("definition") or "")
+        skill_id = notions.get(_cle_terme(terme))
+        if skill_id is None or not texte:
+            sans_notion.append(terme)
+            continue
+        schedule_review(
+            db,
+            student_id=student_id,
+            skill_id=skill_id,
+            interval=INTERVALLE_PREMIERE_CARTE,
+            front=terme,
+            back=texte,
+            card_type=CARD_TYPE_DEFINITION_PERSO,
+        )
+        cartes += 1
+    db.commit()
+    return {"cartes": cartes, "termes_sans_notion": sans_notion}
