@@ -648,7 +648,7 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
   ⚠️ **Quatrième lecteur du gate**, oublié au cadrage : sans lui, ouvrir sa propre fiche renvoie
   404 et son badge « nouveau » ne part jamais.
 
-### L'atelier — la fiche que Massimo fabrique (addendum ADR-0015, slices 1 et 2)
+### L'atelier — la fiche que Massimo fabrique (addendum ADR-0015, slices 1 à 3)
 
 Toutes sous `/api/student`. **Aucun LLM** — et toujours pas en slice 2 : phrases candidates,
 termes, amorce, détection de recopiage et retour de ZETIS sont **intégralement déterministes**
@@ -671,6 +671,7 @@ L'appartenance est vérifiée côté serveur sur chaque route : une fiche person
   | `points_cles` | 12 phrases du cours, déterministes et **stables d'une session à l'autre** | — | il **choisit** |
   | `definitions` | jusqu'à **4 termes** — les **notions** de la leçon, puis le **gras** du cours | — | ZETIS donne le mot, il **écrit** |
   | `essentiel` | **aucune** | le début de phrase | il **écrit**, seul |
+  | `erreurs_a_eviter` | jusqu'à **3 pièges**, tirés de ses ERREURS mesurées | — | ZETIS rappelle, il **confirme** |
 
   ⚠️ `essentiel` rend une **amorce et zéro candidate** — ce n'est pas un manque : une synthèse est
   absente du cours par définition (§8). L'amorce est le titre de la leçon coupé à son premier
@@ -683,6 +684,21 @@ L'appartenance est vérifiée côté serveur sur chaque route : une fiche person
   fait vérifier l'appartenance avant de transcrire. ⚠️ **Le serveur ne remplit rien** — il rend du
   texte, Massimo décide de le garder (règle 7). **413** au-delà de 25 Mo, **503** si la dépendance
   optionnelle `[stt]` n'est pas installée (le micro est alors masqué côté écran).
+- 🔴 **`?section=erreurs_a_eviter`** — la **seule** section que ZETIS peut pré-remplir sans
+  enfreindre la règle 7 (§8) : il ne propose pas une idée, il rappelle **un fait de Massimo**.
+  Sources additionnées **par notion** : quiz ratés (`QuizAnswer.is_correct is False`) et cartes
+  notées **`again`**, ⚠️ **re-tours de consolidation exclus** (`is_consolidation` veut dire *« cet
+  essai n'a pas mesuré l'oubli »*, ADR-0049 — les compter gonflerait le nombre sans erreur
+  nouvelle). Chaque candidate porte une **`raison`** (« tu t'es trompé 2 fois là-dessus ») : sans
+  elle, la ligne serait un conseil sorti de nulle part. ⚠️ **Aucun gate sur le cours écrit** — un
+  piège vient de ses erreurs, pas du texte de la leçon. Liste vide = **état légitime**, pas un
+  manque : il n'a pas encore travaillé cette leçon.
+- **POST `/api/student/fiches/{id}/cards`** → `{cartes, termes_sans_notion}`. Le **pont** vers les
+  cartes de révision (§13) : une carte `definition_perso` par définition écrite — recto le terme
+  de ZETIS, verso **sa** phrase, aucune transformation. **404 sur un brouillon** (§1 bis).
+  ⚠️ **Deux nombres, jamais un seul** : une carte exige une **notion** (`skill_id` NOT NULL), or
+  les termes tirés du **gras du cours** n'en ont pas — annoncer « 4 cartes » pour en créer 2 serait
+  le défaut de la file de relecture (`adr-0039`). **Idempotent** : rejouer met à jour.
 - **POST `/api/student/fiches/draft/{id}/review`** → `FicheFeedback`. « ZETIS, regarde ma fiche ».
   **1 à 2 réussites** (jamais zéro) et **0 à 2 remarques** — la borne à 2 est ce qui empêche ZETIS
   de devenir un correcteur au-dessus de l'épaule. ⚠️ `recopie` ne s'applique qu'aux sections qui

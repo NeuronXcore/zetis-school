@@ -337,6 +337,21 @@ class MindmapView(Base):
 
 class SpacedReviewCard(Base):
     __tablename__ = "spaced_review_cards"
+    # 🔴 **La clé logique est à TROIS colonnes** (addendum ADR-0015 §13) : une notion porte
+    # jusqu'à trois cartes générées, une par `card_type` — `generation.py` le commente depuis
+    # toujours (« clé (student, skill, card_type) unique ») pendant que `schedule_review` en
+    # cherchait **une** par `(student_id, skill_id)`, sans type ni ordre. Les deux moitiés du
+    # module ne s'accordaient pas, et **rien en base ne tranchait**.
+    #
+    # ⚠️ Le défaut était **latent** : mesuré le 2026-08-13, le `MIN(id)` d'une notion multi-cartes
+    # est la carte `definition` **106 fois sur 106**, donc le balayage la rendait en premier et
+    # l'écrasement tombait « au bon endroit ». Ça marchait par coïncidence d'ordre physique —
+    # qu'un `UPDATE`, un `VACUUM` ou un autre plan suffit à défaire. Migration `e5f6a7b8c9d4`.
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "skill_id", "card_type", name="uq_srs_cards_student_skill_type"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"))

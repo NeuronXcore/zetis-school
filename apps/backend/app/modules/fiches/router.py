@@ -19,6 +19,7 @@ from app.modules.eli5.service import get_default_student
 from app.modules.fiches import atelier, service
 from app.modules.fiches.schemas import (
     FicheCandidatesOut,
+    FicheCartesOut,
     FicheDraftOpenRequest,
     FicheDraftOut,
     FicheDraftPatchRequest,
@@ -217,6 +218,22 @@ def student_review_draft(draft_id: int, db: Session = Depends(get_db)) -> dict:
 def student_finish_draft(draft_id: int, db: Session = Depends(get_db)) -> dict:
     """`FicheDraft` → `FicheSpec` : le moment où la fiche existe. 422 s'il manque l'obligatoire."""
     return atelier.finish_draft(db, draft_id=draft_id, student_id=get_default_student(db).id)
+
+
+@student_router.post("/fiches/{fiche_id}/cards", response_model=FicheCartesOut)
+def student_cartes_depuis_fiche(fiche_id: int, db: Session = Depends(get_db)) -> dict:
+    """« 🃏 En faire des cartes » — ses définitions deviennent ses cartes de révision (§13).
+
+    **404 sur un brouillon** : un brouillon n'est pas dérivable (§1 bis). Le pont ne s'ouvre
+    qu'après `finish`.
+
+    ⚠️ La réponse rend **deux** nombres — les cartes créées, et les termes qui n'ont pas de notion
+    derrière eux (ceux venus du gras du cours). Une carte exige un `skill_id` : tous les termes ne
+    peuvent pas en donner, et l'écran doit pouvoir le dire au lieu d'annoncer un compte faux.
+    """
+    return atelier.cartes_depuis_la_fiche(
+        db, fiche_id=fiche_id, student_id=get_default_student(db).id
+    )
 
 
 @student_router.post("/fiches/{fiche_id}/rework", response_model=FicheDraftOut)

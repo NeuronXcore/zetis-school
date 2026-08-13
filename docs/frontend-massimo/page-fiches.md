@@ -461,6 +461,16 @@ pas grisée. Sur la plupart des leçons, la colonne fait **cinq** étapes.
 - `GET …/candidates?section=definitions` — jusqu'à **4 termes** : les **notions** de la leçon,
   puis le **gras** du cours. `?section=essentiel` rend une **amorce** et zéro candidate.
 
+**Ajoutées par la slice 3** :
+
+- `GET …/candidates?section=erreurs_a_eviter` — jusqu'à **3 pièges** tirés de ses erreurs
+  mesurées (quiz ratés + cartes notées `again`, re-tours exclus), chacun avec sa **`raison`**.
+  Liste vide = état légitime, jamais un manque.
+- `POST /api/student/fiches/{id}/cards` — le **pont** : ses définitions deviennent ses cartes.
+  Rend `{cartes, termes_sans_notion}` — ⚠️ **deux nombres**, parce qu'un terme venu du gras n'a
+  aucune notion derrière lui et ne peut pas donner de carte. 404 sur un brouillon.
+  ⚠️ **Sur une fiche de ZETIS le bouton reste inerte** : le pont §6 est toujours stub.
+
 Pilotage Papa (génération, éditeur structuré) : voir `API_SPEC.md` § Fiches et
 `docs/design/design-system.md` § Pilotage.
 
@@ -474,9 +484,10 @@ l'écart est volontaire :
 | Étape ① 🔑 À retenir (choix, 12 → 5) | ✅ au glisser-déposer | ✅ inchangée |
 | Étape ② ✍️ L'essentiel | ❌ | ✅ champ libre + **amorce** + **dictée** |
 | Étape ③ 📖 Les définitions | ❌ | ✅ terme donné, définition écrite |
-| Étapes ④ à ⑥ | ❌ | ❌ **toujours pas rendues** — ni grisées : une étape visible mais morte est une promesse que le produit ne tient pas (même principe que « Mnemonics », §10) |
+| Étape ④ ⚠️ Les pièges | ❌ | ✅ **livrée en slice 3** — proposés depuis ses ERREURS mesurées, avec leur **raison** ; un oui/non, pas un glisser |
+| Étapes ⑤ et ⑥ | ❌ | ❌ **toujours pas rendues** — ni grisées : une étape visible mais morte est une promesse que le produit ne tient pas (même principe que « Mnemonics », §10) |
 | Retour d'analyse | ✅ réussites seules | ✅ **1-2 réussites + 0-2 remarques**, dont `recopie` — mais **jamais sur `points_cles`**, où recopier *est* le geste demandé |
-| Pont « 🃏 En faire des cartes » | ❌ | ❌ **sorti du périmètre** de la slice 2 par arbitrage — reporté en slice 3 |
+| Pont « 🃏 Ajouter à mes cartes » | ❌ | ✅ **livré en slice 3** — et c'est le bouton que `FicheCard` portait DÉJÀ, désactivé depuis l'ADR-0015 §6, avec sa prop `onAddToCards` prête. 🔴 En avoir ajouté un second dessous a donné **deux boutons au même emoji pour le même geste, dont un mort** : vu à l'écran, invisible à tous les tests |
 | Écran 2 — une tuile par leçon, 4 états | ❌ l'entrée passait par **le cours** (§12) | ✅ **livré** — `GET …/fiche-tiles` + `FicheSubjectPage` |
 | Tiroir de cours dans l'atelier | ❌ hors périmètre | ❌ toujours hors périmètre — `CoursPanel` n'a pas été touché |
 

@@ -151,6 +151,11 @@ export type FicheSection =
 export interface FicheCandidate {
   index: number;
   texte: string;
+  // Pourquoi ZETIS propose CELLE-CI — renseigné pour `erreurs_a_eviter` seulement, et c'est
+  // tout ce qui rend la proposition acceptable : il ne suggère pas une idée, il rappelle un
+  // FAIT de Massimo (« tu t'es trompé 2 fois là-dessus »). Sans la raison, « Attention à : les
+  // fractions » serait un conseil sorti de nulle part.
+  raison?: string | null;
 }
 
 // Ce qu'une section offre pour DÉMARRER — et chaque section démarre autrement :

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { type FicheDetail, type FicheListItem, type FicheTile } from "@zetis/types";
+import { cardsFromFiche, type FicheCartes } from "../lib/atelier";
 import { FicheCard } from "../components/FicheCard";
 import { CoursPanel } from "../components/CoursPanel";
 import { NeonBackdrop } from "../components/glass";
@@ -31,6 +32,9 @@ export function FicheSubjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [detail, setDetail] = useState<FicheDetail | null>(null);
+  // Le pont vers les cartes (addendum ADR-0015 §13) — deux nombres, jamais un seul : une carte
+  // a besoin d'une NOTION, et les termes tirés du gras du cours n'en ont pas.
+  const [bilanPont, setBilanPont] = useState<FicheCartes | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   // Cours source affiché À CÔTÉ de la fiche (colonne droite, même page — pas de superposition).
   const [coursOpen, setCoursOpen] = useState(false);
@@ -73,6 +77,16 @@ export function FicheSubjectPage() {
   );
 
   const iconUrl = subjectIconFor(slug);
+  const pontVersLesCartes = useCallback(async () => {
+    if (!detail) return;
+    try {
+      setBilanPont(await cardsFromFiche(detail.id));
+    } catch {
+      // Silencieux : l'échec ne doit pas transformer une fiche en écran d'erreur. Le geste
+      // est rejouable — le serveur met à jour au lieu de dupliquer.
+    }
+  }, [detail]);
+
   const heading = (
     <div className="flex items-center gap-2 text-slate-200">
       {iconUrl ? (
@@ -150,7 +164,37 @@ export function FicheSubjectPage() {
             // Fiche à gauche, cours à droite (même page) — empilé en mobile, côte à côte en lg.
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
               <div className={`min-w-0 ${coursOpen ? "lg:flex-[2]" : "w-full"}`}>
-                <FicheCard spec={detail.spec} subjectSlug={detail.subject_slug || slug} />
+                {/* 🔴 **Un seul bouton, et c'est celui qui existait déjà.** `FicheCard` porte
+                    depuis l'ADR-0015 §6 un « 🃏 Ajouter à mes cartes » désactivé, en attente de
+                    ce chantier. En ajouter un second dessous — vu à l'écran le 2026-08-13 —
+                    donnait DEUX boutons au même emoji pour le même geste, dont un mort.
+                    On câble le stub prévu pour ça ; sur une fiche de ZETIS il reste inerte,
+                    le pont §6 étant toujours stub. */}
+                <FicheCard
+                  spec={detail.spec}
+                  subjectSlug={detail.subject_slug || slug}
+                  onAddToCards={
+                    detail.validation_status === "personal" && detail.spec.definitions.length > 0
+                      ? pontVersLesCartes
+                      : undefined
+                  }
+                />
+                {bilanPont && (
+                  <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+                    {bilanPont.cartes === 0
+                      ? "Aucune carte cette fois — ces mots-là ne sont pas des notions de ton programme."
+                      : `${bilanPont.cartes} carte${bilanPont.cartes > 1 ? "s" : ""} ${
+                          bilanPont.cartes > 1 ? "ajoutées" : "ajoutée"
+                        } à tes révisions. C'est TA phrase que tu reverras.`}
+                    {bilanPont.termes_sans_notion.length > 0 && (
+                      <span className="mt-1 block text-xs text-zetis-muted">
+                        {bilanPont.termes_sans_notion.length} mot
+                        {bilanPont.termes_sans_notion.length > 1 ? "s" : ""} sans notion derrière —
+                        ils restent sur ta fiche.
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               {coursOpen && (
                 <div className="min-w-0 lg:flex-[3]">

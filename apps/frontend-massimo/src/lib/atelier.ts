@@ -114,3 +114,24 @@ export async function finishDraft(id: number): Promise<FicheDraftDetail> {
     }),
   );
 }
+
+/** Ce que le pont a VRAIMENT fait — deux nombres, jamais un seul. */
+export interface FicheCartes {
+  cartes: number;
+  termes_sans_notion: string[];
+}
+
+/**
+ * « 🃏 En faire des cartes » — ses définitions deviennent ses cartes de révision.
+ *
+ * ⚠️ Ne s'ouvre que sur une fiche FINIE (404 sur un brouillon) : un demi-travail n'entre pas
+ * dans le circuit de révision. Idempotent — rejouer met les cartes à jour.
+ */
+export async function cardsFromFiche(ficheId: number): Promise<FicheCartes> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/fiches/${ficheId}/cards`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}

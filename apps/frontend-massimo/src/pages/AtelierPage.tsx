@@ -63,6 +63,15 @@ const ETAPES: { id: FicheSection; num: string; titre: string; bulle: string }[] 
     titre: "📖 Les mots à connaître",
     bulle: "Je te donne les mots. À toi de dire ce qu'ils veulent dire.",
   },
+  {
+    id: "erreurs_a_eviter",
+    num: "④",
+    titre: "⚠️ Les pièges",
+    // 🔴 ZETIS ne propose pas une IDÉE, il rappelle un FAIT de Massimo — c'est la seule
+    // section qu'il peut pré-remplir sans enfreindre la règle 7 (§8). D'où « je me souviens »
+    // et pas « je te conseille » : la nuance est toute la différence.
+    bulle: "Je me souviens de ce sur quoi tu t'es trompé. On en met sur ta fiche ?",
+  },
 ];
 
 // ~60 caractères par ligne sur la fiche A5. Sert à dire la place RESTANTE, jamais un compteur.
@@ -98,6 +107,11 @@ export function AtelierPage() {
   const [definitions, setDefinitions] = useState<Record<string, string>>({});
   const definitionsRef = useRef<Record<string, string>>({});
 
+  // Étape ④ — les pièges : ZETIS propose depuis ses ERREURS mesurées, Massimo confirme
+  const [piegesProposes, setPiegesProposes] = useState<FicheCandidate[]>([]);
+  const [pieges, setPieges] = useState<string[]>([]);
+  const piegesRef = useRef<string[]>([]);
+
   // Dictée
   const [micro, setMicro] = useState<Recording | null>(null);
   const [transcrit, setTranscrit] = useState(false);
@@ -114,17 +128,28 @@ export function AtelierPage() {
   // le second POST. Les deux requêtes arrivaient ensemble, aucune ne voyait l'autre, et chacune
   // créait son brouillon : 4 brouillons pour 2 leçons, constaté en base le 2026-08-13. Un
   // double-tap sur téléphone produirait exactement la même chose.
-  const ouverture = useRef<string | null>(null);
+  //
+  // 🔴 **On mémorise la PROMESSE, pas un drapeau « déjà fait »** — et cette nuance est tout.
+  // La première version posait `ouverture.current = lessonId` puis rendait la main au second
+  // montage, qui repartait aussitôt. Résultat mesuré à l'écran le 2026-08-13 : le premier
+  // montage recevait ses candidates APRÈS son propre démontage (`annule` déjà vrai) et les
+  // jetait ; le second n'en demandait aucune. **L'accordéon s'affichait, entièrement creux** —
+  // 12 phrases, 4 termes et 2 pièges servis par l'API, zéro à l'écran.
+  //
+  // En gardant la promesse, les deux montages attendent le MÊME appel : un seul POST, et le
+  // survivant remplit l'état. C'est la seule forme qui tienne les deux exigences à la fois.
+  const ouverture = useRef<{ lecon: string; promesse: Promise<FicheDraftDetail> } | null>(null);
 
   useEffect(() => {
     let annule = false;
     const id = Number(lessonId);
     if (!id) return;
-    if (ouverture.current === lessonId) return;
-    ouverture.current = lessonId;
+    const promesse =
+      ouverture.current?.lecon === lessonId ? ouverture.current.promesse : openDraft(id);
+    ouverture.current = { lecon: lessonId, promesse };
     (async () => {
       try {
-        const d = await openDraft(id);
+        const d = await promesse;
         if (annule) return;
         setDetail(d);
         // La reprise est ICI : il retrouve exactement ce qu'il avait rempli.
@@ -136,11 +161,14 @@ export function AtelierPage() {
           (d.draft.definitions ?? []).map((x) => [x.terme, x.definition]),
         );
         setDefinitions(definitionsRef.current);
+        piegesRef.current = d.draft.erreurs_a_eviter ?? [];
+        setPieges(piegesRef.current);
 
-        const [pc, ess, defs] = await Promise.all([
+        const [pc, ess, defs, pgs] = await Promise.all([
           fetchCandidates(d.id, "points_cles").catch(() => null),
           fetchCandidates(d.id, "essentiel").catch(() => null),
           fetchCandidates(d.id, "definitions").catch(() => null),
+          fetchCandidates(d.id, "erreurs_a_eviter").catch(() => null),
         ]);
         if (annule) return;
         if (pc) {
@@ -149,6 +177,7 @@ export function AtelierPage() {
         }
         if (ess) setAmorce(ess.amorce ?? null);
         if (defs) setTermes(defs.candidates.map((c) => c.texte));
+        if (pgs) setPiegesProposes(pgs.candidates);
       } catch (e) {
         if (!annule) setError(e instanceof Error ? e.message : "Impossible d'ouvrir l'atelier.");
       }
@@ -172,6 +201,7 @@ export function AtelierPage() {
       definitions: Object.entries(definitionsRef.current)
         .filter(([, d]) => d.trim())
         .map(([terme, definition]) => ({ terme, definition })),
+      erreurs_a_eviter: piegesRef.current,
     };
     try {
       await saveDraft(detail.id, draft);
@@ -186,6 +216,22 @@ export function AtelierPage() {
   }, [detail]);
 
   useEffect(() => () => void (temoin.current && window.clearTimeout(temoin.current)), []);
+
+  // « On le met en piège ? » — un OUI/NON, pas un glisser : ce n'est pas un placement dans des
+  // emplacements, c'est une CONFIRMATION de ce que ZETIS a mesuré. Et retirer une proposition
+  // n'efface aucune mesure : l'erreur reste dans son historique, elle ne va pas sur la fiche.
+  const basculerPiege = useCallback(
+    (texte: string) => {
+      const suivant = piegesRef.current.includes(texte)
+        ? piegesRef.current.filter((t) => t !== texte)
+        : [...piegesRef.current, texte];
+      piegesRef.current = suivant;
+      setPieges(suivant);
+      void persister();
+    },
+    [persister],
+  );
+
 
   // ── Échap + verrou du défilement (patron ADR-0052) ───────────────────────────
   useEffect(() => {
@@ -349,8 +395,18 @@ export function AtelierPage() {
     if (id === "essentiel") {
       return essentiel.trim() ? essentiel.slice(0, 70) : "à écrire avec tes mots — ou à dicter";
     }
-    const n = Object.values(definitions).filter((d) => d.trim()).length;
-    return n ? `${n} mot${n > 1 ? "s" : ""} sur ${termes.length}` : `${termes.length} mots à définir`;
+    if (id === "definitions") {
+      const n = Object.values(definitions).filter((d) => d.trim()).length;
+      return n
+        ? `${n} mot${n > 1 ? "s" : ""} sur ${termes.length}`
+        : `${termes.length} mots à définir`;
+    }
+    if (pieges.length) return `${pieges.length} piège${pieges.length > 1 ? "s" : ""} sur ta fiche`;
+    // 🔴 Aucun piège proposé n'est un état LÉGITIME, pas un manque : il n'a pas encore
+    // travaillé cette leçon. On le dit sans reproche et sans décompte.
+    return piegesProposes.length
+      ? `${piegesProposes.length} à regarder`
+      : "rien à signaler pour l'instant";
   }
 
   return (
@@ -395,7 +451,9 @@ export function AtelierPage() {
               ? choisis.length > 0
               : etape.id === "essentiel"
                 ? essentiel.trim().length > 0
-                : Object.values(definitions).some((d) => d.trim());
+                : etape.id === "definitions"
+                  ? Object.values(definitions).some((d) => d.trim())
+                  : pieges.length > 0;
           return (
             <section
               key={etape.id}
@@ -478,6 +536,14 @@ export function AtelierPage() {
                       definitions={definitions}
                       onChange={ecrireDefinition}
                       onBlur={() => void persister()}
+                    />
+                  )}
+
+                  {etape.id === "erreurs_a_eviter" && (
+                    <EtapePieges
+                      proposes={piegesProposes}
+                      retenus={pieges}
+                      onBasculer={basculerPiege}
                     />
                   )}
 
@@ -812,6 +878,66 @@ function EtapeDefinitions({
       ))}
       <p className="text-xs text-zetis-muted">
         Je te donne le mot, tu dis ce qu'il veut dire. C'est ta phrase que tu réviseras.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Étape ④ — les pièges, proposés depuis ses ERREURS mesurées.
+ *
+ * 🔴 **La `raison` porte tout.** Sans elle, « Attention à : les fractions » est un conseil sorti
+ * de nulle part — exactement ce que la règle 7 interdit. Avec elle, c'est sa propre mesure qu'on
+ * lui rend, et il reste seul juge de ce qui va sur sa fiche.
+ *
+ * Un OUI/NON, pas un glisser : il n'y a rien à placer, il y a quelque chose à confirmer.
+ */
+function EtapePieges({
+  proposes,
+  retenus,
+  onBasculer,
+}: {
+  proposes: FicheCandidate[];
+  retenus: string[];
+  onBasculer: (texte: string) => void;
+}) {
+  if (proposes.length === 0) {
+    return (
+      <p className="text-sm text-zetis-muted">
+        Je n'ai rien noté sur cette leçon pour l'instant — pas de piège à mettre. Ça viendra en
+        travaillant.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {proposes.map((p) => {
+        const pris = retenus.includes(p.texte);
+        return (
+          <button
+            key={p.index}
+            type="button"
+            onClick={() => onBasculer(p.texte)}
+            aria-pressed={pris}
+            /* 44 px de haut minimum : cible tactile du projet (mesurée à 36 px et corrigée le
+               2026-08-13 sur la croix de l'étape ①). */
+            className={`flex min-h-[44px] items-center gap-3 rounded-xl border p-3 text-left ${
+              pris ? "border-amber-400/60 bg-amber-400/10" : "border-white/15 bg-slate-900/40"
+            }`}
+          >
+            <span className="text-lg">{pris ? "⚠️" : "○"}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-slate-100">{p.texte}</span>
+              {p.raison && (
+                <span className="block text-xs text-zetis-muted">{p.raison}</span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+      <p className="text-xs text-zetis-muted">
+        Tu choisis ce qui va sur ta fiche. Ce que tu laisses ici, je le garde quand même pour te le
+        reproposer plus tard.
       </p>
     </div>
   );

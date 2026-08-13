@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -88,12 +89,27 @@ const DEFINITIONS: FicheCandidates = {
   ],
 };
 
+const PIEGES: FicheCandidates = {
+  section: "erreurs_a_eviter",
+  slots: 3,
+  candidates: [
+    { index: 0, texte: "Attention à : Épicentre", raison: "tu t'es trompé 2 fois là-dessus" },
+    { index: 1, texte: "Attention à : Magnitude", raison: "tu t'es trompé une fois là-dessus" },
+  ],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.openDraft.mockResolvedValue(DRAFT);
   api.fetchCandidates.mockImplementation((_id: number, section = "points_cles") =>
     Promise.resolve(
-      section === "essentiel" ? ESSENTIEL : section === "definitions" ? DEFINITIONS : CANDIDATES,
+      section === "essentiel"
+        ? ESSENTIEL
+        : section === "definitions"
+          ? DEFINITIONS
+          : section === "erreurs_a_eviter"
+            ? PIEGES
+            : CANDIDATES,
     ),
   );
   api.saveDraft.mockResolvedValue(DRAFT);
@@ -129,6 +145,9 @@ async function glisser(texte: string, emplacement: number | null) {
   (document as unknown as { elementFromPoint: unknown }).elementFromPoint = original;
 }
 
+// ⚠️ « sur 3 » → « sur 4 » le 2026-08-13 : l'étape ④ ⚠️ Les pièges est arrivée
+// (addendum ADR-0015 §13). Changement de comportement VOULU, pas un test ajusté pour
+// passer — le plan de la fiche compte désormais quatre étapes ouvertes.
 describe("AtelierPage", () => {
   it("montre les phrases du cours et les emplacements à remplir", async () => {
     monter();
@@ -184,7 +203,7 @@ describe("AtelierPage", () => {
       },
     });
     monter();
-    await screen.findByText(/1 étape sur 3/);
+    await screen.findByText(/1 étape sur 4/);
 
     // ⚠️ Les deux clics DOIVENT partir dans le même `act` : `fireEvent.click` vide la file
     // d'état entre deux appels, donc deux `fireEvent` successifs ne reproduisent JAMAIS le
@@ -197,7 +216,7 @@ describe("AtelierPage", () => {
 
     await waitFor(() => expect(api.saveDraft).toHaveBeenCalledTimes(2));
     expect(api.saveDraft.mock.calls[1][1].points_cles).toEqual([]);
-    expect(await screen.findByText(/0 étape sur 3/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 4/)).toBeInTheDocument();
   });
 
   it("reprend exactement où il s'était arrêté", async () => {
@@ -207,7 +226,7 @@ describe("AtelierPage", () => {
     });
     monter();
 
-    expect(await screen.findByText(/1 étape sur 3/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 étape sur 4/)).toBeInTheDocument();
     expect(screen.getAllByText(/un emplacement libre/)).toHaveLength(4);
   });
 
@@ -386,8 +405,115 @@ describe("AtelierPage", () => {
   it("ne décompte jamais ce qui manque", async () => {
     // `CLAUDE.md` § Gamification : on compte ce qui est commencé, jamais ce qui reste dû.
     monter();
-    expect(await screen.findByText(/0 étape sur 3/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 4/)).toBeInTheDocument();
     expect(screen.queryByText(/il te reste/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/plus que/i)).not.toBeInTheDocument();
+  });
+});
+
+// ── Étape ④ — les pièges (addendum ADR-0015 §13) ────────────────────────────────
+
+describe("AtelierPage — les pièges", () => {
+  it("montre la RAISON, pas seulement le piège", async () => {
+    // 🔴 Sans la raison, « Attention à : Épicentre » est un conseil sorti de nulle part —
+    // exactement ce que la règle 7 interdit. Avec elle, c'est sa propre mesure qu'on lui rend.
+    monter();
+    await deplier(/Les pièges/);
+    expect(await screen.findByText("Attention à : Épicentre")).toBeInTheDocument();
+    expect(screen.getByText(/tu t'es trompé 2 fois là-dessus/)).toBeInTheDocument();
+  });
+
+  it("met le piège sur la fiche au tap, et l'enlève au second", async () => {
+    monter();
+    await deplier(/Les pièges/);
+    const piege = await screen.findByText("Attention à : Épicentre");
+
+    fireEvent.click(piege);
+    await waitFor(() =>
+      expect(api.saveDraft).toHaveBeenLastCalledWith(
+        42,
+        expect.objectContaining({ erreurs_a_eviter: ["Attention à : Épicentre"] }),
+      ),
+    );
+
+    fireEvent.click(piege);
+    await waitFor(() =>
+      expect(api.saveDraft).toHaveBeenLastCalledWith(
+        42,
+        expect.objectContaining({ erreurs_a_eviter: [] }),
+      ),
+    );
+  });
+
+  it("ne reproche RIEN quand ZETIS n'a rien mesuré", async () => {
+    // État légitime : il n'a pas encore travaillé cette leçon. Aucun décompte, aucun manque.
+    api.fetchCandidates.mockImplementation((_id: number, section = "points_cles") =>
+      Promise.resolve(
+        section === "erreurs_a_eviter"
+          ? { section, slots: 3, candidates: [] }
+          : section === "essentiel"
+            ? ESSENTIEL
+            : section === "definitions"
+              ? DEFINITIONS
+              : CANDIDATES,
+      ),
+    );
+    monter();
+    await deplier(/Les pièges/);
+    expect(await screen.findByText(/Je n'ai rien noté sur cette leçon/)).toBeInTheDocument();
+    for (const interdit of [/retard/i, /manqu/i, /tu devrais/i, /échec/i]) {
+      expect(screen.queryByText(interdit)).not.toBeInTheDocument();
+    }
+  });
+});
+
+
+// ── Le double montage de StrictMode — deux exigences, pas une ────────────────────
+//
+// 🔴 Ce bloc existe parce qu'un défaut est passé sous 699 tests verts et a atteint `main` :
+// Testing Library monte SANS `StrictMode`, alors que `main.tsx` monte AVEC. Le double montage
+// de React n'était donc exercé nulle part — et c'est précisément là que le bug vivait.
+//
+// Les deux exigences se contredisent si on n'y prend pas garde :
+//   (a) UN SEUL POST — sinon deux brouillons pour une leçon (constaté en base le 2026-08-13) ;
+//   (b) l'état DOIT être rempli — le premier montage reçoit ses candidates après son propre
+//       démontage et les jette ; si le second n'en redemande pas, l'écran reste creux.
+// Un drapeau « déjà ouvert » tient (a) et casse (b). Mémoriser la PROMESSE tient les deux.
+
+function monterEnStrictMode() {
+  return render(
+    <StrictMode>
+      <MemoryRouter initialEntries={["/fiches/svt/7/atelier"]}>
+        <Routes>
+          <Route path="/fiches/:slug/:lessonId/atelier" element={<AtelierPage />} />
+          <Route path="/fiches/:slug" element={<div>liste-des-fiches</div>} />
+        </Routes>
+      </MemoryRouter>
+    </StrictMode>,
+  );
+}
+
+describe("AtelierPage — monté DEUX FOIS, comme en vrai", () => {
+  it("n'ouvre qu'UN brouillon malgré le double montage", async () => {
+    monterEnStrictMode();
+    await screen.findByText(/À retenir/);
+    expect(api.openDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("🔴 remplit quand même l'écran — l'accordéon ne reste PAS creux", async () => {
+    // Le défaut réel : `setDetail` passait (il arrive avant le démontage), les candidates non.
+    // L'accordéon s'affichait donc, entièrement vide, alors que l'API répondait parfaitement.
+    // ⚠️ Pas de `deplier` ici : l'étape ① est ouverte AU DÉPART. Cliquer son titre la
+    // REFERMERAIT, et le test rougirait pour la mauvaise raison — ce qu'il a fait d'abord.
+    monterEnStrictMode();
+    expect(
+      await screen.findByText("Un séisme vient d'une cassure brutale des roches."),
+    ).toBeInTheDocument();
+  });
+
+  it("charge aussi les PIÈGES au second montage", async () => {
+    monterEnStrictMode();
+    await deplier(/Les pièges/);
+    expect(await screen.findByText("Attention à : Épicentre")).toBeInTheDocument();
   });
 });

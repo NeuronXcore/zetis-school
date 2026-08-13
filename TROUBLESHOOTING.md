@@ -4,6 +4,90 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/fiche-de-massimo-slice-3` — 2026-08-13
+
+### 🔴 Un refactor « à comportement constant » sur une fonction SANS COUVERTURE ne prouve rien
+
+`schedule_review` modifiée, suite relancée : **1257 → 1257, aucun test touché**. La preuve
+attendue. Puis sabotage de la clause que je venais d'écrire — **1257 verts**. Cause : la fonction
+n'était appelée par **aucun** test. Une seule mention dans tout `tests/`, et c'est une docstring.
+
+⚠️ **« Zéro test touché » ne veut pas dire « comportement constant prouvé »** : ça peut vouloir
+dire « comportement non observé ». Les deux se ressemblent exactement dans le rapport.
+
+**Parade** : avant de revendiquer un Temps 1, vérifier que la fonction EST exercée —
+`grep -rn "<fonction>" app/tests/`. Si elle ne l'est pas, le Temps 1 n'a pas de preuve : il faut
+d'abord écrire les verrous, PUIS refactorer.
+
+### 🔴 Testing Library ne monte pas en `StrictMode` — un défaut y est passé jusqu'à `main`
+
+`main.tsx` monte l'app dans `<StrictMode>` (double montage en dev) ; `render()` de Testing Library
+**non**. Le double montage n'était donc exercé par aucun des 699 tests.
+
+Le défaut réel, vu à l'écran le 2026-08-13 : un garde-fou anti-double-POST en drapeau
+(`if (ref.current === id) return;`) laissait le **premier** montage recevoir ses données APRÈS son
+propre démontage (`annule` déjà vrai, donc jetées) pendant que le **second** rendait la main sans
+rien redemander. `setDetail` passait — il arrive avant le démontage — les candidates non :
+**l'accordéon s'affichait, entièrement creux**, API parfaitement fonctionnelle derrière.
+
+**Parade** — deux, et il faut les deux :
+- **mémoriser la PROMESSE, pas un drapeau** : les deux montages attendent le même appel, un seul
+  POST, et le survivant remplit l'état ;
+- **un test qui rende dans `<StrictMode>`** dès qu'un effet fait un POST ou garde un ref. Vérifier
+  alors les DEUX exigences séparément (un seul appel · l'état est rempli) : un drapeau tient la
+  première et casse la seconde, donc un seul test ne les distingue pas.
+
+### 🔴 Poser une surface neuve sans lire le composant qui affiche DÉJÀ l'objet
+
+J'ai ajouté un bouton « 🃏 En faire des cartes » sous la fiche. `FicheCard` en portait déjà un —
+« 🃏 Ajouter à mes cartes », **désactivé**, stub posé par l'ADR-0015 §6 en attente de ce chantier
+exact, avec la prop `onAddToCards` déjà prête. Résultat à l'écran : **deux boutons, même emoji,
+même geste, dont un mort** — et la doctrine du dépôt dit *« un bouton mort se lit comme une
+panne »*.
+
+Aucun test ne pouvait le voir : les miens cherchaient **mon** libellé et le trouvaient.
+
+**Parade** : le read-before-code d'une slice qui ajoute une SURFACE doit inclure le composant qui
+rend déjà l'objet, pas seulement les services. `grep -rn "<le geste en toutes lettres>" apps/` sur
+le libellé métier, pas sur le nom de fonction.
+
+### ⚠️ Un défaut peut être LATENT — neutralisé par un ordre physique que rien ne garantit
+
+`schedule_review` cherchait une carte par `(student_id, skill_id)`, **sans `card_type` ni
+`ORDER BY`**, alors que `generation.py` en produit jusqu'à trois par notion. Le cadrage en a
+déduit un écrasement de carte. **Reproduit en transaction annulée : faux aujourd'hui.** Sur les
+**106** notions multi-cartes, le `MIN(id)` est la carte `definition` **106 fois sur 106**, et zéro
+notion n'est sans `definition` — le balayage séquentiel rendait donc toujours la bonne.
+
+**Parade** : mesurer avant d'affirmer, **et le dire dans les deux sens**. Un défaut latent reste à
+corriger (rien ne garantit l'ordre : un `UPDATE` déplace une ligne, un `VACUUM` change le plan),
+mais on ne répare pas une panne — on **retire une dépendance accidentelle**, et le motif est plus
+faible. Le corollaire pratique : le dédoublonnage de la migration était un **no-op mesuré**
+(`DELETE 0`), à ne pas présenter comme un travail.
+
+### ⚠️ Un verrou qui lit le SOURCE d'une fonction devient aveugle dès qu'on extrait une clause
+
+`test_news_doctrine.py` lit le **corps** de `new_cards_count` et y interdit tout jeton d'échéance
+(`due_at`, `overdue`…). Extraire une clause dans un helper partagé (`population.servable()`) sort
+le jeton du corps scanné : **le verrou passerait au vert sur un helper qui lit une échéance.**
+
+**Parade** : quand un prédicat est appelé par un compteur sous ce verrou, la règle doit être tenue
+**par construction dans le helper** et écrite dans son docstring. C'est fait ici : aucun prédicat
+de `memory/population.py` ne lit d'échéance, et le module le dit en tête.
+
+### ⚠️ Un test peut rougir pour la MAUVAISE raison — l'étape ① est ouverte au départ
+
+Mon test `StrictMode` faisait `deplier(/À retenir/)` avant de chercher une phrase. L'accordéon
+ouvre l'étape ① **par défaut** : le clic la refermait, et le rouge ne disait rien du produit.
+
+**Parade** : avant de conclure d'un rouge, lire l'erreur — *« Unable to find… »* sur un élément
+qu'on vient soi-même de masquer n'est pas un défaut du code.
+
+### ⚠️ `Quiz.subject_id` est NOT NULL — le décor de test ne peut pas l'omettre
+
+Un `Quiz(lesson_id=…, title=…)` échoue à l'insertion. La matière se prend sur la notion :
+`select(Skill.subject_id).where(Skill.id == skill_id)`.
+
 ## Chantier `feat/fiche-de-massimo-slice-2` — 2026-08-13
 
 ### 🔴 Un `db.scalar` sans `ORDER BY` + `StrictMode` = deux lecteurs, DEUX brouillons

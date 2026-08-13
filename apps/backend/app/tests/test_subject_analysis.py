@@ -301,21 +301,28 @@ def test_retard_et_charge_SRS_sont_deux_mesures_distinctes(client_db) -> None:
     now = datetime.now(UTC)
     with TestSession() as db:
         student = db.query(m.StudentProfile).first()
-        # Une carte EN RETARD, et une carte due dans 3 jours.
         # DEUX cartes en retard, UNE due dans 3 jours, et UNE SUSPENDUE due dans 5 jours.
+        #
+        # ⚠️ **Un `card_type` DISTINCT par carte** depuis le 2026-08-13 : la clé
+        # `(student_id, skill_id, card_type)` est désormais contrainte en base (addendum
+        # ADR-0015 §13). Quatre cartes de même type sur une même notion n'étaient pas seulement
+        # interdites — elles étaient **inatteignables par le produit** (`generation.py` déduplique
+        # par type, `schedule_review` met à jour). Le décor décrivait un état qui n'existe pas.
+        # Les assertions, elles, ne bougent pas : c'est bien le même comptage qui est vérifié.
         cartes = [
-            (now - timedelta(days=5), "new"),
-            (now - timedelta(days=2), "new"),
-            (now + timedelta(days=3), "new"),
-            (now + timedelta(days=5), "suspended"),
+            (now - timedelta(days=5), "new", "definition"),
+            (now - timedelta(days=2), "new", "method"),
+            (now + timedelta(days=3), "new", "example"),
+            (now + timedelta(days=5), "suspended", "error_correction"),
         ]
-        for due, statut in cartes:
+        for due, statut, type_carte in cartes:
             db.add(
                 m.SpacedReviewCard(
                     student_id=student.id,
                     skill_id=skills[0],
                     front_markdown="Recto",
                     back_markdown="Verso",
+                    card_type=type_carte,
                     due_at=due,
                     status=statut,
                 )

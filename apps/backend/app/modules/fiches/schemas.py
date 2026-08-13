@@ -222,6 +222,11 @@ class FicheCandidate(BaseModel):
 
     index: int
     texte: str
+    # Pourquoi ZETIS propose CELLE-CI — renseigné pour `erreurs_a_eviter` seulement, et c'est
+    # tout ce qui rend la proposition acceptable : ZETIS ne suggère pas une idée, il rappelle
+    # **un fait de Massimo** (§8). Sans la raison, « Attention à : les fractions » serait un
+    # conseil sorti de nulle part ; avec elle, c'est sa propre mesure qu'on lui rend.
+    raison: str | None = None
 
 
 class FicheCandidatesOut(BaseModel):
@@ -274,6 +279,19 @@ class FicheTile(BaseModel):
     versions: int = 0  # ses versions à lui
     etapes_remplies: int = 0  # sur un brouillon : combien de sections ont quelque chose
     points_choisis: int = 0  # « tu en as choisi 3 »
+
+
+class FicheCartesOut(BaseModel):
+    """Ce que le pont a VRAIMENT fait — deux nombres, jamais un seul (addendum ADR-0015 §13).
+
+    ⚠️ Une carte exige une **notion** (`skill_id` NOT NULL), or ZETIS propose les termes en deux
+    temps : les notions de la leçon **puis le gras du cours**. Un terme venu du gras ne peut pas
+    donner de carte. Annoncer « 4 cartes » pour en créer 2 serait le défaut que l'`adr-0039` a
+    payé sur la file de relecture — l'écran doit pouvoir dire la vérité.
+    """
+
+    cartes: int
+    termes_sans_notion: list[str] = []
 
 
 class FicheTranscriptOut(BaseModel):

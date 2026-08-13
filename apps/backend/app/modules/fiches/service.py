@@ -584,6 +584,11 @@ def fiches_summary(db: Session) -> dict:
 
     ⚠️ Le compteur additionne les fiches ZETIS **validées** et les fiches de **Massimo** : un deck
     où il n'a que ses propres fiches n'est pas « bientôt » (spec `page-fiches.md`).
+
+    🔴 **Mais `new_count` exclut les siennes** (2026-08-13) : on ne découvre pas ce qu'on vient
+    d'écrire. Les deux compteurs ne répondent pas à la même question — `fiche_count` dit *« ce
+    qu'il y a dans ce deck »*, `new_count` dit *« ce qu'il n'a pas encore vu »*. Une fiche qu'il a
+    fabriquée est dans le premier et jamais dans le second.
     """
     year = _active_year(db)
     if year is None:
@@ -601,14 +606,14 @@ def fiches_summary(db: Session) -> dict:
     out = []
     for subject in subjects:
         lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
-        fiche_ids = (
+        lignes = (
             list(
-                db.scalars(
-                    select(Fiche.id).where(
+                db.execute(
+                    select(Fiche.id, Fiche.author).where(
                         Fiche.lesson_id.in_(lesson_ids),
                         readable_by_student(student.id),
                     )
-                )
+                ).all()
             )
             if lesson_ids
             else []
@@ -617,8 +622,16 @@ def fiches_summary(db: Session) -> dict:
             {
                 "slug": subject.slug,
                 "name": subject.name,
-                "fiche_count": len(fiche_ids),
-                "new_count": sum(1 for fid in fiche_ids if fid not in seen),
+                "fiche_count": len(lignes),
+                # 🔴 **Une fiche que Massimo a ÉCRITE n'est jamais « nouvelle »** — il ne peut pas
+                # découvrir ce qu'il vient de fabriquer. Sans cette exclusion, finir sa fiche
+                # allumait un badge « NOUVEAU » qui ne partait qu'en la rouvrant : un témoin qui
+                # s'allume tout seul, c'est-à-dire la règle « NOUVEAU jamais DÛ » de l'`adr-0030`
+                # prise à revers. Elle COMPTE dans `fiche_count` (c'est bien une fiche de son
+                # deck) et jamais dans `new_count`.
+                "new_count": sum(
+                    1 for fid, auteur in lignes if auteur != AUTHOR_MASSIMO and fid not in seen
+                ),
             }
         )
     return {"subjects": out}

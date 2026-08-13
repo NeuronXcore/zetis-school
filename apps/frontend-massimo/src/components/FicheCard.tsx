@@ -160,7 +160,12 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
             type="button"
             onClick={onAddToCards}
             disabled={!onAddToCards}
-            title="Bientôt : ajouter cette fiche à tes cartes de révision"
+            title={
+              onAddToCards
+                ? "Tes définitions deviennent des cartes de révision"
+                : // Fiche de ZETIS : le pont §6 est toujours stub, le bouton reste inerte.
+                  "Bientôt : ajouter cette fiche à tes cartes de révision"
+            }
             className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 disabled:opacity-40"
           >
             🃏 Ajouter à mes cartes
