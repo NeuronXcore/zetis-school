@@ -2,7 +2,7 @@
 
 ## Statut
 
-Proposé — 2026-08-12
+Proposé — 2026-08-12 · **§13 ajouté le 2026-08-13** (le pont SRS, à l'ouverture de la slice 3)
 
 > Tranche la **sous-décision explicitement différée** de l'ADR-0015 (§ Alternatives, dernier
 > point) : *« Fiche générée par Massimo lui-même — pédagogiquement l'acte le plus fort (faire sa
@@ -576,6 +576,80 @@ question — **tranchée le 2026-08-12 : lire avant de fabriquer est permis** (�
 entrées s'ouvrent, sans condition et sans gate. Une seule décision, deux entrées, **plus aucun
 blocage**.
 
+### §13 — Le pont SRS : **deux cartes par notion**, et une clé qui devient vraie
+
+> Ajouté le **2026-08-13**, à l'ouverture de la slice 3, parce que le §8 décidait la **forme** de
+> la carte (« recto le terme de ZETIS, verso la phrase de Massimo ») et **rien de la collision**.
+> Le pont a été sorti du périmètre **deux fois** — slice 1 puis slice 2 — pour ce seul motif. Une
+> décision différée deux fois n'est pas une décision : c'est un trou, et il s'écrit ici.
+
+#### Ce que le code fait vraiment (lu, pas supposé)
+
+`memory/service.py::schedule_review(student_id, skill_id, interval, front, back)` cherche **une**
+carte par `(student_id, skill_id)` — **sans `card_type`, sans `ORDER BY`** — puis, si elle existe,
+**écrase** `front`, `back`, `interval_days`, `due_at` et `status`. Quatre appelants : ELI5
+(`reverse_evaluate`) et trois chemins de missions (`_apply_verdict`, `_complete_champion`,
+`_complete_mission`).
+
+Mais `memory/generation.py` **ne croit pas à cette clé-là** :
+
+```python
+ALLOWED_CARD_TYPES = ("definition", "method", "example", "error_correction")
+MAX_CARDS_PER_SKILL = 3
+...
+if card_type in seen:      # clé (student, skill, card_type) unique
+```
+
+🔴 **Les deux moitiés du module ne sont pas d'accord sur la clé de la table.** La génération
+produit jusqu'à **trois** cartes par notion, une par type ; `schedule_review` en suppose **une**.
+Sur une notion qui porte déjà une carte `method` et une carte `example`, un `schedule_review`
+prend donc **une ligne arbitraire** et lui écrit une définition par-dessus, planification remise à
+zéro. **Aucune contrainte de base ne l'en empêche** : `SpacedReviewCard` n'a pas de
+`__table_args__`, et aucune des 50 migrations ne pose d'unicité sur cette table.
+
+⚠️ **Constaté par lecture, pas reproduit.** C'est un défaut **préexistant**, indépendant des
+fiches ; sa reproduction est le premier point du read-before-code de la slice 3. Il est du même
+motif exact que le doublon de brouillon corrigé la veille (`db.scalar` arbitraire + écrasement) —
+**sur une autre table, à un jour d'intervalle**. Ce n'est pas une coïncidence : c'est un patron du
+dépôt, et il vaut d'être cherché ailleurs.
+
+#### Décision
+
+1. **La définition de Massimo est une carte À ELLE**, `card_type = "definition_perso"`, cinquième
+   valeur d'`ALLOWED_CARD_TYPES`. Elle **ne remplace pas** la carte ZETIS de la notion.
+   *Motif* : écraser la carte ZETIS détruirait un travail de révision en cours **et** la
+   formulation de référence — or le §8 veut précisément qu'il révise **sa** formulation, pas qu'il
+   perde l'autre. Deux cartes, deux objets, aucune perte.
+2. 🔴 **La clé `(student_id, skill_id, card_type)` devient une CONTRAINTE de base**, pas une
+   croyance. C'est le geste central de ce paragraphe : on ne l'invente pas, on **rend vraie** la
+   clé que `generation.py` commente déjà. Migration avec **dédoublonnage préalable** — une base
+   qui a vu le défaut ci-dessus porte peut-être déjà des lignes en conflit, et l'index les
+   refuserait.
+3. **`schedule_review` apprend `card_type`**, avec le défaut `"definition"` — les quatre appelants
+   existants gardent donc un **comportement strictement constant**, et c'est ce qui rend le
+   correctif livrable sans toucher ELI5 ni les missions. *(Temps 1 au sens du `WORKFLOW.md §2.3`.)*
+4. **Le pont ne s'ouvre qu'après `finish`.** Un brouillon n'est pas dérivable (§1 bis) : une
+   définition à moitié écrite n'a rien à faire dans un circuit de révision.
+5. **Les deux cartes vivent leur vie séparément** — chacune sa planification, chacune son échéance.
+   Elles ne testent pas la même chose : reconnaître la formulation de référence, et retrouver la
+   sienne. Le moteur SRS n'est **pas** touché ; il sait déjà porter trois cartes par notion.
+   ⚠️ **C'est le point à surveiller en usage** : si revoir deux fois la même notion est vécu comme
+   une redite, la réponse est de **ne servir que la sienne quand elle existe** — un réglage de
+   sélection dans la session, jamais une suppression de carte.
+
+#### Ce que ce paragraphe n'ouvre pas
+
+- **Le pont depuis les fiches ZETIS** (ADR-0015 §6) reste **stub**. On n'ouvre que celui de la
+  fiche de Massimo, comme annoncé au hors-périmètre de la slice 1.
+- **Aucun changement du moteur** : intervalles, `ease_factor`, consolidation, XP — intouchés.
+- **`points_cles` ne devient pas des cartes.** Le périmètre de la slice 1 le prévoyait
+  (« la sélection retenue devient ses cartes SRS ») ; `definitions` a depuis donné au pont sa forme
+  **naturelle**, recto/verso sans transformation. Un point-clé est une phrase du cours, pas une
+  question — en faire un recto demanderait de l'inventer, donc d'écrire à la place de Massimo
+  (règle 7).
+- **Aucune surface Papa** : ses cartes personnelles se pilotent comme les autres, la page existante
+  suffit.
+
 ## Alternatives considérées
 
 - **Table `fiches_massimo` séparée.** Écarté : rend la comparaison champ à champ (§1) coûteuse,
@@ -596,6 +670,17 @@ blocage**.
   la **discipline** d'ADR-0027 (intent ancré serveur, ids validés), pas la page.
 - **Relâcher les bornes du `FicheSpec` pour porter les brouillons** (§1 bis). Écarté : détruirait
   le « 1 leçon = 1 page » garanti par construction, décision fondatrice de l'ADR-0015.
+- **§13 — Sa définition REMPLACE la carte ZETIS de la notion.** Écarté : coût nul en code, mais
+  détruit une planification en cours **et** la formulation de référence. Le mode d'échec est
+  silencieux — rien à l'écran ne dirait qu'une carte vient d'être écrasée.
+- **§13 — Ne créer une carte que si AUCUNE n'existe pour la notion.** Écarté : coût nul lui aussi,
+  et c'est ce qui le condamne — l'effet promis par le §8 (*« c'est sa formulation qu'il révisera »*)
+  ne se produirait **jamais** sur les notions déjà couvertes, c'est-à-dire précisément les plus
+  travaillées. Une fonctionnalité qui s'éteint là où elle sert le plus.
+- **§13 — Garder la clé `(student, skill, card_type)` comme simple convention de code.** Écarté
+  après avoir mesuré que les deux moitiés du module `memory` ne s'accordent déjà pas dessus.
+  Une clé que la moitié du code ignore n'est pas une convention, c'est un bug en attente — et le
+  dépôt vient d'en payer un exemplaire sur les brouillons de fiche, la veille.
 - **Rendre `mnemonique` systématique** (§10). Écarté : produirait des acronymes forcés sur la
   majorité des leçons, plus durs à retenir que la chose elle-même.
 - **Régénérer ou enrichir en lot les fiches déjà validées** (§11). Écarté : la première écrase les
@@ -734,3 +819,11 @@ doit prendre moins de 5 minutes et produire quelque chose qu'il ait envie de gar
    le §3 ne pose **plus de verrou**, `GET /lessons/{id}/fiche-zetis` **ne renvoie plus 403**, et
    **aucun état « a-t-il tenté ? » n'est à tenir côté serveur** — une simplification, pas
    seulement un assouplissement.
+8. **§13, premier point du read-before-code de la slice 3** : *reproduire* l'écrasement décrit —
+   une notion portant plusieurs `card_type`, puis un `schedule_review`. Tant qu'il n'est pas
+   reproduit, il reste **lu, pas prouvé** (`TROUBLESHOOTING.md` : « un intermittent ne se corrige
+   pas sans être REPRODUIT »). Et compter les lignes en conflit **avant** d'écrire la migration :
+   c'est ce qui dira si le dédoublonnage a du travail.
+9. **§13 — chercher le patron ailleurs.** `db.scalar(select(...))` sans `ORDER BY` sur une table
+   qui peut porter plusieurs lignes par clé logique a produit **deux** défauts en deux jours
+   (brouillons de fiche, cartes SRS). Le recensement vaut mieux que la troisième découverte.
