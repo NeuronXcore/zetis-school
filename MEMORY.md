@@ -6,12 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — slice 2 : l'essentiel et les définitions (addendum ADR-0015 §8-§9)
+### ✅ CHANTIER MERGÉ — slice 2 : l'essentiel et les définitions (PR #123, squash `b905ffd`)
 
-Branche **`feat/fiche-de-massimo-slice-2`**, base **`3b2fe6f`** (tête de `main` au départ, et
-toujours : `main == origin/main`, rien à pousser sur `main`). L'état commité de la branche se lit
-par `git log --oneline main..HEAD` — **au moment d'écrire ces lignes, rien n'était encore
-commité** : le geste est celui du commanditaire, après vérification du diff et des tests.
+Base **`3b2fe6f`**. Branche **`feat/fiche-de-massimo-slice-2`** supprimée (locale **et** serveur),
+`main == origin/main`, **rien à pousser**, arbre propre — les quatre vérifiés par commande le
+2026-08-13, étape 4bis faite dans la foulée du merge. **24 fichiers, +2 609 / −481.**
+
+> 🔴 **Le piège de `git branch -r` s'est rejoué pour la SEPTIÈME fois**, sur sept merges
+> consécutifs. Après `--delete-branch`, il listait **toujours**
+> `origin/feat/fiche-de-massimo-slice-2` ; `git ls-remote --heads origin` ne rendait que `main`.
+> `git fetch --prune` a élagué la référence périmée. **Le réflexe ne s'automatise pas** — il se
+> rejouera au merge suivant.
 
 > **Le besoin, en une phrase** : la slice 1 apprenait à Massimo à **choisir** (12 phrases → 5).
 > Celle-ci lui apprend à **écrire** — la synthèse qui n'existe nulle part dans le cours, et la
@@ -158,28 +163,34 @@ l'**extraction du patron plein écran** (ce serait le 3ᵉ de l'app).
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **fini** — il ne reste que le geste git, qui est celui du commanditaire :
+**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #123, squash `b905ffd`), branche
+supprimée des deux côtés, étape 4bis faite dans la foulée. Arbre propre, chaque fait revérifié par
+commande.
 
-1. **Vérifier** le diff et relancer les trois suites (`WORKFLOW.md §2.4` — un « c'est vert »
-   rapporté ne compte pas).
-2. **Commit → push → PR → merge**, puis l'étape **4bis** (`WORKFLOW.md §5`) : revenir écrire ici
-   le squash, le n° de PR, « branche supprimée », « rien à pousser », et les résidus.
-3. **En prod** : la migration `d4e5f6a7b8c3` ne se pose qu'**après le merge**. Suivre
-   `migrer-la-base-prod-zetis` ; ⚠️ la variable est `ZETIS_DATABASE_URL`, `DATABASE_URL` est
-   **ignorée en silence**.
-4. Puis, au choix : la **slice 3** (liste ci-dessus), ou le **glisser au doigt sur un vrai
-   iPhone**, qui est la dette la plus ancienne et la seule qui porte sur le geste central.
+1. 🔴 **Terminer une fiche pour de vrai, de bout en bout.** C'est la vérification la plus utile qui
+   reste, et elle n'a **jamais** été faite : remplir les trois étapes, `finish`, revoir sa fiche
+   dans la liste, la retravailler en version 2. Les états `ma_fiche` et `versions` de l'écran 2
+   n'existent aujourd'hui que dans les tests. Faire ça **sur un vrai iPhone** lève du même coup la
+   dette n°1 de la slice 1 (le glisser au doigt).
+2. **En prod** : la migration `d4e5f6a7b8c3` peut maintenant être posée — elle est sur `main`.
+   Suivre `migrer-la-base-prod-zetis` ; ⚠️ la variable est `ZETIS_DATABASE_URL`, `DATABASE_URL` est
+   **ignorée en silence**. ⚠️ Elle **supprime des lignes** (dédoublonnage) : la règle est celle que
+   le code applique en lecture (`MIN(id)`), donc rien de visible n'est détruit, mais c'est à savoir
+   avant de la lancer sur la vraie base.
+3. **Slice 3** : la liste ci-dessus, dont le **pont SRS** — `definitions` lui donne enfin sa forme
+   naturelle, recto/verso, sans transformation.
 
-#### 🔴 LE PIÈGE DE CE CHANTIER — il est armé sur la base de dev
+#### ✅ LE PIÈGE DE CE CHANTIER EST REFERMÉ
 
-La migration `d4e5f6a7b8c3` **est posée sur la base de dev**. Sur cette branche, `pnpm dev` va
-bien. **Revenir sur `main` et lancer `pnpm dev` fait échouer Alembic au démarrage**
-(`scripts/dev.sh` joue `upgrade head` en dev aussi) — le backend ne démarre pas.
+La migration `d4e5f6a7b8c3` était posée sur la base de dev **avant** d'être sur `main` — revenir
+sur `main` et lancer `pnpm dev` faisait alors échouer Alembic au démarrage (`scripts/dev.sh` joue
+`upgrade head` en dev aussi). **Depuis le merge, `main` la porte** : `pnpm dev` va bien, il n'y a
+plus rien à contourner.
 
-- **Cible de repli connue** : `alembic downgrade c3d4e5f6a7b2` (tête de `main`) ;
-- ou **`pnpm dev:back`** sur `main`, qui ne joue aucune migration ;
-- 🔴 **jamais `pnpm prod:up` depuis cette branche** — `infra/docker/backend-entrypoint.sh` joue
-  `upgrade head` au démarrage du conteneur, ce qui poserait la migration en prod avant le merge.
+> Le patron reste vrai pour le chantier suivant : **une migration posée en dev depuis une branche
+> non mergée arme ce piège**, et le repli est `alembic downgrade <tête de main>` ou `pnpm dev:back`.
+> 🔴 Et **jamais `pnpm prod:up` depuis une branche non mergée** —
+> `infra/docker/backend-entrypoint.sh` joue `upgrade head` au démarrage du conteneur.
 
 ⚠️ **L'infra Docker tourne encore, les serveurs de dev NON** — vérifié par commande à la clôture :
 `zetis-postgres-1`, `zetis-redis-1`, `zetis-minio-1` sont `Up`, et **rien n'écoute sur 8000 ni sur
