@@ -208,6 +208,21 @@ anxiogène (`CLAUDE.md` §gamification), pas une aide.
 
 ### 1. La porte est l'ÉCHÉANCE D'AGENDA, et elle seule
 
+> 🔴 **AMENDÉE le 2026-08-14 par l'`adr-0057` §9 (1)** — décision du commanditaire. Le « et elle
+> seule » **tombe** : le deck matière **se déplie en chapitres sur `/revision`** (l'option (b)
+> ci-dessus, écartée le 2026-08-10 et **retenue** quatre jours plus tard).
+>
+> **Deux faits neufs, aucun revirement de goût** : (a) l'option (b) avait été pesée sur son **coût**
+> et sur le risque de *blocked practice*, **jamais sur la portée** — personne ne savait alors qu'une
+> carte écrite par Massimo se rangerait au **rang 153 sur 159** dans la file du Français
+> (`adr-0056`) ; (b) le **coût a baissé** — cet ADR mettait à la charge de (b) *« un endpoint neuf
+> chapitres servables »*, or `chapter_servable_counts` existe depuis le chantier agenda.
+>
+> ⚠️ **Tout le reste de cet ADR est intact**, à commencer par la porte de l'agenda et les Décisions
+> 2 à 6 — elles avaient été écrites pour être vraies dans les trois options, et elles le sont.
+> ⚠️ **L'objection *blocked practice* n'est pas levée**, elle est bornée par l'`adr-0057` §5 : les
+> mélanges restent le rituel, le chapitre est au troisième rang.
+
 Sur une échéance datée qui porte un `chapter_id` et dont le chapitre est **servable** (Décision 2),
 l'interface de Massimo affiche une porte unique — *« 🃏 Réviser ce chapitre »* — qui lance la session
 du deck `{chapter}`.

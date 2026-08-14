@@ -204,17 +204,24 @@ Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
    champ de recherche, sur révision / mindmap / capsules / fiches / quiz »* a élargi le cadrage en
    séance, et « quelles cartes » n'est pas « comment on trouve » :
    - **ADR-0056 — La file cesse d'enterrer ce qu'il vient d'écrire** : l'**ordre** seul.
-     🔴 **1 arbitrage** : A (rien, 0/8) · B (les siennes d'abord, 7/8) · C (quota de 2 places,
-     2/8) — **recommandation C**.
+     ✅ **ARBITRÉ — règle C**, un **quota de 2 places** réservées aux cartes personnelles, **dans**
+     le plafond de 8, rendues à la file si aucune n'est due. ⚠️ Non arbitré, non bloquant : le
+     mélange du jour (recommandation : pas dans cette slice).
    - **ADR-0057 — Une seule façon de trouver** : le **chemin** (matière → chapitre + recherche).
-     🔴 **4 arbitrages**, dont **amender l'ADR-0049 D1** (l'option (b) que tu avais écartée le
-     2026-08-10), le **lot minimal**, et 🔴 **la PORTÉE de la recherche — les deux témoins se
-     contredisent** (la galaxie cherche dans la constellation ouverte, les capsules dans toute la
-     page). ⚠️ Missions **laissé de côté** (missions croisées = multi-matières, `adr-0017` §5).
+     ✅ **3 arbitrages sur 4 rendus** : l'**ADR-0049 D1 est AMENDÉE** (le chapitre s'ouvre sur
+     `/revision`) · le lot est **la slice Quiz SEULE** · la portée de la recherche suit **la règle
+     des capsules** (toute la page), ⚠️ bornée : un résultat hors portée doit **emmener**, jamais
+     s'afficher sans y mener. 🔴 **Missions reste OUVERT** (croisées = multi-matières,
+     `adr-0017` §5).
      ✅ **`/galaxy` n'est pas à convertir** : elle porte déjà les trois niveaux et une recherche
      cliente **dans le paquet partagé** — elle **donne** ses 4 règles à la brique. 🔴 Elle a révélé
      **deux normaliseurs de recherche** en doublon (`packages/ui` vs `lib/groupCapsules.ts`).
-   🔴 **`/ouverture` ne doit PAS être lancée avant ces arbitrages.**
+   🔴 **La Révision n'est PAS dans le lot Quiz** — l'amendement de l'ADR-0049 est **acquis, pas
+   encore consommé** (slice 4). Le défaut qui a tout déclenché se répare par l'**ADR-0056**, qui ne
+   dépend pas de cette slice.
+   ▶ **DEUX chantiers sont désormais ouvrables, un seul à la fois** (mono-chantier) :
+   **ADR-0056** (serveur seul, petit, referme le défaut mesuré — *recommandé en premier*) ou
+   **ADR-0057 slice Quiz** (la brique partagée).
 2. ✅ **CADRAGE FAIT ET COMMITÉ le 2026-08-14** — commit `d18b2ce` sur `main`, poussé. Les deux
    addenda et la commande y sont :
    - **§11 de l'addendum ADR-0015** — révisé : *enrichir* et non régénérer, sortie des decks

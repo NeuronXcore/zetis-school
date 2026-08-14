@@ -2,7 +2,8 @@
 
 ## Statut
 
-**Proposé (2026-08-14)** — cadré sur `main`, sans une ligne de code. **Un arbitrage attendu** (§5).
+**Proposé (2026-08-14)** — cadré sur `main`, sans une ligne de code.
+✅ **Son arbitrage a été rendu le même jour** : **règle C**, le quota de deux places (§5).
 
 > **Cet ADR ne parle QUE de l'ordre : *quelles* cartes une session sert.** Le chemin pour arriver
 > à une session — matière, chapitre, recherche — est l'objet de l'`adr-0057`, cadré le même jour.
@@ -86,29 +87,41 @@ aussi de « faire de la place » en archivant l'arriéré.
 le correctif, rouge avant, vert après, et **saboté** pour prouver qu'il regarde le bon endroit
 (`docs/WORKFLOW.md` §2.3).
 
-## §5 — Ce qui reste OUVERT — arbitrage du commanditaire
+## §5 — 🔒 L'ORDRE : ARBITRÉ — **règle C, un quota de deux places réservées**
 
-**L'ORDRE — trois règles, mesurées sur la vraie file du Français (plafond 8, au 15/08) :**
+**Décision du commanditaire, 2026-08-14.** Elle ne se rediscute pas ; elle se relit.
 
-| Règle | Ce que la session sert | Ses cartes |
-|---|---|---|
-| **A — l'ordre actuel** (`due_at asc`) | `[6, 8, 11, 12, 88, 89, 90, 91]` | **0 / 8** |
-| **B — les siennes d'abord** | `[322, 323, 324, 325, 326, 327, 328, 6]` | **7 / 8** |
-| **C — un quota de 2 places réservées** | `[322, 323, 6, 8, 11, 12, 88, 89]` | **2 / 8** |
+Les trois règles avaient été mesurées sur la vraie file du Français (plafond 8, au 15/08) :
 
-**Recommandation : C.** B répare le défaut et en crée un autre — une session de huit cartes dont
+| Règle | Ce que la session sert | Ses cartes | |
+|---|---|---|---|
+| **A — l'ordre actuel** (`due_at asc`) | `[6, 8, 11, 12, 88, 89, 90, 91]` | **0 / 8** | écartée |
+| **B — les siennes d'abord** | `[322, 323, 324, 325, 326, 327, 328, 6]` | **7 / 8** | écartée |
+| **C — un quota de 2 places réservées** | `[322, 323, 6, 8, 11, 12, 88, 89]` | **2 / 8** | ✅ **RETENUE** |
+
+**Pourquoi C et pas B** : B répare le défaut et en crée un autre — une session de huit cartes dont
 sept sont **ses propres formulations** n'est plus de la révision espacée, c'est une relecture de
 ses fiches, et le moteur avait placé les autres cartes ce jour-là pour une raison. C garantit
 l'atteignabilité (deux places, toujours) sans qu'une file personnelle croissante confisque la
 session : ⚠️ **elles sont 7 aujourd'hui, elles ne le resteront pas** — c'est l'objet même de
 l'atelier des fiches.
 
-**Deux sous-questions qui viennent avec :**
+**Ce que « quota » veut dire, précisément :**
 
-- le quota vaut-il aussi pour le **mélange du jour** (12 cartes, toutes matières) ou seulement pour
-  la matière et le chapitre ?
-- que fait le quota quand **aucune** carte personnelle n'est due — les places sont-elles rendues à
-  la file (oui, évidemment) ?
+1. **Deux places au plus**, jamais deux places d'office : s'il n'y a qu'une carte personnelle due,
+   une seule place est prise ; s'il n'y en a aucune, **les deux places retournent à la file** et la
+   session est exactement celle d'aujourd'hui. *Le quota réserve, il ne crée pas de vide.*
+2. **Les places sont prises DANS le plafond**, pas en plus : une session de matière sert toujours
+   **8** cartes. Le §2 l'impose — desserrer le plafond est interdit.
+3. **Les cartes personnelles éligibles sont celles qui sont dues**, au même titre que les autres :
+   le quota change l'ordre, jamais la sélection (§2).
+4. **Entre deux cartes personnelles dues**, l'ordre reste `due_at asc` — la plus en retard d'abord.
+
+⚠️ **Une sous-question reste ouverte, et elle ne bloque pas** : le quota vaut pour les decks
+**matière** et **chapitre**, là où le défaut a été mesuré. Pour le **mélange du jour** (12 cartes,
+toutes matières), il n'a pas été arbitré. *Recommandation : ne pas l'y appliquer dans cette
+slice* — le mélange est le rituel, et deux places réservées sur douze, tous decks confondus, se
+mesureront mieux une fois la règle vivante sur la matière.
 
 ## Alternatives considérées
 
@@ -175,4 +188,5 @@ l'atelier des fiches.
   servables, rangs 36-39.
 - **Consomme** : `adr-0015` addendum §13 (masquage, prédicat unique, moteur intouché) ·
   `adr-0049` (deck chapitre, plafonds, alternative (g)) · `CLAUDE.md` §gamification.
-- **Ouvre** : rien tant que le §5 n'est pas arbitré.
+- **Ouvre** : ✅ le chantier est **prêt à `/ouverture`** depuis l'arbitrage du §5. Seule la question
+  du mélange du jour reste en suspens, et elle ne le bloque pas.

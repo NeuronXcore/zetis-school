@@ -2,8 +2,11 @@
 
 ## Statut
 
-**Proposé (2026-08-14)** — cadré sur `main`, sans une ligne de code. **Trois arbitrages attendus**
-(§8), dont un qui demande d'**amender une décision du commanditaire** (`adr-0049` Décision 1).
+**Proposé (2026-08-14)** — cadré sur `main`, sans une ligne de code.
+
+✅ **Trois arbitrages sur quatre ont été rendus le même jour** (§9) : l'`adr-0049` Décision 1 **est
+amendée** (le chapitre s'ouvre sur `/revision`), le lot est **la slice Quiz seule**, et la portée de
+la recherche suit **la règle des capsules**. 🔴 **Missions reste ouvert.**
 
 > **Cet ADR ne parle que du CHEMIN** : comment Massimo trouve l'objet qu'il cherche. *Quelles*
 > cartes une session de révision sert est l'objet de l'`adr-0056`, cadré le même jour. Les deux
@@ -193,28 +196,52 @@ ceux de la brique partagée.
 liste. **La constellation EST le tri par matière, l'amas EST le chapitre.** Un sélecteur en doublon
 ferait deux vérités sur le même écran, et un ciel ne se trie pas en accordéon.
 
-## §9 — Ce qui reste OUVERT — arbitrage du commanditaire
+## §9 — 🔒 Les arbitrages — TROIS RENDUS le 2026-08-14, un encore ouvert
 
-1. 🔴 **Amende-t-on l'`adr-0049` Décision 1** pour ouvrir le chapitre sur `/revision` (§5) ? Un
-   « non » est tenable : les quatre autres pages se font quand même, et la révision garde l'agenda
-   pour seule porte.
-2. **Le lot minimal.** Cinq pages en une fois, ou la slice 1 (Quiz) livrée seule pour éprouver la
-   brique avant de la propager ? *(Recommandation : la seconde — c'est le mono-chantier du
-   `WORKFLOW.md`, et une brique partagée mal née se paie cinq fois.)*
-3. 🔴 **La PORTÉE de la recherche — les deux témoins se contredisent, mesuré.** La galaxie cherche
-   **dans la constellation ouverte seulement** (§8, règle 1, motivée : *« des étoiles qu'on ne peut
-   pas atteindre d'ici »*) ; les capsules cherchent **dans toute la page, toutes matières
-   confondues** (`groupBySubjectChapter` filtre `items` avant de grouper). Les deux se défendent —
-   l'un protège d'un résultat inatteignable, l'autre permet de retrouver sans savoir la matière.
-   **Une seule règle doit sortir d'ici**, sinon la brique partagée naît avec deux comportements.
-   *(Recommandation : la règle des capsules — chercher sans savoir la matière est précisément ce
-   qu'un enfant fait —, en la bornant par ce que la galaxie protège : un résultat hors de la portée
-   courante doit **emmener** Massimo là où il est, jamais l'afficher sans y mener.)*
-4. **Missions** — le commanditaire a dit *« à réfléchir, ce n'est pas la même logique »*, et la
-   mesure lui donne raison : `MissionsPage` consomme pourtant `SubjectDeckGrid`, mais les
-   **missions croisées sont multi-matières** (`adr-0017` §5, *« esprit EPI du cycle 4 »*) — un tri
-   par matière les ampute au lieu de les ranger. **Non arbitré, hors périmètre tant qu'il ne l'est
-   pas.**
+Ils ne se rediscutent pas ; ils se relisent.
+
+### ✅ (1) L'`adr-0049` Décision 1 EST AMENDÉE — le chapitre s'ouvre sur `/revision`
+
+Décision du commanditaire, 2026-08-14, sur les deux faits neufs du §5 : la portée n'avait jamais
+été jugée (rang 153 sur 159), et le coût a baissé (`chapter_servable_counts` existe).
+
+**L'`adr-0049` Décision 1 se lit désormais ainsi** : la porte de l'agenda reste, **et** le deck
+matière se déplie en chapitres sur `/revision`. Le reste de l'`adr-0049` est intact — sa mécanique
+serveur avait été écrite pour être vraie dans les trois options.
+
+⚠️ **Le contre-poids reste dû** : l'objection *blocked practice* n'est pas levée par l'amendement,
+elle est **bornée par le §5** (les mélanges en haut, le chapitre au troisième rang). Une porte
+permanente qui deviendrait le chemin par défaut est le **signal n° 2** de cet ADR.
+
+### ✅ (2) Le lot est **la slice Quiz SEULE**
+
+Décision du commanditaire, 2026-08-14, conforme à la recommandation. **Une page, une brique
+éprouvée, puis on propage** — une brique partagée mal née se paie cinq fois.
+
+🔴 **Conséquence directe, à ne pas perdre** : la Révision **n'est PAS dans ce lot**, alors même que
+c'est elle qui a ouvert le chantier. L'amendement (1) est **acquis mais pas encore consommé** : il
+sera dépensé par la slice 4. Et le défaut qui a tout déclenché est réparé ailleurs, par
+l'`adr-0056`, qui ne dépend pas de cette slice.
+
+### ✅ (3) La PORTÉE de la recherche : **la règle des capsules**
+
+Décision du commanditaire, 2026-08-14. La recherche porte sur **toute la page, toutes matières
+confondues** — chercher sans savoir la matière est précisément ce qu'un enfant fait.
+
+⚠️ **Bornée par ce que la galaxie protégeait** (§8, règle 1 — *« des étoiles qu'on ne peut pas
+atteindre d'ici »*) : **un résultat hors de la portée courante doit EMMENER Massimo là où il est,
+jamais s'afficher sans y mener.** Un résultat qu'on voit et qu'on ne peut pas atteindre est le
+défaut que cette règle existe pour empêcher.
+
+⚠️ **La galaxie garde la sienne** : elle cherche dans la constellation ouverte, et ce n'est pas une
+divergence oubliée — c'est un graphe, où « emmener » veut dire changer de ciel.
+
+### 🔴 (4) Missions — TOUJOURS OUVERT
+
+Le commanditaire a dit *« à réfléchir, ce n'est pas la même logique »*, et la mesure lui donne
+raison : `MissionsPage` consomme pourtant `SubjectDeckGrid`, mais les **missions croisées sont
+multi-matières** (`adr-0017` §5, *« esprit EPI du cycle 4 »*) — un tri par matière les ampute au
+lieu de les ranger. **Non arbitré, hors périmètre tant qu'il ne l'est pas.**
 
 ## Alternatives considérées
 
@@ -292,4 +319,5 @@ ferait deux vérités sur le même écran, et un ciel ne se trie pas en accordé
 - **Consomme** : `adr-0049` (deck chapitre, porte agenda, servabilité, bouton mort) · `adr-0025`
   addendum §14.6 · `adr-0024` §4 · `adr-0017` §5 (missions croisées multi-matières) ·
   `adr-0053` (le paquet partagé).
-- **Ouvre** : rien tant que le §8 n'est pas arbitré. `/ouverture` ne doit pas être lancée avant.
+- **Ouvre** : ✅ **la slice Quiz seule** est prête à `/ouverture` (§9). Les slices Fiches, Mindmaps
+  et Révision attendent qu'elle ait éprouvé la brique ; **Missions attend son arbitrage**.
