@@ -4,6 +4,66 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/une-seule-facon-de-trouver-quiz` — 2026-08-14
+
+### 🔴 Un sabotage resté VERT — le décor n'avait qu'UN chapitre par matière
+
+Sabotage joué sur la brique partagée : `const chKey = "__none__"` — **tous** les objets tombent
+dans le même groupe de chapitre. **Les neuf tests sont restés verts.**
+
+**Cause** : le nom du groupe vient du **premier objet rencontré** (`ch.name = c.chapter ?? …`).
+Avec un seul chapitre par matière dans le décor, le groupe fusionné portait quand même le bon nom,
+et le rendu était identique. Le verrou ne pouvait pas voir la fusion.
+
+**Parade** : un décor à **deux chapitres dans la même matière**, et une assertion sur les **deux**
+noms. Le sabotage rougit alors. *Un verrou qui ne peut pas distinguer deux cas ne teste qu'un cas.*
+
+### 🔴 Un défaut visible seulement À L'ÉCRAN — l'en-tête mentait pendant la recherche
+
+En cherchant « thales » depuis les quiz de **Français**, les deux quiz de **Mathématiques**
+s'affichaient sous un titre **« 📖 Français »**. Aucun test ne pouvait le dire : ils vérifiaient
+les **résultats**, jamais ce que la page dit **d'elle-même**.
+
+**Parade** : titre neutre (« 🔎 Résultats de recherche ») dès qu'une recherche est en cours, plus
+son verrou et son sabotage. Trouvé en 30 secondes d'écran, invisible à 743 tests.
+
+### ⚠️ `export { x } from "…"` ne ramène PAS `x` dans la portée du module
+
+En remontant `normalizeSearch` dans `packages/ui/src/lib/`, le ré-export seul a produit deux
+`TS2304: Cannot find name 'normalizeSearch'` dans `galaxyGraph.ts`, qui **l'utilise** aussi.
+
+**Parade** : `import { x } from "…"` **puis** `export { x }`. Le ré-export est pour les
+consommateurs, l'import est pour soi.
+
+### ⚠️ Un `prop` déclaré et jamais lu : `tsc` l'a vu, les tests non
+
+`gridClassName` a été ajouté à `SubjectChapterShelves` et **oublié dans le JSX** — la grille restait
+celle des capsules. Les 743 tests passaient (ils n'assèrent pas la mise en page) ; `tsc -b` l'a
+attrapé (`TS6133`). **Le typecheck n'est pas une formalité de fin : il voit ce que les tests ne
+regardent pas.**
+
+### ⚠️ Un mock qui ignore son argument fait passer un test pour une bonne raison FAUSSE
+
+`QuizPage.test.tsx` mockait `fetchSubjectQuizzes` en rendant **les mêmes quiz quelle que soit la
+matière demandée**. Le test « ouvrir SVT » vérifiait donc l'affichage d'un quiz de **Maths** —
+personne ne pouvait s'en apercevoir. Le passage à un listing unique a rendu le décor honnête.
+
+**Parade** : dans un décor, mettre des objets **distinguables par matière**, et assérer sur celui
+qu'on attend vraiment.
+
+### ⚠️ `@testing-library/user-event` n'est pas installé côté Massimo
+
+Un test écrit avec `userEvent` échoue au **transform** (`Failed to resolve import`), pas à
+l'assertion. Le dépôt utilise `fireEvent` de `@testing-library/react` — `fireEvent.change(champ,
+{ target: { value: "…" } })` pour la frappe.
+
+### ⚠️ `Quiz.subject_id` est NOT NULL, et `Quiz.chapter_id` existe (dénormalisé)
+
+Une fixture de quiz sans `subject_id` casse sur `IntegrityError`. Et le quiz porte **déjà** un
+`chapter_id` — mesuré cohérent à 100 % avec celui de sa leçon (37/39 renseignés), mais c'est une
+**copie** : la source reste la leçon, qui décide déjà de la servabilité. Voir `DATA_MODEL.md`
+§« Règle de lecture — le chapitre d'un quiz ».
+
 ## Chantier `feat/la-file-cesse-d-enterrer` — 2026-08-14
 
 ### 🔴 Un `2 failed` peut vouloir dire « la base est éteinte », et rien d'autre

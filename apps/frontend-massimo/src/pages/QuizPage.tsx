@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { type QuizSubjectSummary, type StudentQuiz } from "@zetis/types";
+import { type QuizSubjectSummary, type StudentQuizListItem } from "@zetis/types";
+import { groupBySubjectChapter } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import { SubjectBackLink } from "../components/SubjectBackLink";
+import { SubjectChapterShelves } from "../components/browse/SubjectChapterShelves";
 import { SUBJECT_BACK_PARAM } from "../lib/notionRoutes";
 import { QuizHero } from "../components/quiz/QuizHero";
-import { fetchQuizSubjects, fetchSubjectQuizzes } from "../lib/quiz";
+import { fetchQuizById, fetchQuizIndex, fetchQuizSubjects } from "../lib/quiz";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { type QuizSessionState } from "./QuizSessionPage";
 
 // Page « Quiz » de Massimo (/quiz). Deux écrans internes (maquette validée) :
 //   1. grille des matières (grisée si aucun quiz) ;
-//   2. quiz jouables de la matière → lancement du lecteur (/quiz/session).
+//   2. quiz de la matière, **rangés par chapitre**, avec un champ de recherche (ADR-0057).
 // Le lecteur (passation, feedback, résumé) vit dans QuizSessionPage. Massimo ne voit un
 // quiz que s'il existe : rien de généré à la volée ici.
+//
+// 🔴 **La page charge un listing LÉGER** — titres, matière, chapitre, nombre de questions. Le
+// quiz complet ne se charge qu'AU CLIC (`fetchQuizById`), comme le fait déjà le menu de notion.
+// Mesuré le 2026-08-14 : 7,6 ko pour les 37 quiz de toutes les matières, contre 27,7 ko pour les
+// 17 du seul Français quand les questions voyageaient avec.
 
 function lessonFromTitle(title: string): string {
   return title.replace(/^Quiz\s*[—-]\s*/, "");
@@ -24,16 +31,22 @@ export function QuizPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const deepLinkedRef = useRef(false);
   const [subjects, setSubjects] = useState<QuizSubjectSummary[] | null>(null);
+  const [index, setIndex] = useState<StudentQuizListItem[]>([]);
   const [selected, setSelected] = useState<QuizSubjectSummary | null>(null);
-  const [quizzes, setQuizzes] = useState<StudentQuiz[] | null>(null);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [listLoading, setListLoading] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
-        setSubjects(await fetchQuizSubjects());
+        const [subjectList, quizIndex] = await Promise.all([
+          fetchQuizSubjects(),
+          fetchQuizIndex(),
+        ]);
+        setSubjects(subjectList);
+        setIndex(quizIndex);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Chargement impossible");
       } finally {
@@ -42,18 +55,9 @@ export function QuizPage() {
     })();
   }, []);
 
-  const openSubject = useCallback(async (subject: QuizSubjectSummary) => {
+  const openSubject = useCallback((subject: QuizSubjectSummary) => {
     setSelected(subject);
-    setQuizzes(null);
-    setListLoading(true);
-    setError(null);
-    try {
-      setQuizzes(await fetchSubjectQuizzes(subject.slug));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Chargement impossible");
-    } finally {
-      setListLoading(false);
-    }
+    setSearch(""); // un filtre ne survit pas au changement de portée (ADR-0057 §8, règle 3)
   }, []);
 
   // Lien profond `?subject=slug` → ouvre directement les quiz de la matière (patron de
@@ -68,23 +72,41 @@ export function QuizPage() {
     deepLinkedRef.current = true;
     // Matière inconnue ou sans quiz : on reste sur la grille, sans message d'échec — ce n'est
     // pas la faute de Massimo, et la grille répond déjà à « où y a-t-il des quiz ? ».
-    if (subject) void openSubject(subject);
+    if (subject) openSubject(subject);
     const next = new URLSearchParams(searchParams);
     next.delete("subject");
     setSearchParams(next, { replace: true });
   }, [subjects, searchParams, setSearchParams, openSubject]);
 
-  const launch = (quiz: StudentQuiz) => {
-    if (!selected) return;
-    const state: QuizSessionState = {
-      quiz,
-      label: `${selected.name} · ${lessonFromTitle(quiz.title)}`,
-    };
-    navigate("/quiz/session", { state });
+  // 🔴 Le quiz complet se charge AU CLIC, jamais avant. Repli identique à celui du menu de
+  // notion : si le quiz a disparu entre l'affichage et le clic, on ne montre pas d'échec.
+  const launch = async (item: StudentQuizListItem) => {
+    if (launching) return;
+    setLaunching(true);
+    try {
+      const quiz = await fetchQuizById(item.quiz_id);
+      const state: QuizSessionState = {
+        quiz,
+        label: `${item.subject} · ${lessonFromTitle(item.title)}`,
+      };
+      navigate("/quiz/session", { state });
+    } catch {
+      setIndex((list) => list.filter((q) => q.quiz_id !== item.quiz_id));
+    } finally {
+      setLaunching(false);
+    }
   };
 
-  // ── Écran 2 : quiz de la matière ──────────────────────────────────────────
+  // ── Écran 2 : quiz de la matière, par chapitre ────────────────────────────
   if (selected) {
+    // ⚠️ **La recherche porte sur TOUTE la page, toutes matières confondues** — règle des
+    // capsules, arbitrée le 2026-08-14 : chercher sans savoir la matière est ce que fait un
+    // enfant. Un résultat d'une autre matière apparaît sous SON étagère, et le clic **emmène**
+    // Massimo dessus (il lance le quiz) — jamais un résultat qui s'affiche sans y mener.
+    const searching = search.trim().length > 0;
+    const source = searching ? index : index.filter((q) => q.subject_slug === selected.slug);
+    const groups = groupBySubjectChapter(source, search);
+
     return (
       <div className="mx-auto max-w-xl">
         {/* Rétrolien vers la MATIÈRE quand on arrive de sa page (`?from=`). Sans lui, Massimo
@@ -97,41 +119,57 @@ export function QuizPage() {
           type="button"
           onClick={() => {
             setSelected(null);
-            setQuizzes(null);
+            setSearch("");
           }}
           className="mb-4 text-sm text-cyan-300 hover:underline"
         >
           ← Toutes les matières
         </button>
-        <PageHeader title={`${subjectEmoji(selected.slug)} ${selected.name}`} />
+        {/* 🔴 Trouvé À L'ÉCRAN le 2026-08-14 : en cherchant « thales » depuis les quiz de
+            Français, les deux quiz de Mathématiques s'affichaient **sous un titre « Français »**.
+            La recherche traverse les matières (règle des capsules) — l'en-tête doit cesser de
+            prétendre qu'on est encore dans une seule. Aucun test ne pouvait le dire : ils
+            vérifiaient les résultats, pas ce que la page dit d'elle-même. */}
+        <PageHeader
+          title={
+            searching ? "🔎 Résultats de recherche" : `${subjectEmoji(selected.slug)} ${selected.name}`
+          }
+        />
 
         {error && (
           <p className="mb-4 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-300">{error}</p>
         )}
-        {listLoading && <p className="text-zetis-muted">Chargement…</p>}
-        {quizzes && quizzes.length === 0 && (
-          <p className="text-sm italic text-zetis-muted">Aucun quiz pour cette matière.</p>
-        )}
 
-        <div className="flex flex-col gap-2.5">
-          {quizzes?.map((quiz) => (
+        <SubjectChapterShelves
+          groups={groups}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher un quiz…"
+          emptyLabel={(q) =>
+            q.trim()
+              ? `Aucun quiz ne correspond à « ${q} ».`
+              : "Aucun quiz pour cette matière."
+          }
+          itemKey={(q) => q.quiz_id}
+          gridClassName="flex flex-col gap-2.5"
+          defaultOpen
+          renderItem={(q) => (
             <button
-              key={quiz.quiz_id}
               type="button"
-              onClick={() => launch(quiz)}
-              className="flex items-center gap-3.5 rounded-2xl border border-l-4 border-white/10 border-l-fuchsia-400 bg-white/5 px-4 py-4 text-left backdrop-blur-lg transition hover:-translate-y-0.5 hover:border-indigo-400/70"
+              onClick={() => void launch(q)}
+              className="flex w-full items-center gap-3.5 rounded-2xl border border-l-4 border-white/10 border-l-fuchsia-400 bg-white/5 px-4 py-4 text-left backdrop-blur-lg transition hover:-translate-y-0.5 hover:border-indigo-400/70"
             >
               <span className="text-2xl">📝</span>
               <span className="min-w-0">
-                <span className="block font-bold">{lessonFromTitle(quiz.title)}</span>
+                <span className="block font-bold">{lessonFromTitle(q.title)}</span>
                 <span className="text-xs text-zetis-muted">
-                  {quiz.questions.length} question{quiz.questions.length > 1 ? "s" : ""} · quiz du cours
+                  {q.questions_count} question{q.questions_count > 1 ? "s" : ""} · quiz du cours
                 </span>
               </span>
               <span className="ml-auto text-lg text-indigo-400">▶</span>
             </button>
-          ))}
-        </div>
+          )}
+        />
       </div>
     );
   }
@@ -159,7 +197,7 @@ export function QuizPage() {
               key={s.subject_id}
               type="button"
               disabled={off}
-              onClick={() => void openSubject(s)}
+              onClick={() => openSubject(s)}
               className={`rounded-2xl border bg-white/5 px-3 py-4 text-center backdrop-blur-lg transition ${off ? "cursor-default border-white/10 opacity-40 grayscale" : "border-indigo-400/40 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(99,102,241,0.25)]"}`}
             >
               <span className="mb-2 block text-3xl">{subjectEmoji(s.slug)}</span>

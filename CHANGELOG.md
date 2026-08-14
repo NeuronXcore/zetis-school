@@ -1,5 +1,24 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.87.0 — Les quiz se rangent par chapitre, et se cherchent au mot
+
+La page Quiz donnait une liste plate : dix-sept quiz de Français à la file, sans repère. Ils sont
+désormais **rangés par chapitre**, et un **champ de recherche** trouve un quiz au mot-clé.
+
+**On cherche sans savoir la matière.** Taper « thalès » depuis les quiz de Français trouve les deux
+quiz de Mathématiques — parce que c'est ce qu'un enfant fait : il se souvient du nom, pas du
+classement. Le résultat ne s'affiche pas en cul-de-sac, il se lance d'un clic.
+
+> **Le motif n'est pas neuf — il était seul.** Les capsules rangeaient déjà par matière → chapitre
+> avec une recherche ; la galaxie cherchait déjà ses étoiles. Trois écrans, trois copies du même
+> code. Il n'y en a plus qu'une, partagée, et c'est elle qui sert la page Quiz.
+
+**La page ne charge plus les questions pour afficher une liste** : 37 quiz en 7,6 ko, là où les 17
+du seul Français en pesaient 27,7. Le quiz complet arrive au moment du clic.
+
+**Rien n'a changé pour les capsules** — c'était la condition : leur écran est l'original, il devait
+rester identique au pixel près. Il l'est, et un test le garde désormais.
+
 ## 0.86.0 — Deux places gardées pour ce qu'il vient d'écrire
 
 Massimo écrit sa propre définition d'une notion, elle devient une carte de révision — et la carte

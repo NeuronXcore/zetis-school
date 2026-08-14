@@ -145,6 +145,67 @@ def test_student_quiz_carries_lesson_id_and_subjects_summary(client_db):
     assert maths["quiz_count"] == 1 and maths["name"] == "Mathématiques"
 
 
+# ── Listing LÉGER de `/quiz` (ADR-0057, slice Quiz) ───────────────────────────
+
+
+def test_le_listing_leger_porte_le_chapitre_et_JAMAIS_les_questions(client_db):
+    """🔒 VERROU — la page `/quiz` groupe et cherche sur des titres ; elle n'a pas le contenu.
+
+    Le chapitre vient de la leçon : c'est lui qui rend le groupement matière → chapitre possible
+    sans colonne neuve.
+    """
+    client, TestSession = client_db
+    db = TestSession()
+    _gen(db)
+
+    _as(CHILD)
+    r = client.get("/api/student/quizzes")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 1
+    item = items[0]
+    assert item["subject_slug"] == "mathematiques" and item["subject"] == "Mathématiques"
+    assert item["chapter"] == "Nombres relatifs : opérations" and item["chapter_id"] is not None
+    assert item["questions_count"] == 6
+    # 🔴 Le contenu ne part PAS : c'est tout l'objet de la route.
+    assert "questions" not in item and "prompt_markdown" not in r.text
+
+
+def test_le_listing_leger_ecarte_les_DIAGNOSTICS(client_db):
+    """🔒 VERROU — même filtre que le listing par matière, `quiz_type == "mission"` compris.
+
+    Un listing qui l'oublierait servirait les quiz de diagnostic dans la liste de Massimo.
+    """
+    client, TestSession = client_db
+    db = TestSession()
+    quiz, _, lesson_id, _ = _gen(db)
+    intrus = m.Quiz(
+        subject_id=quiz.subject_id,  # NOT NULL — un quiz porte sa matière en propre
+        lesson_id=lesson_id,
+        title="Diagnostic — à ne jamais servir ici",
+        quiz_type="diagnostic",
+        status="ready",
+    )
+    db.add(intrus)
+    db.flush()
+    db.add(
+        m.QuizQuestion(
+            quiz_id=intrus.id,
+            question_type="mcq_single",
+            prompt_markdown="Piège ?",
+            choices_json={"options": ["a", "b"]},
+            correct_answer_json={"correct_index": 0},
+            status="active",
+            sort_order=0,
+        )
+    )
+    db.commit()
+
+    _as(CHILD)
+    items = client.get("/api/student/quizzes").json()
+    assert [i["quiz_id"] for i in items] == [quiz.id]  # le diagnostic n'y est pas
+
+
 def test_student_quiz_by_id_serves_mission_quiz_without_key(client_db):
     """Deep-link mission → quiz par id (le runner fixe ensuite context=mission). Même asymétrie
     serveur que la liste par matière : ni clé ni explication ; quiz inconnu/non servable → 404."""

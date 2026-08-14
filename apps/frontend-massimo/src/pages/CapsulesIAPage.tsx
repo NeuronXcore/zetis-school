@@ -10,7 +10,8 @@ import {
   videoSrc,
 } from "../lib/capsules";
 import { DifficultyBadge } from "../components/DifficultyBadge";
-import { groupBySubjectChapter } from "../lib/groupCapsules";
+import { groupBySubjectChapter } from "@zetis/ui";
+import { SubjectChapterShelves } from "../components/browse/SubjectChapterShelves";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import { subjectIconFor } from "../lib/subjectIcons";
 
@@ -55,7 +56,6 @@ export function CapsulesIAPage() {
   const [stats, setStats] = useState<CapsuleStats | null>(null);
   const [playing, setPlaying] = useState<CapsulePublicItem | null>(null);
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const celebrate = useCelebrate();
@@ -144,85 +144,39 @@ export function CapsulesIAPage() {
             </div>
           )}
 
-          {/* Recherche */}
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher une capsule…"
-            className="mt-4 w-full rounded-xl border border-zetis-border bg-zetis-surface px-4 py-2.5 text-sm"
-          />
-
-          {/* Accordéons par matière → chapitre (fermés par défaut) */}
-          {shelves.length === 0 ? (
-            <p className="mt-4 rounded-2xl border border-dashed border-zetis-border p-6 text-center text-sm text-zetis-muted">
-              Aucune capsule ne correspond à « {search} ».
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {shelves.map((shelf) => {
-                const key = shelf.slug || shelf.name;
-                const open = !!expanded[key];
-                return (
-                  <section
-                    key={key}
-                    className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((m) => ({ ...m, [key]: !m[key] }))}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left font-bold"
-                    >
-                      <SubjectIcon slug={shelf.slug} size={28} />
-                      {shelf.name}
-                      <span className="ml-auto text-sm font-medium text-zetis-muted">
-                        {shelf.count} · {open ? "▾" : "▸"}
+          <SubjectChapterShelves
+            groups={shelves}
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Rechercher une capsule…"
+            emptyLabel={(q) => `Aucune capsule ne correspond à « ${q} ».`}
+            itemKey={(c) => c.id}
+            renderItem={(c) => (
+              <button
+                type="button"
+                onClick={() => setPlaying(c)}
+                className="h-full w-full rounded-2xl border border-zetis-border bg-zetis-bg p-4 text-left hover:border-zetis-accent"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <SubjectIcon slug={c.subject_slug} size={22} />
+                    {c.title}
+                  </p>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <DifficultyBadge difficulty={c.difficulty} />
+                    {!c.seen && (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                        Nouveau
                       </span>
-                    </button>
-                    {open && (
-                      <div className="px-4 pb-4">
-                        {shelf.chapters.map((ch) => (
-                          <div key={ch.id ?? "none"} className="mb-4 last:mb-0">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zetis-muted">
-                              {ch.name}
-                            </p>
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              {ch.capsules.map((c) => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  onClick={() => setPlaying(c)}
-                                  className="rounded-2xl border border-zetis-border bg-zetis-bg p-4 text-left hover:border-zetis-accent"
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <p className="flex items-center gap-1.5 font-semibold">
-                                      <SubjectIcon slug={c.subject_slug} size={22} />
-                                      {c.title}
-                                    </p>
-                                    <span className="flex shrink-0 items-center gap-1">
-                                      <DifficultyBadge difficulty={c.difficulty} />
-                                      {!c.seen && (
-                                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                                          Nouveau
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                  <span className="mt-3 inline-block text-sm font-medium text-zetis-accent-2">
-                                    ▶ Regarder
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     )}
-                  </section>
-                );
-              })}
-            </div>
-          )}
+                  </span>
+                </div>
+                <span className="mt-3 inline-block text-sm font-medium text-zetis-accent-2">
+                  ▶ Regarder
+                </span>
+              </button>
+            )}
+          />
         </>
       )}
 

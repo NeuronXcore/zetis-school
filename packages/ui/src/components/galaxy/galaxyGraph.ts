@@ -6,6 +6,7 @@
  */
 import type { GalaxyEdge, GalaxyNode, GalaxyStatus } from "@zetis/types";
 import { STATUS_ORDER } from "./galaxyTheme";
+import { normalizeSearch } from "../../lib/normalizeSearch";
 
 export const linkKey = (source: string, target: string): string => `${source}->${target}`;
 
@@ -82,13 +83,10 @@ export function statusCounts(nodes: GalaxyNode[]): Record<GalaxyStatus, number> 
  * Massimo tape « elyse », pas « Élysée », et rarement avec la bonne casse. Comparer les
  * chaînes brutes ferait échouer la recherche sur une bonne part du programme.
  */
-export function normalizeSearch(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}
+// 🔴 Remontée dans `lib/normalizeSearch.ts` le 2026-08-14 (ADR-0057 §8) : elle existait ici ET
+// en deux copies dans `groupCapsules.ts`. Ré-exportée pour ne casser aucun import existant —
+// ⚠️ un `export … from` seul ne la ramène PAS dans la portée du module (TS2304).
+export { normalizeSearch };
 
 /**
  * Étoiles dont le nom contient le mot cherché.

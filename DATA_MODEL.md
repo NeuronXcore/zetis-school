@@ -257,7 +257,7 @@ status
 ```txt
 id
 subject_id
-chapter_id optional
+chapter_id optional    # ⚠️ DÉNORMALISÉ — voir la règle de lecture sous ce bloc
 lesson_id optional     # quiz de fin de cours rattaché à sa leçon (0..N par leçon, ADR-0014)
 title
 description
@@ -280,6 +280,16 @@ validated_by optional  # `system` pour un quiz NON gaté — servi sans relectur
                        # backfillé parce qu'il était déjà servi. Personne ne l'a laissé passer ;
                        # il est passé faute de gate. Aucune rétro-attribution (doctrine §F.4).
 ```
+
+#### 🔴 Règle de lecture — le chapitre d'un quiz se lit sur sa LEÇON, pas sur `Quiz.chapter_id`
+
+`Quiz.chapter_id` existe et est renseigné (mesuré le 2026-08-14 : **37 lignes sur 39** pour les
+quiz de mission), et il était **cohérent à 100 %** avec `lessons.chapter_id`. C'est une copie, pas
+la source : une leçon qui change de chapitre laisserait le quiz sur l'ancien.
+
+Le listing élève (`adr-0057`) prend donc le chapitre **par la leçon** — celle-là même qui décide
+déjà de la servabilité du quiz (leçon validée de l'année active). *Prendre la servabilité à un
+endroit et le rangement à un autre, c'est ouvrir la porte à un écart que rien ne signalerait.*
 
 ### QuizQuestion
 

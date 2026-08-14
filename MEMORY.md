@@ -6,162 +6,148 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — le quota de deux places (ADR-0056)
+### ✅ CHANTIER COMPLET, NON COMMITÉ — matière → chapitre + recherche sur `/quiz` (ADR-0057, slice 1)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#127](https://github.com/NeuronXcore/zetis-school/pull/127),
-squash `9a0e800`.** Branche `feat/la-file-cesse-d-enterrer` **supprimée** (locale et distante),
-base d'origine `3e16813`. **Rien à pousser.** *(Étape 4bis faite dans la foulée du merge.)*
+Branche **`feat/une-seule-facon-de-trouver-quiz`**, base **`e3da3dc`**. Le prompt de slice y est
+commité ; **le code ne l'est pas**. *(État exact : `git log --oneline main..HEAD` et `git status`.)*
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans `main`, pas du travail à faire.
-
-> ⚠️ **Mergé sans relecture visuelle humaine** — et cette fois ce n'est pas une dette : la slice
-> est **backend pure**, il n'y a rien à regarder. L'effet visible (la composition de sa session)
-> est prouvé par la recette sur les vraies données.
+> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans l'arbre de travail.
+> ✅ **Écran VU** (Français : 17 quiz sous 4 chapitres ; recherche « thales » depuis le Français →
+> les 2 quiz de Maths ; page Capsules inchangée).
 
 #### ✅ FAIT
 
-Le défaut mesuré la veille : les 7 définitions écrites par Massimo étaient aux **rangs 153 à 159
-sur 159** dans la file du Français — **19 sessions** d'arriéré avant d'être servies. Le §13 de
-l'addendum ADR-0015 promettait *« c'est celle-là qu'il doit pouvoir retrouver »*.
-
 | Livré | Détail |
 |---|---|
-| `REVIEW_PERSO_RESERVED = 2` | à côté des plafonds, **pas un plafond de plus** |
-| `_rows_with_reserved_places()` | **deux requêtes**, jamais un `ORDER BY CASE` illisible |
-| Decks **matière** et **chapitre** | un drapeau `quota` par branche ; **les mélanges sont exclus** |
-| 3 test-verrous | matière · « sans carte perso, session inchangée » · **chapitre sans clause d'échéance** |
-| `page-revision.md` §Plafonds · `API_SPEC.md` | la règle est écrite là où elle se lit |
+| `GET /api/student/quizzes` | listing **léger**, toutes matières — **7,6 ko pour 37 quiz**, contre **27,7 ko** pour les 17 du seul Français |
+| `_servable_quizzes_of_subject()` | **source unique** du filtre (type `mission`, leçon validée, non archivé, ≥ 1 question active) |
+| `groupBySubjectChapter` + `normalizeSearch` | remontés dans **`packages/ui/src/lib/`** — ils vivaient en **DEUX copies identiques à l'octet** (app Massimo, app Papa) |
+| `SubjectChapterShelves` | étagères + champ de recherche + état vide, `apps/frontend-massimo/src/components/browse/` |
+| `/quiz` | quiz par chapitre, recherche **toutes matières**, quiz complet chargé **au clic** (`fetchQuizById`) |
+| Capsules | migrées sur la brique, **à rendu identique** — et dotées de leur **premier test** |
 
-**Zéro migration, zéro route, zéro écran, aucun compteur touché.**
+**Zéro migration.** `QuizSessionState` **inchangé** : les trois portes vers `/quiz/session`
+(`QuizPage`, `useOpenNotionAction`, `CoursPage`) fonctionnent comme avant.
 
-🔴 **La recette sur les VRAIES données rend exactement la liste arbitrée** :
-`[322, 323, 6, 8, 11, 12, 88, 89]` — ses deux définitions en tête là où il n'y en avait aucune, les
-cartes de ZETIS (4, 7, 10, 145, 148, 151, 154) toujours masquées, 8 cartes servies, `due_count`
-**159** et `session_size` **8** inchangés. Jouée en **lecture seule**, rollback final.
+#### 🔬 CE QUE LA VÉRIFICATION A TROUVÉ — et qui ne se déduit d'aucun test vert
 
-#### 🔬 CE QUI A PROUVÉ QUE LES VERROUS REGARDENT LE BON ENDROIT
+1. 🔴 **Un sabotage est resté VERT** : forcer la brique à tout mettre dans « Sans chapitre » ne
+   faisait rougir aucun des 9 tests — le décor n'avait **qu'un chapitre par matière**, et le groupe
+   fusionné prenait le nom du premier objet. Décor corrigé (deux chapitres), le sabotage rougit.
+2. 🔴 **Un défaut trouvé À L'ÉCRAN** : chercher « thales » depuis le Français affichait les quiz de
+   Maths sous un titre **« 📖 Français »**. Les tests vérifiaient les résultats, jamais ce que la
+   page dit d'elle-même.
+3. **Un test EXISTANT a trouvé un défaut de conception** : la parité stricte (accordéons fermés)
+   faisait que `/quiz?subject=maths` ouvrait la matière sur un accordéon **clos**. D'où
+   `defaultOpen` — vrai pour les quiz, **faux pour les Capsules**.
+4. **L'ancien décor mentait** : le mock de `fetchSubjectQuizzes` rendait les quiz de Maths quelle
+   que soit la matière demandée.
 
-Trois sabotages, et **le troisième est le plus instructif** :
-
-| Sabotage | Ce qui rougit |
-|---|---|
-| `REVIEW_PERSO_RESERVED = 0` | verrous matière **et** chapitre |
-| `reste.limit(cap)` au lieu de `cap - len(perso)` | les deux (la session servait 10 cartes) |
-| **filtrer les cartes perso sur l'échéance** | **le verrou CHAPITRE seul** |
-
-⚠️ Le troisième est le piège n° 1 du prompt : le deck chapitre sert des cartes **non dues**
-(ADR-0049 §3), donc **seul** un décor sans échéance peut le voir. Un chantier qui n'aurait écrit
-que le verrou « matière » aurait laissé passer la régression la plus probable.
+Détail et parades : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-quiz` (7 sous-sections).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Règle C** (arbitrée le 2026-08-14) : un quota d'**au plus 2 places**, jamais d'office.
-2. Les places sont prises **DANS** le plafond de 8, **jamais en plus** — le nombre servi ne change
-   pas, ni aucun compteur.
-3. Sans carte personnelle servable, **les deux places retournent à la file**.
-4. Les cartes réservées sont servies **EN TÊTE** — c'est la composition soumise à l'arbitrage.
-5. 🔴 **Le critère qui borne** : *toute carte servie devait déjà être servable avant le chantier*.
-   L'ordre change, la sélection jamais.
-6. **Les mélanges ne sont pas concernés** — non arbitré, et le mélange est le rituel.
-7. Le quota **filtre le `stmt` du deck**, il ne le reconstruit pas : c'est ce qui le fait se
-   composer avec un deck sans clause d'échéance.
+1. **La recherche est CLIENTE**, sur les objets déjà servis — aucun endpoint de recherche, aucun
+   `ILIKE`, aucun appel au RAG (ADR-0057 §2).
+2. Elle cherche le **titre**, pas le contenu.
+3. **Portée = règle des capsules** : toute la page, toutes matières — bornée par « un résultat hors
+   portée doit **emmener**, jamais s'afficher sans y mener ».
+4. **Une seule brique, aucune variante locale** ; un seul normaliseur, celui de `packages/ui`.
+5. **La parité des Capsules est l'étalon** — leur écran ne bouge pas, `defaultOpen` reste `false`.
+6. Le listing élève est **léger** ; le quiz complet se charge **au clic**.
+7. Le chapitre d'un quiz se lit **sur sa leçon**, pas sur `Quiz.chapter_id` (copie dénormalisée).
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **Le quota du MÉLANGE du jour n'est pas arbitré** (12 cartes, toutes matières). Recommandation
-  écrite dans l'ADR-0056 §5 : ne pas l'y appliquer avant d'avoir vu vivre la règle sur la matière.
-- 🔴 **`API_SPEC.md` ne documente NULLE PART le deck `{ chapter }`** — le corps de
-  `POST /student/reviews/session` n'annonce que `mix_day | mix_flash | { subject }`, alors que le
-  deck chapitre existe depuis l'ADR-0049 **mergé**. Trouvé pendant la slice, **signalé et non
-  traité** (hors périmètre).
-- ⚠️ **Aucune vérification à l'écran** : la slice est backend pure. L'effet visible pour Massimo
-  (la composition de sa session) est prouvé par la recette, **pas par un œil**.
+- 🔴 **La copie de `groupCapsules.ts` chez PAPA existe toujours** (`apps/frontend-papa/src/lib/`) —
+  hors-périmètre, non traitée. **Une ligne d'import** la referme : `@zetis/ui` exporte déjà tout.
+- ⚠️ **La règle 4 du §8** (« un seul résultat s'ouvre tout seul », empruntée à la galaxie) **n'est
+  pas implémentée** : l'appliquer changerait l'écran des Capsules, et la parité prime. Signalé.
+- 🔴 **Il n'existe AUCUN `docs/frontend-massimo/page-quiz.md`** — l'écran a changé de comportement
+  et n'a pas de spec. La question a été posée à l'ouverture, **l'arbitrage n'a pas été rendu**.
+- ⚠️ **`API_SPEC` ne documente TOUJOURS PAS le deck `{ chapter }`** de `/student/reviews/session`
+  (trou pré-existant depuis l'ADR-0049 mergé, hors périmètre deux fois de suite).
 
-**Remontées de l'ADR-0055 (mergé, PR #126, squash `4910f4b`) — élagué ce jour :**
+**Le chantier ADR-0057, dont il reste TROIS slices :**
 
-- 🔴 **Le prompt v2 n'a JAMAIS généré une fiche.** C'est là que le risque d'acronymes forcés se
-  réalise, et aucun test ne peut le dire. À exercer sur une génération réelle.
-- ⚠️ Le **corrigé de ZETIS** (montrer son mnémonique après la tentative) est **reporté**.
-- ⚠️ `FicheSidePanel` (mindmap) ne reçoit **aucune porte** ni étape — volontaire.
-- ⚠️ **Données de test** : trois points-clés écrits dans le **brouillon 54** (leçon 1).
+🔴 **Fiches → Mindmaps → Révision**, dans cet ordre, sur la brique désormais éprouvée. ⚠️ **La
+Révision est la plus chère** et consommera l'**amendement de l'ADR-0049 D1** — acquis, pas encore
+dépensé. 🔴 **Missions reste le seul arbitrage non rendu** (croisées = multi-matières,
+`adr-0017` §5).
 
-**Le chantier ENRICHISSEMENT, cadré à moitié (addendum ADR-0015 §11 révisé) :**
+**Remontées de l'ADR-0056 (mergé, PR #127, squash `9a0e800`) — élagué ce jour :**
 
-🔴 **Enrichir, pas régénérer** ; **sortie des decks PAR LOT**. ⚠️ **Trois points à trancher avant
-toute ligne** : la taille du lot (« une matière » est trop grossier — le Français en porte **14**
-sur 27), l'ordre de passage, le moment où la fiche quitte le deck. ⚠️ **Le mécanisme n'existe
-pas** — aucune route d'enrichissement. Chiffres : **27** fiches ZETIS validées, **10** en
-`pending` ; la file de relecture de Papa est le facteur limitant, pas le LLM.
+- ⚠️ **Le quota du MÉLANGE du jour n'est pas arbitré** (12 cartes, toutes matières). L'ADR-0056 §5
+  recommande de ne pas l'y appliquer avant d'avoir vu vivre la règle sur la matière.
 
-**Remontées de l'ADR-0054 (mergé, PR #125, squash `845b427`) :**
+**Remontées des ADR-0054 et 0055 :**
 
-- ✅ **Le masquage SRS a été vérifié le 2026-08-14** — sélection **et** compteurs (159 → 152, écart
-  de 7 exact). La moitié qui manquait (*« sert-on la sienne ? »*) **est ce chantier**, et elle est
-  faite.
-- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE, pas à la fiche finie · le bouton du pont
-  SRS est **muet**. Chantier « la fiche répond quand on la touche ».
+- 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche** — le risque d'acronymes forcés s'y
+  réalise, et aucun test ne peut le dire.
+- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE, pas à la fiche finie · le bouton du pont SRS
+  est **muet**. Chantier « la fiche répond quand on la touche », **pas encore cadré**.
 - 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide.
-  Seule la porte de `CoursPage` est désamorcée.
-- 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51 (StrictMode ou défaut 4).
-- ⚠️ **L'ADR-0054 garde deux comptes faux** (« trois surfaces » pour deux, « cinq boutons » pour
-  trois) — corrigés dans le code, **pas dans l'ADR**.
-- ⚠️ Le **pied de fiche atteint 5 lignes** à 375 px quand le titre est long (préexistant).
-- ⚠️ `review_load` compte des cartes masquées · le commentaire de `coverage.py:364` reste faux ·
-  le **veto d'un cours** impossible dès qu'une fiche personnelle existe · **aucun linter Python** ·
-  **la dictée n'a jamais été exercée avec un vrai micro**.
-
-**Le chantier VOISIN, cadré et arbitré, pas ouvert (ADR-0057) :**
-
-🔴 **`/ouverture` sur la slice QUIZ seule** — matière → chapitre + recherche, règle des capsules
-(toute la page), bornée : un résultat hors portée doit **emmener**, jamais s'afficher sans y mener.
-⚠️ **La Révision n'est PAS dans ce lot** : l'amendement de l'ADR-0049 D1 est **acquis, pas encore
-consommé**. 🔴 **Missions reste le seul arbitrage non rendu.** ⚠️ Deux normaliseurs de recherche en
-doublon (`packages/ui` vs `lib/groupCapsules.ts`) — à unifier par ce chantier-là.
+- 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51.
+- 🔴 **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) : **trois points à trancher**
+  (taille du lot, ordre, moment de sortie du deck) et **le mécanisme n'existe pas**.
+- ⚠️ Le **corrigé de ZETIS** reporté · `FicheSidePanel` sans porte · **brouillon 54** porte 3
+  points-clés de démonstration.
+- ⚠️ **L'ADR-0054 garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
+  compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours**
+  impossible dès qu'une fiche personnelle existe · **aucun linter Python** · **la dictée n'a jamais
+  été exercée avec un vrai micro**.
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker RALLUMÉE le 2026-08-14** (`pnpm infra:up` : postgres + redis + minio) — elle était
-éteinte à la reprise. ⚠️ **Les serveurs de dev survivent à une fin de session, pas l'infra** : sans
-elle, `test_auth.py` rougit deux fois pour une raison qui n'a rien à voir (c'est le **seul** fichier
-de la suite à monter un `TestClient` nu, donc à atteindre la vraie base). Paire LAN vivante
-(`backend-lan` :8004 / `massimo-lan` :5180) ; IP Wi-Fi `10.82.84.122`, **elle bouge au gré du
-DHCP** (`ipconfig getifaddr en0`, jamais `en10`).
+**Infra Docker allumée** (postgres + redis + minio). ⚠️ Sans elle, `test_auth.py` rougit deux fois
+pour une raison étrangère au chantier. **Paire de dev `backend` (:8000) + `massimo` (:5173)**
+lancée pour la vérification d'écran — ⚠️ elle **meurt avec la session**. Paire LAN (:8004/:5180)
+également vivante.
 
-Brouillon **54** : 3 points-clés écrits pour la démo. Brouillon **56** (leçon 8) : vide.
-**Aucune donnée n'a été écrite par ce chantier** — la recette tourne en lecture seule.
+⚠️ **Le token de Massimo a été posé à la main dans `localStorage`** (clé `zetis_massimo_token`) sur
+le navigateur d'aperçu, pour atteindre une page derrière `RequireAuth`. Rien n'a été écrit en base.
 
-**Suites lancées pendant la session :**
+**Suites lancées pendant la session, après la dernière modification :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` (après le correctif) | **1285** ✅ — 1282 + les 3 verrous |
-| `tsc -b` Massimo | ✅ |
-| Massimo `vitest` · Papa `vitest` | **737** ✅ · **814** ✅ — mesurés en début de session, **non relancés depuis** (aucun fichier front touché) |
+| backend `pytest` | **1287** ✅ |
+| Massimo `vitest` | **743** ✅ (737 + 6 verrous neufs) |
+| Papa `vitest` | **814** ✅ |
+| `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-🔴 **Aucun test existant n'a été modifié** — c'est la preuve de non-régression : les deux tests qui
-décrivent l'ancien ordre (`test_caps_serve_oldest_and_interleave`,
-`test_chapter_deck_caps_and_orders_by_due_at`) sont restés verts **sans un caractère de changé**,
-parce que leurs décors ne contiennent aucune carte `definition_perso` (`card_type` a pour défaut
-`"definition"`).
+🔴 **Deux tests existants ont été RÉÉCRITS, sur autorisation explicite** : `QuizPage.test.tsx`
+assérait sur `fetchSubjectQuizzes`, que la page n'appelle plus. Les assertions portent désormais
+sur **ce que l'écran montre**. Aucun autre test existant n'a été touché.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** —
-`/ouverture` sur l'un de ceux-ci, tous cadrés à des degrés divers :
-
-1. 🔴 **ADR-0057, slice QUIZ seule** — le seul dont les arbitrages sont rendus et qui n'attend
-   plus rien. Matière → chapitre + recherche, règle des capsules, une page pour éprouver la brique.
-2. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
-   **Pas encore cadré** : il lui faut son ADR.
-3. **L'enrichissement des fiches par lot** (addendum ADR-0015 §11 révisé) — ⚠️ **trois points à
-   trancher avant toute ligne**, et le mécanisme n'existe pas.
-4. 🔴 **Exercer le prompt v2 sur une vraie génération** — ce n'est pas un chantier, c'est une
-   vérification, et personne ne l'a faite.
+1. **Vérifier le diff, lancer les tests, puis committer et pousser** — le geste est humain.
+2. **Ouvrir la PR** et la merger (chantier **fini**), puis revenir faire l'**étape 4bis**
+   (`WORKFLOW.md §5`) : squash, n° de PR, branche supprimée, « rien à pousser ».
+3. Ensuite, **un seul chantier à la fois** : `/ouverture` sur la **slice Fiches** de l'ADR-0057
+   (la brique est éprouvée), ou l'un des chantiers listés en dettes.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+
+---
+
+## ⬆️ REMONTÉ de l'élagage du chantier « la file cesse d'enterrer ce qu'il vient d'écrire » (PR #127, squash `9a0e800`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0056 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/la-file-cesse-d-enterrer` (**5 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.86.0** ✅ · 4ᵉ contrôle — dette du mélange du jour remontée ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : **le sabotage le plus instructif de la journée**. En ajoutant une
+> clause d'échéance au filtre du quota, le verrou « matière » restait **VERT** — ses cartes sont
+> dues, il ne pouvait pas voir la différence — et **seul** le verrou « chapitre » rougissait, parce
+> que le deck chapitre sert des cartes **non dues**. Un chantier qui n'aurait écrit que le premier
+> verrou aurait laissé passer la régression la plus probable. *Un verrou d'ordre a besoin d'un
+> jumeau sur un décor où la règle voisine ne s'applique pas.*
 
 ---
 

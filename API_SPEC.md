@@ -580,6 +580,14 @@ substrat canonique** (ADR-0011). Génération **locale** depuis le cours validé
 ### Flux élève — Massimo (`/api/student`, filtrage serveur, jamais la clé)
 
 - **GET `/api/student/quiz-subjects`** — grille des matières + nombre de quiz (0 → grisée).
+- 🔴 **GET `/api/student/quizzes`** — **listing LÉGER de TOUTES les matières** (ADR-0057) :
+  `[{ quiz_id, title, subject, subject_slug, chapter_id, chapter, lesson_id, questions_count }]`.
+  **Jamais les questions** — `questions_count` les remplace, et le quiz complet se charge au clic
+  (`GET /api/student/quiz/{quiz_id}`). Mesuré le 2026-08-14 : **37 quiz en 7,6 ko** pour toutes les
+  matières, contre **27,7 ko** pour les 17 du seul Français quand les questions voyageaient avec la
+  liste. Même filtre que le listing par matière — `_servable_quizzes_of_subject` en est la **source
+  unique** : type `mission`, leçon validée de l'année active, non archivé, **au moins une question
+  active**. Le chapitre vient de la **leçon** ; `null` → rangé sous « Sans chapitre ».
 - **GET `/api/student/quizzes/{subject_slug}`** — quiz jouables (questions actives, **sans** clé
   ni explication) ; chaque quiz porte `lesson_id`.
 - **GET `/api/student/quiz/{quiz_id}`** — un quiz jouable par id (même charge que ci-dessus, sans
