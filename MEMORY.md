@@ -158,12 +158,16 @@ Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
 1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Deck **Français** (pas le mélange), les
    **sept** notions des cartes 322→328 : servent-elles **sa** définition et jamais celle de ZETIS ?
    Passé ce jour, les cartes ne sont plus dues et la preuve devient impossible.
-2. **Une session de CADRAGE sur `main`**, qui porte DEUX addenda allant ensemble :
-   - **§11 de l'addendum ADR-0015** — l'enrichissement des fiches déjà créées, **révisé** par le
-     commanditaire : *enrichir* et non régénérer, et les fiches **sortent des decks par lot**.
-     ⚠️ Restent à trancher : la taille du lot et l'ordre. Le mécanisme n'existe pas.
-   - **§4 de l'ADR-0055** — il décrit encore **deux** signaux d'occasion ; le code n'en garde
-     qu'un. C'est le code qui a raison, et ce fichier dit pourquoi.
+2. ✅ **CADRAGE FAIT le 2026-08-14** — les deux addenda sont écrits (non commités) :
+   - **§11 de l'addendum ADR-0015** — révisé : *enrichir* et non régénérer, sortie des decks
+     **par lot**. ⚠️ **Trois points restent à TRANCHER avant toute ligne** : la taille du lot
+     (« une matière » est trop grossier — le Français en porte **14** sur 27), l'ordre de passage,
+     et le moment où la fiche quitte le deck. Le **mécanisme n'existe pas** : c'est son propre
+     chantier, avec son ADR.
+   - **§4 de l'ADR-0055** — aligné sur l'énumération seule, virgules seules, **4 leçons sur 27**.
+   - ⚙️ Une commande **`/cadrage`** a été créée au passage : le cycle avait `/ouverture`,
+     `/slice`, `/cloture`, `/reprise` et **rien pour le cadrage**, que `/ouverture` ne cesse
+     pourtant de désigner comme une session à part.
 3. 🔴 **Exercer le prompt v2 sur une vraie génération** — seule pièce du chantier qu'aucun test ni
    aucune vérification d'écran ne couvre.
 4. Plus tard : cadrer « la fiche répond quand on la touche » (défauts 2, 3 et la cause du 4).

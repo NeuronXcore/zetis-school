@@ -485,6 +485,47 @@ que les paliers d'autonomie de la sidebar Papa.
 
 ### §11 — Les fiches **déjà créées** : enrichissement à la demande, **jamais en lot**
 
+> 🔴 **RÉVISÉ par le commanditaire le 2026-08-14.** Ce paragraphe écartait toute passe en lot.
+> Elle est **retenue**, sous deux conditions qui changent l'analyse — et la seconde lève
+> l'objection centrale.
+>
+> **A — ENRICHIR, jamais régénérer.** On ajoute les champs manquants ; le contenu validé par Papa
+> et ses **éditions manuelles** (`FicheEditorModal`) sont **préservés**. C'était déjà le motif n°1
+> de ce §11 contre la régénération — la révision ne le contredit pas, elle le confirme.
+>
+> **B — les fiches SORTENT des decks, mais PAR LOT.** L'objection d'origine était *« elles
+> quitteraient Massimo TOUTES EN MÊME TEMPS »*. Un lot borne la fenêtre : il ne perd jamais que le
+> lot en cours, Papa revalide, le lot suivant part. **L'argument qui fermait la porte ne tient
+> plus dès lors que la porte s'ouvre par tranches.**
+>
+> ⚠️ **Le second motif d'origine, lui, s'est révélé FAUX sur les données** — il annonçait *« ~4
+> propositions vides sur 5, que Papa devrait rejeter une par une »*. Mesuré le 2026-08-14 : **27
+> fiches ZETIS validées, dont 4 présentent une vraie occasion**. Le rendement est donc de **1 sur
+> 7**, pire encore que craint. La passe en lot n'est pas justifiée par son rendement : elle l'est
+> par le fait qu'aucune fiche ancienne n'aura jamais de mnémonique autrement.
+>
+> **Ce qui est mesuré, et qui dimensionne le chantier :**
+>
+> | | |
+> |---|---|
+> | fiches ZETIS validées | **27** — Français **14**, Mathématiques **10**, SVT **2**, Anglais **1** |
+> | déjà en `pending` | **10** — la file de relecture de Papa est le facteur limitant, pas le LLM |
+> | avec une vraie occasion | **4** |
+>
+> 🔴 **RESTE À TRANCHER, avant toute ligne de code :**
+>
+> 1. **La taille du lot.** ⚠️ « Une matière » est **trop grossier pour le Français** : 14 fiches,
+>    soit la moitié du corpus et tout son deck d'un coup. Un lot de taille fixe (≈ 5) découpe le
+>    Français en trois et garde la fenêtre courte.
+> 2. **L'ordre de passage** — par matière ? par occasion détectée d'abord (les 4) ?
+> 3. **Le moment où la fiche quitte le deck** : à la proposition du modèle, ou seulement quand
+>    Papa ouvre la relecture ? La seconde forme réduirait la fenêtre à quelques minutes.
+>
+> ⚠️ **Le mécanisme n'existe pas** : aucune route d'enrichissement, ni en lot ni à l'unité. Ce
+> n'est pas un réglage, c'est une fonctionnalité — et donc **son propre chantier**, avec son ADR.
+
+
+
 Besoin exprimé : *« il faut prévoir de mettre à jour les fiches déjà créées avec le
 mnémotechnique »*. Le read-before-code interdit la solution évidente.
 

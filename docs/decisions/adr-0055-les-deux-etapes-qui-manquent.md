@@ -98,6 +98,38 @@ Massimo invente.** Celui d'un autre est une chose de plus à mémoriser.
 
 ### §4 — 🔴 La détection de l'occasion est DÉTERMINISTE — c'est le critère qui borne ce chantier
 
+> 🔴 **CORRIGÉ le 2026-08-14, APRÈS la livraison et APRÈS mesure.** Ce paragraphe décrivait
+> **deux** signaux (« au moins 3 points-clés » **ou** une énumération). Le code n'en garde **qu'un**,
+> et c'est le code qui a raison — voici pourquoi, avec les chiffres.
+>
+> | Règle | Leçons offrant l'étape ⑥ (sur 27 fiches ZETIS validées) |
+> |---|---|
+> | ≥ 3 points-clés **ou** énumération *(version d'origine)* | **27 / 27 — 100 %** |
+> | énumération, en coupant sur « , » **et** sur « et » | **7 / 27** |
+> | **énumération, virgules seules** ← **retenu** | **4 / 27** |
+>
+> **1 — le signal « ≥ 3 points-clés » est RETIRÉ.** Le prompt de génération demande jusqu'à cinq
+> points-clés et le modèle les remplit : ce signal ne distinguait **rien**. L'étape ⑥ se serait
+> affichée sur « Division de fractions » pour annoncer *« il y a une liste à retenir »* là où il
+> n'y a qu'une méthode — l'acronyme forcé que le §10 refuse.
+>
+> **2 — on ne coupe PAS sur « et ».** C'est une conjonction française ordinaire, pas une
+> énumération : l'ajouter attrapait *« Résumer **et** reformuler un texte »* et *« Lire **et**
+> comprendre un texte poétique »*.
+>
+> ⚠️ **Le signal d'alarme de cet ADR a donc sonné le jour même de la livraison**, et c'est une
+> bonne nouvelle : il était écrit **avant**, il a été mesuré, il a mordu. *Une heuristique jugée
+> sur des exemples inventés ne prouve rien* — et la première mesure de contrôle a elle-même dû
+> être refaite, parce qu'une requête SQL **approximait** la règle au lieu de l'exécuter.
+>
+> **Les 4 leçons retenues** : la proposition subordonnée relative (*qui, que, dont, où*) · la
+> phrase complexe — où **ZETIS avait déjà écrit « MOULIN »** dans un point-clé, faute d'endroit où
+> le mettre · la géographie du Royaume-Uni · les éruptions volcaniques.
+>
+> **Le vide reste le cas fréquent et normal** : 23 leçons sur 27 n'offrent pas l'étape, et ce
+> n'est pas un manque.
+
+
 L'étape ⑥ n'apparaît **que si ZETIS a détecté une occasion** : une **liste ou un ordre arbitraire**
 dans `points_cles`. Cette détection est une **heuristique déterministe**, lisible et testable.
 
