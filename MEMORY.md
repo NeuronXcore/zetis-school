@@ -6,14 +6,21 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — slice 4 : la fiche vit dans le temps (ADR-0054)
+### ✅ CHANTIER MERGÉ — slice 4 : la fiche vit dans le temps (ADR-0054)
 
-Branche **`feat/la-fiche-vit-dans-le-temps`**, base **`d12e856`** (`main` y a été **mergé** en cours
-de session — il avait avancé, cf. « le rattrapage » plus bas). L'état commité se lit par
-`git log --oneline main..HEAD` ; le travail de clôture n'est **pas encore commité**.
+**MERGÉ dans `main` le 2026-08-14 — PR [#125](https://github.com/NeuronXcore/zetis-school/pull/125),
+squash `845b427`.** Branche `feat/la-fiche-vit-dans-le-temps` **supprimée** (origin **et** local),
+base d'origine `d12e856`. **Rien à pousser.** *(Étape 4bis faite le 2026-08-14, juste après le
+merge — pour une fois le fichier n'a pas survécu à son chantier.)*
 
-> ✅ **Les QUATRE points du périmètre sont livrés**, et chacun a été vu à l'écran sur un vrai
-> backend, pas seulement testé. **PROCHAIN PAS = commit + push + PR.** (Voir tout en bas.)
+> ✅ **Les QUATRE points du périmètre sont livrés.** 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit est
+> un compte rendu de ce qui EST dans `main`, pas une liste de travail. Le prochain pas réel est
+> tout en bas.
+
+> ⚠️ **Mergé sans relecture visuelle humaine** — décision assumée de l'humain, prise en
+> connaissance de cause : tout ce que ce compte rendu appelle « vu à l'écran » a été mesuré par
+> l'agent dans le DOM, sur la paire LAN, jamais regardé par un œil. C'est le motif récurrent du
+> dépôt ; il est noté ici pour que la prochaine session sache ce qui n'a PAS été éprouvé.
 
 #### ✅ FAIT — le périmètre, point par point
 
@@ -148,19 +155,26 @@ v2. L'ancienne note inversait les deux.
 51 et 52 ont été supprimés après inspection. **7 cartes `definition_perso`** (*et non 3 — corrigé*),
 toutes dues le **2026-08-15**.
 
-⚠️ **Ce qui tourne à la clôture** : infra Docker + **paire LAN** (`backend-lan` :8004 /
-`massimo-lan` :5180). L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au
-lancement (`ipconfig getifaddr en0`, jamais `en10`).
+⚠️ **Ce qui tournait encore à la fin de la session** : infra Docker + **paire LAN**
+(`backend-lan` :8004 / `massimo-lan` :5180), laissées allumées pour la vérification du 2026-08-15.
+L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au lancement
+(`ipconfig getifaddr en0`, **jamais `en10`** : le filaire n'est pas ce que l'iPhone joint).
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, relancer les suites, puis commiter** (message suggéré rendu à la clôture).
-2. **Pousser**, ouvrir la **PR**, merger.
-3. 🔴 **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel — squash, n° de
-   PR, branche supprimée, « rien à pousser ». Ce qui est écrit ici sera **faux** dès le merge.
-4. **Le 2026-08-15** : la vérification datée du masquage SRS (ci-dessus), la seule dette qui expire.
-5. Ensuite seulement : l'addendum ADR-0054 sur les deux comptes faux, puis le cadrage du chantier
-   « la fiche répond quand on la touche » (défauts 2, 3, 4).
+Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
+
+1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Ouvrir le deck **Français** (pas le mélange) et
+   vérifier que les **sept** notions des cartes 322→328 servent **sa** définition et jamais celle de
+   ZETIS. C'est la seule preuve possible du masquage ; passé ce jour, les cartes ne sont plus dues
+   et la fenêtre est fermée.
+2. **L'addendum ADR-0054** sur les deux comptes faux (« trois surfaces » pour deux, « cinq boutons »
+   pour trois) — corrigés dans le code et dans `page-fiches.md`, **pas dans l'ADR**.
+3. **Cadrer** le chantier « la fiche répond quand on la touche » (défauts 2, 3 et **la cause du 4**,
+   toujours vivante) — un ADR **avant** la moindre ligne, `/ouverture` s'arrête sinon.
+
+⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
+encore ouvertes devront alors être **remontées**, pas enterrées avec le récit.
 
 ---
 
