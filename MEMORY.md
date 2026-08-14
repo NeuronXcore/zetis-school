@@ -6,10 +6,11 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON COMMITÉ — matière → chapitre + recherche sur `/quiz` (ADR-0057, slice 1)
+### ✅ CHANTIER MERGÉ — matière → chapitre + recherche sur `/quiz` (ADR-0057, slice 1)
 
-Branche **`feat/une-seule-facon-de-trouver-quiz`**, base **`e3da3dc`**. Le prompt de slice y est
-commité ; **le code ne l'est pas**. *(État exact : `git log --oneline main..HEAD` et `git status`.)*
+**MERGÉ dans `main` le 2026-08-14 — PR [#128](https://github.com/NeuronXcore/zetis-school/pull/128),
+squash `955dba0`.** Branche `feat/une-seule-facon-de-trouver-quiz` **supprimée** (locale et
+distante), base d'origine `e3da3dc`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
 > 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans l'arbre de travail.
 > ✅ **Écran VU** (Français : 17 quiz sous 4 chapitres ; recherche « thales » depuis le Français →
@@ -124,11 +125,20 @@ sur **ce que l'écran montre**. Aucun autre test existant n'a été touché.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, lancer les tests, puis committer et pousser** — le geste est humain.
-2. **Ouvrir la PR** et la merger (chantier **fini**), puis revenir faire l'**étape 4bis**
-   (`WORKFLOW.md §5`) : squash, n° de PR, branche supprimée, « rien à pousser ».
-3. Ensuite, **un seul chantier à la fois** : `/ouverture` sur la **slice Fiches** de l'ADR-0057
-   (la brique est éprouvée), ou l'un des chantiers listés en dettes.
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** —
+`/ouverture` sur l'un de ceux-ci :
+
+1. 🔴 **ADR-0057, slice FICHES** — le pas suivant naturel : la brique est éprouvée sur une page,
+   il reste **trois** surfaces (Fiches → Mindmaps → **Révision**, la plus chère, qui consommera
+   l'amendement de l'ADR-0049 D1). Cadré, arbitré, rien à re-décider.
+2. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+   **Pas encore cadré** : il lui faut son ADR.
+3. **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) — ⚠️ **trois points à trancher**
+   avant toute ligne, et le mécanisme n'existe pas.
+4. 🔴 **Deux dettes à une ligne**, qui n'ont pas besoin d'un chantier : la copie de
+   `groupCapsules.ts` chez **Papa** (un import), et l'arbitrage sur `page-quiz.md`.
+5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération — une vérification, pas un
+   chantier, et personne ne l'a faite.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
