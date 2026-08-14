@@ -4,6 +4,70 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/la-file-cesse-d-enterrer` — 2026-08-14
+
+### 🔴 Un `2 failed` peut vouloir dire « la base est éteinte », et rien d'autre
+
+Suite backend lancée à la reprise : **1280 passés, 2 échecs** —
+`test_auth.py::test_login_massimo_ok` et `::test_me_returns_role`, sur
+`connection to server at "127.0.0.1", port 5432 failed`.
+
+**Cause** : l'infra Docker était **éteinte** (`docker ps` vide, rien n'écoutait sur 5432). Les
+serveurs de dev lancés dans une session précédente survivent — **l'infra non**.
+
+**Pourquoi ces deux-là seulement** : `test_auth.py` monte un **`TestClient(app)` nu**
+(`app/tests/test_auth.py:6`), **sans le décor qui isole la base** — ce sont les deux seuls tests de
+la suite à atteindre la **vraie base de dev** (`postgresql+psycopg://zetis@localhost:5432/zetis`).
+`test_login_papa_ok` passe dans le même fichier parce que les identifiants de Papa ne descendent pas
+en base ; ceux de Massimo lisent son profil.
+
+**Parade** : `pnpm infra:up`, puis rejouer — les deux rouges retombent à zéro **sans qu'une ligne de
+code bouge**. Vérifier le port 5432 avant de lire un rouge comme une régression.
+
+### ⚠️ Les commandes `docker` sont MUETTES dans le bac à sable
+
+`docker ps` lancé normalement ne rend **rien du tout** — pas même une erreur —, ce qui se lit comme
+« aucun conteneur ». La même commande hors bac à sable rend le tableau. Le diagnostic « l'infra est
+éteinte » était juste ce jour-là, mais **par accident** : le silence n'était pas une réponse.
+
+**Parade** : pour `docker`/`docker compose`, exécuter hors bac à sable, et confirmer par un second
+canal (`lsof -nP -iTCP:5432 -sTCP:LISTEN`, `docker exec … pg_isready`).
+
+### 🔴 `chapter_servable_count` est PLAFONNÉ — ce n'est pas un stock
+
+Il rend `min(REVIEW_SESSION_MAX_CHAPTER, total)` (`memory/service.py`). Utilisé comme compteur de
+cartes, il a affiché **« 8 »** pour les quatre chapitres offrables du Français, qui en portent
+**72, 39, 45 et 12**. C'est une **taille de session**, pas un stock.
+
+**Parade** : pour un stock, compter soi-même **en partant de `servable()`** — jamais une clause
+recopiée (addendum ADR-0015 §13 : *une* définition du servable).
+
+### 🔴 Le deck chapitre n'a PAS de clause d'échéance — et un seul test peut le voir
+
+En composant le quota de l'ADR-0056, la tentation naturelle est d'écrire `_due_conditions(...)`
+dans l'aide au quota. Le deck chapitre sert délibérément des cartes **non dues** (ADR-0049 §3) :
+cette clause le casse **sans qu'aucune requête ne paraisse fausse**.
+
+**Démontré par sabotage** : en ajoutant `due_at <= _now()` au filtre des cartes personnelles, le
+verrou « matière » reste **VERT** (ses cartes sont dues, il ne peut pas voir la différence) et seul
+le verrou « chapitre » rougit. Un chantier qui n'aurait écrit que le premier aurait laissé passer
+la régression la plus probable.
+
+**Parade** : le quota **filtre le `stmt` déjà construit** par la branche du deck, il ne le
+reconstruit pas — et tout verrou d'ordre a besoin d'un jumeau sur un décor **sans échéance**.
+
+### ⚠️ Les cartes de fixture sont TOUTES `definition` — d'où deux tests restés verts
+
+`SpacedReviewCard.card_type` a pour défaut `"definition"` (`db/models/progress.py:361`) et les
+helpers `_card` / `_chapter_card` ne le passaient pas. Les deux tests qui décrivent l'ancien ordre
+(`test_caps_serve_oldest_and_interleave`, `test_chapter_deck_caps_and_orders_by_due_at`) ne
+contiennent donc **aucune** carte personnelle : ils devaient rester verts **sans être touchés** —
+et ils le sont.
+
+**À retenir** : avant de conclure qu'un test va rougir, **lire son décor**. Ici, la lecture a
+évité de « corriger » deux tests qui n'avaient rien à corriger — *un test modifié pour passer est
+une régression masquée*.
+
 ## Chantier `feat/les-deux-etapes-qui-manquent` — 2026-08-14
 
 ### 🔴 Ajouter un champ au `FicheSpec` CHANGE la génération de toutes les fiches

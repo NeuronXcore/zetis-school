@@ -1,5 +1,31 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.86.0 — Deux places gardées pour ce qu'il vient d'écrire
+
+Massimo écrit sa propre définition d'une notion, elle devient une carte de révision — et la carte
+ne revenait jamais. **Mesuré** : ses sept définitions étaient aux rangs **153 à 159 sur 159** dans
+la file du Français, soit **dix-neuf sessions** d'attente. Rien n'était cassé : la révision espacée
+sert les cartes les plus en retard d'abord, et une définition écrite hier est par construction la
+plus récente de toutes.
+
+**La session de matière et celle de chapitre gardent désormais jusqu'à deux places pour ses
+cartes.** Elles sont servies en tête, et le reste de la session ne change pas.
+
+> **Deux places, pas huit.** Une session de huit cartes dont sept seraient ses propres formulations
+> ne serait plus de la révision espacée, mais une relecture de ses fiches — et le moteur avait
+> placé les autres cartes ce jour-là pour une raison.
+
+**Ce n'est pas un plafond de plus** : les places se prennent **dans** les huit, jamais en plus. Une
+session sert autant de cartes qu'avant, aucun compteur ne bouge, et **sans carte personnelle, les
+deux places retournent à la file** — la session est alors exactement celle d'hier.
+
+**Les mélanges ne sont pas concernés.** Le mélange du jour reste le rituel ; la question n'a pas
+été tranchée, et elle se mesurera mieux quand la règle aura vécu sur la matière.
+
+**Zéro migration, zéro route, zéro écran.** Le tri change, la sélection non : aucune carte servie
+après ce changement n'était inaccessible avant lui — le masquage des cartes de ZETIS, lui, tient
+toujours.
+
 ## 0.85.0 — L'atelier tient enfin sa promesse de six étapes
 
 Il en annonçait six et en rendait quatre depuis le premier jour. Les deux manquantes arrivent, et

@@ -164,11 +164,24 @@ REVIEW_SESSION_MAX_MIX     = 12   # Mélange du jour
 REVIEW_SESSION_MAX_SUBJECT = 8    # deck matière
 REVIEW_SESSION_MAX_CHAPTER = 8    # deck chapitre [0049] — aligné sur le deck matière
 REVIEW_SESSION_FLASH       = 5    # Mélange éclair
+REVIEW_PERSO_RESERVED      = 2    # places réservées aux cartes de Massimo [0056]
 ```
 
 - Sélection : cartes dues triées par `due_at` croissant (les plus anciennes
   d'abord), le surplus attend la prochaine session sans être présenté comme un
   retard.
+- **Deux places réservées à ses propres cartes** `[0056]`, sur les decks **matière** et
+  **chapitre** : jusqu'à `REVIEW_PERSO_RESERVED` cartes `definition_perso` sont servies **en
+  tête**, le reste de la session suivant l'ordre habituel.
+  - **Ce n'est pas un plafond de plus** : les places se prennent **dans** les 8, jamais en
+    plus — une session sert toujours autant de cartes qu'avant.
+  - Le quota **réserve au plus, jamais d'office** : sans carte personnelle, les deux places
+    **retournent à la file** et la session est exactement celle d'avant.
+  - **Pourquoi** : le tri `due_at` croissant sert les plus anciennes, or une définition qu'il
+    vient d'écrire est par construction la plus **récente** — mesurées le 2026-08-14, ses sept
+    cartes étaient aux **rangs 153 à 159 sur 159** en Français, soit dix-neuf sessions d'attente.
+  - ⚠️ **Les mélanges n'y sont pas soumis** : la question n'a pas été arbitrée, et le mélange
+    reste le rituel.
 - **Deck chapitre** `[0049]` : même tri `due_at` croissant, qui garde son sens sans
   clause d'échéance — les plus en retard d'abord, puis les plus proches de l'être.
   **Pas d'entrelacement** (un chapitre est d'une seule matière). Le plafond n'est pas

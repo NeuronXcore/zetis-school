@@ -749,6 +749,18 @@ rendrait le statut illisible.)*
 masquée mais comptée ferait annoncer « 8 cartes » pour en servir 7, le défaut que l'`adr-0039` a
 payé sur la file de relecture.
 
+🔴 **Et quand sa carte existe, elle a une PLACE GARDÉE** (`adr-0056`) — le masquage seul ne
+suffisait pas. Le tri est `due_at` croissant, or une définition qu'il vient d'écrire est la plus
+**récente** : mesurées le 2026-08-14, ses sept cartes étaient aux **rangs 153 à 159 sur 159** en
+Français. `build_session` réserve donc jusqu'à `REVIEW_PERSO_RESERVED = 2` places aux cartes
+`definition_perso`, sur les decks **matière** et **chapitre** (jamais les mélanges).
+
+- Les places sont prises **DANS** le plafond, jamais en plus : **aucun compteur ne change**
+  (`due_count`, `session_size`, `new_cards_count`).
+- **Réserve au plus, jamais d'office** : sans carte personnelle servable, elles retournent à la file.
+- Le quota **filtre la requête du deck** au lieu de la reconstruire — c'est ce qui le fait se
+  composer avec le deck **chapitre**, qui n'a **pas** de clause d'échéance (`adr-0049` §3).
+
 ⚠️ **Trois lecteurs HORS du module ne sont PAS masqués**, et c'est une décision : `galaxy`,
 `dashboard` (`review_load`) et `production/coverage` répondent à des questions de Papa (charge,
 couverture), pas à « que reçoit Massimo ? ». Conséquence assumée : `review_load` compte des cartes

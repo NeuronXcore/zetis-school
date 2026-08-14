@@ -938,6 +938,12 @@ Corps `{ deck: "mix_day" | "mix_flash" | { subject: "<slug>" } }`. Renvoie la li
 matière 8 / éclair 5), triée `due_at` croissant, puis entrelacée pour les mélanges.
 `400` si le deck matière est inconnu ou sans carte due.
 
+**Places réservées** (ADR-0056) : sur les decks **matière** et **chapitre**, jusqu'à
+`REVIEW_PERSO_RESERVED = 2` cartes `definition_perso` — celles que Massimo a écrites lui-même —
+sont servies **en tête**. Elles sont prises **dans** le plafond, jamais en plus : le nombre de
+cartes servies ne change pas, ni aucun compteur (`due_count`, `session_size`). Sans carte
+personnelle servable, les places retournent à la file. **Les mélanges ne sont pas concernés.**
+
 ### POST `/student/reviews/cards/{card_id}/attempt`
 
 Corps `{ rating: "again" | "hard" | "good" | "easy" }`. Renvoie

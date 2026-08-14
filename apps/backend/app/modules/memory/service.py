@@ -130,6 +130,18 @@ REVIEW_SESSION_MAX_SUBJECT = 8  # deck matière
 REVIEW_SESSION_MAX_CHAPTER = 8
 REVIEW_SESSION_FLASH = 5  # « Mélange éclair »
 
+# Places réservées aux cartes que Massimo a écrites lui-même (ADR-0056, règle C).
+#
+# 🔴 **Ce n'est PAS un plafond de plus** : elles se prennent DANS le plafond du deck, jamais en
+# plus — une session de matière sert toujours ses 8 cartes. Le tri `due_at asc` sert les plus
+# anciennes, or ce qu'il vient d'écrire est par construction le plus RÉCENT : mesuré le
+# 2026-08-14, ses 7 définitions étaient aux rangs **153 à 159 sur 159** en Français, soit 19
+# sessions d'arriéré. Le §13 de l'addendum ADR-0015 veut qu'il retrouve SA formulation.
+#
+# ⚠️ **Un seuil, donc un chiffre à surveiller** : 2 places sur 8 avec 7 cartes personnelles
+# aujourd'hui. À 30 cartes personnelles, la question se rouvre (ADR-0056 §Conséquences).
+REVIEW_PERSO_RESERVED = 2
+
 # XP : récompense l'EFFORT, pas le score (aucune incitation à s'auto-noter « Facile »).
 XP_PER_REVIEW = 5  # premier passage du jour, quel que soit le rating
 XP_PER_CONSOLIDATION = 2  # re-tour immédiat (planification inchangée)
@@ -366,6 +378,34 @@ def chapter_servable_counts(db: Session, student_id: int, chapter_ids: list[int]
     return {cid: chapter_servable_count(db, student_id, cid) for cid in dict.fromkeys(chapter_ids)}
 
 
+def _rows_with_reserved_places(db: Session, stmt, cap: int) -> list:
+    """Les places réservées aux cartes que Massimo a écrites lui-même (ADR-0056, règle C).
+
+    🔴 **On FILTRE le `stmt` déjà construit par la branche du deck — on ne le refait pas.** C'est
+    ce qui fait que la règle se compose avec les conditions PROPRES de chaque deck : le deck
+    chapitre sert des cartes **non dues** (ADR-0049 §3), et réécrire ici une clause d'échéance le
+    casserait sans qu'aucune requête ne paraisse fausse.
+
+    ⚠️ Le quota **réserve au plus, jamais d'office** : sans carte personnelle, les deux places
+    retournent à la file et la session est exactement celle d'avant. Les places sont prises
+    **dans** le plafond, jamais en plus — le nombre de cartes servies ne change pas.
+
+    Les cartes réservées sont servies **en tête** : c'est la composition qui a été soumise à
+    l'arbitrage et retenue le 2026-08-14.
+    """
+    perso = db.execute(
+        stmt.where(SpacedReviewCard.card_type == CARD_TYPE_DEFINITION_PERSO).limit(
+            REVIEW_PERSO_RESERVED
+        )
+    ).all()
+    reste = stmt
+    if perso:
+        # ⚠️ La clause reste DERRIÈRE le `if` : `filterwarnings = ["error"]` (pyproject) ferait
+        # d'un `SAWarning` sur `not_in([])` un échec de test.
+        reste = stmt.where(SpacedReviewCard.id.not_in([card.id for card, _ in perso]))
+    return list(perso) + list(db.execute(reste.limit(cap - len(perso))).all())
+
+
 def build_session(
     db: Session,
     student: StudentProfile,
@@ -381,6 +421,10 @@ def build_session(
     selon le deck, puis entrelacées pour les mélanges. Le payload n'expose AUCUN champ de
     planification (`due_at`, `interval_days`, `ease_factor`).
 
+    ⚠️ Les decks **matière** et **chapitre** réservent jusqu'à `REVIEW_PERSO_RESERVED` places aux
+    cartes personnelles (ADR-0056) — cf. `_rows_with_reserved_places`. Les **mélanges n'y sont pas
+    soumis** : la question n'a pas été arbitrée, et le mélange est le rituel.
+
     ⚠️ Le deck `chapter` est le seul à servir des cartes **non dues** — cf.
     `chapter_card_conditions`. Le tri `due_at` croissant y garde tout son sens : les plus en
     retard d'abord, puis les plus proches de l'être.
@@ -395,15 +439,15 @@ def build_session(
 
     if deck == "mix_day":
         stmt = stmt.where(*_due_conditions(student.id, now))
-        cap, mix = REVIEW_SESSION_MAX_MIX, True
+        cap, mix, quota = REVIEW_SESSION_MAX_MIX, True, False
     elif deck == "mix_flash":
         stmt = stmt.where(*_due_conditions(student.id, now))
-        cap, mix = REVIEW_SESSION_FLASH, True
+        cap, mix, quota = REVIEW_SESSION_FLASH, True, False
     elif deck == "subject":
         if not subject_slug:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Matière manquante.")
         stmt = stmt.where(*_due_conditions(student.id, now), Subject.slug == subject_slug)
-        cap, mix = REVIEW_SESSION_MAX_SUBJECT, False
+        cap, mix, quota = REVIEW_SESSION_MAX_SUBJECT, False, True
     elif deck == "chapter":
         if not chapter_id:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Chapitre manquant.")
@@ -417,11 +461,15 @@ def build_session(
             *chapter_card_conditions(db, student.id),
             SpacedReviewCard.skill_id.in_(skill_ids),
         )
-        cap, mix = REVIEW_SESSION_MAX_CHAPTER, False
+        cap, mix, quota = REVIEW_SESSION_MAX_CHAPTER, False, True
     else:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Deck inconnu.")
 
-    rows = db.execute(stmt.limit(cap)).all()  # (card, slug), déjà les plus anciennes
+    rows = (
+        _rows_with_reserved_places(db, stmt, cap)
+        if quota
+        else db.execute(stmt.limit(cap)).all()  # (card, slug), déjà les plus anciennes
+    )
 
     if deck == "subject" and not rows:
         # Matière inconnue OU sans carte due → même 400 (indiscernable, pas de fuite).
