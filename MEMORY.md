@@ -160,18 +160,54 @@ toutes dues le **2026-08-15**.
 L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au lancement
 (`ipconfig getifaddr en0`, **jamais `en10`** : le filaire n'est pas ce que l'iPhone joint).
 
+#### ✅ CHANTIER SUIVANT — **CADRÉ** le 2026-08-14, aucune ligne de code
+
+**ADR-0055 — « Les deux étapes qui manquent »** (⑤ 💡 Un exemple · ⑥ 🎩 Mnemonics). Cadré sur `main`
+juste après le merge de l'ADR-0054, sur une question posée sans préambule : *« où sont passés les
+mnemonics des fiches ? »*
+
+> **Réponse : nulle part, et ce n'était pas un oubli.** L'atelier promet **six** étapes et en rend
+> **quatre** depuis la slice 1. Le backend **refuse** `section="mnemonique"` par un 400 verrouillé
+> par un test, et l'étape n'est pas non plus grisée — le §10 l'interdit.
+
+🔴 **L'asymétrie est le vrai défaut, et personne ne l'avait nommée** : `mini_exemple` est dans le
+schéma, dans le prompt v1 et **rendu par `FicheCard` + `FicheA5`** — donc **ZETIS écrit des exemples
+que Massimo ne peut pas écrire**, sur un produit dont tout l'argument est « sa fiche à lui, à côté
+de celle de ZETIS ». Les deux étapes étaient pourtant rangées ensemble dans les « hors périmètre ».
+
+⚠️ **Ce chantier ne décide RIEN du produit** : le §10 et le §11 de l'addendum ADR-0015 ont déjà tout
+tranché (forme du champ, trois garde-fous, patron du corrigé, libellé anglais, enrichissement à la
+demande). **Ils ne se rouvrent pas** — l'ADR-0055 ne décide que le chantier.
+
+✅ **Une crainte mesurée FAUSSE avant d'être inscrite** : `spec_json` est une colonne `JSON`, donc
+**aucune migration**. J'avais annoncé « migration possible » en posant la question ; c'était faux.
+
+🔴 **Le critère qui borne : aucun appel LLM neuf dans l'atelier** (règle 7 du §5). Il **mord
+immédiatement** — il exclut le corrigé de ZETIS, qui demanderait `FICHE_PROMPT_VERSION` v2.
+
+> ⚠️ **Le lot `main` de ce cadrage (ADR + `DECISIONS.md` + ce fichier) doit être commité AVANT
+> d'appeler `/ouverture`** — la commande **s'arrête** si elle voit `DECISIONS.md` modifié. Le lot
+> spec + prompts, lui, part **sur la branche** que `/ouverture` crée.
+
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
+Le chantier ADR-0054 est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
 
 1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Ouvrir le deck **Français** (pas le mélange) et
    vérifier que les **sept** notions des cartes 322→328 servent **sa** définition et jamais celle de
    ZETIS. C'est la seule preuve possible du masquage ; passé ce jour, les cartes ne sont plus dues
    et la fenêtre est fermée.
-2. **L'addendum ADR-0054** sur les deux comptes faux (« trois surfaces » pour deux, « cinq boutons »
+2. **`/ouverture`** sur l'ADR-0055 — le cadrage est fait, la branche reste à créer. ⚠️ Le lot spec
+   est **plus léger qu'annoncé** : `page-fiches.md` décrit **déjà** l'étape ⑤ au `#### 4b` (avec ②,
+   trois règles obligatoires) — j'avais affirmé le contraire, corrigé à l'étape 6. Seul le **tableau
+   d'avancement** est à reprendre (« ⑤ et ⑥ toujours pas rendues »).
+3. 🔴 **Avant de figer l'heuristique d'occasion** : la mesurer sur les **17 leçons de Français** —
+   combien d'occasions, et lesquelles. Jugée sur des exemples inventés elle ne prouve rien
+   (motif « contre-épreuve mal visée », payé trois fois).
+4. **L'addendum ADR-0054** sur les deux comptes faux (« trois surfaces » pour deux, « cinq boutons »
    pour trois) — corrigés dans le code et dans `page-fiches.md`, **pas dans l'ADR**.
-3. **Cadrer** le chantier « la fiche répond quand on la touche » (défauts 2, 3 et **la cause du 4**,
-   toujours vivante) — un ADR **avant** la moindre ligne, `/ouverture` s'arrête sinon.
+5. Plus tard : cadrer « la fiche répond quand on la touche » (défauts 2, 3 et **la cause du 4**,
+   toujours vivante).
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront alors être **remontées**, pas enterrées avec le récit.
