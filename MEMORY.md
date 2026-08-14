@@ -6,13 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON COMMITÉ — le quota de deux places (ADR-0056)
+### ✅ CHANTIER MERGÉ — le quota de deux places (ADR-0056)
 
-Branche **`feat/la-file-cesse-d-enterrer`**, base **`3e16813`**. Le prompt de slice y est déjà
-commité ; **le code de la slice ne l'est pas**. Rien n'est poussé au-delà du prompt.
-*(État exact : `git log --oneline main..HEAD` et `git status`.)*
+**MERGÉ dans `main` le 2026-08-14 — PR [#127](https://github.com/NeuronXcore/zetis-school/pull/127),
+squash `9a0e800`.** Branche `feat/la-file-cesse-d-enterrer` **supprimée** (locale et distante),
+base d'origine `3e16813`. **Rien à pousser.** *(Étape 4bis faite dans la foulée du merge.)*
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans l'arbre de travail.
+> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans `main`, pas du travail à faire.
+
+> ⚠️ **Mergé sans relecture visuelle humaine** — et cette fois ce n'est pas une dette : la slice
+> est **backend pure**, il n'y a rien à regarder. L'effet visible (la composition de sa session)
+> est prouvé par la recette sur les vraies données.
 
 #### ✅ FAIT
 
@@ -144,12 +148,17 @@ parce que leurs décors ne contiennent aucune carte `definition_perso` (`card_ty
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, lancer les tests, puis committer et pousser** — le geste est humain.
-2. **Ouvrir la PR** et la merger (chantier **fini**), puis revenir faire l'**étape 4bis**
-   (`WORKFLOW.md §5`) : squash, n° de PR, branche supprimée, « rien à pousser ».
-3. Ensuite, **un seul chantier à la fois** : `/ouverture` sur l'**ADR-0057 slice Quiz**, ou l'un
-   des chantiers listés en dettes (« la fiche répond quand on la touche », l'enrichissement par
-   lot, le prompt v2 à exercer).
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** —
+`/ouverture` sur l'un de ceux-ci, tous cadrés à des degrés divers :
+
+1. 🔴 **ADR-0057, slice QUIZ seule** — le seul dont les arbitrages sont rendus et qui n'attend
+   plus rien. Matière → chapitre + recherche, règle des capsules, une page pour éprouver la brique.
+2. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+   **Pas encore cadré** : il lui faut son ADR.
+3. **L'enrichissement des fiches par lot** (addendum ADR-0015 §11 révisé) — ⚠️ **trois points à
+   trancher avant toute ligne**, et le mécanisme n'existe pas.
+4. 🔴 **Exercer le prompt v2 sur une vraie génération** — ce n'est pas un chantier, c'est une
+   vérification, et personne ne l'a faite.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
