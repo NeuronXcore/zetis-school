@@ -38,7 +38,7 @@ Une tuile par leçon. **Quatre états**, qui cohabitent dans la même liste :
 
 | État | Pastille | Sous-titre | Au clic |
 |---|---|---|---|
-| Sa fiche finie | `✍️ Ta fiche` | « 2 versions · la dernière il y a 5 jours » | écran 6 (versions) |
+| Sa fiche finie | `✍️ Ta fiche` | « 2 versions · la dernière il y a 5 jours » | écran **7** (versions) |
 | Son brouillon | `✏️ Commencée` | pastilles de progression + « tu en as choisi 3 » | écran 4 (atelier), **à l'endroit exact où il s'est arrêté** |
 | Rien encore | `🧩 À fabriquer` | « ≈ 5 minutes » | écran 4 (atelier, vierge) |
 | Fiche ZETIS seule | `⭐ Fiche ZETIS` | « à lire » | écran 3 (viewer) |
@@ -291,9 +291,32 @@ affirmer « c'est faux ».
 fiches. À créer, **au niveau de chaque leçon** : « 🧩 En faire ma fiche » si rien n'existe,
 « ✍️ Ma fiche » sinon.
 
-C'est **le même bouton** que celui de l'écran H (depuis une fiche ZETIS déjà lue) — et la même
-question, **tranchée le 2026-08-12 : lire avant de fabriquer est permis.** Les deux entrées
-s'ouvrent sans condition.
+C'est **le même bouton** que celui de l'écran H — et la même question, **tranchée le 2026-08-12 :
+lire avant de fabriquer est permis.** Les deux entrées s'ouvrent sans condition.
+
+### L'écran H — depuis une fiche ZETIS déjà lue
+
+**Nommé depuis le premier cadrage, jamais décrit — d'où son absence dans le produit.** Constat du
+2026-08-13 : sur la matière Français, **12 tuiles `zetis` sur 17 ouvrent un cul-de-sac**, et le
+seul chemin restant est la page `Cours`, que rien n'annonce depuis l'écran des fiches.
+
+Le pied de la fiche en lecture (écran 3) porte donc **une porte de plus, selon à qui la fiche est** :
+
+| Fiche ouverte | Bouton ajouté | Ce qu'il fait |
+|---|---|---|
+| de **ZETIS** | **« 🧩 En faire ma fiche »** | ouvre l'**atelier** sur cette leçon |
+| **la sienne** | **« ✏️ La retravailler »** | `rework` → **version N+1**, l'ancienne reste lisible (écran 7) |
+
+🔴 **Les deux libellés ne sont pas interchangeables.** La fiche de ZETIS n'est pas à lui : il n'y
+touche pas, il fabrique **la sienne à côté**. Un libellé unique ferait croire qu'il édite le
+contenu de ZETIS — ce que l'addendum §2 interdit.
+
+⚠️ **Aucune condition, aucun gate** : ni « il faut avoir essayé », ni état « a-t-il tenté ? » à
+tenir côté serveur (§3 révisé). Un défaut d'ouverture, jamais un verrou.
+
+⚠️ Le pied compte alors **cinq boutons** (porte · Ajouter à mes cartes · Image A5 · Imprimer, plus
+le retour). **Densité à juger à l'écran sur téléphone avant de figer** — c'est le risque nommé de
+l'ADR-0054, et il n'est pas technique.
 
 ## Gabarit de l'atelier
 
@@ -307,6 +330,28 @@ Plein écran = **le patron déjà retenu par l'`adr-0052`**, pas un second : ove
 (**pas** `requestFullscreen`), `CloseFullscreenButton` (cible 44 px), Échap, verrouillage du
 défilement du corps.
 
+## La datation — relative à l'écran, absolue sur le papier (ADR-0054 §3)
+
+| Surface | Datation | Motif |
+|---|---|---|
+| Tuile de **sa** fiche (écran 2) | ✅ **relative** — « il y a 3 jours » | c'est la trajectoire du §7, et elle n'existe pas sans le temps |
+| Écran **7** (versions) | ✅ relative, par version | c'est l'objet même de l'écran |
+| Fiche de **ZETIS** (écran 3) | ❌ **rien** | il se fiche de sa date de génération, et « il y a 4 mois » ne peut que **saper la confiance** dans un contenu juste. C'est une info de **Papa** |
+| **Export A5 / impression** | ✅ **absolue** (`13/08/2026`) | une feuille imprimée sans date est **inclassable** dans un classeur |
+
+🔴 **Une date absolue sur un écran d'enfant est de la métadonnée d'adulte** ; une date relative sur
+une feuille imprimée ne veut plus rien dire le lendemain. Les deux formes servent deux lectures —
+ce n'est pas une préférence de style.
+
+⚠️ **Une seule mention, la plus récente, formulée comme un SOUVENIR.** « Créée le … · mise à jour
+le … » côte à côte sur une fiche non touchée depuis longtemps se **lit comme un reproche** —
+frontière `CLAUDE.md` §gamification. On écrit *« ta version 2, il y a 3 jours »*, jamais un tableau
+d'horodatages.
+
+⚠️ **L'absence sur la fiche de ZETIS est une RÈGLE, pas un oubli** — elle est écrite ici parce
+qu'une règle négative ne s'écrit jamais toute seule : sans cette ligne, la première personne qui
+implémentera la datation la posera partout, par symétrie.
+
 ## Export A5 (image + impression)
 
 L'app vit dans un shell à scroll interne → l'impression CSS du navigateur donne une page blanche.
@@ -314,6 +359,10 @@ On génère donc un **rendu clair A5 dédié** (`FicheA5`), capturé en PNG (`ht
 
 - **🖼️ Image A5** → télécharge `fiche-<titre>.png` (à enregistrer / partager — idéal iPhone).
 - **🖨️ Imprimer** → document A5 autonome (`@page size A5`), prêt à imprimer ou « Enregistrer en PDF ».
+
+📅 **Les deux portent une date ABSOLUE** (ADR-0054 §3) — c'est le seul endroit du produit où
+l'absolu se justifie. Sur **sa** fiche : la date de la version imprimée. Sur une fiche de ZETIS :
+la date d'impression, pas celle de génération (cf. § datation).
 
 ⚠️ **Un brouillon n'est ni exportable ni imprimable** (addendum §1 bis) : il n'est pas encore un
 `FicheSpec` valide. Ce n'est pas une restriction arbitraire — c'est ce qui empêche un demi-travail
