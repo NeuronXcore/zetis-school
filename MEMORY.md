@@ -130,9 +130,24 @@ pas** — aucune route d'enrichissement. Chiffres : **27** fiches ZETIS validée
 
 **Remontées de l'ADR-0054 (mergé, PR #125, squash `845b427`) :**
 
-- 🔴 **Le masquage SRS reste à confirmer le 2026-08-15** — **la seule dette qui EXPIRE**. Deck
-  **Français** (pas le mélange), les **sept** notions des cartes 322→328 : servent-elles **sa**
-  définition et jamais celle de ZETIS ? Passé ce jour, les cartes ne sont plus dues.
+- ✅🔴 **Le masquage SRS a été VÉRIFIÉ le 2026-08-14** — en base de dev, en lecture seule,
+  `build_session` et `get_reviews_summary` exercés pour de vrai, aujourd'hui **et** sur un `_now()`
+  figé au 2026-08-15. **La question avait deux moitiés ; la réponse diffère des deux côtés.**
+  - ✅ **« jamais celle de ZETIS » — TENU, sélection ET compteurs.** Les 7 cartes `definition` de
+    ZETIS (ids **4, 7, 10, 145, 148, 151, 154**), pourtant dues depuis **juillet**, ne sortent
+    d'**aucun** deck. Le compteur Français les retire aussi : **159 sans masquage → 152 avec**,
+    écart de **7** exactement. Le ⚠️ du §13 point 5 est honoré.
+  - 🔴 **« servent-elles la sienne » — NON. Aucun deck ne sert ses 7 cartes, même dues.**
+    Mesuré au 2026-08-15 simulé : `mix_day` 12 cartes, `mix_flash` 5, **Français 8**, chapitre 2
+    « Grammaire » 8 — **zéro** carte personnelle dans les quatre.
+    **Cause mesurée, et ce n'est PAS le masquage** : le tri est `due_at asc` et le deck matière
+    plafonne à **8**, or Français porte **152 cartes en retard**. Ses cartes, dues d'aujourd'hui,
+    sont les plus **récentes** : rangs **153 à 159 sur 159**. Le §13 voulait qu'il retrouve *sa*
+    formulation ; la file la met hors d'atteinte. **Défaut de PRIORITÉ, pas de masquage** — à
+    cadrer (le pont SRS de la fiche, dont le bouton est déjà muet, est la porte naturelle).
+  - ⚠️ **La date d'expiration reposait sur une prémisse fausse.** « Passé ce jour les cartes ne
+    sont plus dues » : une carte due qu'on ne révise pas **reste due** — les 152 en retard le
+    prouvent. La preuve n'expire pas, elle empire.
 - 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE, pas à la fiche finie · le bouton du pont
   SRS est **muet**. Chantier « la fiche répond quand on la touche ».
 - 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide.
@@ -182,9 +197,10 @@ pas aux données de Massimo.
 
 Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
 
-1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Deck **Français** (pas le mélange), les
-   **sept** notions des cartes 322→328 : servent-elles **sa** définition et jamais celle de ZETIS ?
-   Passé ce jour, les cartes ne sont plus dues et la preuve devient impossible.
+1. ✅ **FAIT le 2026-08-14, un jour avant l'échéance** — le masquage tient (sélection **et**
+   compteurs), mais la mesure a trouvé **un défaut neuf** : ses 7 cartes ne sont servies par aucun
+   deck, rangs 153→159 derrière 152 cartes en retard. Détail dans les dettes ci-dessus.
+   🔴 **Ce défaut de priorité est à cadrer** — il n'est pas dans le périmètre d'un ADR existant.
 2. ✅ **CADRAGE FAIT ET COMMITÉ le 2026-08-14** — commit `d18b2ce` sur `main`, poussé. Les deux
    addenda et la commande y sont :
    - **§11 de l'addendum ADR-0015** — révisé : *enrichir* et non régénérer, sortie des decks
