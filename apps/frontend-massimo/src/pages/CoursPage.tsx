@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
+  type FicheTile,
   type StudentCours,
   type StudentLessonContent,
   type StudentLessonRef,
@@ -10,6 +11,7 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { SubjectBackLink } from "../components/SubjectBackLink";
 import { fetchStudentCours, fetchStudentLessonCours } from "../lib/cours";
+import { fetchSubjectFicheTiles } from "../lib/fiches";
 import { resolveFocusLesson } from "../lib/coursFocus";
 import { fetchSubjectQuizzes } from "../lib/quiz";
 import { type QuizSessionState } from "./QuizSessionPage";
@@ -47,6 +49,9 @@ export function CoursPage() {
   const [readingLoading, setReadingLoading] = useState(false);
   // Quiz jouables de la matière, indexés par leçon : un bouton n'apparaît que si un quiz existe.
   const [quizByLesson, setQuizByLesson] = useState<Record<number, StudentQuiz>>({});
+  // L'état de SA fiche, par leçon (ADR-0054 §1, 3ᵉ porte). Vient de `fiche-tiles` — route qui
+  // existe déjà, donc le critère du §2 tient : aucune route neuve.
+  const [tuileByLesson, setTuileByLesson] = useState<Record<number, FicheTile>>({});
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -82,6 +87,16 @@ export function CoursPage() {
       setQuizByLesson(map);
     } catch {
       setQuizByLesson({});
+    }
+    // Ses fiches à LUI, par leçon — NON bloquant, même raison que les quiz. En cas d'échec on
+    // retombe sur « 🧩 En faire ma fiche » : la porte disparaît, la page reste entière.
+    try {
+      const tuiles = await fetchSubjectFicheTiles(slug);
+      const map: Record<number, FicheTile> = {};
+      for (const t of tuiles) map[t.lesson_id] = t;
+      setTuileByLesson(map);
+    } catch {
+      setTuileByLesson({});
     }
   }, [slug, urlLessonId, focusChapterId]);
 
@@ -233,16 +248,41 @@ export function CoursPage() {
                         {/* Le sens cours → fiche n'existait PAS : cette page menait au quiz et
                             jamais aux fiches (addendum §12, « se crée sans réserve »). Aucune
                             condition, aucun gate : le §3 a été révisé — lire avant de fabriquer
-                            est permis. */}
-                        {lesson.has_content && (
-                          <button
-                            type="button"
-                            className="rounded-lg border border-cyan-400/50 px-3 py-1.5 text-sm font-semibold text-cyan-200"
-                            onClick={() => navigate(`/fiches/${slug}/${lesson.id}/atelier`)}
-                          >
-                            🧩 En faire ma fiche
-                          </button>
-                        )}
+                            est permis.
+
+                            🔴 **Mais le bouton était INCONDITIONNEL, et c'était une mine**
+                            (trouvé le 2026-08-14). Sur une leçon dont la fiche est FINIE, il
+                            ouvrait l'atelier → `openDraft` → brouillon **vide** en version N+1,
+                            qui MASQUE la fiche finie (`commencee` prime sur `ma_fiche`). Massimo
+                            perdait sa fiche en cliquant sur un bouton qui promettait de la faire.
+                            C'est le défaut 4, atteignable d'ici et pas seulement depuis l'atelier.
+
+                            La 3ᵉ porte du §1 le désamorce : quand SA fiche existe, on ne fabrique
+                            plus — on l'OUVRE. Deux choses changent, pas une : le libellé ET la
+                            destination. */}
+                        {lesson.has_content &&
+                          (() => {
+                            const maFiche = tuileByLesson[lesson.id];
+                            const sienne =
+                              maFiche?.etat === "ma_fiche" && maFiche.fiche_id != null
+                                ? maFiche.fiche_id
+                                : null;
+                            return (
+                              <button
+                                type="button"
+                                className="rounded-lg border border-cyan-400/50 px-3 py-1.5 text-sm font-semibold text-cyan-200"
+                                onClick={() =>
+                                  navigate(
+                                    sienne !== null
+                                      ? `/fiches/${slug}?fiche=${sienne}`
+                                      : `/fiches/${slug}/${lesson.id}/atelier`,
+                                  )
+                                }
+                              >
+                                {sienne !== null ? "✍️ Ma fiche" : "🧩 En faire ma fiche"}
+                              </button>
+                            );
+                          })()}
                         {lesson.has_content ? (
                           <button
                             type="button"

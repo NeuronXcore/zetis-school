@@ -6,161 +6,174 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — slice 3 : le pont SRS et les pièges (PR #124, squash `9cda7b5`)
+### ✅ CHANTIER COMPLET — slice 4 : la fiche vit dans le temps (ADR-0054)
 
-Base **`4a20d70`**. Branche **`feat/fiche-de-massimo-slice-3`** supprimée (locale **et** serveur),
-`main == origin/main`, **rien à pousser**, arbre propre — les quatre vérifiés par commande le
-2026-08-13, étape 4bis faite dans la foulée. **24 fichiers, +1 788 / −223.**
+Branche **`feat/la-fiche-vit-dans-le-temps`**, base **`d12e856`** (`main` y a été **mergé** en cours
+de session — il avait avancé, cf. « le rattrapage » plus bas). L'état commité se lit par
+`git log --oneline main..HEAD` ; le travail de clôture n'est **pas encore commité**.
 
-> 🔴 **Le piège de `git branch -r` s'est rejoué pour la HUITIÈME fois**, sur huit merges
-> consécutifs — **trois le même jour**. `git ls-remote --heads origin` ne rendait que `main`
-> quand `git branch -r` listait encore la branche ; `git fetch --prune` l'a élaguée. Le réflexe
-> ne s'automatise pas, et le savoir ne suffit pas à l'éviter.
+> ✅ **Les QUATRE points du périmètre sont livrés**, et chacun a été vu à l'écran sur un vrai
+> backend, pas seulement testé. **PROCHAIN PAS = commit + push + PR.** (Voir tout en bas.)
 
-> **Le besoin, en une phrase** : ses définitions ne servaient à rien après la fiche. Elles
-> deviennent ses **cartes de révision** — recto le terme de ZETIS, verso *sa* phrase. Et ZETIS
-> lui rappelle enfin **ce sur quoi il s'est trompé**, sans jamais l'inventer.
+#### ✅ FAIT — le périmètre, point par point
 
-**Vérifié en fin de session** : backend **1277**, Massimo **703**, `tsc -b` propres.
-Départs : 1257 / 694.
+| Point du périmètre ADR-0054 | État |
+|---|---|
+| Les **trois portes** du §1 | ✅ les deux du pied de `FicheCard` + celle de `CoursPage` |
+| Datation **relative** sur la tuile de sa fiche (§3) | ✅ « tu l'as écrite hier — à relire » |
+| Datation **absolue** sur l'export A5 / impression (§3) | ✅ « · ZETIS · 13/08/2026 » |
+| Pied de `FicheCard` à **44 px** (§6) | ✅ (fait plus tôt dans le chantier) |
 
-#### ✅ CE QUI EST FAIT
+**Ce qui a été écrit, et qui n'était pas prévu au cadrage :**
 
-**Temps 1 — à comportement constant.** `schedule_review` apprend `card_type` (défaut
-`"definition"`) et **ordonne par `id`**. Ses quatre appelants — ELI5 `reverse_evaluate`, missions
-`_apply_verdict` / `_complete_champion` / `_complete_mission` — ne bougent pas.
+- **`?fiche=<id>` — la fiche a enfin une ADRESSE.** Elle n'en avait aucune : elle n'était qu'un état
+  interne de `FicheSubjectPage`, ouverte par index de liste. Sans ça, la 3ᵉ porte était
+  **irréalisable**. Le lien est consommé une fois ; un id introuvable retombe sur la liste, jamais
+  sur un écran d'erreur.
+- **`lib/datation.ts`** — module PUR (`dateRelative` + `dateAbsolue`), testable sans rendre une page.
+- **`lib/atelier.ts` → `reworkFiche()`** — le helper front manquait alors que la route existait.
+- **`FicheCard.test.tsx`** — ce composant n'avait **aucun** test (lacune préexistante).
 
-**La clé devient une contrainte.** Migration `e5f6a7b8c9d4` :
-`UNIQUE (student_id, skill_id, card_type)`. Dédoublonnage préalable **no-op mesuré** (`DELETE 0`,
-317 cartes avant et après).
+#### 🔴 LE PIÈGE CENTRAL — pourquoi « La retravailler » n'est pas une navigation
 
-**Le prédicat partagé du servable** — `modules/memory/population.py`, patron de
-`fiches/population.py`. `servable()` masque la carte `definition` de ZETIS tant qu'une
-`definition_perso` **active** existe. Branché sur les **cinq** lecteurs de Massimo : `build_session`,
-`get_reviews_summary`, `new_cards_count`, `chapter_card_conditions`, `_due_conditions`.
+`openDraft` (ce que l'atelier appelle en arrivant) crée un brouillon **VIDE** en version N+1 ;
+`rework` crée la version N+1 **pré-remplie de ce qu'il avait écrit**. Une porte « La retravailler »
+qui se contenterait de naviguer vers l'atelier rendrait donc une **page blanche** à la place de son
+travail — c'est le **défaut 4**, qui attendait d'être rejoué.
 
-**Le pont** — `POST /api/student/fiches/{id}/cards`. Une carte `definition_perso` par définition
-dont le terme résout à une **notion** de la leçon. Rend **deux** nombres : `cartes` et
-`termes_sans_notion`. Idempotent par construction.
+L'ordre est la fonctionnalité : **`rework` d'abord, navigation ensuite** (`openDraft` retrouve alors
+le brouillon existant). En cas d'échec réseau on **ne navigue pas** — partir quand même créerait la
+v2 vide qu'on vient d'éviter.
 
-**`erreurs_a_eviter`** — `GET …/candidates?section=erreurs_a_eviter` construit les pièges depuis
-ses erreurs **mesurées** : quiz ratés (`QuizAnswer.is_correct is False`) + cartes notées `again`,
-**re-tours de consolidation exclus**. Champ neuf `FicheCandidate.raison` — « tu t'es trompé 2 fois
-là-dessus ».
-
-**`new_fiches_count`** — une fiche que Massimo a **écrite** ne compte plus comme nouvelle.
-
-**Frontend** — étape **④ ⚠️ Les pièges** dans l'accordéon (un oui/non, pas un glisser), et le pont
-câblé sur le bouton **« 🃏 Ajouter à mes cartes »** que `FicheCard` portait déjà, désactivé, depuis
-l'ADR-0015 §6.
+🔴 **Et la même mine était DÉJÀ ARMÉE dans `CoursPage`** : son bouton était inconditionnel, donc sur
+une leçon déjà fichée il ouvrait l'atelier et écrasait la fiche finie. Le défaut 4 était atteignable
+**depuis la page Cours**, pas seulement en revenant dans l'atelier — ce que la description
+précédente de ce défaut ne disait pas.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **La clé de `spaced_review_cards` est `(student_id, skill_id, card_type)`** — contrainte en
-   base, plus une croyance. `generation.py` la commentait déjà ; `schedule_review` l'ignorait.
-2. **Quand sa carte existe, on ne sert QUE la sienne.** Masquage à la sélection — la carte ZETIS
-   n'est ni supprimée ni suspendue, elle garde sa planification et revient si la sienne disparaît.
-3. **Le masquage vaut pour la sélection ET les compteurs.** Un seul prédicat, jamais cinq clauses.
-4. **Le masquage exige que SA carte soit active** — sinon une carte suspendue ferait disparaître
-   la notion des deux côtés. Un silence est le pire mode d'échec possible ici.
-5. **`points_cles` ne devient PAS des cartes.** Un point-clé est une phrase du cours, pas une
-   question : en faire un recto demanderait de l'inventer (règle 7).
-6. **Un piège se CONSTATE.** ZETIS rappelle un fait de Massimo — c'est la seule section qu'il peut
-   pré-remplir. La `raison` porte tout : sans elle, c'est un conseil sorti de nulle part.
-7. **Écarter un piège n'efface aucune mesure.** L'erreur reste dans son historique.
-8. **Le pont ne s'ouvre qu'après `finish`** (§1 bis) et **seulement sur SA fiche** — le pont §6
-   depuis les fiches ZETIS reste stub.
-9. ⚠️ **Les trois lecteurs HORS `memory` ne sont PAS masqués** — `galaxy`, `dashboard`
-   (`review_load`), `production/coverage`. Décision, pas oubli : ils répondent à des questions de
-   Papa. **Conséquence assumée** : `review_load` comptera des cartes que Massimo ne recevra pas.
+1. **Trois libellés distincts.** « En faire ma fiche » ≠ « La retravailler » ≠ « Ma fiche ». Emoji
+   **✏️** — la spec fait foi. Les libellés vivent **dans `FicheCard`**, pas au site d'appel : c'est
+   ce qui empêche deux surfaces de les faire diverger.
+2. **Aucune route, aucune colonne, aucune migration** — ajouter un champ à un schéma de réponse
+   existant reste **permis** (§2 précisé). ⚠️ Ce critère ne voit que le **serveur** : il a déclaré
+   « réalisable » une porte qui n'avait pas d'adresse côté client.
+3. 🔴 **L'écran 7 (versions) est HORS périmètre**, exclu par ce critère même.
+4. **Relatif à l'écran, absolu sur le papier, RIEN sur la fiche de ZETIS.** Les trois règles
+   ensemble, elles ne se contredisent pas : l'écran s'interdit de dater un contenu généré, le papier
+   non, parce qu'une feuille non datée est inclassable.
+5. **La porte est sur sa PROPRE rangée**, pleine largeur, en accent, au-dessus des outils —
+   **décidé par l'humain le 2026-08-14 après mesure** (voir le tableau de `page-fiches.md`). Entassée
+   à la fin elle ne coûtait rien mais se lisait après « Imprimer ».
+6. **Les défauts 2, 3 et 4 vont dans un chantier à part**, « la fiche répond quand on la touche ».
+   ⚠️ Le défaut 4 est désormais **partiellement** désamorcé (la porte de `CoursPage` ne le déclenche
+   plus) mais **la cause reste** : revenir dans l'atelier après `finish` crée toujours une v2 vide.
+7. **Ne pas appliquer la réponse graduée** du §3 de l'addendum avant deux semaines d'usage réel.
 
-#### ⚠️ CE QUI A CHANGÉ DE COMPORTEMENT — 2 tests existants touchés, chacun nommé
+#### ⚠️ PIÈGES — tous consignés dans `TROUBLESHOOTING.md` §`feat/la-fiche-vit-dans-le-temps`
 
-| Test | Ce qui a changé |
-|---|---|
-| `test_retard_et_charge_SRS_sont_deux_mesures_distinctes` | son décor créait **4 cartes du même type sur une notion** — état que le produit ne peut pas atteindre, et que la contrainte refuse. Un `card_type` distinct par carte ; **aucune assertion modifiée** |
-| 4 assertions `/étape sur 3/` → `/sur 4/` (`AtelierPage.test.tsx`) | l'étape ④ est arrivée |
+Dix sous-sections, dont **cinq nées de cette session**. Les deux qui resserviront le plus vite :
+
+- 🔴 **Un mock incomplet laisse la suite verte sans rien exercer** — arrivé **deux fois le même
+  jour** (705 → 705 tests sur du code neuf). Le second cas est le pire : un chargement délibérément
+  **non bloquant** transforme toute absence de mock en repli silencieux.
+- ⚠️ **`git commit --no-edit` laisse les commentaires `#` dans le message de merge** (le mode
+  `cleanup` retombe sur `whitespace` sans éditeur). Réparé par `--amend --cleanup=strip`.
+
+#### 🔴 UN SABOTAGE EST RESTÉ VERT — et c'était la contre-épreuve qui visait mal
+
+Neuf contre-épreuves jouées, huit rouges. La verte : retirer le garde `etat === "ma_fiche"` du
+calcul de la date ne casse rien **parce que la branche `zetis` n'utilise pas cette variable**. Le
+sabotage bien visé (faire afficher la date par cette branche) est rouge.
+
+**Le garde est une seconde barrière, pas le mécanisme** — son commentaire le dit désormais dans le
+code, sinon un futur lecteur s'y fierait. *3ᵉ occurrence du motif « contre-épreuve mal visée ».*
 
 #### 🧾 DETTES OUVERTES
 
-**Nées de cette slice :**
+**Nées de cette session :**
 
-- 🔴 **Le tap sur un piège n'a jamais été exercé par un vrai geste.** Le panneau navigateur a
-  expiré sur le clic et `aria-pressed` n'a jamais basculé. Couvert par un test sabotage-vérifié —
-  ce n'est pas la même chose.
-- 🔴 **Le pont n'a jamais été DÉCLENCHÉ.** Son bouton, lui, a été vu et mesuré après le merge
-  (un seul, désactivé, infobulle « Bientôt ») : la seule fiche finie ne porte aucune définition.
-- 🔴 **Le bouton du pont fait 34 px de haut** — mesuré dans le DOM le 2026-08-13, **sous la cible
-  tactile de 44 px** du projet. ⚠️ Le pied de `FicheCard` est **préexistant** et tout entier à
-  cette taille (« Image A5 », « Imprimer ») — mais ce bouton-là était **inerte** jusqu'ici, et le
-  câbler en fait une **vraie cible au doigt**. Rendre vivant un bouton trop petit est un défaut
-  neuf sur un style ancien. Correctif hors chantier : il touche un pied partagé.
-- ⚠️ **`review_load` de Papa comptera des cartes masquées** (décision active n°9).
+- ⚠️ **Le pied atteint 5 lignes à 375 px quand le titre de la leçon est long** — le badge « 📚
+  D'après ton cours » s'enroule sur deux lignes. **Préexistant**, la porte ne l'aggrave pas, mais
+  ce n'était pas mesuré avant.
+- ⚠️ **L'ADR-0054 porte deux comptes faux** : « les trois surfaces » qui rendent `FicheCard` (elles
+  sont **deux**) et « un pied déjà à cinq » boutons (il en porte **trois**). Corrigés dans le code
+  et dans `page-fiches.md`, **pas encore dans l'ADR** — un addendum le mérite.
+- ⚠️ **`FicheSidePanel` (mindmap) ne reçoit aucune porte.** Volontaire — l'ADR §1 la pose sur
+  l'écran 3 — mais à re-décider si Massimo lit ses fiches depuis la mindmap.
 
-**Remontées des slices 1 et 2 — elles ont survécu :**
+**Nées plus tôt dans le chantier, toujours ouvertes :**
 
-- 🔴 **Le glisser au DOIGT n'a toujours jamais été essayé sur un vrai iPhone.** Dette n°1, partie
-  en `main` sans être levée depuis la PR #122. La paire LAN existe pour ça : `backend-lan` +
-  `massimo-lan` (`.claude/launch.json`), l'URL s'affiche au lancement.
-- ⚠️ **UNE fiche a enfin été terminée en vrai** (essai à l'écran du 2026-08-13) : fiche **42**,
-  leçon 7, `personal`, **version 1**. La dette « jamais terminée » des slices 1-2 est levée à
-  moitié. 🔴 **Mais elle porte ZÉRO définition** : le pont n'a donc rien eu à ponter, et
-  `spaced_review_cards` ne contient **aucune** carte `definition_perso`. L'état `versions` de
-  l'écran 2 n'a jamais été vu non plus.
-  → Ordre de la vérification qui reste : **écrire une définition**, finir, puis « 🃏 Ajouter à mes
-  cartes », puis **aller dans Révision** — c'est la seule preuve possible du masquage sur de
-  vraies données.
-  ⚠️ **État de la base après la passe navigateur du 2026-08-13** : fiche **42** (`personal`) et
-  brouillon **44** (leçon 1). Le brouillon **51** — version 2 **vidée par le défaut StrictMode**,
-  pas par un `rework` fautif — a été **supprimé** après inspection (`fiche_views` n'y référait
-  rien) ; la tuile est revenue à **✍️ Ta fiche**.
-- 🔴 **Les étapes sous la pliure sur iPhone** — mesuré en slice 2 sur ② et ③. L'étape ④ dépliée,
-  elle, tient : y = 412 et 482 pour 812 de haut, mesuré dans le DOM le 2026-08-13.
-- ⚠️ **La dictée n'a jamais été exercée avec un vrai micro.**
-- ⚠️ **Le commentaire de `coverage.py:364`** — *« une leçon porte 0..1 fiche/mindmap »* — reste
-  faux deux fois (versions du §7, fiches personnelles).
-- ⚠️ **L'entrée depuis le cours est toujours « 🧩 En faire ma fiche »**, jamais « ✍️ Ma fiche ».
-  La route existe (`fiche-tiles`), il ne manque que le câblage de `CoursPage`.
-- ⚠️ **Le veto d'un cours reste impossible** dès que Massimo a fait sa fiche dessus.
-- ⚠️ **Aucun linter Python** dans le venv.
+- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE et non à la fiche qu'on vient de finir · le
+  bouton du pont SRS est **muet** (états `envoi`/`fait` perdus). Chantier à part.
+- 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide qui
+  masque la fiche finie. Seule la porte de `CoursPage` est désamorcée.
+- 🔴 **Le trou d'un jour** : entre le moment où il écrit sa définition et le lendemain, cette notion
+  n'est révisable d'aucun côté (carte ZETIS masquée, la sienne pas encore due).
+- 🔴 **Le doute sur le brouillon 51** n'est pas tranché — StrictMode ou défaut 4 ? Deux origines
+  coexistent manifestement (53 née PLEINE, 54 née VIDE) et on n'a pas établi laquelle a produit quoi.
+- ⚠️ **Le masquage SRS reste à confirmer** — c'est la seule dette qui a une **date** : le
+  **2026-08-15**, ouvrir le deck **Français** (**pas** le mélange, plafonné à 12 pour 156 dues : il
+  ne prouverait rien) et vérifier que ces **SEPT** notions servent **sa** définition et jamais celle
+  de ZETIS — *Narrateur · Schéma narratif · Personnage principal · Proposition indépendante ·
+  Juxtaposition · Coordination · Conjonction de coordination* (cartes 322 à 328, relevées en base à
+  la clôture ; la note précédente n'en annonçait que trois).
 
-**Reporté en slice 4, sciemment :** `mini_exemple`, `mnemonique` (§10), `absent_du_cours`,
-l'**enrichissement** des fiches existantes (§11), la **surface Papa** de lecture, le **tiroir de
-cours** et la dé-`vh`-isation de `CoursPanel` (§12), `FICHE_PROMPT_VERSION` v1 → v2, et
-l'**extraction du patron plein écran**.
+**Remontées des slices précédentes :**
+
+- ⚠️ `review_load` de Papa compte des cartes masquées — assumé · le commentaire de `coverage.py:364`
+  reste faux deux fois · le **veto d'un cours** reste impossible dès qu'une fiche personnelle existe
+  · **aucun linter Python** · **la dictée n'a jamais été exercée avec un vrai micro**.
+
+#### 🧪 DONNÉES DE TEST LAISSÉES EN BASE (dev)
+
+| Fiche | Leçon | État | Version | Contenu |
+|---|---|---|---|---|
+🔴 **RECOMPTÉ en base à la clôture, et DEUX chiffres hérités étaient faux** — ils venaient de la
+session précédente et n'avaient jamais été revérifiés. C'est exactement ce que l'étape 6 du
+`/cloture` existe pour attraper.
+
+| Fiche | Leçon | État | Version | Contenu (vérifié en base le 2026-08-14) |
+|---|---|---|---|---|
+| **42** | 7 | `personal` | 1 | 4 points-clés, 0 définition, 0 piège |
+| **44** | 1 | `personal` | 1 | 5 points-clés, 4 définitions, **0 piège** *(et non 3 — corrigé)* |
+| **53** | 1 | `personal` | **2** | 5 points-clés, 4 définitions, **3 pièges** — **née PLEINE** (le §7 marche) |
+| **54** | 1 | `personal_draft` | **3** | **vide** — le défaut 4, 3ᵉ occurrence |
+
+⚠️ **Les 3 pièges sont sur la 53, pas sur la 44.** Cohérent avec `rework` : la v2 naît avec le
+contenu de la v1 (5 points-clés + 4 définitions), et les pièges ont été ajoutés **ensuite**, dans la
+v2. L'ancienne note inversait les deux.
+
+⚠️ **54 est resté** : il masque la fiche 53 dans la liste (`commencee > ma_fiche`). Les brouillons
+51 et 52 ont été supprimés après inspection. **7 cartes `definition_perso`** (*et non 3 — corrigé*),
+toutes dues le **2026-08-15**.
+
+⚠️ **Ce qui tourne à la clôture** : infra Docker + **paire LAN** (`backend-lan` :8004 /
+`massimo-lan` :5180). L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au
+lancement (`ipconfig getifaddr en0`, jamais `en10`).
 
 #### ▶ PROCHAIN PAS
 
-**Rien à reprendre de ce chantier.** Il est clos : mergé (PR #124, squash `9cda7b5`), branche
-supprimée des deux côtés, étape 4bis faite dans la foulée. Arbre propre, chaque fait revérifié.
-
-1. 🔴 **Faire une fiche AVEC des définitions, sur un iPhone.** C'est LA vérification qui reste, et
-   elle lève **trois** dettes d'un seul essai : le **pont** (jamais tourné en vrai), le **glisser
-   au doigt** (ouvert depuis la slice 1) et le **tap sur un piège**. `finish` a bien été exercé en
-   vrai le 2026-08-13 — mais sur une fiche **sans aucune définition**, donc le pont n'a rien eu à
-   ponter et son bouton est resté inerte. La paire LAN est prévue pour ça (`backend-lan` +
-   `massimo-lan`, `.claude/launch.json` — l'URL s'affiche au lancement).
-2. **En prod** : `e5f6a7b8c9d4` peut maintenant être posée — elle est sur `main`. ⚠️ Elle contient
-   un `DELETE` de dédoublonnage — **no-op mesuré en dev, la prod n'a PAS été mesurée** : compter
-   les conflits avant de la lancer. Variable `ZETIS_DATABASE_URL`, `DATABASE_URL` est **ignorée en
-   silence**.
-3. **Slice 4** : `mini_exemple`, `mnemonique` (§10), `absent_du_cours`, l'enrichissement des fiches
-   existantes (§11), la surface Papa de lecture.
-
-#### ✅ LE PIÈGE DE CE CHANTIER EST REFERMÉ
-
-La migration `e5f6a7b8c9d4` était posée sur la base de dev **avant** d'être sur `main`. **Depuis
-le merge, `main` la porte** : `pnpm dev` va bien, il n'y a plus rien à contourner.
-
-> Le patron reste vrai pour le chantier suivant : une migration posée en dev depuis une branche
-> non mergée arme ce piège ; le repli est `alembic downgrade <tête de main>` ou `pnpm dev:back`,
-> et **jamais `pnpm prod:up` depuis une branche non mergée**.
-
-⚠️ **Ce qui tourne à la clôture** : l'infra Docker, **et la paire LAN** (`backend-lan` :8004 +
-`massimo-lan` :5180) — laissée EXPRÈS allumée pour l'essai iPhone. *La bonne question à la reprise
-est « que tourne-t-il ? » (`docker ps`, `lsof -nP -iTCP -sTCP:LISTEN`).*
+1. **Vérifier le diff, relancer les suites, puis commiter** (message suggéré rendu à la clôture).
+2. **Pousser**, ouvrir la **PR**, merger.
+3. 🔴 **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel — squash, n° de
+   PR, branche supprimée, « rien à pousser ». Ce qui est écrit ici sera **faux** dès le merge.
+4. **Le 2026-08-15** : la vérification datée du masquage SRS (ci-dessus), la seule dette qui expire.
+5. Ensuite seulement : l'addendum ADR-0054 sur les deux comptes faux, puis le cadrage du chantier
+   « la fiche répond quand on la touche » (défauts 2, 3, 4).
 
 ---
+
+## ⬆️ REMONTÉ de l'élagage de la slice 3 « le pont SRS et les pièges » (PR #124, squash `9cda7b5`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0015 §13 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/fiche-de-massimo-slice-3` (**7 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.83.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus. Détail par
+> `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : un **sabotage resté VERT** y a montré que `schedule_review` n'était
+> exercée par **aucun** test — « 1257 → 1257, zéro test touché » ne prouvait donc rien. *« Zéro
+> test touché » peut vouloir dire « comportement non observé ».*
 
 ## ⬆️ REMONTÉ de l'élagage de la slice 2 « l'essentiel et les définitions » (PR #123, squash `b905ffd`)
 

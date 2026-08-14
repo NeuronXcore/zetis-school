@@ -4,6 +4,144 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/la-fiche-vit-dans-le-temps` — 2026-08-14
+
+### 🔴 Ajouter une étape à un accordéon sans toucher son COMPTEUR
+
+`ETAPES` est passé de trois à quatre entrées ; le jalon de chaque étape et son rendu ont suivi.
+**`remplies` est resté à trois** — les pièges étaient rendus, jalonnés, **sauvegardés en base**, et
+invisibles au seul compteur. Massimo lisait *« 2 étapes sur 4 »* avec **trois** étapes remplies.
+
+⚠️ **Un compteur qui SOUS-compte est pire qu'un compteur faux** : sur un écran qui s'interdit tout
+reproche, il minimise le travail de l'enfant. Le mode d'échec ne ressemble pas à un bug — il
+ressemble à *« tu n'en as pas fait beaucoup »*.
+
+Aucun test ne pouvait le voir : les verrous existants assertaient « 0 étape sur 4 » et « 1 étape
+sur 4 » — jamais un cas où l'étape ajoutée est remplie.
+
+**Parade** : le tableau du compteur doit avoir **une entrée par entrée d'`ETAPES`**, et un test
+qui remplit **la dernière étape ajoutée** — c'est celle qu'on oublie, par construction.
+
+### 🔴 `grep -rln` compte des MENTIONS, pas des rendus
+
+Pour savoir combien de surfaces rendent `FicheCard`, un `grep -rln "FicheCard"` a rendu quatre
+fichiers. **Deux seulement le rendent** : `FicheSubjectPage` et `mindmap/FicheSidePanel`. Les deux
+autres étaient `FicheCard.tsx` lui-même et `CoursPanel.tsx`, qui le cite **dans un commentaire**.
+
+L'ADR-0054 §6 a été écrit sur ce compte faux (« les trois surfaces »), et je l'ai répété en
+annonçant « quatre ». **Deux erreurs successives sur le même chiffre, sans jamais ouvrir un
+fichier.**
+
+**Parade** : pour compter des points de rendu, `grep -rn "<Composant"` (avec le chevron) ou lire
+les imports. Un nom de fichier ne dit pas ce que le fichier fait.
+
+### ⚠️ Le deck matière ne s'appelle pas `{deck: "subject"}`
+
+`POST /api/student/reviews/session` attend une **union** : `"mix_day"` / `"mix_flash"` en chaîne,
+mais le deck matière et le deck chapitre sont des **objets**. Une sonde écrite de mémoire a rendu
+un 422 à trois branches — erreur de la sonde, pas du produit, mais elle coûte un aller-retour.
+
+**Parade** : lire le schéma dans l'OpenAPI avant d'écrire une sonde, comme pour n'importe quel
+appelant.
+
+### 🔴 Une absence qui s'explique autrement ne prouve RIEN
+
+« Le mélange du jour ne sert que des maths, donc le masquage des cartes françaises fonctionne. »
+**Faux raisonnement** : Français a **156** cartes dues et le mélange est plafonné à **12**.
+L'absence du français s'explique par le plafond, indépendamment du masquage.
+
+C'est le motif **« contre-épreuve mal visée »** déjà consigné, appliqué cette fois à une
+vérification **à l'écran** et non à un test.
+
+**Parade** : avant de conclure d'une absence, chercher **toutes** les causes qui la produiraient.
+Ici la mesure utile n'était pas la session mais le **compteur** (`due_count: 156` au lieu de 159)
+— et même celle-là reste une déduction tant qu'on n'a pas mesuré 159 **avant**.
+
+### ⚠️ Rentrer dans l'atelier après `finish` crée une version 2 VIDE qui masque la fiche
+
+Constaté deux fois en deux jours (brouillons 51 et 52). Ouvrir l'atelier sur une leçon dont la
+fiche est **finie** ne route pas vers `rework` : il naît un brouillon **vide**, et comme la
+priorité de la tuile est `commencee > ma_fiche`, **la fiche finie disparaît de la liste**. Elle
+devient inatteignable, la seule porte visible menant à cet atelier vide.
+
+🔴 **Et ça met en doute une entrée écrite le matin même** : le brouillon 51 y est attribué au
+défaut StrictMode. Cette explication-ci n'a besoin **d'aucun bug**. On ne sait pas laquelle est
+vraie — mais la première a été écrite avec assurance, et c'est ce qu'il faut retenir.
+
+### 🔴 Un mock INCOMPLET laisse la suite verte sans rien exercer — deux fois le même jour
+
+Le motif est le plus coûteux de la session, parce qu'il **ressemble à un succès**.
+
+| Où | Ce qui manquait | Pourquoi c'était vert |
+|---|---|---|
+| `FicheSubjectPage.test.tsx` | `vi.mock("../lib/atelier")` n'exposait que `cardsFromFiche` | `reworkFiche` n'est **atteint qu'au clic** sur la porte, qu'aucun test ne cliquait |
+| `CoursPage.test.tsx` | `../lib/fiches` **pas mocké du tout** | l'appel réel échoue en jsdom → le `catch` **non bloquant** l'avale → repli silencieux |
+
+Dans les deux cas la suite est passée de 705 à 705 : **le code neuf n'était exercé par rien**, et
+rien ne le signalait. Vitest ne lève « No "x" export is defined on the mock » qu'**à l'accès**.
+
+🔴 **Le second cas est le pire** : un chargement délibérément non bloquant (le bon patron, celui
+des quiz) transforme *toute* absence de mock en repli silencieux. La robustesse du code de
+production masque l'absence de test.
+
+**Parade** : après avoir ajouté un appel réseau à une page, **ouvrir son fichier de test et
+vérifier que le module est mocké** — le compteur de tests ne le dira jamais. Et se méfier de
+« +0 test cassé » sur un ajout : c'est au moins autant un signe d'angle mort qu'un signe de
+non-régression.
+
+### 🔴 `git commit --no-edit` laisse les COMMENTAIRES dans le message de merge
+
+Un `git merge origin/main` interrompu (éditeur quitté sans enregistrer) laisse `MERGE_HEAD` en
+place. Le réflexe `git commit --no-edit` termine le merge — mais le sujet du commit devient :
+
+```txt
+Merge remote-tracking branch 'origin/main' … # Please enter a commit message to explain why …
+```
+
+**Cause** : sans éditeur lancé, le mode `cleanup` par défaut retombe sur `whitespace`, qui **ne
+retire pas les lignes `#`**. Ce n'est pas une config du dépôt — `commit.cleanup` n'est pas défini.
+
+**Parade** : `git commit --no-edit --cleanup=strip`, ou vérifier `git log -1` juste après. Réparable
+par `git commit --amend --cleanup=strip -m "…"` **tant que ce n'est pas poussé** (et un amend de
+merge conserve bien ses **deux parents** — vérifier par `git log --format='%h %p' -1`).
+
+### ⚠️ Un sabotage peut viser un garde REDONDANT et rassurer à tort — 3ᵉ occurrence
+
+Pour éprouver « la fiche de ZETIS n'est jamais datée », le garde `etat === "ma_fiche"` a été retiré
+du calcul de la date. **La suite est restée verte** — et c'était juste : la branche `zetis` de
+`sousTitre` **n'utilise pas** cette variable. Le sabotage ne changeait rien d'observable.
+
+Le sabotage bien visé — faire afficher la date **par la branche `zetis`** — est rouge immédiatement.
+
+🔴 **Conséquence retenue dans le code** : le garde est une **seconde barrière**, pas le mécanisme.
+Son commentaire le dit désormais, sinon un futur lecteur le croirait porteur et se fierait à un
+verrou que rien ne tient.
+
+### ⚠️ Le critère « aucune route neuve » d'un ADR ne voit que le SERVEUR
+
+L'ADR-0054 §2 borne le chantier par *« aucune route, aucune colonne, aucune migration »*, et son §1
+en déduit que la 3ᵉ porte est « réalisable ». Vrai côté serveur — `fiche-tiles` rend `etat` et
+`fiche_id`. **Mais la porte doit ouvrir SA fiche, et la fiche n'avait aucune adresse** : elle
+n'était qu'un état interne de `FicheSubjectPage`, ouverte par index de liste.
+
+Un critère formulé en vocabulaire backend a donc déclaré faisable quelque chose que le frontend ne
+pouvait pas faire — et l'écran 7, exclu par ce même critère la veille, butait exactement sur le
+**même manque**.
+
+**Parade** : quand un ADR déclare une porte « réalisable parce que la donnée existe », vérifier
+aussi qu'il existe un **chemin** pour l'atteindre côté client — une donnée sans adresse n'ouvre rien.
+
+### ⚠️ « D'après ton cours » existe DEUX fois dans le DOM d'une fiche
+
+`FicheCard` rend son pied à l'écran **et** un `FicheA5` hors écran (portail vers `body`,
+`left-[-99999px]`) que l'export photographie. Un `findByText(/D'après ton cours/)` échoue donc sur
+*« Found multiple elements »* — et le message ressemble à une régression alors que la
+fonctionnalité marchait.
+
+**Parade** : viser un élément propre à la surface testée (un bouton du pied écran), ou cibler par
+conteneur — `document.querySelector("article footer")` pour l'écran, `"[aria-hidden] footer"` pour
+le papier. C'est le patron retenu dans `FicheCard.test.tsx`.
+
 ## Chantier `feat/fiche-de-massimo-slice-3` — 2026-08-13
 
 ### 🔴 Un refactor « à comportement constant » sur une fonction SANS COUVERTURE ne prouve rien

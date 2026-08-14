@@ -115,6 +115,26 @@ export async function finishDraft(id: number): Promise<FicheDraftDetail> {
   );
 }
 
+/**
+ * `POST …/fiches/{id}/rework` — « ✏️ La retravailler » (ADR-0054 §1).
+ *
+ * 🔴 **Ne PAS remplacer par une simple navigation vers l'atelier.** `openDraft` créerait un
+ * brouillon **VIDE** en version N+1 (`open_or_get_draft` ne pré-remplit que le décor), alors que
+ * `rework` repart de ce qu'elle avait écrit. Les deux aboutissent à un brouillon pour la même
+ * leçon — seul le contenu diffère, et c'est tout l'écart entre « retravailler » et « recommencer ».
+ *
+ * Enchaînement : `rework` d'abord, navigation ensuite — `openDraft` retrouve alors le brouillon
+ * existant au lieu d'en fabriquer un second. Idempotent des deux côtés.
+ */
+export async function reworkFiche(ficheId: number): Promise<FicheDraftDetail> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/fiches/${ficheId}/rework`, {
+      method: "POST",
+      headers: headers(),
+    }),
+  );
+}
+
 /** Ce que le pont a VRAIMENT fait — deux nombres, jamais un seul. */
 export interface FicheCartes {
   cartes: number;

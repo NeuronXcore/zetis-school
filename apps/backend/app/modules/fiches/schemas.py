@@ -8,6 +8,7 @@ en trop toléré. Les **bornes de listes** (`definitions` ≤ 4, `points_cles` �
 garantit « 1 leçon = 1 page » — pas une consigne de prompt.
 """
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -114,6 +115,9 @@ class FicheOut(BaseModel):
     validation_status: str
     spec: FicheSpec
     seen: bool = False
+    # Alimente la datation ABSOLUE de l'export A5 / impression (ADR-0054 §3). Toujours rendue —
+    # cf. le commentaire de `fiche_out` : l'écran s'interdit de dater ZETIS, le papier non.
+    updated_at: datetime | None = None
 
 
 class FicheListItem(BaseModel):
@@ -279,6 +283,14 @@ class FicheTile(BaseModel):
     versions: int = 0  # ses versions à lui
     etapes_remplies: int = 0  # sur un brouillon : combien de sections ont quelque chose
     points_choisis: int = 0  # « tu en as choisi 3 »
+    # Quand SA dernière version finie a été touchée (ADR-0054 §3). `None` s'il n'a pas de fiche :
+    # la fiche de ZETIS n'est **jamais** datée côté enfant — « il y a 4 mois » ne peut que saper
+    # la confiance dans un contenu juste, et c'est une information de Papa.
+    #
+    # ⚠️ Aucune migration : `Fiche` porte `TimestampMixin`, la donnée est déjà en base. Ajouter un
+    # champ à un schéma de réponse existant est explicitement PERMIS par le §2 précisé — la
+    # contrainte « aucun état neuf » vise les routes, colonnes et migrations.
+    updated_at: datetime | None = None
 
 
 class FicheCartesOut(BaseModel):

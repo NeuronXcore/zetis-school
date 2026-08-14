@@ -517,3 +517,33 @@ describe("AtelierPage — monté DEUX FOIS, comme en vrai", () => {
     expect(await screen.findByText("Attention à : Épicentre")).toBeInTheDocument();
   });
 });
+
+// ── Le compteur d'étapes compte TOUTES les étapes ────────────────────────────────
+
+describe("AtelierPage — le compteur ne sous-compte pas", () => {
+  it("🔴 compte les PIÈGES comme une étape remplie", async () => {
+    // Trouvé au doigt sur iPhone le 2026-08-14 : `remplies` listait trois étapes quand `ETAPES`
+    // en portait quatre. Les pièges étaient rendus, jalonnés, sauvegardés — invisibles au seul
+    // compteur. « 2 étapes sur 4 » pour trois étapes remplies : sur un écran qui s'interdit tout
+    // reproche, un compteur qui SOUS-compte minimise le travail de l'enfant.
+    monter();
+    await deplier(/Les pièges/);
+    fireEvent.click(await screen.findByText("Attention à : Épicentre"));
+    expect(await screen.findByText(/1 étape sur 4/)).toBeInTheDocument();
+  });
+
+  it("compte les quatre ensemble", async () => {
+    api.openDraft.mockResolvedValue({
+      ...DRAFT,
+      draft: {
+        ...DRAFT.draft,
+        points_cles: ["Une idée."],
+        essentiel: "Un essentiel.",
+        definitions: [{ terme: "épicentre", definition: "le point en surface" }],
+        erreurs_a_eviter: ["Attention à : Épicentre"],
+      },
+    });
+    monter();
+    expect(await screen.findByText(/4 étapes sur 4/)).toBeInTheDocument();
+  });
+});

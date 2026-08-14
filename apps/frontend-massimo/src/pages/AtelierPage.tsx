@@ -380,10 +380,16 @@ export function AtelierPage() {
   }
 
   const titre = detail?.lesson_title ?? "Ta fiche";
+  // 🔴 **Une entrée par étape d'`ETAPES`, sans exception.** Le 2026-08-14, ce tableau en comptait
+  // TROIS pendant qu'`ETAPES` en portait quatre : les pièges étaient rendus, jalonnés, sauvegardés
+  // — et invisibles au compteur. Massimo voyait « 2 étapes sur 4 » avec trois étapes remplies.
+  // Un compteur qui SOUS-compte est pire qu'un compteur faux : sur un écran qui s'interdit tout
+  // reproche, il minimise le travail de l'enfant. Trouvé au doigt sur iPhone, par aucun test.
   const remplies = [
     choisis.length > 0,
     essentiel.trim().length > 0,
     Object.values(definitions).some((d) => d.trim()),
+    pieges.length > 0,
   ].filter(Boolean).length;
 
   function apercu(id: FicheSection): string {

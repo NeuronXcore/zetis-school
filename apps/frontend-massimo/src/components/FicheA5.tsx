@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { type FicheSpec } from "@zetis/types";
 import { subjectEmoji } from "../lib/subjectEmoji";
+import { dateAbsolue } from "../lib/datation";
 
 // Rendu CLAIR au format A5 (papier) du FicheSpec — utilisé UNIQUEMENT pour l'export image /
 // l'impression (capturé par html-to-image). Fond blanc, texte foncé, hors écran. Pas d'image
@@ -14,12 +15,15 @@ const SECTION_LABEL = "mb-1 text-[11px] font-bold uppercase tracking-wide text-s
 export interface FicheA5Props {
   spec: FicheSpec;
   subjectSlug: string;
+  /** ISO 8601 de la fiche — datée en ABSOLU sur le papier (ADR-0054 §3). */
+  dateISO?: string | null;
 }
 
 export const FicheA5 = forwardRef<HTMLDivElement, FicheA5Props>(function FicheA5(
-  { spec, subjectSlug },
+  { spec, subjectSlug, dateISO },
   ref,
 ) {
+  const datee = dateAbsolue(dateISO);
   return (
     <div
       ref={ref}
@@ -101,8 +105,12 @@ export const FicheA5 = forwardRef<HTMLDivElement, FicheA5Props>(function FicheA5
         </section>
       )}
 
+      {/* 🔴 La date ABSOLUE, et seulement ici (ADR-0054 §3). Une feuille imprimée sans date est
+          inclassable dans un classeur — c'est le seul endroit où l'absolu se justifie, et
+          l'inverse de la règle d'écran, qui n'affiche que du relatif. */}
       <footer className="mt-auto border-t border-slate-200 pt-2 text-[10px] text-slate-400">
         📚 D'après ton cours « {spec.title} » · ZETIS
+        {datee && ` · ${datee}`}
       </footer>
     </div>
   );

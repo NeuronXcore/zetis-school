@@ -38,7 +38,7 @@ Une tuile par leçon. **Quatre états**, qui cohabitent dans la même liste :
 
 | État | Pastille | Sous-titre | Au clic |
 |---|---|---|---|
-| Sa fiche finie | `✍️ Ta fiche` | « 2 versions · la dernière il y a 5 jours » | écran 6 (versions) |
+| Sa fiche finie | `✍️ Ta fiche` | « 2 versions · la dernière il y a 5 jours » | écran **7** (versions) |
 | Son brouillon | `✏️ Commencée` | pastilles de progression + « tu en as choisi 3 » | écran 4 (atelier), **à l'endroit exact où il s'est arrêté** |
 | Rien encore | `🧩 À fabriquer` | « ≈ 5 minutes » | écran 4 (atelier, vierge) |
 | Fiche ZETIS seule | `⭐ Fiche ZETIS` | « à lire » | écran 3 (viewer) |
@@ -287,13 +287,76 @@ affirmer « c'est faux ».
 
 ### Le sens inverse — depuis le cours, ouvrir sa fiche
 
-**N'existe pas aujourd'hui** : `CoursPage` (`/subjects/:slug/cours`) mène au quiz, jamais aux
-fiches. À créer, **au niveau de chaque leçon** : « 🧩 En faire ma fiche » si rien n'existe,
-« ✍️ Ma fiche » sinon.
+**Livré le 2026-08-14.** `CoursPage` (`/subjects/:slug/cours`) porte, au niveau de chaque leçon :
+« 🧩 En faire ma fiche » si rien n'existe, « ✍️ Ma fiche » sinon.
 
-C'est **le même bouton** que celui de l'écran H (depuis une fiche ZETIS déjà lue) — et la même
-question, **tranchée le 2026-08-12 : lire avant de fabriquer est permis.** Les deux entrées
-s'ouvrent sans condition.
+🔴 **Deux choses changent, pas une — le libellé ET la destination.** Le cadrage disait « il n'y a
+qu'à conditionner le libellé » : c'était faux, et dangereusement.
+
+| Sa fiche | Libellé | Destination |
+|---|---|---|
+| n'existe pas (`zetis`, `a_fabriquer`) | « 🧩 En faire ma fiche » | `/fiches/:slug/:lessonId/atelier` |
+| **est finie** (`ma_fiche`) | **« ✍️ Ma fiche »** | **`/fiches/:slug?fiche=<id>` — SA fiche** |
+| est **commencée** (`commencee`) | « 🧩 En faire ma fiche » | l'atelier — `openDraft` **retrouve** son brouillon, aucune version créée |
+
+🔴 **Ce bouton était une mine, et elle était armée** (trouvé le 2026-08-14). Inconditionnel, il
+ouvrait l'atelier même sur une leçon **déjà fichée** — donc `openDraft` y fabriquait un brouillon
+**vide** en version N+1, qui **masque** la fiche finie (`commencee` prime sur `ma_fiche`). Massimo
+perdait sa fiche en cliquant sur un bouton qui promettait de la faire. C'est le **défaut 4**, et il
+était atteignable **d'ici**, pas seulement en revenant dans l'atelier.
+
+⚠️ **La fiche a désormais une ADRESSE : `?fiche=<id>` sur l'écran 2.** Elle n'en avait aucune —
+elle n'était qu'un état interne de `FicheSubjectPage`, ce qui rendait cette porte irréalisable.
+Le lien est consommé **une fois** ; un id introuvable retombe sur la liste de la matière, jamais
+sur un écran d'erreur. C'est aussi ce dont l'**écran 7** aura besoin le jour où il se fera.
+
+La question de fond reste la même que pour l'écran H, **tranchée le 2026-08-12 : lire avant de
+fabriquer est permis.** Les deux entrées s'ouvrent sans condition.
+
+### L'écran H — depuis une fiche ZETIS déjà lue
+
+**Nommé depuis le premier cadrage, jamais décrit — d'où son absence dans le produit.** Constat du
+2026-08-13 : sur la matière Français, **12 tuiles `zetis` sur 17 ouvrent un cul-de-sac**, et le
+seul chemin restant est la page `Cours`, que rien n'annonce depuis l'écran des fiches.
+
+Le pied de la fiche en lecture (écran 3) porte donc **une porte de plus, selon à qui la fiche est** :
+
+| Fiche ouverte | Bouton ajouté | Ce qu'il fait |
+|---|---|---|
+| de **ZETIS** | **« 🧩 En faire ma fiche »** | ouvre l'**atelier** sur cette leçon |
+| **la sienne** | **« ✏️ La retravailler »** | `rework` → **version N+1**, l'ancienne reste lisible (écran 7) |
+
+🔴 **Les deux libellés ne sont pas interchangeables.** La fiche de ZETIS n'est pas à lui : il n'y
+touche pas, il fabrique **la sienne à côté**. Un libellé unique ferait croire qu'il édite le
+contenu de ZETIS — ce que l'addendum §2 interdit.
+
+⚠️ **Aucune condition, aucun gate** : ni « il faut avoir essayé », ni état « a-t-il tenté ? » à
+tenir côté serveur (§3 révisé). Un défaut d'ouverture, jamais un verrou.
+
+**La porte est sur sa PROPRE rangée, pleine largeur, en couleur d'accent, au-dessus des outils.**
+Décidé le 2026-08-14 **après mesure**, pas d'après une impression :
+
+| Pied à 375 px (largeur utile 309 px) | Rangées de boutons | Lignes | Hauteur |
+|---|---|---|---|
+| avant la porte (3 outils) | 2 | 3 | 181 px |
+| porte **entassée à la fin** du groupe | 2 | 3 | 181 px |
+| porte **en tête** du groupe | 3 | 4 | 233 px |
+| **porte sur sa rangée** (retenu) | 3 | 4 | **237 px** |
+
+🔴 **C'est la POSITION qui décide, pas le libellé** — les trois libellés tiennent dans la même
+rangée. Entassée à la fin, la porte ne coûte rien mais se lit **après « Imprimer »** ; en tête,
+elle coûte une ligne **sans hiérarchie**. Sur sa rangée, le même coût vertical achète une
+hiérarchie explicite, et la porte cesse de concourir avec des outils — ce qui répond au risque de
+« barre d'outils » nommé par l'ADR-0054.
+
+⚠️ **Le pied ne gagne JAMAIS qu'un seul bouton**, contrairement à ce que craignait l'ADR (« trois
+boutons de navigation de plus dans un pied déjà à cinq ») : les trois portes ne coexistent pas —
+la 1ʳᵉ n'apparaît que sur une fiche ZETIS, la 2ᵉ que sur sa fiche finie, et la 3ᵉ vit dans
+`CoursPage`. Le pied porte **trois** outils, pas cinq.
+
+⚠️ **Dette mesurée, non traitée** : quand le titre de la leçon est long, le badge « 📚 D'après ton
+cours » s'enroule sur deux lignes et le pied atteint **5 lignes**. Comportement **préexistant** du
+badge, que la porte n'aggrave pas.
 
 ## Gabarit de l'atelier
 
@@ -307,6 +370,28 @@ Plein écran = **le patron déjà retenu par l'`adr-0052`**, pas un second : ove
 (**pas** `requestFullscreen`), `CloseFullscreenButton` (cible 44 px), Échap, verrouillage du
 défilement du corps.
 
+## La datation — relative à l'écran, absolue sur le papier (ADR-0054 §3)
+
+| Surface | Datation | Motif |
+|---|---|---|
+| Tuile de **sa** fiche (écran 2) | ✅ **relative** — « il y a 3 jours » | c'est la trajectoire du §7, et elle n'existe pas sans le temps |
+| Écran **7** (versions) | ✅ relative, par version | c'est l'objet même de l'écran |
+| Fiche de **ZETIS** (écran 3) | ❌ **rien** | il se fiche de sa date de génération, et « il y a 4 mois » ne peut que **saper la confiance** dans un contenu juste. C'est une info de **Papa** |
+| **Export A5 / impression** | ✅ **absolue** (`13/08/2026`) | une feuille imprimée sans date est **inclassable** dans un classeur |
+
+🔴 **Une date absolue sur un écran d'enfant est de la métadonnée d'adulte** ; une date relative sur
+une feuille imprimée ne veut plus rien dire le lendemain. Les deux formes servent deux lectures —
+ce n'est pas une préférence de style.
+
+⚠️ **Une seule mention, la plus récente, formulée comme un SOUVENIR.** « Créée le … · mise à jour
+le … » côte à côte sur une fiche non touchée depuis longtemps se **lit comme un reproche** —
+frontière `CLAUDE.md` §gamification. On écrit *« ta version 2, il y a 3 jours »*, jamais un tableau
+d'horodatages.
+
+⚠️ **L'absence sur la fiche de ZETIS est une RÈGLE, pas un oubli** — elle est écrite ici parce
+qu'une règle négative ne s'écrit jamais toute seule : sans cette ligne, la première personne qui
+implémentera la datation la posera partout, par symétrie.
+
 ## Export A5 (image + impression)
 
 L'app vit dans un shell à scroll interne → l'impression CSS du navigateur donne une page blanche.
@@ -314,6 +399,10 @@ On génère donc un **rendu clair A5 dédié** (`FicheA5`), capturé en PNG (`ht
 
 - **🖼️ Image A5** → télécharge `fiche-<titre>.png` (à enregistrer / partager — idéal iPhone).
 - **🖨️ Imprimer** → document A5 autonome (`@page size A5`), prêt à imprimer ou « Enregistrer en PDF ».
+
+📅 **Les deux portent une date ABSOLUE** (ADR-0054 §3) — c'est le seul endroit du produit où
+l'absolu se justifie. Sur **sa** fiche : la date de la version imprimée. Sur une fiche de ZETIS :
+la date d'impression, pas celle de génération (cf. § datation).
 
 ⚠️ **Un brouillon n'est ni exportable ni imprimable** (addendum §1 bis) : il n'est pas encore un
 `FicheSpec` valide. Ce n'est pas une restriction arbitraire — c'est ce qui empêche un demi-travail

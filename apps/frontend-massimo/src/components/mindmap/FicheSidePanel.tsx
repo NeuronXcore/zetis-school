@@ -90,7 +90,13 @@ export function FicheSidePanel({ subjectSlug, lessonId, title, onClose }: FicheS
             🌱 La fiche de cette leçon n'est pas encore prête.
           </p>
         ) : (
-          <FicheCard spec={fiche.spec} subjectSlug={fiche.subject_slug || subjectSlug} />
+          // Pas de `porte` ici : l'ADR-0054 §1 la pose sur l'écran 3 des fiches, pas dans le
+          // panneau d'une mindmap. La date, elle, sert l'export A5 que cette carte porte aussi.
+          <FicheCard
+            spec={fiche.spec}
+            subjectSlug={fiche.subject_slug || subjectSlug}
+            dateISO={fiche.updated_at}
+          />
         )}
       </div>
     </aside>
