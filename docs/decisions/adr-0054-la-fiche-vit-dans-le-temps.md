@@ -66,7 +66,7 @@ pour un défaut d'interface.
 | Depuis | Libellé | Ce que ça fait |
 |---|---|---|
 | une fiche **ZETIS** (écran 3) | **« 🧩 En faire ma fiche »** | ouvre l'atelier sur cette leçon |
-| **sa** fiche finie (écran 3) | **« ✍️ La retravailler »** | `rework` → version N+1, l'ancienne reste lisible |
+| **sa** fiche finie (écran 3) | **« ✏️ La retravailler »** | `rework` → version N+1, l'ancienne reste lisible |
 | le **cours**, quand sa fiche existe | **« ✍️ Ma fiche »** | ouvre **sa fiche**, pas l'atelier |
 
 🔴 **« En faire ma fiche » n'est PAS « retravailler ».** La fiche de ZETIS n'est pas à lui : il
@@ -198,8 +198,30 @@ partagé — la mesure se refait **après** le changement, sur les trois surface
 
 ## Suivi
 
-1. **Compléter `docs/frontend-massimo/page-fiches.md`** — l'écran 7 (versions) y est décrit, les
-   trois portes du §1 et les règles de datation du §3 non. À faire **avant** la session de code.
+1. **Compléter `docs/frontend-massimo/page-fiches.md`** — à faire **avant** la session de code.
+
+   🔴 **Corrigé le 2026-08-13, au §2 de l'`/ouverture`.** Ce point affirmait que la spec ne
+   décrivait « ni les trois portes ni les règles de datation ». **C'était faux, et de loin** — je
+   l'avais écrit sans relire la spec, exactement l'erreur que le read-before-code existe pour
+   attraper. Ce que la spec porte **déjà** :
+
+   | Point | Où |
+   |---|---|
+   | Bouton **« ✏️ La retravailler »** + effet « nouvelle version » | ligne **249** |
+   | Écran **7 · Les versions**, route `?v=2` | ligne **243** |
+   | Datation **relative** sur la tuile — « 2 versions · la dernière il y a 5 jours » | ligne **41** |
+   | Troisième porte (cours → sa fiche) | ligne **294** |
+
+   **Ce qui manque vraiment, et c'est trois fois moins** :
+   (a) la datation **absolue** sur l'export A5 / impression ; (b) l'**absence** de datation sur la
+   fiche de ZETIS — une règle négative ne s'écrit jamais toute seule ; (c) l'**écran H décrit** :
+   il n'est aujourd'hui que *nommé en référence* (« c'est le même bouton que celui de l'écran H »),
+   jamais dessiné.
+
+   ⚠️ **Deux incohérences trouvées au même contrôle**, à corriger dans la spec : la ligne 41
+   renvoie à « écran **6** (versions) » alors que la section s'appelle « ### **7**. Les versions » ;
+   et l'emoji du bouton diffère — la spec dit **✏️**, le §1 de cet ADR disait **✍️**.
+   **La spec fait foi : ✏️.**
 2. Une **maquette** n'est pas nécessaire : les trois portes se posent dans un pied existant, et
    l'écran 7 est déjà dessiné. ⚠️ En revanche, la **densité du pied** (risque nommé ci-dessus)
    se juge à l'écran — prévoir une capture téléphone **avant** de figer.
