@@ -7,6 +7,7 @@ import {
   type ReviewAttemptResult,
   type ReviewCard,
   type ReviewChapterDeck,
+  type ReviewChapterDue,
   type ReviewDeck,
   type ReviewRating,
   type ReviewsSummary,
@@ -38,6 +39,19 @@ async function asJson<T>(res: Response): Promise<T> {
 export async function fetchReviewsSummary(): Promise<ReviewsSummary> {
   return asJson(
     await fetch(`${API_URL}/api/student/reviews/summary`, { headers: headers() }),
+  );
+}
+
+/**
+ * `GET /api/student/reviews/chapters` — les chapitres offrables, toutes matières (ADR-0057).
+ *
+ * Listing séparé du `summary`, qui est aussi servi à l'Accueil et n'a que faire des chapitres.
+ * ⚠️ **Le serveur a déjà écarté les chapitres vides** : la surface ne recompte jamais la
+ * servabilité (§6, citant l'`adr-0049` D2).
+ */
+export async function fetchReviewChapters(): Promise<ReviewChapterDue[]> {
+  return asJson(
+    await fetch(`${API_URL}/api/student/reviews/chapters`, { headers: headers() }),
   );
 }
 

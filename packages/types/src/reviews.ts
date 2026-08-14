@@ -38,6 +38,30 @@ export interface ReviewSubjectDue {
   has_cards: boolean;
 }
 
+/** Un chapitre offrable — troisième niveau de `/revision` (ADR-0057, slice Révision).
+ *
+ *  `GET /api/student/reviews/chapters` ne rend que les chapitres dont le deck a **vraiment**
+ *  quelque chose à donner : un chapitre à zéro n'apparaît pas du tout, ni grisé ni « bientôt »
+ *  (§6, citant l'`adr-0049` D2 — *« un bouton mort se lit comme une panne »*). Le client ne
+ *  recompte jamais la servabilité.
+ *
+ *  ⚠️ Les champs `title`/`chapter`/`subject`/`subject_slug` sont ce que la brique partagée
+ *  `groupBySubjectChapter` attend (`GroupableItem`) — ici **le chapitre EST l'objet**, donc son
+ *  nom sert des deux côtés. C'est pourquoi la surface passe `showChapterLabel={false}` : sans ça
+ *  le même mot s'écrirait deux fois, sur la tuile et sur l'étagère. */
+export interface ReviewChapterDue {
+  chapter_id: number;
+  name: string;
+  subject: string;
+  subject_slug: string;
+  /** Ce que servirait le deck de ce chapitre : `min(REVIEW_SESSION_MAX_CHAPTER, servables)`.
+   *
+   *  🔴 **Une taille de SESSION, jamais un stock** — même règle que `ReviewSubjectDue.session_size`.
+   *  Un chapitre de 72 cartes servables annonce **8**, parce que c'est ce que la session servira ;
+   *  afficher l'arriéré serait la pression quotidienne que `CLAUDE.md` interdit. */
+  session_size: number;
+}
+
 /** `GET /api/student/reviews/summary`. */
 export interface ReviewsSummary {
   subjects: ReviewSubjectDue[];

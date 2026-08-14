@@ -1,5 +1,35 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.90.0 — La révision se déplie par chapitre, quatre jours après avoir dit le contraire
+
+Dernière des quatre pages du motif, et la seule qui demandait de **rouvrir une décision**. Le
+4 août, le drill-in permanent depuis le deck matière avait été écarté : une porte permanente vers
+un chapitre peut devenir le chemin par défaut, au détriment du mélange entrelacé. Le 14, il entre.
+
+> **Deux faits ont changé, et aucun n'était connu le jour de la décision.** Personne ne savait
+> qu'une carte écrite par Massimo lui-même se rangerait au **rang 153 sur 159** dans sa file de
+> Français. Et le coût annoncé — *« un endpoint que le résumé ne sait pas rendre »* — avait fondu :
+> la fonction existait déjà, écrite pour l'agenda.
+
+`/revision` porte désormais une section **« Par chapitre »** : dix chapitres offrables sur les
+vingt-deux du programme, rangés sous leur matière dans l'ordre de l'année, avec un champ de
+recherche qui **traverse les matières**. Taper « seisme », sans accent, depuis le Français, ramène
+le chapitre de SVT — et le clic lance sa session.
+
+**L'objection n'a pas été levée, elle a été bornée.** Les mélanges restent en tête et plus grands,
+la matière ensuite, les étagères **repliées à l'arrivée** : aucun chapitre ne s'atteint sans avoir
+déplié sa matière. Le test de dépôt qui interdisait le mot « chapitre » dans cette page n'a pas été
+supprimé — **il a changé d'objet** et garde maintenant cette hiérarchie-là.
+
+**Ce que montre une tuile est ce que la session servira** — huit — et non l'arriéré du chapitre,
+qui peut valoir soixante-douze.
+
+> **Quatre défauts sur cinq n'étaient visibles qu'à l'écran** : les tuiles s'empilaient
+> verticalement, une par ligne ; les matières se rangeaient par ordre alphabétique juste sous une
+> liste des mêmes matières rangée par le programme ; la matière s'écrivait sur chaque tuile sous
+> une étagère qui la nommait déjà ; et les titres longs déformaient les rangées. Quatorze tests
+> étaient verts pendant ce temps — aucun ne regardait la géométrie.
+
 ## 0.89.0 — Les mindmaps se rangent, et gagnent enfin une adresse
 
 Troisième écran à passer au même motif : les mindmaps sont **rangées par chapitre**, dans l'ordre

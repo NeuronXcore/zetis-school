@@ -48,9 +48,32 @@ Quatre points d'entrée, tous vers `/revision` :
    > le gris dit *« Papa ne l'a pas encore produit »* sur un écran fait pour être
    > parcouru. Ici la porte vit dans un flux, où le gris ne dirait rien d'actionnable.
 
-   > 🔴 **Cette page ne porte AUCUNE entrée vers le deck chapitre**, et c'est une décision,
-   > pas un oubli : le drill-in permanent depuis le deck matière est l'option (b) de la
-   > Décision 1, **écartée**. Voir le §Hors périmètre V1 ci-dessous.
+   > 🔴 **AMENDÉ le 2026-08-14 `[0057]`** — ce passage disait : *« cette page ne porte AUCUNE
+   > entrée vers le deck chapitre »*. L'`adr-0057` §9(1) a rouvert l'option (b) sur deux faits
+   > neufs (voir le §Hors périmètre V1 ci-dessous). La page porte désormais une section
+   > **« Par chapitre »**, au **troisième rang** — et la porte de l'agenda est **intacte**.
+
+6. **Section « Par chapitre »** `[0057]` — le deck matière se déplie en chapitres, **sur cette
+   page**. Étagères matière → chapitre (brique partagée `SubjectChapterShelves`) + champ de
+   recherche qui **traverse les matières**.
+
+   🔴 **Le troisième rang est une contrainte, pas une mise en page** : les mélanges restent en
+   tête et plus grands, la matière ensuite, les étagères **repliées à l'arrivée**. Aucun chapitre
+   n'est atteignable sans avoir déplié sa matière. C'est ce qui **borne** l'objection *blocked
+   practice* au lieu de la dissoudre — un test-verrou garde cet ordre, et il a **remplacé** celui
+   qui interdisait le mot « chapitre » dans le source de cette page.
+
+   ⚠️ La recherche **déplie** les étagères tant qu'elle est active : un résultat qu'on voit sans
+   pouvoir l'atteindre est précisément le défaut que la règle *« emmener »* existe pour empêcher
+   (`adr-0057` §9(3)).
+
+   🔴 **Ce qu'affiche une tuile de chapitre est une TAILLE DE SESSION** (`session_size`), jamais
+   un stock : un chapitre de 72 cartes servables annonce **8**. L'en-tête de matière, lui, compte
+   des **chapitres** — il l'écrit (« 4 chapitres »), parce qu'un « 4 » nu se lirait comme quatre
+   cartes sur une page où tous les autres badges en comptent.
+
+   Un chapitre sans carte servable **n'apparaît pas**, et la section entière disparaît quand
+   aucun chapitre ne l'est (Histoire-Géo : 0 sur 2, mesuré).
 
 Routing interne — deux routes :
 
@@ -211,6 +234,11 @@ Routes élève, `get_current_user` (rôle `child` passe) :
 - `GET /api/student/reviews/summary` → `{subjects: [{slug, name, due_count}],
   total_due, flash_size}` — compteurs exacts (le « 15+ » est de la
   présentation).
+- `GET /api/student/reviews/chapters` `[0057]` → `[{chapter_id, name, subject, subject_slug,
+  session_size}]`, toutes matières, dans l'ordre du **programme**. Alimente la section « Par
+  chapitre ». Un chapitre à zéro **n'est pas servi** ; `session_size` est une **taille de
+  session**, jamais un stock. Listing **séparé** du `summary`, qui est aussi consommé par
+  l'Accueil.
 - `POST /api/student/reviews/session` body `{deck: "mix_day" | "mix_flash" |
   {subject: slug} | {chapter: id}}` → cartes servies `[{card_id, subject_slug,
   front_markdown, back_markdown}]` — plafond, tri et entrelacement **côté serveur**.
@@ -273,13 +301,26 @@ Ce que l'`adr-0049` y répond, et pourquoi la V2 s'ouvre quand même :
    temps** autour de l'échéance — pas de le retirer. Les deux séries se lisent dans
    `XPEvent.reason` (`review` vs `review_chapter`).
 
-🔴 **Reste hors périmètre, et c'est TRANCHÉ** : le drill-in **permanent** depuis le deck
-matière — c'est exactement la forme que cette section visait, et c'est celle qui porte le
-risque *blocked practice*. C'est l'option (b) de la Décision 1, **écartée le 2026-08-10** au
-profit de la seule porte (a). Il demanderait en plus un endpoint « chapitres servables d'une
-matière » que `summary` ne sait pas rendre, un écran et son propre état vide. Chantier à part,
-s'il a lieu un jour.
+🔴 ~~**Reste hors périmètre, et c'est TRANCHÉ** : le drill-in **permanent** depuis le deck
+matière.~~ — **AMENDÉ le 2026-08-14 par l'`adr-0057` §9(1) `[0057]`.**
 
-⚠️ **Conséquence assumée** : ZETIS livre une capacité de révision que la **page dédiée à la
-révision ne montre pas**. L'asymétrie est voulue — la porte vit là où l'échéance la justifie —
-mais il faut savoir l'expliquer plutôt que la découvrir.
+L'option (b), écartée le 2026-08-10, a été **rouverte quatre jours plus tard**. Ce n'est pas un
+revirement : **deux faits ont changé**, et aucun des deux n'était connu quand la Décision 1 a été
+prise.
+
+1. **La portée n'avait jamais été jugée.** (b) avait été pesée sur son coût et sur le risque de
+   *blocked practice* ; personne ne savait alors qu'une carte écrite par Massimo lui-même se
+   rangerait au **rang 153 sur 159** dans la file (`adr-0056`).
+2. **Le coût a baissé.** Cette section mettait à la charge de (b) *« un endpoint chapitres
+   servables d'une matière que `summary` ne sait pas rendre »* — `chapter_servable_count` **existe**
+   depuis le chantier agenda, et le listing n'a fait que l'appeler.
+
+⚠️ **L'objection *blocked practice* n'est pas effacée, et elle ne l'est toujours pas** : elle est
+**bornée** par le troisième rang (§Accès point 6). Les mélanges restent le rituel, en haut et plus
+grands ; le chapitre se mérite en dépliant sa matière. Le pari reste **surveillé** : si l'usage de
+`mix_day` baisse pendant que celui du deck chapitre monte, c'est la cannibalisation — lisible dans
+`XPEvent.reason` (`review` vs `review_chapter`), et c'est le **signal n° 2** de l'`adr-0057`.
+
+⚠️ ~~**Conséquence assumée** : ZETIS livre une capacité de révision que la page dédiée à la
+révision ne montre pas.~~ — **L'asymétrie est levée** : la page la montre désormais. La porte de
+l'agenda reste, et les deux mènent au même deck.

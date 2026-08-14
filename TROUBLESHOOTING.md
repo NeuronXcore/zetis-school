@@ -4,6 +4,88 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/une-seule-facon-de-trouver-revision` — 2026-08-14
+
+### 🔴 DEUX protections redondantes = un test AVEUGLE, pas une double sécurité
+
+Le verrou « aucune porte sur du vide » de `servable_chapters` est resté **VERT sous deux sabotages
+successifs**, ce qui n'avait aucun sens jusqu'à ce qu'on regarde pourquoi.
+
+La servabilité était décidée à **deux endroits** : la requête de découverte portait
+`Lesson.status == 'validated'`, et `chapter_servable_count` (via `ordered_chapter_skill_ids`) le
+portait aussi. Casser l'un laissait l'autre faire le travail. Le test ne pouvait donc pas
+distinguer un code juste d'un code à moitié faux.
+
+**Parade** : retirer la duplication. La requête **énumère** les candidats, `chapter_servable_count`
+**juge** seul. Le sabotage rougit aussitôt.
+
+**À retenir** : *une redondance se lit comme une ceinture et des bretelles, et se comporte comme un
+bandeau sur les yeux.* Quand un sabotage reste vert sans raison apparente, chercher le **second**
+endroit qui applique la même règle — et en supprimer un.
+
+### 🔴 `Chapter` n'a AUCUN `subject_id` — deux parents, tous deux nullables
+
+Pour lister « les chapitres d'une matière », le réflexe est de descendre
+`Subject → SchoolYearSubject → Chapter`. C'est un `INNER JOIN`, et il fait **disparaître en
+silence** tout chapitre rattaché par `Theme` (`school.py:59` — `school_year_subject_id` ET
+`theme_id` sont nullables). Ce trou a coûté l'**ADR-0037 entier**, a été retrouvé dans
+`lessons_by_skill` (addendum ADR-0034), puis une troisième fois dans l'ADR-0042.
+
+**Parade retenue ici** : ne pas descendre du tout. Le module `memory` lit la matière d'une carte
+par **`Skill.subject_id`** (`get_reviews_summary:223`, `build_session:435`) — le listing part donc
+**des cartes**, et la question des deux parents ne se pose jamais. Une seule convention par module.
+
+> Le prédicat à deux chemins existe si on en a vraiment besoin :
+> `review_queue/service.py:_chapter_in_year` (un `or_` documenté).
+
+### ⚠️ `chapter_servable_counts` n'est PAS un lot — sa docstring le promet, son corps est une boucle
+
+Elle annonce éviter « N×2 requêtes par page » ; le corps (`memory/service.py:378`) est un
+dict-comprehension sur la version unitaire. Le seul gain réel est la **déduplication** des ids.
+Ne pas s'y fier pour un volume important.
+
+### ⚠️ Un `LessonSkill` en jointure SURCOMPTE — la dédup n'est pas décorative
+
+Une notion enseignée par **deux leçons du même chapitre** produit deux lignes `LessonSkill` : un
+`func.count()` posé dans une jointure compte donc sa carte **deux fois**.
+`ordered_chapter_skill_ids` déduplique explicitement (`seen`), et c'est pour ça.
+
+**Parade** : ne jamais tirer un compte de la requête qui a servi à joindre — le tirer de la
+fonction qui sait dédupliquer.
+
+### 🔴 Un conteneur par groupe devient un empilement quand le groupe n'a qu'un objet
+
+`SubjectChapterShelves` rend **un `<div>` de grille par chapitre** — parce que ce `div` porte le
+**libellé** du chapitre. Sur `/revision`, où le chapitre EST l'objet, chaque grille n'avait qu'un
+enfant : les tuiles s'empilaient **verticalement**, une par ligne, et `flex-wrap` était impuissant
+faute d'un second enfant à aligner.
+
+**Parade** : quand `showChapterLabel={false}`, une **seule** grille pour toute l'étagère
+(`flatMap`). Le découpage n'existait que pour le titre.
+
+**À retenir** : *un regroupement visuel qui perd son étiquette perd sa raison d'être, et ne garde
+que ses effets de bord.* Signalé par l'œil du commanditaire ; **quatorze tests étaient verts**.
+
+### ⚠️ Deux listes des mêmes matières, deux ordres — à deux cents pixels d'écart
+
+`/revision` affiche les matières **deux fois** : la grille « Par matière » suit
+`Subject.sort_order` (le curriculum), les étagères suivaient le **nom**. Français premier en haut,
+deuxième en bas.
+
+**Parade** : `subjectOrder` dans `GroupOptions`, symétrique de `chapterOrder`, défaut alphabétique
+inchangé (parité des quatre autres pages).
+
+### ⚠️ Mesurer une géométrie pendant un survol donne des nombres faux
+
+Les tuiles ont `transition-transform hover:scale-*`. Une mesure `getBoundingClientRect()` sous le
+curseur rend une largeur ~4 % trop grande et un `y` décalé — j'ai cru à deux rangées là où il n'y
+en avait qu'une. **Parade** : lire `getComputedStyle(grille).gridTemplateColumns`, qui ne ment pas.
+
+### ⚠️ Un `click()` JS puis une mesure dans le MÊME appel lit l'état d'AVANT
+
+React n'a pas encore rendu. Deux appels séparés, ou l'assertion mesure le DOM précédent — et on
+conclut que le clic n'a rien fait.
+
 ## Chantier `feat/une-seule-facon-de-trouver-mindmaps` — 2026-08-14
 
 ### 🔴 Un RANG n'est pas une ADRESSE — et la différence ne se voit qu'au moment de partager

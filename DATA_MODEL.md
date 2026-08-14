@@ -742,6 +742,23 @@ Aucune des 50 migrations ne posait d'unicité sur cette table.
 bonne. Ça marchait **par coïncidence d'ordre physique**. Le dédoublonnage de la migration est un
 **no-op mesuré** en dev (`DELETE 0`).
 
+#### 🔴 Règle de lecture — la matière d'une carte SRS se lit par `Skill.subject_id`, JAMAIS par son chapitre
+
+Tout le module `memory` suit cette convention, et elle n'est pas un raccourci :
+`SpacedReviewCard → Skill → Subject` (`get_reviews_summary`, `build_session`, `servable_chapters`).
+
+**Pourquoi ça compte** : `Chapter` n'a **aucun `subject_id`** — il a deux parents, tous deux
+nullables (`school_year_subject_id` et `theme_id`, cf. la règle de lecture des chapitres plus
+haut). Une lecture qui passerait par le chapitre pour retrouver la matière devrait donc gérer les
+**deux chemins**, sous peine de faire disparaître en silence les chapitres rattachés par thème —
+le trou de l'ADR-0037, revu dans l'addendum ADR-0034 puis dans l'ADR-0042.
+
+⚠️ **Conséquence pour `servable_chapters`** (`adr-0057`) : le listing des chapitres offrables part
+**des cartes**, pas des chapitres. Il joint `LessonSkill → Lesson → Chapter` pour **découvrir** les
+candidats, et laisse `chapter_servable_count` **décider** seul de la servabilité et du nombre.
+🔴 Le compte ne vient jamais de la jointure : une notion enseignée par deux leçons du même chapitre
+y produit deux lignes, donc un doublon (`ordered_chapter_skill_ids` déduplique pour cette raison).
+
 #### 🔴 Règle de lecture — « servable » a UNE définition, dans `memory/population.py`
 
 | Prédicat | Ce qu'il rend |

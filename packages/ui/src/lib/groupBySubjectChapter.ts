@@ -47,6 +47,18 @@ export interface GroupOptions {
    * défaut, et leur écran ne bouge pas (parité Capsules et Quiz).
    */
   chapterOrder?: (chapter: { id: number | null; name: string }) => number;
+  /**
+   * Rang d'une matière — **plus petit = plus haut**. Par défaut : l'ordre alphabétique.
+   *
+   * 🔴 **Trouvé à l'écran le 2026-08-14, sur `/revision`.** Cette page montre les mêmes matières
+   * DEUX fois : la grille « Par matière » les range par `Subject.sort_order` (l'ordre du
+   * curriculum), les étagères les rangeaient par nom. Deux listes des mêmes matières, dans deux
+   * ordres différents, à deux cents pixels l'une de l'autre — un enfant qui cherche « Français »
+   * le trouve premier en haut et deuxième en bas.
+   *
+   * Les pages qui n'affichent qu'une seule liste gardent le défaut, et leur écran ne bouge pas.
+   */
+  subjectOrder?: (subject: { slug: string; name: string }) => number;
 }
 
 /**
@@ -96,6 +108,10 @@ export function groupBySubjectChapter<T extends GroupableItem>(
     const count = chapters.reduce((n, ch) => n + ch.items.length, 0);
     result.push({ slug: s.slug, name: s.name, count, chapters });
   }
-  result.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  result.sort((a, b) =>
+    opts.subjectOrder
+      ? opts.subjectOrder(a) - opts.subjectOrder(b)
+      : a.name.localeCompare(b.name, "fr"),
+  );
   return result;
 }

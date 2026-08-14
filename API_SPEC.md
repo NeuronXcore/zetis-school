@@ -948,9 +948,35 @@ jour ✓ ». `new_count` = cartes dues jamais révisées (badge « nouveau »).
 > La page Révision lit encore `due_count` pour son badge historique ; **aucune nouvelle surface
 > ne doit le faire**.
 
+### GET `/student/reviews/chapters` `[0057]`
+
+**Les chapitres offrables, toutes matières confondues** — le troisième niveau de `/revision`
+(matière → chapitre) et son champ de recherche, qui traverse les matières.
+`[{ chapter_id, name, subject, subject_slug, session_size }]`, dans l'ordre du **programme**
+(`Subject.sort_order`, puis `Chapter.sort_order`), jamais l'alphabétique.
+
+> 🔴 **Un chapitre à zéro n'est PAS servi** — ni grisé, ni « bientôt » : il n'apparaît pas
+> (ADR-0057 §6, citant l'`adr-0049` D2, *« un bouton mort se lit comme une panne »*). Le client ne
+> recompte jamais la servabilité.
+>
+> 🔴 **`session_size` = `min(REVIEW_SESSION_MAX_CHAPTER, servables)`**, une **taille de session**,
+> jamais un stock — même règle que `SubjectDue.session_size` ci-dessus. Mesuré au cadrage : quatre
+> chapitres de **72, 39, 45 et 12** cartes annoncent tous **8**.
+>
+> **Listing séparé du `summary`, et non un enrichissement** : `summary` est aussi consommé par
+> l'Accueil, qui n'a que faire des chapitres. Même geste que les trois autres slices du motif
+> (`/student/quizzes`, `/student/fiche-tiles`, `/student/mindmaps`).
+>
+> ⚠️ **Le service part des CARTES, pas des chapitres.** `Chapter` n'a aucun `subject_id` : il a deux
+> parents, tous deux nullables (`school_year_subject_id`, `theme_id`), et descendre matière →
+> chapitre par un `INNER JOIN` ferait disparaître en silence les chapitres rattachés par thème (le
+> trou de l'ADR-0037, revu dans l'addendum ADR-0034 puis dans l'ADR-0042). Le module `memory` lit
+> la matière d'une carte par `Skill.subject_id` — une seule convention, et le problème ne se pose
+> pas. La requête **énumère** les candidats ; `chapter_servable_count` **juge** seul.
+
 ### POST `/student/reviews/session`
 
-Corps `{ deck: "mix_day" | "mix_flash" | { subject: "<slug>" } }`. Renvoie la liste servie
+Corps `{ deck: "mix_day" | "mix_flash" | { subject: "<slug>" } | { chapter: <id> } }`. Renvoie la liste servie
 `[{ card_id, subject_slug, front_markdown, back_markdown }]` — plafonnée (mélange 12 /
 matière 8 / éclair 5), triée `due_at` croissant, puis entrelacée pour les mélanges.
 `400` si le deck matière est inconnu ou sans carte due.
