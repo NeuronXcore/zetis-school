@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { type Mission, type MissionStep } from "@zetis/types";
-import { Spinner } from "@zetis/ui";
+import { Spinner, groupBySubjectChapter } from "@zetis/ui";
 import { NeonBackdrop } from "../components/glass";
 import { PageHeader } from "../components/PageHeader";
 import { DeckDisc } from "../components/DeckDisc";
+import { SubjectChapterShelves } from "../components/browse/SubjectChapterShelves";
 import { SubjectDeckGrid, type SubjectDeck } from "../components/SubjectDeckGrid";
 import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
@@ -304,8 +305,21 @@ function SubjectScreen({
   onBack: () => void;
   onMission: (id: number) => void;
 }) {
+  const [cherche, setCherche] = useState("");
   const group = m.groups.find((g) => g.slug === slug);
   const name = group?.name ?? slug ?? "";
+
+  // 🔴 **Une seule source, toutes les matières** (ADR-0057 §9(3)) : la recherche traverse, donc
+  // elle part de TOUTES les missions et non des seules ouvertes. Sans recherche, on ne montre que
+  // la matière ouverte — l'écran ne change pas de nature, il gagne un niveau.
+  const groupes = useMemo(() => {
+    const source = cherche ? m.groups : m.groups.filter((g) => g.slug === slug);
+    const items = source.flatMap((g) =>
+      g.missions.map((msn) => ({ ...msn, title: msn.title, subject_slug: g.slug })),
+    );
+    return groupBySubjectChapter(items, cherche);
+  }, [m.groups, slug, cherche]);
+
   return (
     <>
       <ScreenHeader onBack={onBack} back="Matières">
@@ -316,11 +330,31 @@ function SubjectScreen({
       </ScreenHeader>
 
       {group && group.missions.length > 0 ? (
-        <div className="space-y-3">
-          {group.missions.map((mission) => (
-            <MissionRow key={mission.id} mission={mission} onClick={() => onMission(mission.id)} />
-          ))}
-        </div>
+        <SubjectChapterShelves
+          groups={groupes}
+          search={cherche}
+          onSearchChange={setCherche}
+          searchPlaceholder="Rechercher une mission…"
+          emptyLabel={(q) => `Aucune mission ne correspond à « ${q} ».`}
+          itemKey={(msn) => msn.id}
+          gridClassName="space-y-3"
+          // La matière est DÉJÀ choisie : une étagère close cacherait ce que Massimo vient de
+          // demander (défaut trouvé sur `/quiz?subject=…`).
+          defaultOpen
+          // 🔴 L'écran NOMME déjà la matière, dans son en-tête : la répéter en tête d'étagère
+          // l'écrirait deux fois. Mais **dès qu'on cherche**, elle redevient la seule chose qui
+          // dise d'où vient un résultat — y compris quand il n'y en a qu'un.
+          //
+          // ⚠️ `&& groupes.length > 1` a été écrit ici puis retiré : c'est le défaut EXACT corrigé
+          // sur `/fiches` le 2026-08-14 — chercher « participe » depuis les Maths affichait une
+          // mission de Français **sans rien qui dise qu'elle en venait**. Son propre test l'a
+          // démenti dans la minute. *La question n'est pas « est-ce répété ? » mais « qu'est-ce
+          // que ça dit ici ? ».*
+          showSubjectHeader={Boolean(cherche)}
+          renderItem={(msn) => (
+            <MissionRow mission={msn} onClick={() => onMission(msn.id)} />
+          )}
+        />
       ) : (
         <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-emerald-300">
           ✓ À jour, bravo !

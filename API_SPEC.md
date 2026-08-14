@@ -790,9 +790,26 @@ stricte (§3) : **deux schémas, deux routers** — `MissionStudentOut` (Massimo
 ### Frontière student (Massimo)
 
 - **GET `/missions`** → `[MissionStudentOut]` (validées de l'élève). `MissionStudentOut = { id,
-  subject, skill_id, skill_name, title, description, mission_type, status, priority,
-  estimated_minutes, xp_reward, steps: [{ id, step_type, instruction, resource_id, sort_order,
-  status }] }`. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
+  subject, subject_slug, chapter_id, chapter, skill_id, skill_name, title, description,
+  mission_type, status, priority, estimated_minutes, xp_reward, steps: [{ id, step_type,
+  instruction, resource_id, sort_order, status }] }`.
+
+  > **`chapter` / `chapter_id` (2026-08-14, `adr-0057` addendum Missions)** — 🔴 **DÉRIVÉS, jamais
+  > persistés.** `missions` n'a **aucune** colonne de chapitre, et c'est le critère qui borne le
+  > chantier : une notion change de chapitres dès que Papa valide une leçon, si bien qu'un
+  > `chapter_id` dénormalisé serait faux le lendemain sans que rien ne le signale (c'est la leçon
+  > de `Quiz.chapter_id`). La chaîne est `Skill → LessonSkill → Lesson(status='validated') →
+  > Chapter`, en **lot** (`lessons_by_skill`) pour éviter le N+1.
+  >
+  > 🔴 **`null` quand la dérivation rend ZÉRO OU PLUSIEURS chapitres** — on n'en choisit jamais un.
+  > « Priorités opératoires » est enseignée en Fractions **et** en Nombres relatifs : la ranger
+  > sous la première afficherait du faux sous une apparence de certitude. Mesuré le 2026-08-14 sur
+  > 58 missions actionnables : **52 sous un chapitre (90 %)**, 4 sous aucun, 1 sous deux, 1 sous
+  > trois. ⚠️ Une mission `champion` dérive de ses **étapes** (`MissionStep.skill_id`), n'ayant
+  > aucune notion propre.
+  >
+  > **`subject_slug`** manquait : le front devinait le slug par `slugify(nom)`, et un nom accentué
+  > ne redonne pas toujours le bon slug. `estimated_minutes` (durée estimée dérivée des étapes) + `xp_reward` (XP d'effort
   constant) = **affichage enfant, aucun score**. ⚠️ **Aucun champ d'auteur** : `origin`
   (`papa`/`zetis`) a été **retiré le 2026-08-02** — il était rendu tel quel par la page Missions
   (« 👤 par Papa » / « 🤖 par ZETIS »). Une seule voix côté Massimo : le contenu scolaire l'atteint

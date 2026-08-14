@@ -4,6 +4,78 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/une-seule-facon-de-trouver-missions` — 2026-08-14
+
+### 🔴 Une fonction dont le contrat dit « c'est à toi de filtrer » — et on ne le lit pas
+
+`lessons_by_skill` (`lesson_resolution.py:67`) filtre **année active + chapitre `validated` +
+leçon non archivée**, mais **PAS le statut de la leçon**. Sa docstring le dit noir sur blanc :
+*« un brouillon est rendu, et c'est l'appelant qui décide s'il l'accepte »*.
+
+Le **cadrage** l'a utilisée sans poser le gate, et sa mesure était fausse : **3 missions à deux
+chapitres et 1 à quatre**, annoncées, là où le gate `validated` en laisse **1 et 1**. La mesure a
+dû être refaite.
+
+**Parade** : le gate vit chez l'appelant, écrit explicitement
+(`if lec.status == "validated"`), et un test-verrou le garde
+(`test_un_brouillon_ne_donne_JAMAIS_un_chapitre`) — avec le seul décor capable de distinguer
+« gate posé » de « gate oublié » : **une leçon validée et une brouillon, dans DEUX chapitres
+différents**. Sans le gate, la notion en voit deux → `None`. Avec, elle en voit un.
+
+**À retenir** : *une fonction qui délègue un filtre à son appelant est un piège pour le lecteur
+pressé.* Lire sa docstring **avant** de s'en servir n'est pas une politesse — ici, ça valait la
+justesse d'un ADR.
+
+⚠️ **Et ne cherche pas mieux ailleurs** : `ordered_chapter_skill_ids` porte bien le gate
+`validated`, mais elle va dans l'autre sens (chapitre → notions) et **ne filtre pas l'année**.
+Aucune fonction « notion → chapitres » n'existait.
+
+### ⚠️ Un `JOIN LessonSkill` surcompte — la dédup n'est pas décorative
+
+Une notion enseignée par **deux leçons du même chapitre** produit deux lignes. Un compte tiré de
+la jointure double sa carte / sa mission. **Parade** : ne jamais tirer un compte de la requête qui
+a servi à joindre.
+
+### ⚠️ `MissionStudentOut` n'avait pas de `subject_slug` — le front le DEVINAIT
+
+`useMissions.ts:221` faisait `nameToSlug[nom] ?? slugify(nom)`. Un nom accentué ne redonne pas
+toujours le bon slug, et la brique de rangement exige un slug. Ajouté au schéma.
+
+### ⚠️ `_to_out` est appelée depuis **8** endroits — batcher sans casser les 7 autres
+
+La dérivation des chapitres doit être en lot pour la liste élève (58 missions), mais 7 autres
+appelants n'ont qu'une mission ou deux. **Parade** : un paramètre optionnel `chapitres` — passé en
+lot par la liste, calculé à l'unité quand il est absent. Une seule fonction, une seule règle.
+
+⚠️ `graphify affected "_to_out"` rend **« No unique node match »** (homonyme dans `reports`) —
+**3ᵉ échec de cet outil dans la semaine**. C'est `grep -rn` qui a donné les 8 appelants.
+
+### 🔴 Un défaut corrigé la veille, réintroduit le lendemain
+
+`showSubjectHeader={Boolean(cherche) && groupes.length > 1}` : pendant une recherche qui ne ramène
+qu'**une** matière, le résultat s'affichait **sans rien qui dise d'où il venait**. C'est le défaut
+exact corrigé sur `/fiches` le 2026-08-14, réécrit à l'identique le même jour sur une autre page.
+
+**Parade** : `showSubjectHeader={Boolean(cherche)}` — dès qu'on cherche, la provenance s'affiche,
+y compris pour un résultat unique. **Le premier test de rendu de la page l'a démenti dans la
+minute**, ce qui est la seule raison pour laquelle il n'est pas parti en production.
+
+**À retenir** : *une correction dans un fichier ne se propage pas aux fichiers voisins.* Quand un
+motif est partagé par cinq pages, un défaut corrigé sur l'une reste vivant sur les quatre autres
+jusqu'à ce qu'un test l'y attrape.
+
+### ⚠️ Une page à « 2 tests » peut n'en avoir **aucun** de rendu
+
+`MissionsPage.test.tsx` portait deux tests — qui vérifient la table `TYPE_META` **sans jamais
+monter le composant**. Compter les `it()` ne dit rien du filet réel. Regarder ce qu'ils
+**rendent** est le seul contrôle qui vaille.
+
+### ⚠️ Des doublons à l'écran qui ne sont PAS un bug de rendu
+
+Deux missions « Travailler : Addition de fractions » s'affichent en Maths — **ids 19 et 16**, deux
+lignes distinctes en base (même titre, créées deux fois). 21 servies, 21 rendues. Vérifier les
+**ids** avant d'accuser le composant.
+
 ## Chantier `feat/une-seule-facon-de-trouver-revision` — 2026-08-14
 
 ### 🔴 DEUX protections redondantes = un test AVEUGLE, pas une double sécurité

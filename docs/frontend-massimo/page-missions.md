@@ -64,12 +64,43 @@ Route : `/missions`.
    lumineux cliquable (« ▶ À toi de jouer »), auto-scrollée dans le champ** /
    suivantes « Ensuite ». Clic sur l'étape courante → la **modale** de l'activité.
 
-## Missions croisées (multi-matières) — DIFFÉRÉES
+## Missions croisées (multi-matières) — ~~DIFFÉRÉES~~ **LIVRÉES**
 
-Le modèle `Mission` est mono-matière (un seul `subject_id`/`skill_id`) ; les
-croisées (ADR-0017 §6, « manuel Papa uniquement, hors-V1 ») exigent une
-représentation multi-matière + un ADR dédié. **Non implémentées** ; la page ne
-rend aucune section croisées en v1.
+> 🔴 **Ce paragraphe a dit le faux jusqu'au 2026-08-14 `[0057]`.** Il annonçait *« le modèle
+> `Mission` est mono-matière (un seul `subject_id`) »* et *« non implémentées »* — deux
+> affirmations démenties par le dépôt : `Mission.subject_id` est **nullable** depuis l'ADR-0017
+> §5ter, et les croisées `champion` sont **livrées** par l'ADR-0022.
+
+Une mission `champion` porte `subject_id` **et** `skill_id` à `NULL` : ses notions vivent sur ses
+**étapes** (`MissionStep.skill_id`), sur au moins deux matières. Elle a son **propre deck 🏆** sur
+l'écran 1, et n'entre **jamais** dans un groupe matière — `useMissions` l'extrait avant le
+regroupement, et ne la compte pas non plus dans les matières « à jour ».
+
+⚠️ **Elle est servie avec `subject: ""`** — un repli qui passe pour une valeur. Invisible tant que
+le deck 🏆 ne le lit pas (il affiche « Plusieurs matières »), mais à corriger le jour où une
+surface le lira. Signalé par l'`adr-0057` addendum §5, non traité.
+
+## Écran 2 — matière → chapitre + recherche `[0057]`
+
+La liste d'une matière est **rangée par chapitre**, et un champ de recherche la filtre.
+
+🔴 **Le chapitre d'une mission n'existe pas : il se DÉRIVE.** C'est ce qui distingue cette page des
+quatre autres du motif — elles rangent des **leçons**, qui portent exactement un `chapter_id` ; une
+mission range une **notion**, et `Skill` n'a aucun chapitre. La chaîne est
+`Skill → LessonSkill → Lesson(validated) → Chapter`, et elle peut rendre zéro, un, ou plusieurs
+chapitres.
+
+- **une seule** → ce chapitre (90 % des missions, mesuré) ;
+- **zéro ou plusieurs** → **« Sans chapitre »**, rendu en dernier. 🔴 **On n'en choisit JAMAIS un
+  parmi plusieurs** : « Priorités opératoires » est enseignée en Fractions *et* en Nombres
+  relatifs — la ranger sous la première afficherait du faux sous une apparence de certitude.
+- **Rien n'est persisté** : aucune colonne, aucune migration. Une notion change de chapitres dès
+  que Papa valide une leçon.
+
+⚠️ **La recherche traverse les matières** (`adr-0057` §9(3)) : depuis les Maths, « participe »
+ramène les missions de Français, sous un en-tête d'étagère qui **nomme leur matière** — sans quoi
+un résultat s'afficherait sans dire d'où il vient. Hors recherche, l'en-tête est masqué : l'écran
+nomme déjà la matière.
 
 ## Wireframe
 
@@ -161,8 +192,12 @@ que l'**étape courante** (les preuves se produisent dans l'ordre, garde serveur
 
 ## Hors périmètre V1
 
-- Missions croisées multi-matières (ADR dédié) ; XP par étape (l'XP reste à la
-  mission) ; recherche. La page de pilotage Papa est une slice sœur séparée.
+- ~~Missions croisées multi-matières~~ (**livrées**, ADR-0022) ; XP par étape (l'XP reste à la
+  mission) ; ~~recherche~~ (**livrée** le 2026-08-14, `adr-0057` addendum Missions — écran 2
+  uniquement). La page de pilotage Papa est une slice sœur séparée.
+- **Reste hors périmètre** : le tri par chapitre sur l'écran 1 (les disques restent des matières),
+  le tri par TYPE de mission (⚠️ à reconsidérer en filtre **secondaire** si « Sans chapitre »
+  devait grossir), et toute persistance du chapitre dérivé.
 
 ## Voir aussi
 

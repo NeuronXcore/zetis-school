@@ -6,106 +6,96 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — `/revision` se déplie par chapitre (ADR-0057, slice 4, **LA DERNIÈRE**)
+### ✅ CHANTIER COMPLET — `/missions` se range par chapitre (ADR-0057 addendum, **la 5ᵉ et DERNIÈRE**)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#131](https://github.com/NeuronXcore/zetis-school/pull/131),
-squash `7deaa6f`.** Branche `feat/une-seule-facon-de-trouver-revision` **supprimée** (locale et
-distante), base d'origine `3c223e1`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
+Branche **`feat/une-seule-facon-de-trouver-missions`**, base `94d32df`.
+**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
+committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Cette slice a **CONSOMMÉ l'amendement de l'`adr-0049` D1**, acquis
-> le 2026-08-14 et resté quatre jours sans emploi. Le motif « une seule façon de trouver » est
-> désormais **complet sur ses cinq pages** : Capsules (étalon), Quiz, Fiches, Mindmaps, Révision.
-> ✅ **Écran VU, chaîne complète** : 10 chapitres servis, un clic lance la session, la recherche
-> traverse sans accent, Capsules mesuré intact dans le DOM.
+> 🔴 **Le motif « une seule façon de trouver » est COMPLET sur ses cinq pages** — Capsules
+> (étalon), Quiz, Fiches, Mindmaps, Révision, Missions — plus la galaxie qui l'avait déjà.
+> **L'ADR-0057 n'a plus aucun arbitrage en suspens.**
 
 #### ✅ FAIT
 
 | Livré | Détail |
 |---|---|
-| `GET /api/student/reviews/chapters` | listing des chapitres **offrables**, toutes matières, ordre du programme |
-| `servable_chapters` (`memory/service.py`) | part **des cartes** ; la requête énumère, `chapter_servable_count` juge |
-| `ReviewChapterDue` | `packages/types` + schéma Pydantic + `index.ts` |
-| Section **« Par chapitre »** sur `/revision` | étagères repliées + recherche traversante, **sous** « Par matière » |
-| 🔴 **Le verrou de dépôt RETOURNÉ** | il interdisait le mot « chapitre » ; il garde maintenant le **troisième rang** |
-| 3 props neuves sur la brique | `showChapterLabel` · `countLabel` · `subjectOrder` (défauts inchangés = parité) |
-| **11 tests neufs** (7 Massimo + 4 backend) | `RevisionPage.test.tsx` passe de 8 à **15** |
+| `chapters_of_missions` (`missions/service.py`) | dérive le chapitre d'une **notion**, en lot |
+| 3 champs sur `MissionStudentOut` | `chapter`, `chapter_id`, **`subject_slug`** (qui manquait) |
+| Écran 2 de `/missions` | étagères par chapitre + recherche traversante |
+| 🔴 **6 tests de rendu, les PREMIERS de cette page** | ses 2 tests d'origine ne montaient pas le composant |
+| 7 verrous serveur | dont **le critère qui borne** : `Mission` ne gagne aucune colonne |
 
-**Zéro migration.** Le deck `{chapter}` (session, attempt, XP) n'a **pas été touché** : réutilisé
-tel quel depuis la PR #109.
+**Zéro migration** — et c'est vérifié mécaniquement par
+`test_aucune_migration_pour_ce_chantier`.
 
 #### 🔬 CE QUE LA VÉRIFICATION A DONNÉ
 
-**Neuf sabotages joués, neuf rouges** (4 backend, 5 front).
+**Huit sabotages joués, huit rouges** (4 backend, 4 front).
 
-🔴 **Mais le premier verrou serveur est resté VERT sous DEUX sabotages** — la servabilité était
-décidée à deux endroits, chacun couvrant l'autre. *Une redondance se lit comme une double sécurité
-et se comporte comme un bandeau sur les yeux.* Duplication retirée, le verrou mord.
+Le plus utile **rejoue l'erreur du cadrage** : retirer le gate `validated` fait passer les
+brouillons, exactement comme la première mesure — et deux verrous rougissent.
 
-🔴 **Quatre défauts sur cinq n'étaient visibles qu'À L'ÉCRAN**, quatorze tests verts pendant ce
-temps : tuiles empilées **verticalement** (signalé par le commanditaire) · matières rangées
-**alphabétiquement** sous une liste des mêmes matières rangée par le programme · matière répétée
-sur **chaque** tuile sous une étagère qui la nomme · titres longs déformant les rangées.
+🔴 **Un défaut corrigé la VEILLE, réintroduit le lendemain sur une autre page** :
+`showSubjectHeader={… && groupes.length > 1}` effaçait la provenance d'un résultat de recherche
+venu d'ailleurs. **Le premier test de rendu de la page l'a démenti dans la minute.** *Une
+correction dans un fichier ne se propage pas aux fichiers voisins.*
 
-✅ **Chaîne complète vue en vrai** : 10 chapitres servis (Fr 4 · Maths 4 · SVT 1 · Angl 1 ·
-**HG 0** — les chiffres exacts du cadrage) · un clic a **lancé la session** « Théorème de
-Pythagore », 6 points pour les 6 cartes annoncées · « seisme » sans accent depuis le Français
-ramène le chapitre SVT, étagère **ouverte d'elle-même** · Capsules **intact**, mesuré dans le DOM.
+✅ **Écran VU, sur les vraies données** : Maths passe de 21 missions à la file à **Nombres relatifs
+10 · Fractions 6 · Sans chapitre 4 · Géométrie 1** · « Sans chapitre » **en dernier**, et **pas le
+plus gros groupe** (signal n° 1 non déclenché) · « participe » depuis les Maths ramène 3 missions
+de Français sous l'en-tête qui les nomme · **écran 1 intact** (🎯 Mission du jour, 🏆 « Plusieurs
+matières », aucun champ de recherche).
 
-Détail : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-revision` (**8 sous-sections**).
+Détail : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-missions` (**7 sous-sections**).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **Le troisième rang est une CONTRAINTE, pas une mise en page** : mélanges en tête et plus
-   grands, matière ensuite, étagères **repliées à l'arrivée**. Aucun chapitre n'est atteignable
-   sans avoir déplié sa matière. C'est ce qui **borne** l'objection *blocked practice* — elle n'est
-   **pas levée** par l'amendement. Un test-verrou la garde.
-2. **La recherche déplie** tant qu'elle est active (`defaultOpen={cherche.length > 0}`) : un
-   résultat visible et inatteignable est le défaut que « emmener » existe pour empêcher.
-3. **Ici « emmener » ne demande AUCUNE adresse** : la destination est une session, pas une page.
-   Ne pas inventer de `?chapitre=`.
-4. **Le chapitre EST l'objet** → `showChapterLabel={false}`, et alors **une seule grille** par
-   étagère (le `div` par chapitre n'existait que pour son titre).
-5. **`session_size`, jamais un stock** : un chapitre de 72 cartes annonce **8**. L'en-tête compte
-   des **chapitres** et l'écrit (« 4 chapitres »).
-6. **La matière d'une carte se lit par `Skill.subject_id`**, jamais par le chapitre
-   (`DATA_MODEL.md`, règle de lecture ajoutée).
-7. Les décisions de l'ADR-0057 : recherche **cliente** sur le titre · portée « toute la page »
-   bornée par « emmener » · un seul normaliseur · listing léger séparé du `summary`.
-8. Les défauts de la brique restent **des props à défaut inchangé** : les quatre autres pages ne
-   bougent pas, la parité Capsules reste l'étalon.
+1. 🔴 **Le chapitre se DÉRIVE, il ne se persiste jamais** (§4). `Mission` n'a aucune colonne de
+   chapitre : une notion change de chapitres dès qu'une leçon est validée.
+2. 🔴 **Zéro ou plusieurs chapitres → « Sans chapitre »**. On n'en choisit **jamais** un parmi
+   plusieurs — ce serait afficher du faux sous une apparence de certitude.
+3. **Le gate `validated` est à la charge de l'appelant** : `lessons_by_skill` rend les brouillons
+   **volontairement**, son contrat le dit.
+4. **Une `champion` dérive de ses ÉTAPES** (`MissionStep.skill_id`), n'ayant aucune notion propre ;
+   et elle garde son deck 🏆, hors de toute matière.
+5. **`showSubjectHeader={Boolean(cherche)}`** — la provenance s'affiche dès qu'on cherche, même
+   pour un résultat unique.
+6. Les décisions de l'ADR-0057 : recherche **cliente** sur le titre · portée « toute la page »
+   bornée par « emmener » · brique partagée, **aucune variante locale**.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** — celle de leur matière, répétée sous
-  un en-tête qui la porte déjà. Elles ne se distinguent que par leur texte. Y remédier demande
-  d'inventer un visuel par chapitre : **arbitrage du commanditaire**, non tranché.
-- ⚠️ **Le signal n° 5 de l'ADR-0057** (*« une liste de chapitres plus longue que la liste des
-  matières »*) vaut **10 pour 5**. Replié, ça reste quatre lignes ; c'est un jugement, pas une
-  mesure. À surveiller quand le programme grossira.
+- ⚠️ **« Sans chapitre » vaut 4 sur 21 en Maths (19 %)**, plus que les 10 % globaux — les Maths
+  concentrent les notions qui traversent le programme. Loin du signal d'alarme, mais **à
+  surveiller** : le signal n° 1 de l'addendum est *« ça devient le plus gros groupe »*.
+- ⚠️ **Le repli `subject: ""` du champion** (`missions/service.py`) reste — signalé par l'addendum
+  §5, invisible tant que le deck 🏆 ne le lit pas. **Non traité.**
+- ⚠️ **Deux missions en double en base** (« Addition de fractions » ids 19/16, « Dénominateur
+  commun » ids 18/15) — **données de dev**, pas un bug. Papa a créé la même mission deux fois.
+- ⚠️ Le tri par **TYPE** de mission (Renforcer / Réviser / Découvrir / Sur mesure) reste écarté
+  comme premier niveau, **à reconsidérer en filtre secondaire** si « Sans chapitre » grossit.
+
+**Remontées de la slice Révision (mergée, PR #131, squash `7deaa6f`) — élaguée ce jour :**
+
+- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision` — celle de leur
+  matière, sous un en-tête qui la porte déjà. Y remédier demande d'inventer un visuel par
+  chapitre : **arbitrage non tranché**.
 - ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse, corps = boucle).
-  Signalé, non corrigé — hors périmètre.
-
-**Remontées de la slice Mindmaps (mergée, PR #130, squash `bdc3f6d`) — élaguée ce jour :**
-
-- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** : la route neuve
-  l'est, ses deux voisines (`summary`, `/subjects/{slug}/mindmaps`) ne l'étaient pas. Trou
+- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** — trou
   **pré-existant**.
-- ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`** — le heading
-  y porte **aussi** le rétrolien, les séparer dépassait le geste minimal.
+- ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`.**
 
 **Les DETTES À UNE LIGNE, qui n'ont plus besoin d'un chantier :**
 
 - 🔴 **La copie de `groupCapsules.ts` chez PAPA** (`apps/frontend-papa/src/lib/`) — un import.
-- 🔴 **`showSubjectHeader` sur `/quiz`** — une prop.
-- ✅ ~~Le deck `{ chapter }` absent d'`API_SPEC`~~ — **réglé ce jour** (hors périmètre **quatre
-  fois**, il tenait sur la même ligne que la route neuve).
+- 🔴 **`showSubjectHeader` sur `/quiz`** — une prop. ⚠️ **Et maintenant `/quiz` est la SEULE page
+  du motif à ne pas l'avoir**, les quatre autres l'ont.
 
-**Deux arbitrages qui attendent :** `page-quiz.md` (spec absente, question posée le 2026-08-14,
-jamais tranchée) et **Missions** (`adr-0017` §5 : les croisées sont multi-matières — un tri par
-matière les ampute au lieu de les ranger). **Missions est le dernier morceau non arbitré de
-l'ADR-0057.**
+**Un arbitrage qui attend :** `page-quiz.md` (spec absente, question posée le 2026-08-14, jamais
+tranchée).
 
 **Remontées des ADR-0054, 0055 et 0056 :**
 
@@ -130,51 +120,52 @@ deux fois pour rien. **Paire `backend` (:8000) + `massimo` (:5173)** vivante pou
 d'écran, ⚠️ elle **meurt avec la session**. Token de Massimo posé à la main dans `localStorage`
 (`zetis_massimo_token`).
 
-**Rien n'a été écrit en base** par ce chantier. ⚠️ Une session chapitre a été **ouverte** en vrai
-(Théorème de Pythagore) mais **aucune carte notée** — donc aucun `SpacedReviewAttempt`, aucun XP,
-aucune planification touchée.
+**Rien n'a été écrit en base** par ce chantier — aucune mission démarrée, aucune étape complétée.
 
-**Suites lancées APRÈS la dernière modification (les correctifs d'écran) :**
+**Suites lancées APRÈS la dernière modification de code :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1295** ✅ (1291 + 4 verrous serveur) |
-| Massimo `vitest` | **759** ✅ (752 + 7) |
+| backend `pytest` | **1302** ✅ (1295 + 7) |
+| Massimo `vitest` | **765** ✅ (759 + 6) |
 | Papa `vitest` | **814** ✅ (inchangé) |
 | `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-⚠️ **Un test existant a été touché, et il faut savoir lequel** : la **fabrique de mock** de
-`RevisionPage.test.tsx` gagne `fetchReviewChapters` — **aucune assertion des 7 tests d'origine
-n'est modifiée**, et le défaut `[]` leur fait décrire l'écran d'avant. C'est la preuve de parité,
-pas une régression masquée. Le **verrou de dépôt**, lui, a changé d'objet : c'est une décision
-d'ADR (§9(1)), pas un test supprimé.
+⚠️ **Les docs ont été écrites après ce dernier run** ; elles ne touchent aucun code.
+**Aucun test existant n'a été modifié.**
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
-
-1. ✅ **MISSIONS est CADRÉ** (2026-08-14) — `adr-0057-addendum-missions.md`, qui **rend
-   l'arbitrage (4)** de l'ADR-0057 §9. Prochain pas : **`/ouverture ADR-0057 addendum Missions`**,
-   après le commit du lot Décision.
-
-   🔴 **Le cadrage a retourné la raison du report.** L'objection écrite — *« les croisées sont
-   multi-matières »* — vaut **1 mission sur 58**, et `useMissions.ts:211` **l'extrait déjà** dans
-   son deck 🏆. La vraie différence est ailleurs : les quatre autres pages sont **leçon-centrées**
-   (une leçon porte **un** `chapter_id`), les missions sont **notion-centrées** — et `Skill` n'a
-   **aucun** chapitre. Il se dérive, et peut valoir **zéro, un ou plusieurs**.
-   **Mesuré** : **52/58 sous un chapitre (90 %)**, 4 sous aucun, 1 sous deux, 1 sous trois.
-   ⚠️ **Mesure refaite une fois** — `lessons_by_skill` laisse passer les **brouillons**.
+1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
+   (`docs/WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR, « branche supprimée » et
+   « rien à pousser ».
 2. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
-   `showSubjectHeader` sur **`/quiz`**.
+   `showSubjectHeader` sur **`/quiz`** (désormais la seule page du motif à ne pas l'avoir).
 3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
-4. **Deux arbitrages nés de cette slice** : les **icônes de chapitre toutes identiques** · le
-   signal n°5 à **10 chapitres pour 5 matières**.
+4. **Deux arbitrages d'écran** nés des slices Révision et Missions : les icônes de chapitre
+   identiques · « Sans chapitre » à 19 % en Maths.
 5. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
-   **Pas cadré.**
+   **Pas cadré** : c'est le prochain vrai chantier, et il demande un `/cadrage`.
 6. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+
+---
+
+## ⬆️ REMONTÉ de l'élagage de la slice Révision (PR #131, squash `7deaa6f`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-revision` (**8 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.90.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : **un verrou peut changer d'objet au lieu de mourir.** Un test de dépôt
+> interdisait le mot « chapitre » dans `RevisionPage.tsx`, et disait lui-même que seul un ADR
+> pouvait l'ouvrir. L'ADR est venu ; le verrou n'a pas été supprimé, il garde désormais la
+> **hiérarchie** qui borne le risque qu'il protégeait. Et : *une redondance se lit comme une
+> double sécurité et se comporte comme un bandeau sur les yeux* — deux protections qui se
+> couvraient l'une l'autre laissaient **deux sabotages verts**.
 
 ---
 
