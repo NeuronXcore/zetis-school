@@ -488,16 +488,40 @@ def list_subject_mindmaps(db: Session, subject_slug: str) -> list[dict]:
         )
         .order_by(Chapter.sort_order, Lesson.sort_order, Mindmap.id)
     ).all()
+    lessons = {
+        lesson.id: lesson
+        for lesson in db.scalars(select(Lesson).where(Lesson.id.in_([r.lesson_id for r, _ in rows])))
+    }
     return [
         {
             "id": row.id,
             "lesson_id": row.lesson_id,
             "title": (row.mindmap_json or {}).get("center", ""),
             "chapter": chapter_name,
+            # 🔴 L'IDENTIFIANT du chapitre (ADR-0057) : c'est lui qui groupe. Le nom seul
+            # fusionnerait deux homonymes, et surtout la brique rangerait tout sous
+            # « Sans chapitre » — sabotage démasqué en slice Quiz.
+            "chapter_id": lessons[row.lesson_id].chapter_id if row.lesson_id in lessons else None,
             "subject_slug": subject.slug,
+            "subject": subject.name,  # nom affichable — l'étagère le montre
         }
         for row, chapter_name in rows
     ]
+
+
+def student_mindmaps_index(db: Session) -> list[dict]:
+    """Toutes les cartes validées, toutes matières (ADR-0057, slice Mindmaps).
+
+    🔴 **Aucune règle neuve** : `list_subject_mindmaps` appelée matière par matière. Le filtre du
+    servable (leçon validée de l'année active, carte `validated`) reste **là où il est**.
+
+    ⚠️ **L'ordre est significatif et préservé** : matière, puis `Chapter.sort_order`, puis
+    `Lesson.sort_order` — l'ordre du **programme**, dont la surface se sert pour ranger.
+    """
+    out: list[dict] = []
+    for subject in db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)):
+        out.extend(list_subject_mindmaps(db, subject.slug))
+    return out
 
 
 def mindmaps_summary(db: Session) -> dict:

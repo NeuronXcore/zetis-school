@@ -131,7 +131,10 @@ class MindmapListItem(BaseModel):
     lesson_id: int
     title: str
     chapter: str | None = None
+    # 🔴 L'IDENTIFIANT du chapitre (ADR-0057) : c'est lui qui groupe, le nom ne suffit pas.
+    chapter_id: int | None = None
     subject_slug: str = ""
+    subject: str = ""  # nom affichable de la matière — l'étagère le montre
 
 
 class MindmapPilotageCard(MindmapOut):

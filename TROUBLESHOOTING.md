@@ -4,6 +4,40 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/une-seule-facon-de-trouver-mindmaps` — 2026-08-14
+
+### 🔴 Un RANG n'est pas une ADRESSE — et la différence ne se voit qu'au moment de partager
+
+`MindmapSubjectPage` ouvrait une carte par `open(idx)` — **son rang dans la liste de la matière
+courante**. Tant que tout se joue dans une matière, ça marche. Dès qu'un résultat de recherche
+vient d'ailleurs, le rang ne désigne plus rien : il pointe sur la carte qui occupe ce rang **dans
+l'autre liste**.
+
+**Parade** : `openIdx` → `openId` (l'identifiant), plus `?carte=<id>` comme **adresse** de la
+carte — le patron de `?fiche=` (ADR-0054 §1), nettoyage d'URL compris.
+
+**À retenir** : *une position n'identifie un objet que dans la liste qui l'a produite.* Le jour où
+une page cesse d'être seule à afficher ses objets, tout index devient un bug en attente.
+
+### ⚠️ `graphify affected` a rendu VIDE une SECONDE fois dans la journée
+
+Après `subject_fiche_tiles` le matin, `list_subject_mindmaps` le soir : *« No affected nodes
+found »* alors que `mindmaps/router.py:143` l'appelle. Deux fois en un jour, sur deux modules
+différents — ce n'est pas un accident.
+
+**Parade** : `affected` **oriente**, il ne prouve **jamais** l'absence d'appelant. Sur un périmètre
+de non-régression, confirmer au `grep`. *(Même famille que le piège d'`explain`, qui rend UN nœud
+quand plusieurs portent le nom.)*
+
+### ✅ Ce que trois slices du même motif ont fini par produire
+
+Cette slice n'a rencontré **aucun piège neuf de mise en œuvre** — décor à deux chapitres, verrou
+serveur écrit d'emblée, chapitre retiré de l'objet, en-tête de matière conditionnel : tout était
+déjà écrit par les deux précédentes. **Le seul point dur était de conception** (l'adresse), et il
+avait été nommé à l'ouverture, avant la première ligne.
+
+*Un prompt de slice qui reprend les pièges des slices sœurs les empêche de se rejouer.*
+
 ## Chantier `feat/une-seule-facon-de-trouver-fiches` — 2026-08-14
 
 ### 🔴 Un sabotage BACKEND resté vert — la slice n'avait aucun verrou côté serveur

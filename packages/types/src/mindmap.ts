@@ -49,7 +49,10 @@ export interface MindmapListItem {
   lesson_id: number;
   title: string; // = `mindmap_json.center`
   chapter: string | null;
+  // 🔴 L'IDENTIFIANT, pas seulement le nom (ADR-0057) : c'est lui qui groupe.
+  chapter_id: number | null;
   subject_slug: string;
+  subject: string; // nom affichable de la matière
 }
 
 // Carte détaillée (viewer Massimo, éditeur Papa) — la structure complète + son statut.
