@@ -153,12 +153,17 @@ d'ADR (§9(1)), pas un test supprimé.
 
 Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
 
-1. 🔴 **MISSIONS — le dernier morceau non arbitré de l'ADR-0057** (§9(4)), et donc la suite
-   naturelle. Les missions croisées sont **multi-matières** (`adr-0017` §5, *« esprit EPI du cycle
-   4 »*) : un tri par matière les **ampute** au lieu de les ranger. `MissionsPage` consomme
-   pourtant `SubjectDeckGrid` comme les autres. Ça demande un **cadrage** (`/cadrage`), pas une
-   slice — la question est *quelle est la bonne unité de rangement d'une mission ?*, et elle n'a
-   jamais été posée.
+1. ✅ **MISSIONS est CADRÉ** (2026-08-14) — `adr-0057-addendum-missions.md`, qui **rend
+   l'arbitrage (4)** de l'ADR-0057 §9. Prochain pas : **`/ouverture ADR-0057 addendum Missions`**,
+   après le commit du lot Décision.
+
+   🔴 **Le cadrage a retourné la raison du report.** L'objection écrite — *« les croisées sont
+   multi-matières »* — vaut **1 mission sur 58**, et `useMissions.ts:211` **l'extrait déjà** dans
+   son deck 🏆. La vraie différence est ailleurs : les quatre autres pages sont **leçon-centrées**
+   (une leçon porte **un** `chapter_id`), les missions sont **notion-centrées** — et `Skill` n'a
+   **aucun** chapitre. Il se dérive, et peut valoir **zéro, un ou plusieurs**.
+   **Mesuré** : **52/58 sous un chapitre (90 %)**, 4 sous aucun, 1 sous deux, 1 sous trois.
+   ⚠️ **Mesure refaite une fois** — `lessons_by_skill` laisse passer les **brouillons**.
 2. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
    `showSubjectHeader` sur **`/quiz`**.
 3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
