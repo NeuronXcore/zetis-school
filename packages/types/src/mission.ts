@@ -26,6 +26,21 @@ export interface MissionStep {
 export interface Mission {
   id: number;
   subject: string;
+  /** Slug de la matière — servi par le serveur depuis l'ADR-0057 (addendum Missions).
+   *
+   *  ⚠️ Il manquait, et le front le **devinait** : `nameToSlug[nom] ?? slugify(nom)`. Un nom
+   *  accentué ne redonne pas toujours le bon slug, et la brique de rangement l'exige. */
+  subject_slug: string;
+  /** Chapitre **dérivé** de la notion via ses leçons validées (ADR-0057 addendum Missions §2/§3).
+   *
+   *  🔴 `null` quand la dérivation rend **zéro OU plusieurs** chapitres — on n'en choisit jamais
+   *  un parmi plusieurs. Une notion comme « Priorités opératoires » est enseignée en Fractions
+   *  **et** en Nombres relatifs : la ranger sous la première serait afficher du faux.
+   *
+   *  ⚠️ **Rien n'est persisté** : `missions` n'a aucune colonne de chapitre, et c'est le critère
+   *  qui borne le chantier — une notion change de chapitres dès qu'une leçon est validée. */
+  chapter_id: number | null;
+  chapter: string | null;
   skill_id: number | null;
   skill_name: string | null;
   title: string;

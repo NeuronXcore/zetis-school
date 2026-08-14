@@ -1,5 +1,37 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.91.0 — Les missions se rangent aussi, et le report reposait sur une raison fausse
+
+Cinquième et dernière page du motif. Elle avait été mise de côté pour un motif écrit noir sur
+blanc : *« les missions croisées sont multi-matières, un tri par matière les ampute »*.
+
+> **La mesure a retourné la raison.** L'objection vaut pour **une mission sur 58** — et le code la
+> traitait **déjà** : les défis champion sont extraits avant le regroupement, dans leur propre
+> deck 🏆. Le report reposait sur un problème résolu ailleurs, dans un fichier que le cadrage
+> n'avait pas ouvert.
+
+**La vraie différence, personne ne l'avait nommée.** Les quatre autres pages rangent des
+**leçons**, qui portent exactement un chapitre. Une mission range une **notion** — et une notion
+n'a pas de chapitre : elle se dérive, et peut en traverser plusieurs. « Priorités opératoires »
+est enseignée en Fractions *et* en Nombres relatifs.
+
+Ouvrir « Mathématiques » ne donne plus 21 missions à la file, mais **Nombres relatifs 10 ·
+Fractions 6 · Géométrie 1**, plus quatre sous **« Sans chapitre »** — celles dont la notion
+traverse le programme ou n'a pas encore de leçon validée. **On ne leur en choisit aucun** :
+les ranger sous le premier venu afficherait du faux sous une apparence de certitude.
+
+**Rien n'est stocké.** Le chapitre se calcule à la lecture, à chaque fois : une notion change de
+chapitres dès qu'une leçon est validée, et une colonne serait fausse le lendemain sans que rien ne
+le signale.
+
+Et la recherche traverse : depuis les Maths, « participe » ramène les trois missions de Français,
+sous un en-tête qui dit d'où elles viennent.
+
+> **Cette page n'avait aucun test de rendu** — ses deux tests vérifiaient une table de libellés
+> sans jamais la monter. Elle en a six. Le premier écrit a d'ailleurs attrapé, dans la minute, un
+> défaut réintroduit d'hier : un résultat d'une autre matière s'affichait **sans rien qui dise
+> qu'il en venait**.
+
 ## 0.90.0 — La révision se déplie par chapitre, quatre jours après avoir dit le contraire
 
 Dernière des quatre pages du motif, et la seule qui demandait de **rouvrir une décision**. Le

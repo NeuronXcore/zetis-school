@@ -43,6 +43,7 @@ from app.db.models import (
     Subject,
 )
 from app.modules.gamification.service import award_xp
+from app.modules.lesson_resolution import lessons_by_skill
 from app.modules.memory.service import interval_from_score, schedule_review
 from app.modules.progress.mastery import record_mastery_transition
 from app.modules.progress.service import OPEN_GAP_STATUSES
@@ -236,9 +237,85 @@ def _skill_subject(db: Session, skill_id: int | None) -> tuple[str | None, str]:
     return skill.name, (subject.name if subject is not None else "")
 
 
-def _to_out(db: Session, mission: Mission) -> dict:
+def _skill_ids_of(db: Session, mission: Mission) -> set[int]:
+    """Les notions d'une mission : la sienne, ET celles de ses étapes.
+
+    ⚠️ Une mission `champion` ne porte **aucune** notion sur elle-même (`skill_id IS NULL`) — elles
+    vivent sur ses étapes (ADR-0022). Ne regarder que `mission.skill_id` la rendrait muette.
+    """
+    ids = {mission.skill_id} if mission.skill_id is not None else set()
+    ids |= {
+        s
+        for (s,) in db.execute(
+            select(MissionStep.skill_id).where(
+                MissionStep.mission_id == mission.id, MissionStep.skill_id.is_not(None)
+            )
+        ).all()
+    }
+    return ids
+
+
+def chapters_of_missions(db: Session, missions: list[Mission]) -> dict[int, tuple[int, str] | None]:
+    """`mission.id` → son chapitre `(id, nom)`, ou `None` (ADR-0057 addendum Missions §2/§3).
+
+    🔴 **Une mission n'a PAS de chapitre : elle a une NOTION, et `Skill` n'a aucun `chapter_id`.**
+    C'est ce qui distingue cette page des quatre autres du motif — elles rangent des **leçons**,
+    qui portent exactement un chapitre. Ici le chapitre se **dérive**, et la dérivation peut rendre
+    zéro, un, ou plusieurs chapitres.
+
+    🔴 **Une seule → ce chapitre. Zéro ou plusieurs → `None` (« Sans chapitre »).** On n'en choisit
+    JAMAIS un parmi plusieurs : « Priorités opératoires » est enseignée en Fractions **et** en
+    Nombres relatifs — la ranger sous la première serait afficher du faux sous une apparence de
+    certitude, et rien à l'écran ne dirait qu'un choix a été fait (§3).
+
+    🔴 **AUCUNE colonne, aucune migration** (§4) : le calcul vit ici, à la lecture. Une notion
+    change de chapitres dès que Papa valide une leçon — un `chapter_id` dénormalisé serait faux le
+    lendemain, sans que rien ne le signale. C'est la leçon de `Quiz.chapter_id` (`DATA_MODEL.md`).
+
+    ⚠️ **Le gate `validated` est posé ICI, et c'est le contrat de `lessons_by_skill`** : elle rend
+    les brouillons volontairement (*« c'est l'appelant qui décide s'il l'accepte »*), et une
+    surface élève ne montre que des leçons validées. Oublier ce filtre a produit une mesure fausse
+    pendant le cadrage — 3 missions ambiguës annoncées au lieu d'1.
+
+    **UNE requête** pour toutes les notions, plus une pour les noms de chapitres : `lessons_by_skill`
+    est en lot, ce qui évite le N+1 que la version naïve aurait payé sur 58 missions.
+    """
+    par_mission = {m.id: _skill_ids_of(db, m) for m in missions}
+    toutes = {s for ids in par_mission.values() for s in ids}
+    if not toutes:
+        return {m.id: None for m in missions}
+
+    lecons = lessons_by_skill(db, sorted(toutes))
+    chap_par_skill: dict[int, set[int]] = {}
+    for sid, liste in lecons.items():
+        chap_par_skill[sid] = {
+            lec.chapter_id
+            for lec in liste
+            if lec.status == "validated" and lec.chapter_id is not None
+        }
+
+    noms = dict(db.execute(select(Chapter.id, Chapter.name)).all())
+    out: dict[int, tuple[int, str] | None] = {}
+    for m in missions:
+        ch: set[int] = set()
+        for sid in par_mission[m.id]:
+            ch |= chap_par_skill.get(sid, set())
+        out[m.id] = (next(iter(ch)), noms.get(next(iter(ch)), "")) if len(ch) == 1 else None
+    return out
+
+
+def _to_out(
+    db: Session, mission: Mission, chapitres: dict[int, tuple[int, str] | None] | None = None
+) -> dict:
     subject = db.get(Subject, mission.subject_id) if mission.subject_id is not None else None
     subject_name = subject.name if subject is not None else ""
+    subject_slug = subject.slug if subject is not None else ""
+    # Passé en LOT par la liste élève ; calculé à l'unité ailleurs (une élue, quelques créées).
+    chapitre = (
+        chapitres.get(mission.id)
+        if chapitres is not None
+        else chapters_of_missions(db, [mission])[mission.id]
+    )
     steps = list(
         db.scalars(
             select(MissionStep)
@@ -273,6 +350,11 @@ def _to_out(db: Session, mission: Mission) -> dict:
     return {
         "id": mission.id,
         "subject": subject_name,
+        # ⚠️ Le slug MANQUAIT, et le front le devinait par `slugify(nom)` — un nom accentué ne
+        # redonne pas toujours le bon slug. Les quatre autres pages du motif le servent.
+        "subject_slug": subject_slug,
+        "chapter_id": chapitre[0] if chapitre else None,
+        "chapter": chapitre[1] if chapitre else None,
         "skill_id": mission.skill_id,
         "skill_name": _skill_name(db, mission.skill_id),
         "title": mission.title,
@@ -687,7 +769,9 @@ def list_missions(db: Session, student: StudentProfile) -> list[dict]:
             .order_by(Mission.status, Mission.priority.desc(), Mission.id.desc())
         )
     )
-    return [_to_out(db, m) for m in missions]
+    # Dérivation des chapitres EN LOT — sinon 58 missions feraient autant de couples de requêtes.
+    chapitres = chapters_of_missions(db, missions)
+    return [_to_out(db, m, chapitres) for m in missions]
 
 
 def new_missions_count(db: Session, student_id: int) -> int:

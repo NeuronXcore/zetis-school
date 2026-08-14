@@ -34,6 +34,14 @@ class MissionStepStudentOut(BaseModel):
 class MissionStudentOut(BaseModel):
     id: int
     subject: str
+    # ⚠️ Le slug MANQUAIT : le front le devinait par `slugify(nom)`, et un nom accentué ne redonne
+    # pas toujours le bon slug. Les quatre autres pages du motif (ADR-0057) le servent.
+    subject_slug: str = ""
+    # Chapitre DÉRIVÉ de la notion via ses leçons validées (ADR-0057 addendum Missions §2/§3).
+    # 🔴 `None` quand la dérivation rend **zéro OU plusieurs** chapitres — on n'en choisit jamais
+    # un parmi plusieurs. Rien n'est persisté : le calcul vit dans le service, à la lecture (§4).
+    chapter_id: int | None = None
+    chapter: str | None = None
     skill_id: int | None
     skill_name: str | None
     title: str

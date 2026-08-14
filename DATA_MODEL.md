@@ -487,6 +487,28 @@ passée.
 
 ### Mission
 
+> #### 🔴 Règle de lecture — une mission n'a PAS de chapitre : elle a une NOTION
+>
+> `missions` ne porte **aucune** colonne de chapitre, et c'est une décision, pas un oubli
+> (`adr-0057` addendum Missions §4). Le chapitre se **dérive** à la lecture :
+> `Skill → LessonSkill → Lesson(status='validated') → Chapter`
+> (`missions.service.chapters_of_missions`, en lot via `lessons_by_skill`).
+>
+> **Pourquoi jamais persisté** : une notion **change de chapitres** dès que Papa valide une leçon.
+> Un `chapter_id` dénormalisé serait faux le lendemain sans que rien ne le signale — c'est
+> exactement ce que la règle de lecture des quiz (§ plus haut) a déjà payé.
+>
+> 🔴 **La dérivation rend `None` quand elle trouve ZÉRO **ou** PLUSIEURS chapitres**, et on n'en
+> choisit jamais un : « Priorités opératoires » est enseignée en **Fractions et en Nombres
+> relatifs**. Mesuré le 2026-08-14 sur 58 missions actionnables — 52 sous un chapitre (90 %),
+> 4 sous aucun, 1 sous deux, 1 sous trois.
+>
+> ⚠️ **Une mission `champion` n'a aucune notion propre** : ses notions vivent sur ses **étapes**
+> (`MissionStep.skill_id`). Ne lire que `Mission.skill_id` la rendrait muette.
+>
+> ⚠️ **Le gate `validated` est à la charge de l'appelant** — `lessons_by_skill` rend les brouillons
+> volontairement. L'oublier a produit une mesure fausse pendant le cadrage.
+
 ```txt
 id
 student_id
