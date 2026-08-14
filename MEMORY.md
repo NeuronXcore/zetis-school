@@ -6,10 +6,11 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON COMMITÉ — matière → chapitre + recherche sur `/fiches` (ADR-0057, slice 2)
+### ✅ CHANTIER MERGÉ — matière → chapitre + recherche sur `/fiches` (ADR-0057, slice 2)
 
-Branche **`feat/une-seule-facon-de-trouver-fiches`**, base **`6352091`**. Le prompt de slice y est
-commité ; **le code ne l'est pas**. *(État exact : `git log --oneline main..HEAD` et `git status`.)*
+**MERGÉ dans `main` le 2026-08-14 — PR [#129](https://github.com/NeuronXcore/zetis-school/pull/129),
+squash `290b017`.** Branche `feat/une-seule-facon-de-trouver-fiches` **supprimée** (locale et
+distante), base d'origine `6352091`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
 > 🔴 **NE PAS RÉ-IMPLÉMENTER.** ✅ **Écran VU** : Français rangé sous 4 chapitres dans l'ordre du
 > programme ; « pythagore » depuis le Français ramène la leçon de Maths sous son étagère nommée.
@@ -118,10 +119,19 @@ ce qu'ils vérifient est identique.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, lancer les tests, puis committer et pousser.**
-2. **Ouvrir la PR** et la merger (chantier **fini**), puis l'**étape 4bis** (`WORKFLOW.md §5`).
-3. Ensuite, **un seul chantier à la fois** : `/ouverture` sur la **slice Mindmaps** (la brique est
-   éprouvée sur trois pages), ou l'une des dettes ci-dessus.
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
+
+1. 🔴 **ADR-0057, slice MINDMAPS** — l'avant-dernière. La brique est éprouvée sur **trois** pages ;
+   il reste Mindmaps, puis **Révision** (la plus chère, qui consommera l'amendement de
+   l'ADR-0049 D1). Cadré, arbitré, rien à re-décider.
+2. 🔴 **Trois dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
+   `showSubjectHeader` à brancher sur **`/quiz`** · le deck `{ chapter }` à documenter dans
+   `API_SPEC`.
+3. **Deux arbitrages qui attendent** : `page-quiz.md` (spec absente) et **Missions**.
+4. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+   **Pas cadré** : il lui faut son ADR.
+5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération — une vérification que personne
+   n'a faite.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
