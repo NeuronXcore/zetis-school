@@ -6,15 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — `/revision` se déplie par chapitre (ADR-0057, slice 4, **LA DERNIÈRE**)
+### ✅ CHANTIER MERGÉ — `/revision` se déplie par chapitre (ADR-0057, slice 4, **LA DERNIÈRE**)
 
-Branche **`feat/une-seule-facon-de-trouver-revision`**, base `3c223e1`.
-**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
-committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
+**MERGÉ dans `main` le 2026-08-14 — PR [#131](https://github.com/NeuronXcore/zetis-school/pull/131),
+squash `7deaa6f`.** Branche `feat/une-seule-facon-de-trouver-revision` **supprimée** (locale et
+distante), base d'origine `3c223e1`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
-> 🔴 **Cette slice a CONSOMMÉ l'amendement de l'`adr-0049` D1**, acquis le 2026-08-14 et resté
-> quatre jours sans emploi. Le motif « une seule façon de trouver » est **complet sur ses cinq
-> pages** : Capsules (étalon), Quiz, Fiches, Mindmaps, Révision.
+> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Cette slice a **CONSOMMÉ l'amendement de l'`adr-0049` D1**, acquis
+> le 2026-08-14 et resté quatre jours sans emploi. Le motif « une seule façon de trouver » est
+> désormais **complet sur ses cinq pages** : Capsules (étalon), Quiz, Fiches, Mindmaps, Révision.
+> ✅ **Écran VU, chaîne complète** : 10 chapitres servis, un clic lance la session, la recherche
+> traverse sans accent, Capsules mesuré intact dans le DOM.
 
 #### ✅ FAIT
 
@@ -123,9 +125,10 @@ l'ADR-0057.**
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée** — sans elle, `test_auth.py` rougit deux fois pour rien. **Paire
-`backend` (:8000) + `massimo` (:5173)** vivante pour la vérification d'écran, ⚠️ elle **meurt avec
-la session**. Token de Massimo posé à la main dans `localStorage` (`zetis_massimo_token`).
+**Infra Docker allumée** (`pnpm infra:down` pour l'éteindre) — sans elle, `test_auth.py` rougit
+deux fois pour rien. **Paire `backend` (:8000) + `massimo` (:5173)** vivante pour la vérification
+d'écran, ⚠️ elle **meurt avec la session**. Token de Massimo posé à la main dans `localStorage`
+(`zetis_massimo_token`).
 
 **Rien n'a été écrit en base** par ce chantier. ⚠️ Une session chapitre a été **ouverte** en vrai
 (Théorème de Pythagore) mais **aucune carte notée** — donc aucun `SpacedReviewAttempt`, aucun XP,
@@ -148,15 +151,19 @@ d'ADR (§9(1)), pas un test supprimé.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
-   (`docs/WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR, « branche supprimée » et
-   « rien à pousser ».
-2. 🔴 **MISSIONS — le dernier morceau non arbitré de l'ADR-0057** (§9(4)). Les missions croisées
-   sont **multi-matières** (`adr-0017` §5) : un tri par matière les ampute. Ça demande un
-   **cadrage**, pas une slice.
-3. 🔴 **Deux dettes à une ligne** : l'import de `groupCapsules.ts` chez **Papa** ·
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
+
+1. 🔴 **MISSIONS — le dernier morceau non arbitré de l'ADR-0057** (§9(4)), et donc la suite
+   naturelle. Les missions croisées sont **multi-matières** (`adr-0017` §5, *« esprit EPI du cycle
+   4 »*) : un tri par matière les **ampute** au lieu de les ranger. `MissionsPage` consomme
+   pourtant `SubjectDeckGrid` comme les autres. Ça demande un **cadrage** (`/cadrage`), pas une
+   slice — la question est *quelle est la bonne unité de rangement d'une mission ?*, et elle n'a
+   jamais été posée.
+2. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
    `showSubjectHeader` sur **`/quiz`**.
-4. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
+3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
+4. **Deux arbitrages nés de cette slice** : les **icônes de chapitre toutes identiques** · le
+   signal n°5 à **10 chapitres pour 5 matières**.
 5. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
    **Pas cadré.**
 6. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
