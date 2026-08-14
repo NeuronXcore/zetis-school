@@ -6,10 +6,11 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET, NON COMMITÉ — matière → chapitre + recherche sur `/mindmaps` (ADR-0057, slice 3)
+### ✅ CHANTIER MERGÉ — matière → chapitre + recherche sur `/mindmaps` (ADR-0057, slice 3)
 
-Branche **`feat/une-seule-facon-de-trouver-mindmaps`**, base **`28a020f`**. Le prompt de slice y est
-commité ; **le code ne l'est pas**. *(État exact : `git log --oneline main..HEAD` et `git status`.)*
+**MERGÉ dans `main` le 2026-08-14 — PR [#130](https://github.com/NeuronXcore/zetis-school/pull/130),
+squash `bdc3f6d`.** Branche `feat/une-seule-facon-de-trouver-mindmaps` **supprimée** (locale et
+distante), base d'origine `28a020f`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
 > 🔴 **NE PAS RÉ-IMPLÉMENTER.** ✅ **Écran VU, chaîne complète** : Français rangé sous 3 chapitres
 > dans l'ordre du programme ; « thales » depuis le Français ramène la mindmap de Maths, et le clic
@@ -122,10 +123,18 @@ la session**. Token de Massimo posé à la main dans `localStorage` (`zetis_mass
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, lancer les tests, committer, pousser.**
-2. **PR → merge** (chantier **fini**), puis l'**étape 4bis** (`WORKFLOW.md §5`).
-3. Ensuite : `/ouverture` sur la **slice RÉVISION** — la dernière du motif —, ou les **trois dettes
-   à une ligne**, qui se règlent sans chantier.
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
+
+1. 🔴 **ADR-0057, slice RÉVISION — LA DERNIÈRE du motif.** C'est elle qui **consommera
+   l'amendement de l'ADR-0049 D1**, acquis le 2026-08-14 et jamais dépensé : le chapitre s'ouvre
+   sur `/revision`. ⚠️ **La plus chère des quatre** — `ReviewsSummary` ne connaît que des matières,
+   il n'existe aucun listing d'objets à grouper. Le read-before-code devra le mesurer avant tout.
+2. 🔴 **Trois dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
+   `showSubjectHeader` sur **`/quiz`** · le deck `{ chapter }` dans `API_SPEC`.
+3. **Deux arbitrages qui attendent** : `page-quiz.md` (spec absente) et **Missions**.
+4. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+   **Pas cadré.**
+5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
