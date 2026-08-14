@@ -8,6 +8,7 @@ import {
   type QuizSubjectSummary,
   type StartAttemptResult,
   type StudentQuiz,
+  type StudentQuizListItem,
 } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
 
@@ -34,6 +35,14 @@ async function asJson<T>(res: Response): Promise<T> {
 /** `GET /api/student/quiz-subjects` — grille des matières + nombre de quiz (grisée si 0). */
 export async function fetchQuizSubjects(): Promise<QuizSubjectSummary[]> {
   return asJson(await fetch(`${API_URL}/api/student/quiz-subjects`, { headers: headers() }));
+}
+
+/** `GET /api/student/quizzes` — listing LÉGER de tous les quiz jouables (ADR-0057).
+ *
+ * Sans les questions : la page groupe et cherche sur des titres. Le quiz complet se charge au
+ * clic, par `fetchQuizById` — le patron du menu de notion (`useOpenNotionAction`). */
+export async function fetchQuizIndex(): Promise<StudentQuizListItem[]> {
+  return asJson(await fetch(`${API_URL}/api/student/quizzes`, { headers: headers() }));
 }
 
 /** `GET /api/student/quizzes/{slug}` — quiz jouables d'une matière (questions embarquées, sans clé). */

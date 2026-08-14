@@ -161,6 +161,7 @@ export {
   type QuizSubjectSummary,
   type StartAttemptResult,
   type StudentQuiz,
+  type StudentQuizListItem,
   type StudentQuizQuestion,
 } from "./quiz";
 export {

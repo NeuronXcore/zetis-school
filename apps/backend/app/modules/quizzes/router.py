@@ -31,6 +31,7 @@ from app.modules.quizzes.schemas import (
     QuizGenerateResponse,
     QuizListItem,
     StartAttemptOut,
+    StudentQuizListItem,
     StudentQuizOut,
     StudentQuizSubjectOut,
     SubmitAnswerRequest,
@@ -142,6 +143,16 @@ def delete_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
 def student_quiz_subjects(db: Session = Depends(get_db)) -> list[dict]:
     """Grille « Quiz » : matières de l'année active + nombre de quiz jouables (0 → grisée)."""
     return service.student_quiz_subjects(db)
+
+
+@student_router.get("/quizzes", response_model=list[StudentQuizListItem])
+def student_quiz_index(db: Session = Depends(get_db)) -> list[dict]:
+    """Listing LÉGER de tous les quiz jouables, toutes matières (ADR-0057).
+
+    Sert la page `/quiz` : titre, matière et chapitre — **jamais les questions**. Même filtre que
+    le listing par matière (`_servable_quizzes_of_subject`), payload allégé.
+    """
+    return service.list_student_quiz_index(db)
 
 
 @student_router.get("/quizzes/{subject_slug}", response_model=list[StudentQuizOut])

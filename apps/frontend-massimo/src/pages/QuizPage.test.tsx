@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
-import type { QuizSubjectSummary, StudentQuiz } from "@zetis/types";
+import type { QuizSubjectSummary, StudentQuizListItem } from "@zetis/types";
 import { QuizPage } from "./QuizPage";
 
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -12,23 +12,53 @@ vi.mock("react-router-dom", async (orig) => {
 
 vi.mock("../lib/quiz", () => ({
   fetchQuizSubjects: vi.fn(),
-  fetchSubjectQuizzes: vi.fn(),
+  fetchQuizIndex: vi.fn(),
+  fetchQuizById: vi.fn(),
 }));
-import { fetchQuizSubjects, fetchSubjectQuizzes } from "../lib/quiz";
+import { fetchQuizIndex, fetchQuizSubjects } from "../lib/quiz";
 
 const SUBJECTS: QuizSubjectSummary[] = [
   { slug: "mathematiques", name: "Mathématiques", quiz_count: 1 },
   { slug: "svt", name: "SVT", quiz_count: 2 },
 ];
 
-const QUIZZES: StudentQuiz[] = [
+// ⚠️ Le listing est désormais LÉGER et couvre TOUTES les matières (ADR-0057) : la page ne
+// demande plus les quiz d'une matière, elle filtre ce qu'elle a déjà.
+const INDEX: StudentQuizListItem[] = [
   {
-    id: 6,
-    lesson_id: 21,
+    quiz_id: 6,
     title: "Quiz — Les fractions",
-    quiz_type: "mission",
-    questions: [],
-  } as unknown as StudentQuiz,
+    subject: "Mathématiques",
+    subject_slug: "mathematiques",
+    chapter_id: 3,
+    chapter: "Nombres et calculs",
+    lesson_id: 21,
+    questions_count: 4,
+  },
+  {
+    // ⚠️ DEUXIÈME chapitre de la MÊME matière — sans lui, un regroupement qui fusionnerait tous
+    // les chapitres resterait invisible : le groupe unique porterait le nom du premier quiz et
+    // l'écran serait identique. Le sabotage « tout dans Sans chapitre » est resté VERT jusqu'à
+    // ce que ce quiz existe.
+    quiz_id: 7,
+    title: "Quiz — Le théorème de Pythagore",
+    subject: "Mathématiques",
+    subject_slug: "mathematiques",
+    chapter_id: 5,
+    chapter: "Géométrie",
+    lesson_id: 22,
+    questions_count: 6,
+  },
+  {
+    quiz_id: 9,
+    title: "Quiz — La photosynthèse",
+    subject: "SVT",
+    subject_slug: "svt",
+    chapter_id: 8,
+    chapter: "Le vivant",
+    lesson_id: 44,
+    questions_count: 3,
+  },
 ];
 
 function renderAt(path = "/quiz") {
@@ -42,7 +72,7 @@ function renderAt(path = "/quiz") {
 beforeEach(() => {
   navigateMock.mockReset();
   vi.mocked(fetchQuizSubjects).mockReset().mockResolvedValue(SUBJECTS);
-  vi.mocked(fetchSubjectQuizzes).mockReset().mockResolvedValue(QUIZZES);
+  vi.mocked(fetchQuizIndex).mockReset().mockResolvedValue(INDEX);
 });
 
 describe("QuizPage — lien profond par matière", () => {
@@ -53,14 +83,17 @@ describe("QuizPage — lien profond par matière", () => {
     renderAt("/quiz?subject=mathematiques");
 
     expect(await screen.findByText(/Les fractions/)).toBeInTheDocument();
-    expect(fetchSubjectQuizzes).toHaveBeenCalledWith("mathematiques");
+    // ⚠️ L'assertion porte sur CE QUE L'ÉCRAN MONTRE, pas sur l'appel réseau : depuis
+    // l'ADR-0057 la page charge un listing unique, toutes matières, et filtre elle-même. Un
+    // `toHaveBeenCalledWith("mathematiques")` ne dirait plus rien du comportement voulu.
+    expect(screen.queryByText(/photosynthèse/)).not.toBeInTheDocument();
   });
 
   it("sans `?subject=`, on reste sur la grille des matières", async () => {
     renderAt("/quiz");
 
     expect(await screen.findByText("Mathématiques")).toBeInTheDocument();
-    expect(fetchSubjectQuizzes).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Les fractions/)).not.toBeInTheDocument(); // aucun quiz affiché
   });
 
   it("le nettoyage d'URL ne mange QUE `subject` — `from` doit survivre", async () => {
@@ -80,7 +113,10 @@ describe("QuizPage — lien profond par matière", () => {
         <Sonde />
       </MemoryRouter>,
     );
-    await screen.findByText(/Les fractions/);
+    // ⚠️ SVT, donc le quiz de SVT. L'ancien décor rendait les MÊMES quiz quelle que soit la
+    // matière demandée (le mock ignorait son argument) : « Les fractions » s'affichait en
+    // ouvrant SVT, et personne ne pouvait le voir. Le listing unique a rendu le décor honnête.
+    await screen.findByText(/photosynthèse/);
 
     // 🔴 `waitFor`, et non une lecture immédiate. L'affichage des quiz et le nettoyage d'URL
     // passent par DEUX chemins d'état indépendants — l'état de la page d'un côté, le routeur de
@@ -107,7 +143,64 @@ describe("QuizPage — lien profond par matière", () => {
     const { container } = renderAt("/quiz?subject=latin");
 
     expect(await screen.findByText("Mathématiques")).toBeInTheDocument();
-    expect(fetchSubjectQuizzes).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Les fractions/)).not.toBeInTheDocument(); // on reste sur la grille
     expect(container.textContent).not.toMatch(/erreur|introuvable|échec/i);
+  });
+});
+
+describe("QuizPage — matière → chapitre + recherche (ADR-0057)", () => {
+  it("🔒 les quiz sont rangés SOUS le nom de leur chapitre", async () => {
+    renderAt("/quiz?subject=mathematiques");
+
+    expect(await screen.findByText(/Les fractions/)).toBeInTheDocument();
+    // Le chapitre vient de la leçon, côté serveur — c'est lui qui rend le rangement possible.
+    // 🔴 LES DEUX chapitres de la matière doivent apparaître, chacun avec SON quiz : c'est ce
+    // qui distingue un vrai regroupement d'un tas unique.
+    expect(screen.getByText("Nombres et calculs")).toBeInTheDocument();
+    expect(screen.getByText("Géométrie")).toBeInTheDocument();
+    expect(screen.getByText(/Pythagore/)).toBeInTheDocument();
+  });
+
+  it("🔒 la recherche traverse les MATIÈRES — la règle des capsules, pas celle de la galaxie", async () => {
+    // 🔴 Arbitrage du 2026-08-14 : on cherche sans savoir la matière. Depuis les quiz de maths,
+    // « photosynth » doit trouver le quiz de SVT — et le clic mène dessus, il ne l'affiche pas
+    // en cul-de-sac. Borner la recherche à la matière ouverte ferait rougir CE test : c'est
+    // exactement la règle qui n'a PAS été retenue.
+    renderAt("/quiz?subject=mathematiques");
+    await screen.findByText(/Les fractions/);
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher un quiz/), {
+      target: { value: "photosynth" },
+    });
+
+    expect(screen.getByText(/photosynthèse/)).toBeInTheDocument();
+    expect(screen.queryByText(/Les fractions/)).not.toBeInTheDocument();
+  });
+
+  it("🔒 un mot qui ne trouve rien nomme ce qu'on cherchait", async () => {
+    renderAt("/quiz?subject=mathematiques");
+    await screen.findByText(/Les fractions/);
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher un quiz/), {
+      target: { value: "zzzz" },
+    });
+    expect(screen.getByText(/Aucun quiz ne correspond à « zzzz »/)).toBeInTheDocument();
+  });
+});
+
+describe("QuizPage — l'en-tête ne ment pas pendant une recherche", () => {
+  it("🔒 chercher hors de la matière ouverte change le TITRE de la page", async () => {
+    // 🔴 Défaut trouvé à l'écran, invisible à tous les autres tests : « thales » depuis les quiz
+    // de Français affichait deux quiz de Mathématiques sous un titre « 📖 Français ».
+    renderAt("/quiz?subject=mathematiques");
+    await screen.findByText(/Les fractions/);
+    // ⚠️ `getByRole("heading")` : « Mathématiques » apparaît DEUX fois (le titre de la page et
+    // l'étagère de la matière). Un `getByText` échouerait sur l'ambiguïté, pas sur le défaut.
+    expect(screen.getByRole("heading", { name: /Mathématiques/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher un quiz/), {
+      target: { value: "photosynth" },
+    });
+    expect(screen.getByText("🔎 Résultats de recherche")).toBeInTheDocument();
   });
 });

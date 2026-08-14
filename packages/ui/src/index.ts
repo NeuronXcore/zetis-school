@@ -68,3 +68,13 @@ export {
   onSoundChange,
   playCelebrationChime,
 } from "./lib/sound";
+// « Une seule façon de trouver » (ADR-0057) : le groupement matière → chapitre + la recherche,
+// remontés ici depuis DEUX copies identiques (app Massimo et app Papa).
+export { normalizeSearch } from "./lib/normalizeSearch";
+export {
+  groupBySubjectChapter,
+  NO_CHAPTER_LABEL,
+  type GroupableItem,
+  type ChapterGroup,
+  type SubjectGroup,
+} from "./lib/groupBySubjectChapter";

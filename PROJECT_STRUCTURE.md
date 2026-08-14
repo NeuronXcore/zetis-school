@@ -64,6 +64,9 @@ zetis/
 │   ├── auth/                # @zetis/auth — auth + client API
 │   ├── types/               # @zetis/types — contrats API (source de vérité TS)
 │   ├── ui/                  # @zetis/ui — composants + sous-chemins lourds (galaxy, mindmap…)
+│   │                        #   `src/lib/` : briques PURES, sans React — dont
+│   │                        #   `groupBySubjectChapter` + `normalizeSearch` (ADR-0057), qui
+│   │                        #   vivaient en DEUX copies identiques dans les apps
 │   └── prompts/             # réservé (README seul ; les prompts IA vivent côté backend)
 ├── infra/
 │   ├── docker/

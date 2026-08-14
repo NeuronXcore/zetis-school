@@ -224,6 +224,26 @@ class StudentQuizOut(BaseModel):
     questions: list[StudentQuestionOut]
 
 
+class StudentQuizListItem(BaseModel):
+    """Quiz jouable **SANS ses questions** — listing léger de `/quiz` (ADR-0057, slice Quiz).
+
+    🔴 `questions_count` REMPLACE la liste des questions : la page groupe et cherche sur des
+    titres, elle n'a pas besoin du contenu. Le quiz complet se charge au clic
+    (`GET /student/quiz/{quiz_id}`), comme le fait déjà le menu de notion.
+
+    `chapter_id` / `chapter` viennent de la leçon ; `None` = le quiz ira sous « Sans chapitre ».
+    """
+
+    quiz_id: int
+    title: str
+    subject: str
+    subject_slug: str
+    chapter_id: int | None
+    chapter: str | None
+    lesson_id: int | None
+    questions_count: int
+
+
 class StudentQuizSubjectOut(BaseModel):
     """Vignette de la grille « Quiz » (écran 1) : matière + nombre de quiz jouables."""
 

@@ -159,6 +159,24 @@ export interface StudentQuizQuestion {
   skill_name: string;
 }
 
+/**
+ * `GET /api/student/quizzes` — listing LÉGER de tous les quiz jouables (ADR-0057).
+ *
+ * 🔴 **Sans les questions** : la page `/quiz` groupe et cherche sur des titres. Le quiz complet
+ * se charge au clic (`GET /api/student/quiz/{quiz_id}`). `chapter_id`/`chapter` viennent de la
+ * leçon ; `null` = l'objet ira sous « Sans chapitre ».
+ */
+export interface StudentQuizListItem {
+  quiz_id: number;
+  title: string;
+  subject: string;
+  subject_slug: string;
+  chapter_id: number | null;
+  chapter: string | null;
+  lesson_id: number | null;
+  questions_count: number;
+}
+
 /** `GET /api/student/quizzes/{subject_slug}` — quiz jouables (questions embarquées). */
 export interface StudentQuiz {
   quiz_id: number;

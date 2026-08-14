@@ -814,12 +814,15 @@ def _student_question_out(db: Session, q: QuizQuestion) -> dict:
     }
 
 
-def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
-    """Quiz jouables : leçons validées de l'année active, questions actives, sans clé."""
-    subject = db.scalar(select(Subject).where(Subject.slug == subject_slug))
-    if subject is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Matière « {subject_slug} » inconnue.")
-    lesson_ids = _validated_lesson_ids_for_subject(db, subject.id)
+def _servable_quizzes_of_subject(db: Session, subject_id: int) -> list[tuple[Quiz, list[QuizQuestion]]]:
+    """🔴 LA source unique du « quiz jouable » — leçons validées de l'année active, type mission,
+    non archivé, **au moins une question active**.
+
+    Extraite pour que le listing complet (avec questions) et le listing LÉGER (ADR-0057) ne
+    puissent pas diverger : deux formulations d'un même filtre finissent toujours par le faire, et
+    celle qui oublierait `quiz_type` servirait les **diagnostics** à Massimo.
+    """
+    lesson_ids = _validated_lesson_ids_for_subject(db, subject_id)
     if not lesson_ids:
         return []
     quizzes = list(
@@ -833,7 +836,7 @@ def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
             .order_by(Quiz.id.desc())
         )
     )
-    out: list[dict] = []
+    out: list[tuple[Quiz, list[QuizQuestion]]] = []
     for quiz in quizzes:
         questions = list(
             db.scalars(
@@ -842,14 +845,73 @@ def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
                 .order_by(QuizQuestion.sort_order, QuizQuestion.id)
             )
         )
-        if not questions:
+        if not questions:  # un quiz sans question active n'est pas jouable
             continue
+        out.append((quiz, questions))
+    return out
+
+
+def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
+    """Quiz jouables : leçons validées de l'année active, questions actives, sans clé."""
+    subject = db.scalar(select(Subject).where(Subject.slug == subject_slug))
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Matière « {subject_slug} » inconnue.")
+    return [
+        {
+            "quiz_id": quiz.id,
+            "title": quiz.title,
+            "lesson_id": quiz.lesson_id,
+            "questions": [_student_question_out(db, q) for q in questions],
+        }
+        for quiz, questions in _servable_quizzes_of_subject(db, subject.id)
+    ]
+
+
+def list_student_quiz_index(db: Session) -> list[dict]:
+    """Listing LÉGER de tous les quiz jouables, toutes matières (ADR-0057, slice Quiz).
+
+    🔴 **Sans les questions** : c'est tout l'objet de la route. La page `/quiz` cherche et groupe
+    sur des titres ; elle n'a aucun besoin des 168 questions que le listing par matière transporte
+    aujourd'hui. Le quiz complet se charge **au clic**, par `GET /student/quiz/{quiz_id}`.
+
+    Le chapitre vient de la leçon (`Lesson.chapter_id`) — aucune colonne neuve, aucune migration.
+    Un quiz dont la leçon n'a pas de chapitre sort avec `chapter_id = None` : la surface le range
+    sous « Sans chapitre », elle ne le cache pas.
+    """
+    subjects = list(db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)))
+    rows: list[tuple[Subject, Quiz, int]] = []
+    for subject in subjects:
+        for quiz, questions in _servable_quizzes_of_subject(db, subject.id):
+            rows.append((subject, quiz, len(questions)))
+    if not rows:
+        return []
+
+    # Chapitre par leçon, en DEUX requêtes pour tout le lot (jamais une par quiz).
+    lesson_ids = {quiz.lesson_id for _, quiz, _ in rows if quiz.lesson_id is not None}
+    lessons = {
+        lesson.id: lesson
+        for lesson in db.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids)))
+    } if lesson_ids else {}
+    chapter_ids = {lesson.chapter_id for lesson in lessons.values() if lesson.chapter_id}
+    chapters = {
+        chapter.id: chapter
+        for chapter in db.scalars(select(Chapter).where(Chapter.id.in_(chapter_ids)))
+    } if chapter_ids else {}
+
+    out: list[dict] = []
+    for subject, quiz, questions_count in rows:
+        lesson = lessons.get(quiz.lesson_id) if quiz.lesson_id else None
+        chapter = chapters.get(lesson.chapter_id) if lesson and lesson.chapter_id else None
         out.append(
             {
                 "quiz_id": quiz.id,
                 "title": quiz.title,
+                "subject": subject.name,
+                "subject_slug": subject.slug,
+                "chapter_id": chapter.id if chapter else None,
+                "chapter": chapter.name if chapter else None,
                 "lesson_id": quiz.lesson_id,
-                "questions": [_student_question_out(db, q) for q in questions],
+                "questions_count": questions_count,
             }
         )
     return out
