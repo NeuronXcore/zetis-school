@@ -30,6 +30,23 @@ class ReviewsSummary(BaseModel):
     new_count: int = 0  # total de cartes « nouvelles » (badge Massimo)
 
 
+class ChapterDue(BaseModel):
+    """Un chapitre offrable, pour le troisième niveau de `/revision` (ADR-0057, slice Révision).
+
+    Ne sont servis que les chapitres dont le deck a **vraiment** quelque chose à donner : un
+    chapitre à zéro n'apparaît pas du tout — ni grisé, ni « bientôt » (ADR-0057 §6, citant
+    l'`adr-0049` D2 : *« un bouton mort se lit comme une panne »*).
+    """
+
+    chapter_id: int
+    name: str
+    subject: str
+    subject_slug: str
+    # 🔴 Taille de SESSION (`min(REVIEW_SESSION_MAX_CHAPTER, servables)`), jamais un stock — même
+    # raison que `SubjectDue.session_size`. Un chapitre de 72 cartes annonce 8.
+    session_size: int
+
+
 class SubjectDeck(BaseModel):
     """Deck ciblé sur une matière : `{"subject": "<slug>"}`."""
 

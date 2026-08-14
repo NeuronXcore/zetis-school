@@ -7,6 +7,9 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Chapter,
+    Lesson,
+    LessonSkill,
     Skill,
     SpacedReviewAttempt,
     SpacedReviewCard,
@@ -376,6 +379,86 @@ def chapter_servable_counts(db: Session, student_id: int, chapter_ids: list[int]
     viser le même chapitre).
     """
     return {cid: chapter_servable_count(db, student_id, cid) for cid in dict.fromkeys(chapter_ids)}
+
+
+def servable_chapters(db: Session, student_id: int) -> list[dict]:
+    """Les chapitres qui ont vraiment quelque chose à réviser, **toutes matières** (ADR-0057 §4).
+
+    Le troisième niveau de `/revision` : matière → chapitre. La recherche traverse les matières
+    (ADR-0057 §9(3)), d'où un seul listing plutôt qu'un par matière.
+
+    🔴 **On part des CARTES, jamais des chapitres** — et ce n'est pas un détail d'implémentation,
+    c'est ce qui évite le trou le plus cher du dépôt. `Chapter` n'a **aucun `subject_id`** : il a
+    deux parents, **tous deux nullables** (`school_year_subject_id`, `theme_id`). Descendre
+    matière → chapitre par un `INNER JOIN` sur `SchoolYearSubject` fait disparaître **en silence**
+    les chapitres rattachés par thème — ce trou a coûté l'ADR-0037 entier, a été retrouvé dans
+    `lessons_by_skill` (addendum ADR-0034), puis une troisième fois dans l'ADR-0042.
+    Ici la question ne se pose pas : ce module lit la matière d'une carte par
+    `Skill.subject_id`, comme `get_reviews_summary` et `build_session`. Une seule convention.
+
+    🔴 **La requête ÉNUMÈRE, `chapter_servable_count` JUGE.** Un partage strict, et il s'est
+    imposé par un sabotage vert : la requête portait aussi `Lesson.status == 'validated'`, si bien
+    que la servabilité était décidée à **deux** endroits. Chacun couvrant l'autre, aucun des deux
+    sabotages ne rougissait — une redondance qui se lit comme une double sécurité et qui est en
+    fait un test aveugle. La règle « quelles leçons comptent » vit dans
+    `ordered_chapter_skill_ids`, et **là seulement** ; ici on ne filtre que sur les cartes.
+
+    🔴 **Le COMPTE ne vient jamais de cette requête** non plus. La jointure `LessonSkill`
+    ci-dessous **surcompterait** : une notion enseignée par deux leçons du même chapitre produit
+    deux lignes, donc sa carte serait comptée deux fois (`ordered_chapter_skill_ids` déduplique,
+    précisément pour ça) — c'est le raisonnement de `session_size`, et la seconde source de vérité
+    qui a divergé le jour même au §14.5 du chantier agenda.
+
+    ⚠️ **Coût assumé** : les chapitres à leçon non validée entrent dans les candidats et sortent au
+    compte, pour un appel chacun. Sur la base de dev, une dizaine de candidats.
+
+    ⚠️ **Aucun filtre d'année**, volontairement : `ordered_chapter_skill_ids` n'en porte pas non
+    plus, si bien que le deck `{chapter}` sert des cartes pour tout chapitre à leçon validée. Un
+    listing plus étroit que son propre deck cacherait des chapitres qui fonctionnent.
+
+    Un chapitre à zéro **ne sort pas** (ADR-0057 §6, citant l'`adr-0049` D2) : le serveur décide
+    de la servabilité, la surface ne la recompte jamais.
+    """
+    candidats = db.execute(
+        select(
+            Subject.slug,
+            Subject.name.label("subject_name"),
+            Chapter.id.label("chapter_id"),
+            Chapter.name.label("chapter_name"),
+        )
+        .join(Skill, Skill.subject_id == Subject.id)
+        .join(SpacedReviewCard, SpacedReviewCard.skill_id == Skill.id)
+        .join(LessonSkill, LessonSkill.skill_id == Skill.id)
+        .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+        .join(Chapter, Chapter.id == Lesson.chapter_id)
+        .where(*chapter_card_conditions(db, student_id))
+        # ⚠️ L'ordre est celui du PROGRAMME (`Chapter.sort_order`), pas l'alphabétique — c'est
+        # l'information qu'une année scolaire porte, et la trier par nom l'effacerait sans que
+        # rien ne le signale. Le front la relaie par `chapterOrder`.
+        .group_by(Subject.slug, Subject.name, Subject.sort_order, Chapter.id, Chapter.name, Chapter.sort_order)
+        .order_by(Subject.sort_order, Subject.name, Chapter.sort_order, Chapter.name)
+    ).all()
+
+    out: list[dict] = []
+    for slug, subject_name, chapter_id, chapter_name in candidats:
+        taille = chapter_servable_count(db, student_id, chapter_id)
+        if taille == 0:
+            continue
+        out.append(
+            {
+                "chapter_id": chapter_id,
+                "name": chapter_name,
+                "subject": subject_name,
+                "subject_slug": slug,
+                # 🔴 `session_size`, PAS un stock : `chapter_servable_count` rend
+                # `min(REVIEW_SESSION_MAX_CHAPTER, total)`. Un chapitre de 72 cartes servables
+                # annonce **8**, parce que c'est ce que la session servira. Nommer ce champ
+                # « count » en ferait un arriéré, donc la pression quotidienne que `CLAUDE.md`
+                # interdit (ADR-0057 §7 : un compteur doit dire ce qu'il compte).
+                "session_size": taille,
+            }
+        )
+    return out
 
 
 def _rows_with_reserved_places(db: Session, stmt, cap: int) -> list:

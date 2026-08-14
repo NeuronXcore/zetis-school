@@ -242,6 +242,7 @@ export {
   type ReviewAttemptResult,
   type ReviewCard,
   type ReviewCardType,
+  type ReviewChapterDue,
   type ReviewDeck,
   type ReviewRating,
   type ReviewSessionRequest,

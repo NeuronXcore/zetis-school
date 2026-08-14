@@ -15,6 +15,7 @@ from app.modules.memory.schemas import (
     CardContent,
     CardsOverview,
     ChapterDeck,
+    ChapterDue,
     DeleteCardResult,
     DeleteCardsResult,
     ReactivateResult,
@@ -32,6 +33,7 @@ from app.modules.memory.service import (
     get_due_cards,
     get_reviews_summary,
     record_attempt,
+    servable_chapters,
 )
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
@@ -73,6 +75,21 @@ def reviews_summary(
 ) -> ReviewsSummary:
     student = get_default_student(db)
     return ReviewsSummary(**get_reviews_summary(db, student))
+
+
+@student_router.get("/chapters", response_model=list[ChapterDue])
+def reviews_chapters(
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> list[ChapterDue]:
+    """Les chapitres offrables, toutes matières (ADR-0057, slice Révision).
+
+    Listing **séparé** de `/summary`, et non un enrichissement : `summary` est aussi consommé par
+    l'**Accueil** (`useAccueil.ts`), qui n'a que faire des chapitres. Même geste que les trois
+    slices précédentes du motif (`/api/student/quizzes`, `/fiche-tiles`, `/mindmaps`).
+    """
+    student = get_default_student(db)
+    return [ChapterDue(**row) for row in servable_chapters(db, student.id)]
 
 
 @student_router.post("/session", response_model=list[ReviewCard])

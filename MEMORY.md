@@ -6,85 +6,104 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — matière → chapitre + recherche sur `/mindmaps` (ADR-0057, slice 3)
+### ✅ CHANTIER COMPLET — `/revision` se déplie par chapitre (ADR-0057, slice 4, **LA DERNIÈRE**)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#130](https://github.com/NeuronXcore/zetis-school/pull/130),
-squash `bdc3f6d`.** Branche `feat/une-seule-facon-de-trouver-mindmaps` **supprimée** (locale et
-distante), base d'origine `28a020f`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
+Branche **`feat/une-seule-facon-de-trouver-revision`**, base `3c223e1`.
+**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
+committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER.** ✅ **Écran VU, chaîne complète** : Français rangé sous 3 chapitres
-> dans l'ordre du programme ; « thales » depuis le Français ramène la mindmap de Maths, et le clic
-> **l'ouvre** — URL passée à `/mindmaps/mathematiques`, `?carte=` consommé puis nettoyé.
+> 🔴 **Cette slice a CONSOMMÉ l'amendement de l'`adr-0049` D1**, acquis le 2026-08-14 et resté
+> quatre jours sans emploi. Le motif « une seule façon de trouver » est **complet sur ses cinq
+> pages** : Capsules (étalon), Quiz, Fiches, Mindmaps, Révision.
 
 #### ✅ FAIT
 
 | Livré | Détail |
 |---|---|
-| `chapter_id` + `subject` sur `MindmapListItem` | schéma, service, `packages/types` |
-| `GET /api/student/mindmaps` | index toutes matières (**27 cartes**), déclarée **avant** `/mindmaps/{id}` |
-| 🔴 **`?carte=<id>` — l'ADRESSE d'une mindmap** | elle n'en avait aucune ; patron de `?fiche=`, nettoyage d'URL compris |
-| `openIdx` → `openId` | un **rang** ne désigne rien hors de sa liste |
-| `MindmapSubjectPage` | une seule source, étagères, recherche traversante, clic qui **emmène** |
-| 🔴 **Les 5 PREMIERS tests de cette page** | elle n'en avait aucun depuis sa création |
+| `GET /api/student/reviews/chapters` | listing des chapitres **offrables**, toutes matières, ordre du programme |
+| `servable_chapters` (`memory/service.py`) | part **des cartes** ; la requête énumère, `chapter_servable_count` juge |
+| `ReviewChapterDue` | `packages/types` + schéma Pydantic + `index.ts` |
+| Section **« Par chapitre »** sur `/revision` | étagères repliées + recherche traversante, **sous** « Par matière » |
+| 🔴 **Le verrou de dépôt RETOURNÉ** | il interdisait le mot « chapitre » ; il garde maintenant le **troisième rang** |
+| 3 props neuves sur la brique | `showChapterLabel` · `countLabel` · `subjectOrder` (défauts inchangés = parité) |
+| **11 tests neufs** (7 Massimo + 4 backend) | `RevisionPage.test.tsx` passe de 8 à **15** |
 
-**Zéro migration.** La route par matière reste (`/subjects/{slug}/mindmaps`).
+**Zéro migration.** Le deck `{chapter}` (session, attempt, XP) n'a **pas été touché** : réutilisé
+tel quel depuis la PR #109.
 
 #### 🔬 CE QUE LA VÉRIFICATION A DONNÉ
 
-**Quatre sabotages, quatre rougeurs ciblées** : `chapter_id` retiré du payload → verrou **serveur**
-(écrit d'emblée cette fois) · index réduit à une matière → verrou d'index · recherche bornée à la
-matière → verrou « traverse » · `?carte=` non consommé → verrou de l'adresse · `chapterOrder`
-ignoré → **les deux pages**, Mindmaps *et* Fiches.
+**Neuf sabotages joués, neuf rouges** (4 backend, 5 front).
 
-✅ **Aucun piège neuf de mise en œuvre** : les deux slices sœurs les avaient tous payés, et le
-prompt les reprenait. Le seul point dur était **de conception** (l'adresse), nommé à l'ouverture.
+🔴 **Mais le premier verrou serveur est resté VERT sous DEUX sabotages** — la servabilité était
+décidée à deux endroits, chacun couvrant l'autre. *Une redondance se lit comme une double sécurité
+et se comporte comme un bandeau sur les yeux.* Duplication retirée, le verrou mord.
 
-⚠️ **`graphify affected` a rendu vide une SECONDE fois** dans la journée.
+🔴 **Quatre défauts sur cinq n'étaient visibles qu'À L'ÉCRAN**, quatorze tests verts pendant ce
+temps : tuiles empilées **verticalement** (signalé par le commanditaire) · matières rangées
+**alphabétiquement** sous une liste des mêmes matières rangée par le programme · matière répétée
+sur **chaque** tuile sous une étagère qui la nomme · titres longs déformant les rangées.
 
-Détail : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-mindmaps` (3 sous-sections).
+✅ **Chaîne complète vue en vrai** : 10 chapitres servis (Fr 4 · Maths 4 · SVT 1 · Angl 1 ·
+**HG 0** — les chiffres exacts du cadrage) · un clic a **lancé la session** « Théorème de
+Pythagore », 6 points pour les 6 cartes annoncées · « seisme » sans accent depuis le Français
+ramène le chapitre SVT, étagère **ouverte d'elle-même** · Capsules **intact**, mesuré dans le DOM.
+
+Détail : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-revision` (**8 sous-sections**).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Une adresse, jamais un rang** : `?carte=<id>` ouvre la mindmap et se retire de l'URL ; le
-   reste des paramètres survit.
-2. **Une seule source** : l'index de toutes les matières, dont l'écran dérive celle qui est ouverte.
-3. **L'ordre des chapitres est celui du programme** (`chapterOrder`) ; la brique garde
-   l'alphabétique **par défaut** (parité Capsules).
-4. **`showSubjectHeader = cherche || plusieurs groupes`** · **le chapitre ne s'écrit pas sur
-   l'objet** quand l'étagère le porte · **`defaultOpen`** quand la matière est déjà choisie.
-5. Les décisions de l'ADR-0057 : recherche **cliente** sur le titre, portée « toute la page »
-   bornée par « emmener », un seul normaliseur, listing léger.
+1. 🔴 **Le troisième rang est une CONTRAINTE, pas une mise en page** : mélanges en tête et plus
+   grands, matière ensuite, étagères **repliées à l'arrivée**. Aucun chapitre n'est atteignable
+   sans avoir déplié sa matière. C'est ce qui **borne** l'objection *blocked practice* — elle n'est
+   **pas levée** par l'amendement. Un test-verrou la garde.
+2. **La recherche déplie** tant qu'elle est active (`defaultOpen={cherche.length > 0}`) : un
+   résultat visible et inatteignable est le défaut que « emmener » existe pour empêcher.
+3. **Ici « emmener » ne demande AUCUNE adresse** : la destination est une session, pas une page.
+   Ne pas inventer de `?chapitre=`.
+4. **Le chapitre EST l'objet** → `showChapterLabel={false}`, et alors **une seule grille** par
+   étagère (le `div` par chapitre n'existait que pour son titre).
+5. **`session_size`, jamais un stock** : un chapitre de 72 cartes annonce **8**. L'en-tête compte
+   des **chapitres** et l'écrit (« 4 chapitres »).
+6. **La matière d'une carte se lit par `Skill.subject_id`**, jamais par le chapitre
+   (`DATA_MODEL.md`, règle de lecture ajoutée).
+7. Les décisions de l'ADR-0057 : recherche **cliente** sur le titre · portée « toute la page »
+   bornée par « emmener » · un seul normaliseur · listing léger séparé du `summary`.
+8. Les défauts de la brique restent **des props à défaut inchangé** : les quatre autres pages ne
+   bougent pas, la parité Capsules reste l'étalon.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** — la nouvelle
-  route l'est, les deux voisines (`summary`, `/subjects/{slug}/mindmaps`) ne l'étaient pas.
-  Trou **pré-existant**, signalé sans être comblé.
+- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** — celle de leur matière, répétée sous
+  un en-tête qui la porte déjà. Elles ne se distinguent que par leur texte. Y remédier demande
+  d'inventer un visuel par chapitre : **arbitrage du commanditaire**, non tranché.
+- ⚠️ **Le signal n° 5 de l'ADR-0057** (*« une liste de chapitres plus longue que la liste des
+  matières »*) vaut **10 pour 5**. Replié, ça reste quatre lignes ; c'est un jugement, pas une
+  mesure. À surveiller quand le programme grossira.
+- ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse, corps = boucle).
+  Signalé, non corrigé — hors périmètre.
 
-**Remontées de la slice Fiches (mergée, PR #129, squash `290b017`) — élaguée ce jour :**
+**Remontées de la slice Mindmaps (mergée, PR #130, squash `bdc3f6d`) — élaguée ce jour :**
 
+- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** : la route neuve
+  l'est, ses deux voisines (`summary`, `/subjects/{slug}/mindmaps`) ne l'étaient pas. Trou
+  **pré-existant**.
 - ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`** — le heading
-  y porte **aussi le rétrolien**, les séparer dépassait le geste minimal. *(Sur `/mindmaps`, la
-  question ne se pose pas : le clic emmène, donc l'écran change.)*
-- ⚠️ **Le triple nommage subsiste sur `/quiz`** : `showSubjectHeader` n'y est pas branché. **Une
-  ligne.**
+  y porte **aussi** le rétrolien, les séparer dépassait le geste minimal.
 
 **Les DETTES À UNE LIGNE, qui n'ont plus besoin d'un chantier :**
 
 - 🔴 **La copie de `groupCapsules.ts` chez PAPA** (`apps/frontend-papa/src/lib/`) — un import.
 - 🔴 **`showSubjectHeader` sur `/quiz`** — une prop.
-- 🔴 **Le deck `{ chapter }` absent d'`API_SPEC`** (`/student/reviews/session`) — hors périmètre
-  **quatre fois** de suite maintenant.
+- ✅ ~~Le deck `{ chapter }` absent d'`API_SPEC`~~ — **réglé ce jour** (hors périmètre **quatre
+  fois**, il tenait sur la même ligne que la route neuve).
 
 **Deux arbitrages qui attendent :** `page-quiz.md` (spec absente, question posée le 2026-08-14,
-jamais tranchée) et **Missions** (`adr-0017` §5 : les croisées sont multi-matières).
-
-**Le chantier ADR-0057, dont il reste UNE slice :**
-
-🔴 **RÉVISION** — la dernière, et la plus chère : c'est elle qui **consommera l'amendement de
-l'ADR-0049 D1**, acquis depuis le 2026-08-14 et pas encore dépensé.
+jamais tranchée) et **Missions** (`adr-0017` §5 : les croisées sont multi-matières — un tri par
+matière les ampute au lieu de les ranger). **Missions est le dernier morceau non arbitré de
+l'ADR-0057.**
 
 **Remontées des ADR-0054, 0055 et 0056 :**
 
@@ -108,36 +127,56 @@ l'ADR-0049 D1**, acquis depuis le 2026-08-14 et pas encore dépensé.
 `backend` (:8000) + `massimo` (:5173)** vivante pour la vérification d'écran, ⚠️ elle **meurt avec
 la session**. Token de Massimo posé à la main dans `localStorage` (`zetis_massimo_token`).
 
-**Rien n'a été écrit en base** par ce chantier.
+**Rien n'a été écrit en base** par ce chantier. ⚠️ Une session chapitre a été **ouverte** en vrai
+(Théorème de Pythagore) mais **aucune carte notée** — donc aucun `SpacedReviewAttempt`, aucun XP,
+aucune planification touchée.
 
-**Suites lancées après la dernière modification :**
+**Suites lancées APRÈS la dernière modification (les correctifs d'écran) :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1291** ✅ (1289 + 2 verrous serveur) |
-| Massimo `vitest` | **752** ✅ (747 + 5 — la page n'en avait aucun) |
-| Papa `vitest` | **814** ✅ |
+| backend `pytest` | **1295** ✅ (1291 + 4 verrous serveur) |
+| Massimo `vitest` | **759** ✅ (752 + 7) |
+| Papa `vitest` | **814** ✅ (inchangé) |
 | `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-**Aucun test existant n'a été modifié** — cette page n'en avait pas, et les autres n'ont pas bougé.
+⚠️ **Un test existant a été touché, et il faut savoir lequel** : la **fabrique de mock** de
+`RevisionPage.test.tsx` gagne `fetchReviewChapters` — **aucune assertion des 7 tests d'origine
+n'est modifiée**, et le défaut `[]` leur fait décrire l'écran d'avant. C'est la preuve de parité,
+pas une régression masquée. Le **verrou de dépôt**, lui, a changé d'objet : c'est une décision
+d'ADR (§9(1)), pas un test supprimé.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
-
-1. 🔴 **ADR-0057, slice RÉVISION — LA DERNIÈRE du motif.** C'est elle qui **consommera
-   l'amendement de l'ADR-0049 D1**, acquis le 2026-08-14 et jamais dépensé : le chapitre s'ouvre
-   sur `/revision`. ⚠️ **La plus chère des quatre** — `ReviewsSummary` ne connaît que des matières,
-   il n'existe aucun listing d'objets à grouper. Le read-before-code devra le mesurer avant tout.
-2. 🔴 **Trois dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
-   `showSubjectHeader` sur **`/quiz`** · le deck `{ chapter }` dans `API_SPEC`.
-3. **Deux arbitrages qui attendent** : `page-quiz.md` (spec absente) et **Missions**.
-4. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
+   (`docs/WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR, « branche supprimée » et
+   « rien à pousser ».
+2. 🔴 **MISSIONS — le dernier morceau non arbitré de l'ADR-0057** (§9(4)). Les missions croisées
+   sont **multi-matières** (`adr-0017` §5) : un tri par matière les ampute. Ça demande un
+   **cadrage**, pas une slice.
+3. 🔴 **Deux dettes à une ligne** : l'import de `groupCapsules.ts` chez **Papa** ·
+   `showSubjectHeader` sur **`/quiz`**.
+4. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
+5. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
    **Pas cadré.**
-5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
+6. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+
+---
+
+## ⬆️ REMONTÉ de l'élagage de la slice Mindmaps (PR #130, squash `bdc3f6d`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-mindmaps` (**3 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.89.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : *une position n'identifie un objet que dans la liste qui l'a produite.*
+> Une mindmap s'ouvrait par son **rang** ; le jour où une autre matière peut la renvoyer, le rang
+> devient un bug en attente. `?carte=<id>` a été l'adresse manquante. **Sur `/revision`, la
+> question ne se pose pas** — la destination est une session, pas une page, et le clic la lance.
 
 ---
 

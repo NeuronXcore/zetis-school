@@ -88,10 +88,15 @@ def _card(
 # construisent la chaîne ENTIÈRE.
 
 
-def _chapter(db, name="Chapitre"):
+def _chapter(db, name="Chapitre", *, sort_order=0):
     """Un chapitre nu. `school_year_subject_id` et `theme_id` sont nullables — la traversée du
-    deck ne les regarde pas (elle part de `Lesson.chapter_id`)."""
-    chapter = m.Chapter(name=name, status="active", validation_status="validated")
+    deck ne les regarde pas (elle part de `Lesson.chapter_id`).
+
+    `sort_order` porte l'ordre du PROGRAMME (ADR-0057) : c'est lui que le listing rend, et il ne
+    coïncide volontairement pas avec l'alphabétique dans les tests qui l'exercent."""
+    chapter = m.Chapter(
+        name=name, status="active", validation_status="validated", sort_order=sort_order
+    )
     db.add(chapter)
     db.flush()
     return chapter
@@ -716,6 +721,140 @@ def test_chapter_deck_400_is_indistinguishable(client_db):
     b = client.post("/api/student/reviews/session", json={"deck": {"chapter": 999999}})
     assert a.status_code == b.status_code == 400
     assert a.json() == b.json(), "les deux causes doivent être indiscernables"
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# Le LISTING des chapitres offrables — troisième niveau de /revision (ADR-0057, slice 4)
+# ─────────────────────────────────────────────────────────────────────────────────────
+
+
+def test_servable_chapters_groups_by_subject_in_program_order(client_db):
+    """🔴 Le décor porte DEUX chapitres dans la MÊME matière, et deux matières.
+
+    Sans le second chapitre, un regroupement qui les fusionnerait resterait **VERT** : le groupe
+    unique porterait le nom du premier. Ce sabotage est passé inaperçu en slice Quiz, faute d'un
+    décor capable de le voir.
+
+    ⚠️ « Zébu » est servi AVANT « Alphabet » : l'ordre est celui du PROGRAMME
+    (`Chapter.sort_order`), pas l'alphabétique. Trier par nom effacerait la progression d'une
+    année sans que rien ne le signale.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        fr = _subject(db, "francais", "Français", sort_order=0)
+        maths = _subject(db, "mathematiques", "Mathématiques", sort_order=1)
+        zebu = _chapter(db, "Zébu", sort_order=0)
+        alphabet = _chapter(db, "Alphabet", sort_order=1)
+        geometrie = _chapter(db, "Géométrie", sort_order=0)
+        _chapter_card(db, student, fr, _lesson(db, zebu), due_at=now)
+        _chapter_card(db, student, fr, _lesson(db, alphabet), due_at=now)
+        _chapter_card(db, student, maths, _lesson(db, geometrie), due_at=now)
+        db.commit()
+
+    rows = client.get("/api/student/reviews/chapters").json()
+    assert [(r["subject_slug"], r["name"]) for r in rows] == [
+        ("francais", "Zébu"),
+        ("francais", "Alphabet"),
+        ("mathematiques", "Géométrie"),
+    ]
+    assert rows[0]["subject"] == "Français", "le NOM de la matière voyage, pas seulement le slug"
+
+
+def test_servable_chapters_never_offers_an_empty_chapter(client_db):
+    """🔴 AUCUNE PORTE SUR DU VIDE (ADR-0057 §6, citant l'`adr-0049` D2).
+
+    Trois chapitres muets, trois raisons différentes — et aucun ne doit sortir. **Ils sont arrêtés
+    à deux endroits distincts**, et il faut les trois pour le voir : la leçon en brouillon passe la
+    requête d'énumération et tombe au compte (`taille == 0`) ; les deux autres n'entrent même pas
+    dans les candidats, leurs cartes ne satisfaisant pas `chapter_card_conditions`.
+
+    ⚠️ SABOTAGE VÉRIFIÉ : retirer le `if taille == 0: continue` fait ROUGIR ce test — « Les
+    séismes » réapparaît. 🔴 **Il n'en a pas toujours été ainsi** : tant que la requête portait
+    elle aussi `Lesson.status == 'validated'`, les deux protections se couvraient l'une l'autre et
+    **aucun sabotage ne rougissait**. La redondance se lisait comme une double sécurité ; c'était
+    un test aveugle. La règle vit désormais à UN seul endroit.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        svt = _subject(db, "svt", "SVT")
+        # (1) leçon en brouillon → `ordered_chapter_skill_ids` ne résout rien
+        brouillon = _chapter(db, "Les séismes")
+        _chapter_card(db, student, svt, _lesson(db, brouillon, status="draft"), due_at=now)
+        # (2) carte `pending` (générée sans cours validé, ADR-0013)
+        en_attente = _chapter(db, "Les volcans")
+        _chapter_card(
+            db, student, svt, _lesson(db, en_attente), due_at=None, status="pending"
+        )
+        # (3) carte au statut ACTIF mais à l'échéance NULLE — seule `due_at IS NOT NULL` l'arrête
+        sans_echeance = _chapter(db, "Les marées")
+        _chapter_card(db, student, svt, _lesson(db, sans_echeance), due_at=None)
+        # … et un chapitre qui, lui, a vraiment quelque chose à donner
+        vrai = _chapter(db, "La respiration")
+        _chapter_card(db, student, svt, _lesson(db, vrai), due_at=now)
+        db.commit()
+
+    rows = client.get("/api/student/reviews/chapters").json()
+    assert [r["name"] for r in rows] == ["La respiration"]
+
+
+def test_servable_chapters_announces_a_session_size_not_a_stock(client_db):
+    """🔴 Le §7 de l'ADR-0057 : un compteur doit dire ce qu'il compte.
+
+    Le cadrage a mesuré le piège en vrai — « 8 » affiché pour des chapitres de 72, 39, 45 et 12
+    cartes. Ce que la surface annonce est ce que la session SERVIRA, jamais l'arriéré : un stock
+    affiché à Massimo serait la pression quotidienne que `CLAUDE.md` interdit.
+
+    ⚠️ SABOTAGE ATTENDU : rendre le total au lieu de `chapter_servable_count` doit faire ROUGIR.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        hist = _subject(db, "histoire", "Histoire")
+        gros = _chapter(db, "La Révolution")
+        lesson = _lesson(db, gros)
+        for i in range(REVIEW_SESSION_MAX_CHAPTER + 12):
+            _chapter_card(db, student, hist, lesson, due_at=now + timedelta(days=i))
+        db.commit()
+
+    rows = client.get("/api/student/reviews/chapters").json()
+    assert len(rows) == 1
+    assert rows[0]["session_size"] == REVIEW_SESSION_MAX_CHAPTER
+    assert "count" not in rows[0], "le champ ne doit pas pouvoir se lire comme un stock"
+
+
+def test_servable_chapters_does_not_double_count_a_skill_taught_twice(client_db):
+    """🔴 Le piège que le read-before-code a trouvé, et que le prompt n'avait pas vu.
+
+    Une notion enseignée par DEUX leçons du même chapitre produit deux lignes `LessonSkill` : une
+    requête qui compterait dans la jointure de découverte compterait sa carte **deux fois**.
+    `ordered_chapter_skill_ids` déduplique explicitement, précisément pour ça — d'où la règle de
+    conception : le compte ne vient JAMAIS de la requête de découverte, il vient de
+    `chapter_servable_count`, et de lui seul.
+
+    ⚠️ SABOTAGE ATTENDU : remplacer `chapter_servable_count` par un `func.count()` posé dans la
+    requête de découverte doit faire ROUGIR ce test (2 au lieu de 1).
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        angl = _subject(db, "anglais", "Anglais")
+        chapter = _chapter(db, "Present perfect")
+        premiere = _lesson(db, chapter, title="Leçon 1", sort_order=0)
+        seconde = _lesson(db, chapter, title="Leçon 2", sort_order=1)
+        carte = _chapter_card(db, student, angl, premiere, due_at=now)
+        # LA MÊME notion, rattachée aussi à la seconde leçon du MÊME chapitre.
+        db.add(m.LessonSkill(lesson_id=seconde.id, skill_id=carte.skill_id))
+        db.commit()
+
+    rows = client.get("/api/student/reviews/chapters").json()
+    assert len(rows) == 1, "le chapitre ne doit apparaître qu'UNE fois"
+    assert rows[0]["session_size"] == 1, "UNE carte, même enseignée par deux leçons"
 
 
 def test_chapter_session_never_moves_the_schedule(client_db, monkeypatch):
