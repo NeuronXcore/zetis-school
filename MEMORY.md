@@ -78,8 +78,8 @@ complexe (où ZETIS avait déjà écrit **« MOULIN »** dans un point-clé, fau
 ⚠️ **Le vide reste le cas fréquent et normal** (§10) : 23 leçons sur 27 n'offrent pas l'étape, et
 ce n'est pas un manque.
 
-⚠️ **L'ADR-0055 §4 décrit encore DEUX signaux** — il a été écrit avant la mesure. Un addendum doit
-l'aligner ; en attendant, **c'est le code qui a raison**, et ce paragraphe dit pourquoi.
+✅ **L'ADR-0055 §4 est ALIGNÉ** — l'addendum du 2026-08-14 (commit `d18b2ce`, sur `main`) porte la
+mesure et les deux règles ci-dessus. Il décrivait **deux** signaux, il n'en décrit plus qu'**un**.
 
 #### 🔴 UN DÉFAUT TROUVÉ À L'ÉCRAN — la source de l'occasion était fausse
 
@@ -147,9 +147,36 @@ pas** — aucune route d'enrichissement. Chiffres : **27** fiches ZETIS validée
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-Infra Docker + **paire LAN** (`backend-lan` :8004 / `massimo-lan` :5180) allumées. IP Wi-Fi
-`10.82.84.122` — **elle bouge au gré du DHCP**, la relire (`ipconfig getifaddr en0`, jamais `en10`).
+**Mesuré le 2026-08-14 à la reprise** : la **paire LAN** répond (`backend-lan` :8004 /
+`massimo-lan` :5180), mais **l'infra Docker était ÉTEINTE** — `docker ps` vide, **rien n'écoutait
+sur 5432**. ✅ **Rallumée dans la foulée** (`pnpm infra:up` : postgres + redis + minio).
+⚠️ Les serveurs de dev survivent à la fin d'une session, **pas l'infra** : la vérifier avant de
+conclure quoi que ce soit d'un rouge. IP Wi-Fi `10.82.84.122` — **elle bouge au gré du DHCP**,
+la relire (`ipconfig getifaddr en0`, jamais `en10`).
 Brouillon **54** : 3 points-clés écrits pour la démo. Brouillon **56** (leçon 8) : vide.
+
+**Les quatre suites, lancées le 2026-08-14 sur `main` (`d18b2ce`)** — la section n'en portait aucun
+chiffre :
+
+| Suite | Résultat |
+|---|---|
+| backend `pytest` | **1282** ✅ — *(1280 + 2 rouges tant que Postgres était éteint, voir plus bas)* |
+| Massimo `vitest` | **737** ✅ (71 fichiers) |
+| Papa `vitest` | **814** ✅ (75 fichiers) |
+| `tsc -b` des deux fronts | ✅ — ⚠️ mais les tests de Massimo restent **hors** typecheck |
+
+**L'arbre est VERT**, infra rallumée (`pnpm infra:up`) : les deux rouges sont retombés à zéro sans
+qu'une ligne de code bouge — `test_auth.py` : **10 passés**.
+
+🔴 **Ces deux rouges n'étaient PAS une régression, et ils disent quelque chose.** Ils échouaient sur
+`connection to server at "127.0.0.1", port 5432 failed` : Postgres était éteint. Ce sont les **deux
+seuls tests de la suite qui atteignent la VRAIE base de dev**
+(`postgresql+psycopg://zetis@localhost:5432/zetis`) — `test_auth.py` monte un `TestClient(app)` nu,
+**sans le décor qui isole la base**. `papa` passe
+(ses identifiants ne descendent pas en base), `massimo` non (son profil s'y lit).
+⚠️ Conséquence : **la verdeur de l'arbre dépend de l'infra Docker**, et un `2 failed` peut vouloir
+dire « la base est éteinte » et rien d'autre. Ils sont en **lecture seule** — les rejouer ne touche
+pas aux données de Massimo.
 
 #### ▶ PROCHAIN PAS
 
@@ -158,7 +185,8 @@ Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
 1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Deck **Français** (pas le mélange), les
    **sept** notions des cartes 322→328 : servent-elles **sa** définition et jamais celle de ZETIS ?
    Passé ce jour, les cartes ne sont plus dues et la preuve devient impossible.
-2. ✅ **CADRAGE FAIT le 2026-08-14** — les deux addenda sont écrits (non commités) :
+2. ✅ **CADRAGE FAIT ET COMMITÉ le 2026-08-14** — commit `d18b2ce` sur `main`, poussé. Les deux
+   addenda et la commande y sont :
    - **§11 de l'addendum ADR-0015** — révisé : *enrichir* et non régénérer, sortie des decks
      **par lot**. ⚠️ **Trois points restent à TRANCHER avant toute ligne** : la taille du lot
      (« une matière » est trop grossier — le Français en porte **14** sur 27), l'ordre de passage,
