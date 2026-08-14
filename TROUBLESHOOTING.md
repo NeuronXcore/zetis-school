@@ -4,6 +4,47 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/une-seule-facon-de-trouver-fiches` — 2026-08-14
+
+### 🔴 Un sabotage BACKEND resté vert — la slice n'avait aucun verrou côté serveur
+
+Sabotage : `"chapter_id": None` dans le payload des tuiles. **Les 87 tests de fiches sont restés
+verts.** Le front, lui, avait ses verrous ; le serveur n'en avait aucun sur les deux champs que la
+slice venait d'ajouter.
+
+**Parade** : deux verrous serveur (`test_fiche_service.py`) — la tuile porte `chapter_id` **et**
+`subject`, et l'index couvre toutes les matières dans l'ordre du programme. Sabotage rejoué : il
+mord. *Un champ neuf sans test serveur est un champ que le serveur peut cesser de servir en
+silence.*
+
+### 🔴 La migration a créé une redondance — le chapitre s'écrivait DEUX fois
+
+`TuileLecon` affichait `tuile.chapter` ; l'étagère qui la range le porte aussi. Résultat : le même
+mot à trois lignes d'intervalle.
+
+**Trouvé par un test**, pas par une relecture : `TestingLibraryElementError: Found multiple
+elements with the text: Zébu`. **Parade** : le chapitre quitte la tuile — la brique le porte.
+
+### 🔴 Et la correction de la redondance suivante a créé son propre défaut
+
+La matière s'écrivait **trois** fois (rétrolien, titre, en-tête d'étagère) — vu à l'écran. Première
+correction : masquer l'en-tête quand il n'y a qu'un seul groupe. **Son propre test l'a démentie** :
+en recherche, un résultat de Maths s'affichait alors sous un titre « Français », **sans rien qui
+dise d'où il venait**.
+
+**Parade** : `showSubjectHeader={cherche || groupes.length > 1}`. *Une correction de redondance
+peut supprimer une information — la question n'est pas « est-ce répété ? » mais « qu'est-ce que ça
+dit ici ? ».*
+
+### ⚠️ `graphify affected` peut rendre VIDE sur une fonction pourtant appelée
+
+`graphify affected "subject_fiche_tiles"` → *« No affected nodes found »*, alors que
+`fiches/router.py` l'appelle deux lignes plus bas. Le `grep`, lui, l'a trouvée.
+
+**Parade** : `affected` oriente, il ne prouve pas l'absence d'appelant. Pour un périmètre de
+non-régression, le confirmer par `grep -rn "<nom>"`. *(Le pendant du piège déjà consigné sur
+`explain`, qui rend UN nœud quand plusieurs portent le nom.)*
+
 ## Chantier `feat/une-seule-facon-de-trouver-quiz` — 2026-08-14
 
 ### 🔴 Un sabotage resté VERT — le décor n'avait qu'UN chapitre par matière

@@ -11,7 +11,7 @@ import type { FicheListItem, FicheTile } from "@zetis/types";
 
 const api = vi.hoisted(() => ({
   fetchSubjectFiches: vi.fn(),
-  fetchSubjectFicheTiles: vi.fn(),
+  fetchFicheTilesIndex: vi.fn(),
   fetchFiche: vi.fn(),
   markFicheSeen: vi.fn(),
   fetchFichesSummary: vi.fn(),
@@ -26,7 +26,11 @@ import { FicheSubjectPage } from "./FicheSubjectPage";
 function tuile(p: Partial<FicheTile> & Pick<FicheTile, "lesson_id" | "title" | "etat">): FicheTile {
   return {
     chapter: "Grammaire",
+    // ⚠️ L'IDENTIFIANT du chapitre est ce qui groupe (ADR-0057) : sans lui, la brique rangerait
+    // tout sous « Sans chapitre » — et aucune de ces assertions ne s'en apercevrait.
+    chapter_id: 1,
     subject_slug: "francais",
+    subject: "Français",
     draft_id: null,
     fiche_id: null,
     zetis_fiche_id: null,
@@ -65,7 +69,7 @@ function monter(entree = "/fiches/francais") {
 beforeEach(() => {
   vi.clearAllMocks();
   api.fetchSubjectFiches.mockResolvedValue(LISTE);
-  api.fetchSubjectFicheTiles.mockResolvedValue(TUILES);
+  api.fetchFicheTilesIndex.mockResolvedValue(TUILES);
   api.markFicheSeen.mockResolvedValue(undefined);
   pont.reworkFiche.mockResolvedValue({ id: 300 });
 });
@@ -137,7 +141,7 @@ describe("FicheSubjectPage — l'écran 2", () => {
 
   it("laisse le corrigé de ZETIS à un clic sur SA propre fiche", async () => {
     // §3 révisé : rien n'est verrouillé. Seul change ce qui s'ouvre en PREMIER.
-    api.fetchSubjectFicheTiles.mockResolvedValue([
+    api.fetchFicheTilesIndex.mockResolvedValue([
       tuile({ lesson_id: 8, title: "Le récit", etat: "ma_fiche", fiche_id: 100, zetis_fiche_id: 200 }),
     ]);
     monter();
@@ -149,7 +153,7 @@ describe("FicheSubjectPage — l'écran 2", () => {
 // ── Le pont fiche → cartes (addendum ADR-0015 §13) ──────────────────────────────
 
 function ouvrirSaFiche(definitions: { terme: string; definition: string }[]) {
-  api.fetchSubjectFicheTiles.mockResolvedValue([
+  api.fetchFicheTilesIndex.mockResolvedValue([
     tuile({ lesson_id: 8, title: "Le récit", etat: "ma_fiche", fiche_id: 100 }),
   ]);
   api.fetchFiche.mockResolvedValue({
@@ -219,7 +223,7 @@ describe("FicheSubjectPage — la datation de la tuile", () => {
   }
 
   it("date SA fiche, en relatif, dans la phrase de la spec", async () => {
-    api.fetchSubjectFicheTiles.mockResolvedValue([
+    api.fetchFicheTilesIndex.mockResolvedValue([
       tuile({
         lesson_id: 8, title: "Le récit", etat: "ma_fiche", fiche_id: 100,
         versions: 2, updated_at: ilYA(5),
@@ -230,7 +234,7 @@ describe("FicheSubjectPage — la datation de la tuile", () => {
   });
 
   it("date aussi une fiche en UNE version, sans jamais parler de versions", async () => {
-    api.fetchSubjectFicheTiles.mockResolvedValue([
+    api.fetchFicheTilesIndex.mockResolvedValue([
       tuile({
         lesson_id: 8, title: "Le récit", etat: "ma_fiche", fiche_id: 100,
         versions: 1, updated_at: ilYA(1),
@@ -243,7 +247,7 @@ describe("FicheSubjectPage — la datation de la tuile", () => {
   it("🔴 ne date JAMAIS la fiche de ZETIS — même si le serveur envoie une date", async () => {
     // La règle est tenue au RENDU, pas seulement par un serveur qui n'envoie rien : « il y a
     // 4 mois » sur un contenu généré ne peut que saper la confiance dans un contenu juste.
-    api.fetchSubjectFicheTiles.mockResolvedValue([
+    api.fetchFicheTilesIndex.mockResolvedValue([
       tuile({
         lesson_id: 9, title: "Les temps", etat: "zetis", fiche_id: 200,
         updated_at: ilYA(120),
@@ -256,7 +260,7 @@ describe("FicheSubjectPage — la datation de la tuile", () => {
   });
 
   it("retombe sur le texte d'avant quand la date manque — jamais « Invalid Date »", async () => {
-    api.fetchSubjectFicheTiles.mockResolvedValue([
+    api.fetchFicheTilesIndex.mockResolvedValue([
       tuile({
         lesson_id: 8, title: "Le récit", etat: "ma_fiche", fiche_id: 100,
         versions: 2, updated_at: null,
@@ -271,7 +275,7 @@ describe("FicheSubjectPage — la datation de la tuile", () => {
 // ── La porte du §1 (ADR-0054) ───────────────────────────────────────────────────
 
 function ouvrirLaFicheDeZetis() {
-  api.fetchSubjectFicheTiles.mockResolvedValue([
+  api.fetchFicheTilesIndex.mockResolvedValue([
     tuile({ lesson_id: 9, title: "Les temps", etat: "zetis", fiche_id: 200 }),
   ]);
   api.fetchFiche.mockResolvedValue({
@@ -384,5 +388,78 @@ describe("FicheSubjectPage — la porte du §1", () => {
     for (const interdit of [/recommence/i, /raté/i, /corrige/i, /erreur/i, /mauvais/i]) {
       expect(screen.queryByText(interdit)).not.toBeInTheDocument();
     }
+  });
+});
+
+// ── Matière → chapitre + recherche (ADR-0057, slice Fiches) ───────────────────
+
+describe("FicheSubjectPage — les tuiles se rangent, et la recherche traverse", () => {
+  const DEUX_CHAPITRES: FicheTile[] = [
+    // ⚠️ Décor à DEUX chapitres dans la MÊME matière — sans ça, un regroupement qui les
+    // fusionnerait resterait invisible : le groupe unique porterait le nom du premier.
+    // Le sabotage est resté VERT sur ce motif en slice Quiz.
+    tuile({ lesson_id: 7, title: "La phrase complexe", etat: "a_fabriquer", chapter: "Zébu", chapter_id: 1 }),
+    tuile({ lesson_id: 8, title: "Le récit", etat: "a_fabriquer", chapter: "Alphabet", chapter_id: 2 }),
+    tuile({
+      lesson_id: 30,
+      title: "Le théorème de Pythagore",
+      etat: "a_fabriquer",
+      chapter: "Géométrie",
+      chapter_id: 9,
+      subject_slug: "mathematiques",
+      subject: "Mathématiques",
+    }),
+  ];
+
+  it("🔒 range les tuiles sous LEURS chapitres", async () => {
+    api.fetchFicheTilesIndex.mockResolvedValue(DEUX_CHAPITRES);
+    monter();
+
+    expect(await screen.findByText("Zébu")).toBeInTheDocument();
+    expect(screen.getByText("Alphabet")).toBeInTheDocument();
+    expect(screen.getByText("La phrase complexe")).toBeInTheDocument();
+  });
+
+  it("🔒 garde l'ordre du PROGRAMME, pas l'alphabétique", async () => {
+    // 🔴 Le serveur rend « Zébu » avant « Alphabet » (Chapter.sort_order) : cette progression a
+    // un sens que le dictionnaire n'a pas. La brique trie par NOM par défaut — la page lui passe
+    // l'ordre d'apparition. Sans la prop `chapterOrder`, « Alphabet » remonterait en tête.
+    api.fetchFicheTilesIndex.mockResolvedValue(DEUX_CHAPITRES);
+    const { container } = monter();
+    await screen.findByText("Zébu");
+
+    const titres = [...container.querySelectorAll("p")]
+      .map((n) => n.textContent)
+      .filter((t) => t === "Zébu" || t === "Alphabet");
+    expect(titres).toEqual(["Zébu", "Alphabet"]);
+  });
+
+  it("🔒 la recherche traverse les matières, et le clic EMMÈNE là où la tuile vit", async () => {
+    api.fetchFicheTilesIndex.mockResolvedValue(DEUX_CHAPITRES);
+    monter();
+    await screen.findByText("La phrase complexe");
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher une leçon/), {
+      target: { value: "pythagore" },
+    });
+
+    // La tuile de Maths apparaît sous SA matière, depuis la page de Français…
+    expect(screen.getByText("Le théorème de Pythagore")).toBeInTheDocument();
+    expect(screen.getByText("Mathématiques")).toBeInTheDocument();
+    expect(screen.queryByText("La phrase complexe")).not.toBeInTheDocument();
+    // …et l'atelier ouvert est bien celui de SA leçon, dans SA matière.
+    fireEvent.click(screen.getByText("Le théorème de Pythagore"));
+    expect(screen.getByText("atelier-de-la-lecon")).toBeInTheDocument();
+  });
+
+  it("🔒 un mot qui ne trouve rien nomme ce qu'on cherchait", async () => {
+    api.fetchFicheTilesIndex.mockResolvedValue(DEUX_CHAPITRES);
+    monter();
+    await screen.findByText("La phrase complexe");
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher une leçon/), {
+      target: { value: "zzzz" },
+    });
+    expect(screen.getByText(/Aucune leçon ne correspond à « zzzz »/)).toBeInTheDocument();
   });
 });

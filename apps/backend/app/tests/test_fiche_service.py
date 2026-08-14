@@ -226,3 +226,49 @@ def test_prompt_derives_from_course_not_from_child(client_db) -> None:
         blob = system + prompt
         assert lesson.content_markdown in prompt  # le cours validé est bien la source
         assert "Massimo" not in blob  # aucune donnée de l'enfant n'entre dans le prompt
+
+
+# ── Le listing des tuiles porte de quoi RANGER (ADR-0057, slice Fiches) ────────
+
+
+def test_la_tuile_porte_chapter_id_ET_le_nom_de_la_matiere(client_db) -> None:
+    """🔒 VERROU — ce sont les deux champs que la brique de groupement exige.
+
+    🔴 Le NOM du chapitre ne suffit pas : c'est l'`chapter_id` qui groupe. Sans lui, la surface
+    rangerait tout sous « Sans chapitre » — et un sabotage l'a prouvé en restant VERT sur les 87
+    tests de fiches, le 2026-08-14, tant que ce verrou n'existait pas.
+    """
+    client, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        db.commit()
+        chapter_id, titre = lesson.chapter_id, lesson.title
+
+    r = client.get("/api/student/subjects/mathematiques/fiche-tiles")
+    assert r.status_code == 200
+    tuile = next(t for t in r.json() if t["title"] == titre)
+    assert tuile["chapter_id"] == chapter_id  # l'IDENTIFIANT, pas seulement le nom
+    assert tuile["chapter"] == "Nombres relatifs"
+    assert tuile["subject"] == "Mathématiques"  # le nom affichable, pour l'étagère
+    assert tuile["subject_slug"] == "mathematiques"
+
+
+def test_l_index_des_tuiles_couvre_TOUTES_les_matieres_dans_l_ordre_du_programme(client_db) -> None:
+    """🔒 VERROU — la recherche traverse les matières, donc l'index doit toutes les porter.
+
+    ⚠️ Et l'ORDRE est significatif : matière, puis chapitre (`Chapter.sort_order`), puis leçon.
+    C'est la progression de l'année, pas un dictionnaire — la surface s'y appuie pour ranger.
+    """
+    client, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        db.commit()
+        titre = lesson.title
+
+    index = client.get("/api/student/fiche-tiles").json()
+    par_matiere = client.get("/api/student/subjects/mathematiques/fiche-tiles").json()
+    # L'index CONTIENT le listing par matière — même filtre, aucune règle neuve.
+    assert [t["lesson_id"] for t in par_matiere] == [
+        t["lesson_id"] for t in index if t["subject_slug"] == "mathematiques"
+    ]
+    assert any(t["title"] == titre for t in index)

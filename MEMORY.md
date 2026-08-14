@@ -6,93 +6,87 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — matière → chapitre + recherche sur `/quiz` (ADR-0057, slice 1)
+### ✅ CHANTIER COMPLET, NON COMMITÉ — matière → chapitre + recherche sur `/fiches` (ADR-0057, slice 2)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#128](https://github.com/NeuronXcore/zetis-school/pull/128),
-squash `955dba0`.** Branche `feat/une-seule-facon-de-trouver-quiz` **supprimée** (locale et
-distante), base d'origine `e3da3dc`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
+Branche **`feat/une-seule-facon-de-trouver-fiches`**, base **`6352091`**. Le prompt de slice y est
+commité ; **le code ne l'est pas**. *(État exact : `git log --oneline main..HEAD` et `git status`.)*
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans l'arbre de travail.
-> ✅ **Écran VU** (Français : 17 quiz sous 4 chapitres ; recherche « thales » depuis le Français →
-> les 2 quiz de Maths ; page Capsules inchangée).
+> 🔴 **NE PAS RÉ-IMPLÉMENTER.** ✅ **Écran VU** : Français rangé sous 4 chapitres dans l'ordre du
+> programme ; « pythagore » depuis le Français ramène la leçon de Maths sous son étagère nommée.
 
 #### ✅ FAIT
 
 | Livré | Détail |
 |---|---|
-| `GET /api/student/quizzes` | listing **léger**, toutes matières — **7,6 ko pour 37 quiz**, contre **27,7 ko** pour les 17 du seul Français |
-| `_servable_quizzes_of_subject()` | **source unique** du filtre (type `mission`, leçon validée, non archivé, ≥ 1 question active) |
-| `groupBySubjectChapter` + `normalizeSearch` | remontés dans **`packages/ui/src/lib/`** — ils vivaient en **DEUX copies identiques à l'octet** (app Massimo, app Papa) |
-| `SubjectChapterShelves` | étagères + champ de recherche + état vide, `apps/frontend-massimo/src/components/browse/` |
-| `/quiz` | quiz par chapitre, recherche **toutes matières**, quiz complet chargé **au clic** (`fetchQuizById`) |
-| Capsules | migrées sur la brique, **à rendu identique** — et dotées de leur **premier test** |
+| `chapter_id` + `subject` sur `FicheTile` | schéma, service, `packages/types` — **le NOM ne suffit pas, c'est l'identifiant qui groupe** |
+| `GET /api/student/fiche-tiles` | index toutes matières, **42 tuiles / 14,3 ko**, sur le patron de `/student/quizzes` |
+| `chapterOrder` sur la brique | **ordre du PROGRAMME** pour les fiches ; défaut alphabétique inchangé (parité Capsules/Quiz) |
+| `showSubjectHeader` sur la brique | la matière ne s'écrit plus **trois** fois — mais reparaît dès qu'on cherche |
+| `FicheSubjectPage` | **une seule source** (l'index), étagères, recherche traversante, « emmener » par `?fiche=` |
+| Le chapitre quitte la tuile | l'étagère le porte déjà |
 
-**Zéro migration.** `QuizSessionState` **inchangé** : les trois portes vers `/quiz/session`
-(`QuizPage`, `useOpenNotionAction`, `CoursPage`) fonctionnent comme avant.
+**Zéro migration.** `subject_fiche_tiles` et sa route par matière **restent** — `CoursPage` en dépend.
 
-#### 🔬 CE QUE LA VÉRIFICATION A TROUVÉ — et qui ne se déduit d'aucun test vert
+#### 🔬 CE QUE LA VÉRIFICATION A TROUVÉ
 
-1. 🔴 **Un sabotage est resté VERT** : forcer la brique à tout mettre dans « Sans chapitre » ne
-   faisait rougir aucun des 9 tests — le décor n'avait **qu'un chapitre par matière**, et le groupe
-   fusionné prenait le nom du premier objet. Décor corrigé (deux chapitres), le sabotage rougit.
-2. 🔴 **Un défaut trouvé À L'ÉCRAN** : chercher « thales » depuis le Français affichait les quiz de
-   Maths sous un titre **« 📖 Français »**. Les tests vérifiaient les résultats, jamais ce que la
-   page dit d'elle-même.
-3. **Un test EXISTANT a trouvé un défaut de conception** : la parité stricte (accordéons fermés)
-   faisait que `/quiz?subject=maths` ouvrait la matière sur un accordéon **clos**. D'où
-   `defaultOpen` — vrai pour les quiz, **faux pour les Capsules**.
-4. **L'ancien décor mentait** : le mock de `fetchSubjectQuizzes` rendait les quiz de Maths quelle
-   que soit la matière demandée.
+1. 🔴 **Un sabotage backend est resté VERT** : supprimer `chapter_id` du payload ne faisait rougir
+   **aucun** des 87 tests de fiches — la slice n'avait pas de verrou serveur. Deux verrous ajoutés,
+   sabotage rejoué : il mord.
+2. 🔴 **Un test a attrapé une redondance créée par la migration** (le chapitre écrit deux fois).
+3. 🔴 **Puis un test a démenti ma propre correction** : masquer l'en-tête de matière cachait la
+   **provenance** d'un résultat de recherche.
+4. ⚠️ **`graphify affected` a rendu VIDE** sur une fonction pourtant appelée.
 
-Détail et parades : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-quiz` (7 sous-sections).
+Détail et parades : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-fiches` (4 sous-sections).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **La recherche est CLIENTE**, sur les objets déjà servis — aucun endpoint de recherche, aucun
-   `ILIKE`, aucun appel au RAG (ADR-0057 §2).
-2. Elle cherche le **titre**, pas le contenu.
-3. **Portée = règle des capsules** : toute la page, toutes matières — bornée par « un résultat hors
-   portée doit **emmener**, jamais s'afficher sans y mener ».
-4. **Une seule brique, aucune variante locale** ; un seul normaliseur, celui de `packages/ui`.
-5. **La parité des Capsules est l'étalon** — leur écran ne bouge pas, `defaultOpen` reste `false`.
-6. Le listing élève est **léger** ; le quiz complet se charge **au clic**.
-7. Le chapitre d'un quiz se lit **sur sa leçon**, pas sur `Quiz.chapter_id` (copie dénormalisée).
+1. **Une seule source** : la page charge l'index et en dérive la matière ouverte.
+2. **L'ordre des chapitres est celui du PROGRAMME** sur les fiches — jamais l'alphabétique.
+   La brique garde l'alphabétique **par défaut** (parité Capsules et Quiz).
+3. **`showSubjectHeader = cherche || plusieurs groupes`** — se taire quand la page nomme déjà la
+   matière, parler dès qu'un résultat vient d'ailleurs.
+4. **Le chapitre ne s'écrit pas sur la tuile** quand l'étagère le porte.
+5. Les décisions de l'ADR-0057 et de la slice Quiz restent : recherche **cliente** sur le titre,
+   portée « toute la page » bornée par « emmener », `defaultOpen` faux pour les Capsules, un seul
+   normaliseur, listing léger.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- 🔴 **La copie de `groupCapsules.ts` chez PAPA existe toujours** (`apps/frontend-papa/src/lib/`) —
-  hors-périmètre, non traitée. **Une ligne d'import** la referme : `@zetis/ui` exporte déjà tout.
-- ⚠️ **La règle 4 du §8** (« un seul résultat s'ouvre tout seul », empruntée à la galaxie) **n'est
-  pas implémentée** : l'appliquer changerait l'écran des Capsules, et la parité prime. Signalé.
+- ⚠️ **Le titre de page dit encore « Français » pendant une recherche.** Sur `/quiz` il a été
+  neutralisé ; ici le heading porte **aussi le rétrolien**, et les séparer dépassait le geste
+  minimal. La section (« Ce que tu cherches ») et l'étagère nommée compensent — **le titre, non**.
+- ⚠️ **Le même triple nommage existe sur `/quiz`** (titre + étagère) : `showSubjectHeader` n'y est
+  pas branché. Une ligne.
+
+**Remontées de la slice Quiz (mergée, PR #128, squash `955dba0`) — élaguée ce jour :**
+
+- 🔴 **La copie de `groupCapsules.ts` chez PAPA existe toujours** (`apps/frontend-papa/src/lib/`).
+  **Une ligne d'import** la referme : `@zetis/ui` exporte déjà tout.
 - 🔴 **Il n'existe AUCUN `docs/frontend-massimo/page-quiz.md`** — l'écran a changé de comportement
-  et n'a pas de spec. La question a été posée à l'ouverture, **l'arbitrage n'a pas été rendu**.
+  et n'a pas de spec. **L'arbitrage n'a jamais été rendu.**
+- ⚠️ **La règle 4 du §8** (« un seul résultat s'ouvre tout seul ») n'est pas implémentée — la
+  parité Capsules prime.
 - ⚠️ **`API_SPEC` ne documente TOUJOURS PAS le deck `{ chapter }`** de `/student/reviews/session`
-  (trou pré-existant depuis l'ADR-0049 mergé, hors périmètre deux fois de suite).
+  (trou pré-existant depuis l'ADR-0049 mergé, hors périmètre **trois fois** de suite).
 
-**Le chantier ADR-0057, dont il reste TROIS slices :**
+**Le chantier ADR-0057, dont il reste DEUX slices :**
 
-🔴 **Fiches → Mindmaps → Révision**, dans cet ordre, sur la brique désormais éprouvée. ⚠️ **La
-Révision est la plus chère** et consommera l'**amendement de l'ADR-0049 D1** — acquis, pas encore
-dépensé. 🔴 **Missions reste le seul arbitrage non rendu** (croisées = multi-matières,
-`adr-0017` §5).
+🔴 **Mindmaps**, puis **Révision** — la plus chère, qui consommera l'**amendement de l'ADR-0049 D1**
+(acquis, pas encore dépensé). 🔴 **Missions reste le seul arbitrage non rendu** (`adr-0017` §5).
 
-**Remontées de l'ADR-0056 (mergé, PR #127, squash `9a0e800`) — élagué ce jour :**
+**Remontées des ADR-0054, 0055 et 0056 :**
 
-- ⚠️ **Le quota du MÉLANGE du jour n'est pas arbitré** (12 cartes, toutes matières). L'ADR-0056 §5
-  recommande de ne pas l'y appliquer avant d'avoir vu vivre la règle sur la matière.
-
-**Remontées des ADR-0054 et 0055 :**
-
-- 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche** — le risque d'acronymes forcés s'y
-  réalise, et aucun test ne peut le dire.
-- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE, pas à la fiche finie · le bouton du pont SRS
-  est **muet**. Chantier « la fiche répond quand on la touche », **pas encore cadré**.
+- ⚠️ **Le quota du MÉLANGE du jour n'est pas arbitré** (ADR-0056 §5).
+- 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche.**
+- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE · le bouton du pont SRS est **muet**.
+  Chantier « la fiche répond quand on la touche », **pas encore cadré**.
 - 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide.
 - 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51.
-- 🔴 **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) : **trois points à trancher**
-  (taille du lot, ordre, moment de sortie du deck) et **le mécanisme n'existe pas**.
+- 🔴 **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) : **trois points à trancher**,
+  et le mécanisme n'existe pas.
 - ⚠️ Le **corrigé de ZETIS** reporté · `FicheSidePanel` sans porte · **brouillon 54** porte 3
   points-clés de démonstration.
 - ⚠️ **L'ADR-0054 garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
@@ -102,46 +96,50 @@ dépensé. 🔴 **Missions reste le seul arbitrage non rendu** (croisées = mult
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée** (postgres + redis + minio). ⚠️ Sans elle, `test_auth.py` rougit deux fois
-pour une raison étrangère au chantier. **Paire de dev `backend` (:8000) + `massimo` (:5173)**
-lancée pour la vérification d'écran — ⚠️ elle **meurt avec la session**. Paire LAN (:8004/:5180)
-également vivante.
+**Infra Docker allumée** (postgres + redis + minio) — sans elle, `test_auth.py` rougit deux fois
+pour une raison étrangère au chantier. **Paire `backend` (:8000) + `massimo` (:5173)** relancée
+pour la vérification d'écran, ⚠️ elle **meurt avec la session**. Le token de Massimo est posé à la
+main dans `localStorage` (clé `zetis_massimo_token`) sur le navigateur d'aperçu.
 
-⚠️ **Le token de Massimo a été posé à la main dans `localStorage`** (clé `zetis_massimo_token`) sur
-le navigateur d'aperçu, pour atteindre une page derrière `RequireAuth`. Rien n'a été écrit en base.
+**Rien n'a été écrit en base** par ce chantier.
 
-**Suites lancées pendant la session, après la dernière modification :**
+**Suites lancées après la dernière modification :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1287** ✅ |
-| Massimo `vitest` | **743** ✅ (737 + 6 verrous neufs) |
+| backend `pytest` | **1289** ✅ (1287 + 2 verrous serveur) |
+| Massimo `vitest` | **747** ✅ (743 + 4 verrous) |
 | Papa `vitest` | **814** ✅ |
 | `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-🔴 **Deux tests existants ont été RÉÉCRITS, sur autorisation explicite** : `QuizPage.test.tsx`
-assérait sur `fetchSubjectQuizzes`, que la page n'appelle plus. Les assertions portent désormais
-sur **ce que l'écran montre**. Aucun autre test existant n'a été touché.
+🔴 **Les 22 tests de `FicheSubjectPage` ont changé de MOCK, jamais d'ASSERTION** — arbitrage
+explicite du commanditaire (« une seule source »). Leur décor gagne `chapter_id` et `subject` ;
+ce qu'ils vérifient est identique.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** —
-`/ouverture` sur l'un de ceux-ci :
-
-1. 🔴 **ADR-0057, slice FICHES** — le pas suivant naturel : la brique est éprouvée sur une page,
-   il reste **trois** surfaces (Fiches → Mindmaps → **Révision**, la plus chère, qui consommera
-   l'amendement de l'ADR-0049 D1). Cadré, arbitré, rien à re-décider.
-2. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
-   **Pas encore cadré** : il lui faut son ADR.
-3. **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) — ⚠️ **trois points à trancher**
-   avant toute ligne, et le mécanisme n'existe pas.
-4. 🔴 **Deux dettes à une ligne**, qui n'ont pas besoin d'un chantier : la copie de
-   `groupCapsules.ts` chez **Papa** (un import), et l'arbitrage sur `page-quiz.md`.
-5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération — une vérification, pas un
-   chantier, et personne ne l'a faite.
+1. **Vérifier le diff, lancer les tests, puis committer et pousser.**
+2. **Ouvrir la PR** et la merger (chantier **fini**), puis l'**étape 4bis** (`WORKFLOW.md §5`).
+3. Ensuite, **un seul chantier à la fois** : `/ouverture` sur la **slice Mindmaps** (la brique est
+   éprouvée sur trois pages), ou l'une des dettes ci-dessus.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+
+---
+
+## ⬆️ REMONTÉ de l'élagage de la slice Quiz (PR #128, squash `955dba0`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-quiz` (**7 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.87.0** ✅ · 4ᵉ contrôle — quatre dettes remontées ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : **le motif n'était pas neuf, il était SEUL**. Capsules Massimo,
+> capsules Papa et galaxie portaient **trois copies** du même groupement — dont deux identiques à
+> l'octet, recopiées d'une app à l'autre. Une brique partagée par copier-coller n'est pas
+> partagée : elle est dupliquée, et deux copies finissent toujours par diverger. C'est l'angle mort
+> que l'`adr-0053` avait nommé, retrouvé intact un mois plus tard.
 
 ---
 
