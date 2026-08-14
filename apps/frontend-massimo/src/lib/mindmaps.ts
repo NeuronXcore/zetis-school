@@ -43,6 +43,14 @@ export async function fetchMindmapsSummary(): Promise<MindmapsSummary> {
 }
 
 /** `GET /api/student/subjects/{slug}/mindmaps` — cartes validées d'une matière (deck). */
+/** `GET /api/student/mindmaps` — toutes les cartes validées, toutes matières (ADR-0057).
+ *
+ * L'écran 2 en dérive la matière ouverte : **une seule source**, pour que la recherche traverse
+ * sans qu'un second chargement raconte autre chose. Ordre du **programme**. */
+export async function fetchMindmapsIndex(): Promise<MindmapListItem[]> {
+  return asJson(await fetch(`${API_URL}/api/student/mindmaps`, { headers: headers() }));
+}
+
 export async function fetchSubjectMindmaps(slug: string): Promise<MindmapListItem[]> {
   return asJson(
     await fetch(`${API_URL}/api/student/subjects/${slug}/mindmaps`, { headers: headers() }),

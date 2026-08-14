@@ -40,7 +40,20 @@ vocabulaire de l'enfant — Papa n'a pas « cartes à revoir » à côté.
 1. **`/mindmaps`** — decks par matière (`MindmapsPage` + `SubjectDeckGrid`). Compteur = **mindmaps**
    validées ; matière sans mindmap → deck grisé « bientôt ». En-tête animé (`AnimatedMindmapIcon`,
    voir plus bas).
-2. **`/mindmaps/:slug`** — liste des mindmaps de la matière (`MindmapSubjectPage`, écran 2).
+2. **`/mindmaps/:slug`** — les mindmaps de la matière (`MindmapSubjectPage`, écran 2), **rangées
+   par chapitre** dans l'ordre du **programme** et **cherchables au mot** `[0057]`.
+   - 🔴 **La recherche traverse les matières** : on cherche sans savoir où c'est rangé. Un résultat
+     d'ailleurs apparaît **sous son étagère nommée**, et le clic **emmène** — par `?carte=<id>`,
+     **l'adresse d'une mindmap, créée par cette slice**. Elle n'en avait aucune : la carte
+     s'ouvrait par son **rang dans la liste**, et un rang n'a pas de sens dans une autre matière.
+   - `?carte=<id>` ouvre la mindmap à l'arrivée puis **se retire de l'URL** (patron de `?fiche=`) ;
+     le reste des paramètres survit.
+   - L'étagère **ne répète pas la matière** quand la page la nomme déjà — mais la nomme **toujours**
+     en recherche, sinon on ignore d'où vient un résultat. Le **chapitre ne s'écrit plus sur la
+     carte** : l'étagère le porte.
+   - Un filtre **ne survit pas** au changement de matière.
+   - Source : **`GET /api/student/mindmaps`** (index de toutes les matières), dont l'écran dérive
+     celle qui est ouverte — **une seule source**.
 3. **Carte interactive** (`MindmapSubjectPage` écran 3 → `MindmapWorkspace`) — layout **elk** rendu
    client (4 présentations : radial / layered RIGHT / DOWN / équilibrée), nœuds déplaçables à la
    souris (disposition persistée en `localStorage` par carte + présentation), arêtes `smoothstep`.

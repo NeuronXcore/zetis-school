@@ -137,6 +137,16 @@ def student_mindmaps_summary(db: Session = Depends(get_db)) -> dict:
     return service.mindmaps_summary(db)
 
 
+@student_router.get("/mindmaps", response_model=list[MindmapListItem])
+def student_mindmaps_index(db: Session = Depends(get_db)) -> list[dict]:
+    """Toutes les cartes validées, toutes matières (ADR-0057) — la recherche de l'écran 2 traverse.
+
+    ⚠️ Déclarée AVANT `/mindmaps/{mindmap_id}`, comme `summary` : l'ordre des routes de ce fichier
+    est un piège déjà payé (un segment fixe capté comme un id → 422).
+    """
+    return service.student_mindmaps_index(db)
+
+
 @student_router.get("/subjects/{subject_slug}/mindmaps", response_model=list[MindmapListItem])
 def student_subject_mindmaps(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Deck : cartes validées d'une matière (leçons validées de l'année active). Route neutre."""

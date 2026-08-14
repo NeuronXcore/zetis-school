@@ -593,3 +593,64 @@ def test_rejeter_une_carte_la_retire_de_massimo_SANS_la_supprimer(client_db) -> 
 def test_le_rejet_d_une_carte_est_une_route_papa(client_db) -> None:
     client, _ = client_db  # get_current_user override → rôle "child"
     assert client.post("/api/mindmaps/1/reject").status_code == 403
+
+
+# ── Le listing porte de quoi RANGER (ADR-0057, slice Mindmaps) ────────────────
+
+
+def test_la_carte_listee_porte_chapter_id_ET_le_nom_de_la_matiere(client_db) -> None:
+    """🔒 VERROU SERVEUR — les deux champs qu'exige la brique de groupement.
+
+    🔴 Écrit d'emblée côté serveur : en slice Fiches, supprimer `chapter_id` du payload laissait
+    **87 tests verts**. Un champ neuf sans verrou serveur peut cesser d'être servi en silence.
+    """
+    client, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        mindmap = Mindmap(
+            lesson_id=lesson.id,
+            mindmap_json={"center": "Nombres relatifs", "nodes": []},
+            validation_status="validated",
+        )
+        db.add(mindmap)
+        db.commit()
+        chapter_id = lesson.chapter_id
+
+    items = client.get("/api/student/subjects/mathematiques/mindmaps").json()
+    assert len(items) == 1
+    assert items[0]["chapter_id"] == chapter_id  # l'IDENTIFIANT, pas seulement le nom
+    assert items[0]["chapter"] == "Nombres relatifs"
+    assert items[0]["subject"] == "Mathématiques"
+    assert items[0]["subject_slug"] == "mathematiques"
+
+
+def test_l_index_des_cartes_couvre_TOUTES_les_matieres(client_db) -> None:
+    """🔒 VERROU — la recherche traverse les matières, donc l'index doit toutes les porter, et
+    **contenir exactement** ce que sert le listing par matière (même filtre, aucune règle neuve).
+    """
+    client, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        db.add(
+            Mindmap(
+                lesson_id=lesson.id,
+                mindmap_json={"center": "Nombres relatifs", "nodes": []},
+                validation_status="validated",
+            )
+        )
+        # Une carte NON validée ne doit apparaître nulle part — ni ici, ni dans l'index.
+        db.add(
+            Mindmap(
+                lesson_id=lesson.id,
+                mindmap_json={"center": "Brouillon", "nodes": []},
+                validation_status="pending",
+            )
+        )
+        db.commit()
+
+    index = client.get("/api/student/mindmaps").json()
+    par_matiere = client.get("/api/student/subjects/mathematiques/mindmaps").json()
+    assert [c["id"] for c in par_matiere] == [
+        c["id"] for c in index if c["subject_slug"] == "mathematiques"
+    ]
+    assert all(c["title"] != "Brouillon" for c in index)

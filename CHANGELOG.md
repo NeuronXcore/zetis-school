@@ -1,5 +1,21 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.89.0 — Les mindmaps se rangent, et gagnent enfin une adresse
+
+Troisième écran à passer au même motif : les mindmaps sont **rangées par chapitre**, dans l'ordre
+du programme, et un **champ de recherche** les retrouve au mot. Depuis le Français, « thalès »
+ramène la mindmap de Maths — et le clic **l'ouvre**, là où elle vit.
+
+> **Ce dernier point demandait quelque chose qui n'existait pas : une adresse.** Une mindmap
+> s'ouvrait par son **rang dans la liste** de sa matière. Un rang ne veut rien dire ailleurs :
+> un résultat trouvé dans une autre matière n'aurait pas pu être atteint. `?carte=<id>` répare ça,
+> sur le modèle de l'adresse que les fiches ont déjà.
+
+**Le chapitre ne s'écrit plus sur la carte** — l'étagère le porte. **La matière non plus**, tant
+qu'on ne cherche pas.
+
+Et cette page, qui n'avait **aucun test** depuis sa création, en a désormais cinq.
+
 ## 0.88.0 — Les fiches se rangent aussi, dans l'ordre du programme
 
 Dix-sept leçons de Français à la file, sans repère : l'écran des fiches avait le même défaut que

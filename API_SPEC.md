@@ -1186,9 +1186,27 @@ Sert le MP4 rendu. JWT en query param (`<video>`, rôles enfant ou Papa).
 
 ## Mindmaps
 
+> ⚠️ **Deux préfixes, deux publics.** `/api/mindmaps/*` est **Papa** (`require_parent`) ;
+> `/api/student/*` est Massimo. Les routes ci-dessous sans mention sont celles de Papa.
+> 🔴 **Le flux élève n'est documenté ici que partiellement** — trou pré-existant, signalé le
+> 2026-08-14 sans être comblé.
+
+### 🔴 GET `/api/student/mindmaps` — index élève, toutes matières (ADR-0057)
+
+`list[MindmapListItem]` : `{ id, lesson_id, title, chapter, chapter_id, subject_slug, subject }`.
+Même filtre que `/api/student/subjects/{slug}/mindmaps` — c'est elle, appelée matière par matière,
+**aucune règle neuve**. Ordre du **programme** (`Subject.sort_order`, `Chapter.sort_order`,
+`Lesson.sort_order`), significatif : la surface s'en sert pour ranger les chapitres.
+
+⚠️ **Déclarée avant `/api/student/mindmaps/{mindmap_id}`**, comme `summary` : un segment fixe
+capté comme un id rend un **422** — piège déjà payé sur ce fichier.
+
+⚠️ `MindmapListItem` porte désormais **`chapter_id`** (l'identifiant, pas seulement le nom : c'est
+lui qui groupe) et **`subject`** (le nom affichable).
+
 ### GET `/mindmaps`
 
-Liste.
+Liste (Papa).
 
 ### POST `/mindmaps/generate`
 
