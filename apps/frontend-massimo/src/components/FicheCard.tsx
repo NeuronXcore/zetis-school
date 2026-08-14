@@ -150,6 +150,14 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
 
       {/* Pied : ancrage canonique + actions */}
       <footer className="flex flex-wrap items-center gap-3 border-t border-white/10 bg-white/[0.03] p-4">
+        {/* 🔴 **Les boutons de ce pied font 44 px de haut minimum** (ADR-0054 §6). Mesurés à
+            **34 px** le 2026-08-13 — sous la cible tactile du projet. `py-1.5` cède la place à
+            `min-h-[44px]` + `items-center` : le padding vertical décrivait une hauteur, la
+            contrainte la garantit.
+
+            ⚠️ Ce pied est rendu par **quatre** surfaces — `FicheSubjectPage`, `CoursPanel`,
+            `FicheSidePanel` (mindmap) et cette carte. La non-régression se vérifie sur les
+            quatre, pas sur celle qu'on modifie. */}
         {/* Provenance canonique (statique) : la fiche dérive du cours validé de la leçon. */}
         <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">
           📚 D'après ton cours <em className="not-italic opacity-80">« {spec.title} »</em>
@@ -166,7 +174,7 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
                 : // Fiche de ZETIS : le pont §6 est toujours stub, le bouton reste inerte.
                   "Bientôt : ajouter cette fiche à tes cartes de révision"
             }
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300 disabled:opacity-40"
           >
             🃏 Ajouter à mes cartes
           </button>
@@ -175,7 +183,7 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
             onClick={exportImage}
             disabled={exporting !== null}
             title="Télécharger la fiche en image A5 (à enregistrer ou partager)"
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-400/40 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-lg border border-white/10 px-3 text-sm text-slate-200 hover:border-cyan-400/40 disabled:opacity-50"
           >
             {exporting === "image" ? "⏳ Image…" : "🖼️ Image A5"}
           </button>
@@ -184,7 +192,7 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
             onClick={printFiche}
             disabled={exporting !== null}
             title="Imprimer la fiche au format A5"
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-400/40 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-lg border border-white/10 px-3 text-sm text-slate-200 hover:border-cyan-400/40 disabled:opacity-50"
           >
             {exporting === "print" ? "⏳ Impression…" : "🖨️ Imprimer"}
           </button>

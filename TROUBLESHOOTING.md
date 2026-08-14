@@ -4,6 +4,70 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/la-fiche-vit-dans-le-temps` — 2026-08-14
+
+### 🔴 Ajouter une étape à un accordéon sans toucher son COMPTEUR
+
+`ETAPES` est passé de trois à quatre entrées ; le jalon de chaque étape et son rendu ont suivi.
+**`remplies` est resté à trois** — les pièges étaient rendus, jalonnés, **sauvegardés en base**, et
+invisibles au seul compteur. Massimo lisait *« 2 étapes sur 4 »* avec **trois** étapes remplies.
+
+⚠️ **Un compteur qui SOUS-compte est pire qu'un compteur faux** : sur un écran qui s'interdit tout
+reproche, il minimise le travail de l'enfant. Le mode d'échec ne ressemble pas à un bug — il
+ressemble à *« tu n'en as pas fait beaucoup »*.
+
+Aucun test ne pouvait le voir : les verrous existants assertaient « 0 étape sur 4 » et « 1 étape
+sur 4 » — jamais un cas où l'étape ajoutée est remplie.
+
+**Parade** : le tableau du compteur doit avoir **une entrée par entrée d'`ETAPES`**, et un test
+qui remplit **la dernière étape ajoutée** — c'est celle qu'on oublie, par construction.
+
+### 🔴 `grep -rln` compte des MENTIONS, pas des rendus
+
+Pour savoir combien de surfaces rendent `FicheCard`, un `grep -rln "FicheCard"` a rendu quatre
+fichiers. **Deux seulement le rendent** : `FicheSubjectPage` et `mindmap/FicheSidePanel`. Les deux
+autres étaient `FicheCard.tsx` lui-même et `CoursPanel.tsx`, qui le cite **dans un commentaire**.
+
+L'ADR-0054 §6 a été écrit sur ce compte faux (« les trois surfaces »), et je l'ai répété en
+annonçant « quatre ». **Deux erreurs successives sur le même chiffre, sans jamais ouvrir un
+fichier.**
+
+**Parade** : pour compter des points de rendu, `grep -rn "<Composant"` (avec le chevron) ou lire
+les imports. Un nom de fichier ne dit pas ce que le fichier fait.
+
+### ⚠️ Le deck matière ne s'appelle pas `{deck: "subject"}`
+
+`POST /api/student/reviews/session` attend une **union** : `"mix_day"` / `"mix_flash"` en chaîne,
+mais le deck matière et le deck chapitre sont des **objets**. Une sonde écrite de mémoire a rendu
+un 422 à trois branches — erreur de la sonde, pas du produit, mais elle coûte un aller-retour.
+
+**Parade** : lire le schéma dans l'OpenAPI avant d'écrire une sonde, comme pour n'importe quel
+appelant.
+
+### 🔴 Une absence qui s'explique autrement ne prouve RIEN
+
+« Le mélange du jour ne sert que des maths, donc le masquage des cartes françaises fonctionne. »
+**Faux raisonnement** : Français a **156** cartes dues et le mélange est plafonné à **12**.
+L'absence du français s'explique par le plafond, indépendamment du masquage.
+
+C'est le motif **« contre-épreuve mal visée »** déjà consigné, appliqué cette fois à une
+vérification **à l'écran** et non à un test.
+
+**Parade** : avant de conclure d'une absence, chercher **toutes** les causes qui la produiraient.
+Ici la mesure utile n'était pas la session mais le **compteur** (`due_count: 156` au lieu de 159)
+— et même celle-là reste une déduction tant qu'on n'a pas mesuré 159 **avant**.
+
+### ⚠️ Rentrer dans l'atelier après `finish` crée une version 2 VIDE qui masque la fiche
+
+Constaté deux fois en deux jours (brouillons 51 et 52). Ouvrir l'atelier sur une leçon dont la
+fiche est **finie** ne route pas vers `rework` : il naît un brouillon **vide**, et comme la
+priorité de la tuile est `commencee > ma_fiche`, **la fiche finie disparaît de la liste**. Elle
+devient inatteignable, la seule porte visible menant à cet atelier vide.
+
+🔴 **Et ça met en doute une entrée écrite le matin même** : le brouillon 51 y est attribué au
+défaut StrictMode. Cette explication-ci n'a besoin **d'aucun bug**. On ne sait pas laquelle est
+vraie — mais la première a été écrite avec assurance, et c'est ce qu'il faut retenir.
+
 ## Chantier `feat/fiche-de-massimo-slice-3` — 2026-08-13
 
 ### 🔴 Un refactor « à comportement constant » sur une fonction SANS COUVERTURE ne prouve rien
