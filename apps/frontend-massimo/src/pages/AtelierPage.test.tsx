@@ -145,7 +145,9 @@ async function glisser(texte: string, emplacement: number | null) {
   (document as unknown as { elementFromPoint: unknown }).elementFromPoint = original;
 }
 
-// ⚠️ « sur 3 » → « sur 4 » le 2026-08-13 : l'étape ④ ⚠️ Les pièges est arrivée
+// ⚠️ « sur 3 » → « sur 4 » le 2026-08-13 (étape ④), puis → « sur 5 » le 2026-08-14 (étape ⑤,
+// ADR-0055). Le DÉNOMINATEUR n'est plus constant : l'étape ⑥ est conditionnelle, elle ne compte
+// que si ZETIS a détecté une occasion — cf. le test dédié plus bas.
 // (addendum ADR-0015 §13). Changement de comportement VOULU, pas un test ajusté pour
 // passer — le plan de la fiche compte désormais quatre étapes ouvertes.
 describe("AtelierPage", () => {
@@ -203,7 +205,7 @@ describe("AtelierPage", () => {
       },
     });
     monter();
-    await screen.findByText(/1 étape sur 4/);
+    await screen.findByText(/1 étape sur 5/);
 
     // ⚠️ Les deux clics DOIVENT partir dans le même `act` : `fireEvent.click` vide la file
     // d'état entre deux appels, donc deux `fireEvent` successifs ne reproduisent JAMAIS le
@@ -216,7 +218,7 @@ describe("AtelierPage", () => {
 
     await waitFor(() => expect(api.saveDraft).toHaveBeenCalledTimes(2));
     expect(api.saveDraft.mock.calls[1][1].points_cles).toEqual([]);
-    expect(await screen.findByText(/0 étape sur 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 5/)).toBeInTheDocument();
   });
 
   it("reprend exactement où il s'était arrêté", async () => {
@@ -226,7 +228,7 @@ describe("AtelierPage", () => {
     });
     monter();
 
-    expect(await screen.findByText(/1 étape sur 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 étape sur 5/)).toBeInTheDocument();
     expect(screen.getAllByText(/un emplacement libre/)).toHaveLength(4);
   });
 
@@ -288,12 +290,27 @@ describe("AtelierPage", () => {
     // du côté des présentes. Ce n'est pas le test qui s'assouplit, c'est le produit qui livre.
     monter();
     await screen.findByText(/Les séismes/);
-    for (const presente of [/L'essentiel/, /Les mots à connaître/]) {
+    for (const presente of [/L'essentiel/, /Les mots à connaître/, /Un exemple/]) {
       expect(screen.getByText(presente)).toBeInTheDocument();
     }
-    for (const absente of [/Pièges à éviter/, /Un exemple/, /Mnemonics/]) {
-      expect(screen.queryByText(absente)).not.toBeInTheDocument();
-    }
+    // 🔴 **⑥ reste absente ici, et ce n'est PAS parce qu'elle n'est pas implémentée** — elle
+    // l'est depuis l'ADR-0055. Elle est absente parce que ce brouillon n'offre **aucune
+    // occasion** (§10). C'est la seule étape conditionnelle de la fiche, et elle n'est jamais
+    // rendue grisée : une étape visible mais morte est une promesse que le produit ne tient pas.
+    expect(screen.queryByText(/Mnemonics/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pièges à éviter/)).not.toBeInTheDocument();
+  });
+
+  it("🔴 n'offre l'étape ⑥ QUE si ZETIS a détecté une occasion", async () => {
+    // Le drapeau vient du SERVEUR, recalculé à chaque sauvegarde — la règle n'est pas dupliquée
+    // côté client. Sans occasion, l'étape n'existe pas ; avec, elle apparaît ET entre au
+    // dénominateur du compteur.
+    api.openDraft.mockResolvedValue({ ...DRAFT, mnemonique_occasion: true });
+    monter();
+    await screen.findByText(/Les séismes/);
+
+    expect(screen.getByText(/Mnemonics/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 6/)).toBeInTheDocument();
   });
 
   // ── Slice 2 : les deux étapes qui s'ÉCRIVENT ────────────────────────────────
@@ -405,7 +422,7 @@ describe("AtelierPage", () => {
   it("ne décompte jamais ce qui manque", async () => {
     // `CLAUDE.md` § Gamification : on compte ce qui est commencé, jamais ce qui reste dû.
     monter();
-    expect(await screen.findByText(/0 étape sur 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/0 étape sur 5/)).toBeInTheDocument();
     expect(screen.queryByText(/il te reste/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/plus que/i)).not.toBeInTheDocument();
   });
@@ -529,7 +546,7 @@ describe("AtelierPage — le compteur ne sous-compte pas", () => {
     monter();
     await deplier(/Les pièges/);
     fireEvent.click(await screen.findByText("Attention à : Épicentre"));
-    expect(await screen.findByText(/1 étape sur 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 étape sur 5/)).toBeInTheDocument();
   });
 
   it("compte les quatre ensemble", async () => {
@@ -544,6 +561,6 @@ describe("AtelierPage — le compteur ne sous-compte pas", () => {
       },
     });
     monter();
-    expect(await screen.findByText(/4 étapes sur 4/)).toBeInTheDocument();
+    expect(await screen.findByText(/4 étapes sur 5/)).toBeInTheDocument();
   });
 });

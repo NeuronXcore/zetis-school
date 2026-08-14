@@ -37,6 +37,31 @@ class FicheDefinition(BaseModel):
     definition: str = Field(min_length=1, max_length=_MAX_DEFINITION)
 
 
+class FicheMnemonique(BaseModel):
+    """Le moyen mnémotechnique (addendum ADR-0015 §10) — **0 ou 1, le vide est le cas NORMAL**.
+
+    ⚠️ **Bornes à une ligne chacun** (ADR-0055, tranché le 2026-08-14) : le §10 n'en donnait
+    aucune, alors que tous les autres champs libres en ont. Ici le budget est **structurel** —
+    c'est lui qui garantit « 1 leçon = 1 page ». Un moyen mnémotechnique qui dépasse une ligne
+    n'en est plus un.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    moyen: str = Field(min_length=1, max_length=_MAX_LIGNE)
+    sert_a: str = Field(min_length=1, max_length=_MAX_LIGNE)
+
+
+class FicheMnemoniqueDraft(BaseModel):
+    """La même, en brouillon : bornes MAX tenues, bornes MIN levées (un champ en cours d'écriture
+    est vide la moitié du temps)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    moyen: str = Field(default="", max_length=_MAX_LIGNE)
+    sert_a: str = Field(default="", max_length=_MAX_LIGNE)
+
+
 class FicheSpec(BaseModel):
     """Fiche de révision d'UNE leçon — vocabulaire fermé, sections à budget (ADR-0015 §2)."""
 
@@ -51,6 +76,12 @@ class FicheSpec(BaseModel):
     points_cles: list[_Ligne] = Field(default_factory=list, max_length=MAX_POINTS_CLES)
     erreurs_a_eviter: list[_Ligne] = Field(default_factory=list, max_length=MAX_ERREURS)
     mini_exemple: str | None = Field(default=None, max_length=MAX_MINI_EXEMPLE_LEN)
+    # 🔴 **Ce champ CHANGE la génération de toutes les fiches ZETIS** — cf. le §10 et l'avertissement
+    # du `FicheDraft` ci-dessous. Il n'a été ajouté qu'**avec ses deux garde-fous de prompt**
+    # (consigne explicite + few-shot), et `FICHE_PROMPT_VERSION` est passé à v2 dans le même geste.
+    # Les ajouter séparément produirait des mnémoniques forcés sur des concepts qui n'en admettent
+    # pas — ce que le §10 existe pour empêcher.
+    mnemonique: FicheMnemonique | None = None
 
 
 class FicheDraft(BaseModel):
@@ -65,9 +96,14 @@ class FicheDraft(BaseModel):
     décision fondatrice de l'ADR-0015. Donc : **mêmes champs, tous optionnels, aucune borne
     minimale, mêmes bornes MAXIMALES** — la place sur la page reste bornée même en brouillon.
 
-    ⚠️ `FicheSpec` reste **littéralement inchangé** : il part au modèle via
-    `model_json_schema()`, et lui ajouter le moindre champ changerait la génération de TOUTES les
-    fiches ZETIS, pas seulement des nouvelles.
+    ⚠️ **`FicheSpec` part au modèle via `model_json_schema()`** (`service.py`) : lui ajouter le
+    moindre champ change la génération de TOUTES les fiches ZETIS, pas seulement des nouvelles.
+
+    🔴 **Cette phrase disait « reste littéralement inchangé ». Elle a été rouverte le 2026-08-14**
+    (ADR-0055) pour `mnemonique` — et le read-before-code a montré que l'ADR se contredisait :
+    il ajoutait le champ au schéma tout en excluant le prompt. **Les deux vont ensemble**, et
+    c'est la règle qui remplace l'interdiction : *toucher au `FicheSpec` oblige à toucher au
+    prompt dans le même geste* (consigne + few-shot + version).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -81,6 +117,7 @@ class FicheDraft(BaseModel):
     points_cles: list[_LigneDraft] = Field(default_factory=list, max_length=MAX_POINTS_CLES)
     erreurs_a_eviter: list[_LigneDraft] = Field(default_factory=list, max_length=MAX_ERREURS)
     mini_exemple: str | None = Field(default=None, max_length=MAX_MINI_EXEMPLE_LEN)
+    mnemonique: FicheMnemoniqueDraft | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -173,10 +210,12 @@ class FichesSummaryOut(BaseModel):
 # L'atelier — la fiche que Massimo fabrique (addendum ADR-0015).
 # ---------------------------------------------------------------------------
 
-# Vocabulaire FERMÉ des sections. La slice 1 n'en implémente qu'une (`points_cles`) ; les cinq
-# autres existent au vocabulaire pour que le contrat n'ait pas à bouger en slice 2 et 3.
+# Vocabulaire FERMÉ des sections. La slice 1 n'en implémentait qu'une (`points_cles`) ; les autres
+# existaient au vocabulaire pour que le contrat n'ait pas à bouger. `mnemonique` l'a rejoint le
+# 2026-08-14 (ADR-0055) — c'est l'extension « section par section » prévue par l'ADR-0015 §2, donc
+# la voie sanctionnée et non une entorse.
 FicheSection = Literal[
-    "essentiel", "definitions", "points_cles", "erreurs_a_eviter", "mini_exemple"
+    "essentiel", "definitions", "points_cles", "erreurs_a_eviter", "mini_exemple", "mnemonique"
 ]
 
 # `absent_du_cours` est HORS PÉRIMÈTRE v1 : seul type à faux positifs, et un faux positif ici est
@@ -215,6 +254,9 @@ class FicheDraftOut(BaseModel):
     chapter: str | None = None
     version: int
     draft: FicheDraft
+    # L'étape ⑥ n'apparaît QUE si ZETIS a détecté une occasion (§10). Recalculé à chaque
+    # sauvegarde, donc l'étape s'ouvre pendant qu'il choisit ses points-clés.
+    mnemonique_occasion: bool = False
 
 
 class FicheCandidate(BaseModel):
@@ -282,6 +324,9 @@ class FicheTile(BaseModel):
     seen: bool = False
     versions: int = 0  # ses versions à lui
     etapes_remplies: int = 0  # sur un brouillon : combien de sections ont quelque chose
+    # Le DÉNOMINATEUR, et il n'est pas constant : l'étape ⑥ est conditionnelle (§10). La barre de
+    # la tuile en dérive ses segments — elle en portait **3 en dur** jusqu'au 2026-08-14.
+    etapes_total: int = 5
     points_choisis: int = 0  # « tu en as choisi 3 »
     # Quand SA dernière version finie a été touchée (ADR-0054 §3). `None` s'il n'a pas de fiche :
     # la fiche de ZETIS n'est **jamais** datée côté enfant — « il y a 4 mois » ne peut que saper

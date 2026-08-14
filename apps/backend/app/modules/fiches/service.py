@@ -46,6 +46,7 @@ from app.modules.fiches.population import (
     STATUS_PERSONAL,
     readable_by_student,
 )
+from app.modules.fiches.atelier import occasion_mnemonique
 from app.modules.fiches.schemas import FicheSpec
 from app.modules.provenance import PARENT, ValidatedBy, mark_validated
 from app.modules.subjects.resolver import subject_of_lesson
@@ -554,12 +555,35 @@ def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
 
         draft_spec = (brouillon.spec_json or {}) if brouillon else {}
         points = [p for p in draft_spec.get("points_cles", []) if str(p).strip()]
+        mnemo = draft_spec.get("mnemonique") or {}
+        mnemo_rempli = bool(str(mnemo.get("moyen") or "").strip())
+        # 🔴 **Une entrée par étape OFFERTE, sans exception.** Ce compteur en portait TROIS le
+        # 2026-08-14 pendant que l'atelier en comptait quatre : les pièges étaient sauvegardés et
+        # invisibles ici. Le défaut avait été corrigé côté atelier ce jour-là — **et pas ici**,
+        # parce que personne n'avait regardé la seconde surface. Un compteur qui SOUS-compte est
+        # pire qu'un compteur faux : sur un écran qui s'interdit tout reproche, il minimise le
+        # travail de l'enfant.
         remplies = sum(
             [
                 bool(points),
                 bool(str(draft_spec.get("essentiel") or "").strip()),
                 bool(draft_spec.get("definitions")),
+                bool(draft_spec.get("erreurs_a_eviter")),
+                bool(str(draft_spec.get("mini_exemple") or "").strip()),
+                mnemo_rempli,
             ]
+        )
+        # L'étape ⑥ est CONDITIONNELLE : elle ne compte au total que si l'occasion existe (ou
+        # s'il en a déjà écrit un). Sinon le dénominateur promettrait une étape qui n'apparaît pas.
+        #
+        # ⚠️ **Même règle à DEUX sources que `_draft_out`** — la leçon d'abord, son brouillon
+        # ensuite. Les désaccorder ferait promettre à la tuile une étape que l'atelier n'offre
+        # pas, ou l'inverse : deux compteurs, deux vérités, le défaut qu'on vient de réparer.
+        points_zetis = [str(p) for p in ((zetis.spec_json or {}).get("points_cles") or [])] if zetis else []
+        offertes = 5 + (
+            1
+            if (mnemo_rempli or occasion_mnemonique(points) or occasion_mnemonique(points_zetis))
+            else 0
         )
         sienne = finies[-1] if finies else None
         tuiles.append(
@@ -575,6 +599,7 @@ def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
                 "seen": bool(sienne or zetis) and (sienne or zetis).id in vues,
                 "versions": len(finies),
                 "etapes_remplies": remplies,
+                "etapes_total": offertes,
                 "points_choisis": len(points),
                 # La date de SA dernière version finie, et d'elle seule (§3). Jamais celle de
                 # ZETIS : `sienne` est `None` quand il n'a pas de fiche, et le client n'a alors

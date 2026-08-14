@@ -6,211 +6,169 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — slice 4 : la fiche vit dans le temps (ADR-0054)
+### ✅ CHANTIER COMPLET — les deux étapes qui manquent (ADR-0055)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#125](https://github.com/NeuronXcore/zetis-school/pull/125),
-squash `845b427`.** Branche `feat/la-fiche-vit-dans-le-temps` **supprimée** (origin **et** local),
-base d'origine `d12e856`. **Rien à pousser.** *(Étape 4bis faite le 2026-08-14, juste après le
-merge — pour une fois le fichier n'a pas survécu à son chantier.)*
+Branche **`feat/les-deux-etapes-qui-manquent`**, base **`b412dff`**. **NON COMMITÉ.**
+L'état se lit par `git status` ; le travail se lit ci-dessous.
 
-> ✅ **Les QUATRE points du périmètre sont livrés.** 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit est
-> un compte rendu de ce qui EST dans `main`, pas une liste de travail. Le prochain pas réel est
-> tout en bas.
+> ✅ **Les SEPT points du périmètre sont livrés**, plus **trois arbitrages pris en séance** que
+> l'ADR ne prévoyait pas. **PROCHAIN PAS = commit + push + PR** (tout en bas).
 
-> ⚠️ **Mergé sans relecture visuelle humaine** — décision assumée de l'humain, prise en
-> connaissance de cause : tout ce que ce compte rendu appelle « vu à l'écran » a été mesuré par
-> l'agent dans le DOM, sur la paire LAN, jamais regardé par un œil. C'est le motif récurrent du
-> dépôt ; il est noté ici pour que la prochaine session sache ce qui n'a PAS été éprouvé.
+#### ✅ FAIT
 
-#### ✅ FAIT — le périmètre, point par point
+L'atelier promettait six étapes et en rendait quatre depuis la slice 1. Il en rend **six**.
 
-| Point du périmètre ADR-0054 | État |
+| Livré | Détail |
 |---|---|
-| Les **trois portes** du §1 | ✅ les deux du pied de `FicheCard` + celle de `CoursPage` |
-| Datation **relative** sur la tuile de sa fiche (§3) | ✅ « tu l'as écrite hier — à relire » |
-| Datation **absolue** sur l'export A5 / impression (§3) | ✅ « · ZETIS · 13/08/2026 » |
-| Pied de `FicheCard` à **44 px** (§6) | ✅ (fait plus tôt dans le chantier) |
+| Étape ⑤ 💡 Un exemple | champ libre + amorce, **section ouverte côté serveur** |
+| Étape ⑥ 🎩 Mnemonics | **conditionnelle**, deux champs d'une ligne, aucune amorce (il invente) |
+| `mnemonique` au contrat | `FicheSpec` + `FicheDraft` + `FicheSection`, bornes **160/160** |
+| Détection de l'occasion | **déterministe**, `occasion_mnemonique()`, testable seule |
+| Rendu | `FicheCard` **et** `FicheA5` (le papier ne renomme rien) |
+| Le 400 sur `mnemonique` | **levé**, et son test **récrit** — il protège désormais les sections inconnues |
+| Le compteur d'étapes | suit les étapes **offertes**, des deux côtés |
 
-**Ce qui a été écrit, et qui n'était pas prévu au cadrage :**
+**Zéro migration** : `spec_json` est une colonne `JSON`, la crainte a été mesurée fausse avant
+d'être inscrite.
 
-- **`?fiche=<id>` — la fiche a enfin une ADRESSE.** Elle n'en avait aucune : elle n'était qu'un état
-  interne de `FicheSubjectPage`, ouverte par index de liste. Sans ça, la 3ᵉ porte était
-  **irréalisable**. Le lien est consommé une fois ; un id introuvable retombe sur la liste, jamais
-  sur un écran d'erreur.
-- **`lib/datation.ts`** — module PUR (`dateRelative` + `dateAbsolue`), testable sans rendre une page.
-- **`lib/atelier.ts` → `reworkFiche()`** — le helper front manquait alors que la route existait.
-- **`FicheCard.test.tsx`** — ce composant n'avait **aucun** test (lacune préexistante).
+#### 🔴 TROIS ARBITRAGES PRIS EN SÉANCE — ils ne se redécident pas
 
-#### 🔴 LE PIÈGE CENTRAL — pourquoi « La retravailler » n'est pas une navigation
+1. **Le prompt passe en v2, avec les deux garde-fous du §10.** Le read-before-code a montré que
+   l'ADR se contredisait : son §3 ajoutait `mnemonique` au `FicheSpec`, son §5 excluait le prompt
+   — or `service.py` passe `FicheSpec.model_json_schema()` **au modèle**. Ajouter le champ seul
+   aurait produit les acronymes forcés que le §10 existe pour empêcher. ⚠️ **Le few-shot unique
+   omet `mnemonique` VOLONTAIREMENT** : c'est lui qui enseigne que l'absence est normale.
+2. **Le compteur de la TUILE est corrigé dans cette slice**, alors qu'il préexistait. Il comptait
+   **3** étapes quand l'atelier en comptait 4, et sa barre portait **« sur 3 » en dur**.
+3. 🔴 **L'heuristique d'occasion est resserrée à l'ÉNUMÉRATION SEULE** — décision du
+   commanditaire, **revue en séance** après lui avoir montré ce que Massimo verrait sur
+   « Division de fractions ». Passée de 27/27 à **4/27**. Détail plus bas.
 
-`openDraft` (ce que l'atelier appelle en arrivant) crée un brouillon **VIDE** en version N+1 ;
-`rework` crée la version N+1 **pré-remplie de ce qu'il avait écrit**. Une porte « La retravailler »
-qui se contenterait de naviguer vers l'atelier rendrait donc une **page blanche** à la place de son
-travail — c'est le **défaut 4**, qui attendait d'être rejoué.
+#### ✅ LE SIGNAL D'ALARME A SONNÉ, ET L'HEURISTIQUE A ÉTÉ RESSERRÉE
 
-L'ordre est la fonctionnalité : **`rework` d'abord, navigation ensuite** (`openDraft` retrouve alors
-le brouillon existant). En cas d'échec réseau on **ne navigue pas** — partir quand même créerait la
-v2 vide qu'on vient d'éviter.
+**À LIRE AVANT DE TOUCHER À `occasion_mnemonique`.**
 
-🔴 **Et la même mine était DÉJÀ ARMÉE dans `CoursPage`** : son bouton était inconditionnel, donc sur
-une leçon déjà fichée il ouvrait l'atelier et écrasait la fiche finie. Le défaut 4 était atteignable
-**depuis la page Cours**, pas seulement en revenant dans l'atelier — ce que la description
-précédente de ce défaut ne disait pas.
+L'ADR-0055 nommait comme signe d'erreur : *« l'occasion est détectée sur presque toutes les leçons
+→ l'heuristique est trop large »*. Il a sonné dès la première mesure, et **deux resserrages ont
+suivi le même jour**, chacun mesuré sur les vraies fiches et non sur des exemples inventés :
+
+| Règle | Leçons offrant l'étape ⑥ |
+|---|---|
+| « ≥ 3 points-clés » **ou** énumération (1ʳᵉ version) | **27 / 27 — 100 %** |
+| énumération seule, en coupant sur « , » **et** « et » | **7 / 27** |
+| **énumération seule, virgules seules** ← retenu | **4 / 27** |
+
+🔴 **Deux choses à ne pas défaire :**
+
+1. **Le signal « ≥ 3 points-clés » est RETIRÉ.** Le prompt demande jusqu'à cinq points-clés et le
+   modèle les remplit : ce signal ne distinguait **rien**. L'étape se serait affichée sur
+   « Division de fractions » pour annoncer une liste qui n'existe pas.
+2. **On ne coupe PAS sur « et ».** C'est une conjonction française ordinaire, pas une énumération :
+   l'ajouter attrapait *« Résumer **et** reformuler un texte »* et *« Lire **et** comprendre un
+   texte poétique »*.
+
+Les **4 leçons** retenues : la proposition subordonnée relative (*qui, que, dont, où*) · la phrase
+complexe (où ZETIS avait déjà écrit **« MOULIN »** dans un point-clé, faute d'endroit où le mettre)
+· la géographie du Royaume-Uni (quatre nations, quatre capitales) · les éruptions volcaniques.
+
+⚠️ **Le vide reste le cas fréquent et normal** (§10) : 23 leçons sur 27 n'offrent pas l'étape, et
+ce n'est pas un manque.
+
+⚠️ **L'ADR-0055 §4 décrit encore DEUX signaux** — il a été écrit avant la mesure. Un addendum doit
+l'aligner ; en attendant, **c'est le code qui a raison**, et ce paragraphe dit pourquoi.
+
+#### 🔴 UN DÉFAUT TROUVÉ À L'ÉCRAN — la source de l'occasion était fausse
+
+Question posée sans préambule : *« pas de mnemonics ???? »*. Je calculais l'occasion sur les
+points-clés **du brouillon de Massimo**, vide à l'ouverture. L'étape apparaissait donc sur **1**
+leçon au lieu de **27**. L'occasion est une propriété de la **LEÇON** (§10 : « ZETIS *détecte*
+l'occasion » ; §11 : « dans les `points_cles` » des fiches de ZETIS).
+
+Corrigé : **deux sources**, la leçon d'abord, le brouillon ensuite — et la même règle sur la tuile,
+pour ne pas recréer deux vérités. Verrou posé, sabotage joué.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Trois libellés distincts.** « En faire ma fiche » ≠ « La retravailler » ≠ « Ma fiche ». Emoji
-   **✏️** — la spec fait foi. Les libellés vivent **dans `FicheCard`**, pas au site d'appel : c'est
-   ce qui empêche deux surfaces de les faire diverger.
-2. **Aucune route, aucune colonne, aucune migration** — ajouter un champ à un schéma de réponse
-   existant reste **permis** (§2 précisé). ⚠️ Ce critère ne voit que le **serveur** : il a déclaré
-   « réalisable » une porte qui n'avait pas d'adresse côté client.
-3. 🔴 **L'écran 7 (versions) est HORS périmètre**, exclu par ce critère même.
-4. **Relatif à l'écran, absolu sur le papier, RIEN sur la fiche de ZETIS.** Les trois règles
-   ensemble, elles ne se contredisent pas : l'écran s'interdit de dater un contenu généré, le papier
-   non, parce qu'une feuille non datée est inclassable.
-5. **La porte est sur sa PROPRE rangée**, pleine largeur, en accent, au-dessus des outils —
-   **décidé par l'humain le 2026-08-14 après mesure** (voir le tableau de `page-fiches.md`). Entassée
-   à la fin elle ne coûtait rien mais se lisait après « Imprimer ».
-6. **Les défauts 2, 3 et 4 vont dans un chantier à part**, « la fiche répond quand on la touche ».
-   ⚠️ Le défaut 4 est désormais **partiellement** désamorcé (la porte de `CoursPage` ne le déclenche
-   plus) mais **la cause reste** : revenir dans l'atelier après `finish` crée toujours une v2 vide.
-7. **Ne pas appliquer la réponse graduée** du §3 de l'addendum avant deux semaines d'usage réel.
-
-#### ⚠️ PIÈGES — tous consignés dans `TROUBLESHOOTING.md` §`feat/la-fiche-vit-dans-le-temps`
-
-Dix sous-sections, dont **cinq nées de cette session**. Les deux qui resserviront le plus vite :
-
-- 🔴 **Un mock incomplet laisse la suite verte sans rien exercer** — arrivé **deux fois le même
-  jour** (705 → 705 tests sur du code neuf). Le second cas est le pire : un chargement délibérément
-  **non bloquant** transforme toute absence de mock en repli silencieux.
-- ⚠️ **`git commit --no-edit` laisse les commentaires `#` dans le message de merge** (le mode
-  `cleanup` retombe sur `whitespace` sans éditeur). Réparé par `--amend --cleanup=strip`.
-
-#### 🔴 UN SABOTAGE EST RESTÉ VERT — et c'était la contre-épreuve qui visait mal
-
-Neuf contre-épreuves jouées, huit rouges. La verte : retirer le garde `etat === "ma_fiche"` du
-calcul de la date ne casse rien **parce que la branche `zetis` n'utilise pas cette variable**. Le
-sabotage bien visé (faire afficher la date par cette branche) est rouge.
-
-**Le garde est une seconde barrière, pas le mécanisme** — son commentaire le dit désormais dans le
-code, sinon un futur lecteur s'y fierait. *3ᵉ occurrence du motif « contre-épreuve mal visée ».*
+1. **Toucher au `FicheSpec` OBLIGE à toucher au prompt dans le même geste** (consigne + few-shot
+   + version). C'est la règle qui remplace l'ancienne interdiction « littéralement inchangé ».
+2. **L'atelier reste déterministe** — règle 7 du §5. Aucun appel LLM neuf : c'est le critère qui
+   a borné ce chantier, et il a **reporté le corrigé de ZETIS**.
+3. **L'étape ⑥ n'est jamais rendue GRISÉE** quand il n'y a pas d'occasion (§10).
+4. **L'occasion = une énumération d'au moins 3 éléments séparés par des VIRGULES**, dans les
+   points-clés de la fiche ZETIS d'abord (ci-dessus). Ni le nombre de points-clés, ni « et ».
+5. **Libellé anglais « Mnemonics » à l'écran, champ `mnemonique` au schéma** — écart assumé.
 
 #### 🧾 DETTES OUVERTES
 
-**Nées de cette session :**
+**Nées de cette slice :**
 
-- ⚠️ **Le pied atteint 5 lignes à 375 px quand le titre de la leçon est long** — le badge « 📚
-  D'après ton cours » s'enroule sur deux lignes. **Préexistant**, la porte ne l'aggrave pas, mais
-  ce n'était pas mesuré avant.
-- ⚠️ **L'ADR-0054 porte deux comptes faux** : « les trois surfaces » qui rendent `FicheCard` (elles
-  sont **deux**) et « un pied déjà à cinq » boutons (il en porte **trois**). Corrigés dans le code
-  et dans `page-fiches.md`, **pas encore dans l'ADR** — un addendum le mérite.
-- ⚠️ **`FicheSidePanel` (mindmap) ne reçoit aucune porte.** Volontaire — l'ADR §1 la pose sur
-  l'écran 3 — mais à re-décider si Massimo lit ses fiches depuis la mindmap.
+- 🔴 **Le prompt v2 n'a JAMAIS généré une fiche.** C'est là que le risque d'acronymes forcés se
+  réalise, et aucun test ne peut le dire. À exercer sur une génération réelle.
+- ⚠️ Le **corrigé de ZETIS** (montrer son mnémonique après la tentative) est **reporté** — exclu
+  par le critère du §4. À cadrer à part.
+- ⚠️ `FicheSidePanel` (mindmap) ne reçoit **aucune porte** ni étape — volontaire.
+- ⚠️ **Données de test** : j'ai écrit trois points-clés dans le **brouillon 54** (leçon 1) pour la
+  démonstration de l'occasion.
 
-**Nées plus tôt dans le chantier, toujours ouvertes :**
+**Le chantier SUIVANT, déjà à moitié cadré :**
 
-- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE et non à la fiche qu'on vient de finir · le
-  bouton du pont SRS est **muet** (états `envoi`/`fait` perdus). Chantier à part.
-- 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide qui
-  masque la fiche finie. Seule la porte de `CoursPage` est désamorcée.
-- 🔴 **Le trou d'un jour** : entre le moment où il écrit sa définition et le lendemain, cette notion
-  n'est révisable d'aucun côté (carte ZETIS masquée, la sienne pas encore due).
-- 🔴 **Le doute sur le brouillon 51** n'est pas tranché — StrictMode ou défaut 4 ? Deux origines
-  coexistent manifestement (53 née PLEINE, 54 née VIDE) et on n'a pas établi laquelle a produit quoi.
-- ⚠️ **Le masquage SRS reste à confirmer** — c'est la seule dette qui a une **date** : le
-  **2026-08-15**, ouvrir le deck **Français** (**pas** le mélange, plafonné à 12 pour 156 dues : il
-  ne prouverait rien) et vérifier que ces **SEPT** notions servent **sa** définition et jamais celle
-  de ZETIS — *Narrateur · Schéma narratif · Personnage principal · Proposition indépendante ·
-  Juxtaposition · Coordination · Conjonction de coordination* (cartes 322 à 328, relevées en base à
-  la clôture ; la note précédente n'en annonçait que trois).
+🔴 **L'enrichissement des fiches déjà créées — le §11 est RÉVISÉ par le commanditaire.** Il
+l'avait écarté ; il est retenu, sous deux conditions décidées le 2026-08-14 :
 
-**Remontées des slices précédentes :**
+- **ENRICHIR, pas régénérer** — on ajoute les champs manquants, les validations et les éditions
+  manuelles de Papa sont **préservées** (c'était le motif n°1 du §11 contre la régénération) ;
+- **les fiches sortent des decks, mais PAR LOT** — la fenêtre d'invisibilité est bornée à un lot
+  au lieu des 27 d'un coup, ce qui **lève l'objection centrale du §11**.
 
-- ⚠️ `review_load` de Papa compte des cartes masquées — assumé · le commentaire de `coverage.py:364`
-  reste faux deux fois · le **veto d'un cours** reste impossible dès qu'une fiche personnelle existe
-  · **aucun linter Python** · **la dictée n'a jamais été exercée avec un vrai micro**.
+⚠️ **Restent à trancher** : la taille du lot et l'ordre de passage. ⚠️ **Le mécanisme n'existe
+pas** — aucune route d'enrichissement. Chiffres : **27** fiches ZETIS validées, **10** déjà en
+`pending`. La file de relecture de Papa est le facteur limitant, pas le LLM.
 
-#### 🧪 DONNÉES DE TEST LAISSÉES EN BASE (dev)
+**Remontées de l'ADR-0054 (mergé, PR #125, squash `845b427`) :**
 
-| Fiche | Leçon | État | Version | Contenu |
-|---|---|---|---|---|
-🔴 **RECOMPTÉ en base à la clôture, et DEUX chiffres hérités étaient faux** — ils venaient de la
-session précédente et n'avaient jamais été revérifiés. C'est exactement ce que l'étape 6 du
-`/cloture` existe pour attraper.
+- 🔴 **Le masquage SRS reste à confirmer le 2026-08-15** — **la seule dette qui EXPIRE**. Deck
+  **Français** (pas le mélange), les **sept** notions des cartes 322→328 : servent-elles **sa**
+  définition et jamais celle de ZETIS ? Passé ce jour, les cartes ne sont plus dues.
+- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE, pas à la fiche finie · le bouton du pont
+  SRS est **muet**. Chantier « la fiche répond quand on la touche ».
+- 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide.
+  Seule la porte de `CoursPage` est désamorcée.
+- 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51 (StrictMode ou défaut 4).
+- ⚠️ **L'ADR-0054 garde deux comptes faux** (« trois surfaces » pour deux, « cinq boutons » pour
+  trois) — corrigés dans le code, **pas dans l'ADR**.
+- ⚠️ Le **pied de fiche atteint 5 lignes** à 375 px quand le titre est long (préexistant).
+- ⚠️ `review_load` compte des cartes masquées · le commentaire de `coverage.py:364` reste faux ·
+  le **veto d'un cours** impossible dès qu'une fiche personnelle existe · **aucun linter Python** ·
+  **la dictée n'a jamais été exercée avec un vrai micro**.
 
-| Fiche | Leçon | État | Version | Contenu (vérifié en base le 2026-08-14) |
-|---|---|---|---|---|
-| **42** | 7 | `personal` | 1 | 4 points-clés, 0 définition, 0 piège |
-| **44** | 1 | `personal` | 1 | 5 points-clés, 4 définitions, **0 piège** *(et non 3 — corrigé)* |
-| **53** | 1 | `personal` | **2** | 5 points-clés, 4 définitions, **3 pièges** — **née PLEINE** (le §7 marche) |
-| **54** | 1 | `personal_draft` | **3** | **vide** — le défaut 4, 3ᵉ occurrence |
+#### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-⚠️ **Les 3 pièges sont sur la 53, pas sur la 44.** Cohérent avec `rework` : la v2 naît avec le
-contenu de la v1 (5 points-clés + 4 définitions), et les pièges ont été ajoutés **ensuite**, dans la
-v2. L'ancienne note inversait les deux.
-
-⚠️ **54 est resté** : il masque la fiche 53 dans la liste (`commencee > ma_fiche`). Les brouillons
-51 et 52 ont été supprimés après inspection. **7 cartes `definition_perso`** (*et non 3 — corrigé*),
-toutes dues le **2026-08-15**.
-
-⚠️ **Ce qui tournait encore à la fin de la session** : infra Docker + **paire LAN**
-(`backend-lan` :8004 / `massimo-lan` :5180), laissées allumées pour la vérification du 2026-08-15.
-L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au lancement
-(`ipconfig getifaddr en0`, **jamais `en10`** : le filaire n'est pas ce que l'iPhone joint).
-
-#### ✅ CHANTIER SUIVANT — **CADRÉ** le 2026-08-14, aucune ligne de code
-
-**ADR-0055 — « Les deux étapes qui manquent »** (⑤ 💡 Un exemple · ⑥ 🎩 Mnemonics). Cadré sur `main`
-juste après le merge de l'ADR-0054, sur une question posée sans préambule : *« où sont passés les
-mnemonics des fiches ? »*
-
-> **Réponse : nulle part, et ce n'était pas un oubli.** L'atelier promet **six** étapes et en rend
-> **quatre** depuis la slice 1. Le backend **refuse** `section="mnemonique"` par un 400 verrouillé
-> par un test, et l'étape n'est pas non plus grisée — le §10 l'interdit.
-
-🔴 **L'asymétrie est le vrai défaut, et personne ne l'avait nommée** : `mini_exemple` est dans le
-schéma, dans le prompt v1 et **rendu par `FicheCard` + `FicheA5`** — donc **ZETIS écrit des exemples
-que Massimo ne peut pas écrire**, sur un produit dont tout l'argument est « sa fiche à lui, à côté
-de celle de ZETIS ». Les deux étapes étaient pourtant rangées ensemble dans les « hors périmètre ».
-
-⚠️ **Ce chantier ne décide RIEN du produit** : le §10 et le §11 de l'addendum ADR-0015 ont déjà tout
-tranché (forme du champ, trois garde-fous, patron du corrigé, libellé anglais, enrichissement à la
-demande). **Ils ne se rouvrent pas** — l'ADR-0055 ne décide que le chantier.
-
-✅ **Une crainte mesurée FAUSSE avant d'être inscrite** : `spec_json` est une colonne `JSON`, donc
-**aucune migration**. J'avais annoncé « migration possible » en posant la question ; c'était faux.
-
-🔴 **Le critère qui borne : aucun appel LLM neuf dans l'atelier** (règle 7 du §5). Il **mord
-immédiatement** — il exclut le corrigé de ZETIS, qui demanderait `FICHE_PROMPT_VERSION` v2.
-
-> ⚠️ **Le lot `main` de ce cadrage (ADR + `DECISIONS.md` + ce fichier) doit être commité AVANT
-> d'appeler `/ouverture`** — la commande **s'arrête** si elle voit `DECISIONS.md` modifié. Le lot
-> spec + prompts, lui, part **sur la branche** que `/ouverture` crée.
+Infra Docker + **paire LAN** (`backend-lan` :8004 / `massimo-lan` :5180) allumées. IP Wi-Fi
+`10.82.84.122` — **elle bouge au gré du DHCP**, la relire (`ipconfig getifaddr en0`, jamais `en10`).
+Brouillon **54** : 3 points-clés écrits pour la démo. Brouillon **56** (leçon 8) : vide.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier ADR-0054 est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
+1. **Vérifier le diff, relancer les suites, commiter, pousser, PR, merger.**
+2. 🔴 **Étape 4bis** juste après le merge — ce fichier sera faux dès la fusion.
+3. 🔴 **Le 2026-08-15** : la vérification du masquage SRS, la seule dette qui expire.
+4. **Cadrer l'enrichissement** (décisions ci-dessus déjà prises) — sur `main`, pas sur une branche.
 
-1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Ouvrir le deck **Français** (pas le mélange) et
-   vérifier que les **sept** notions des cartes 322→328 servent **sa** définition et jamais celle de
-   ZETIS. C'est la seule preuve possible du masquage ; passé ce jour, les cartes ne sont plus dues
-   et la fenêtre est fermée.
-2. **`/ouverture`** sur l'ADR-0055 — le cadrage est fait, la branche reste à créer. ⚠️ Le lot spec
-   est **plus léger qu'annoncé** : `page-fiches.md` décrit **déjà** l'étape ⑤ au `#### 4b` (avec ②,
-   trois règles obligatoires) — j'avais affirmé le contraire, corrigé à l'étape 6. Seul le **tableau
-   d'avancement** est à reprendre (« ⑤ et ⑥ toujours pas rendues »).
-3. 🔴 **Avant de figer l'heuristique d'occasion** : la mesurer sur les **17 leçons de Français** —
-   combien d'occasions, et lesquelles. Jugée sur des exemples inventés elle ne prouve rien
-   (motif « contre-épreuve mal visée », payé trois fois).
-4. **L'addendum ADR-0054** sur les deux comptes faux (« trois surfaces » pour deux, « cinq boutons »
-   pour trois) — corrigés dans le code et dans `page-fiches.md`, **pas dans l'ADR**.
-5. Plus tard : cadrer « la fiche répond quand on la touche » (défauts 2, 3 et **la cause du 4**,
-   toujours vivante).
+---
 
-⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
-encore ouvertes devront alors être **remontées**, pas enterrées avec le récit.
+## ⬆️ REMONTÉ de l'élagage de la slice 4 « la fiche vit dans le temps » (PR #125, squash `845b427`)
+
+> Le récit est retiré : **les quatre contrôles passent.** ADR-0054 ✅ ·
+> `TROUBLESHOOTING.md` §`feat/la-fiche-vit-dans-le-temps` (**10 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.84.0** ✅ · 4ᵉ contrôle — dettes remontées dans la section active ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : le chantier a **désamorcé une mine déjà armée** — le bouton de
+> `CoursPage`, inconditionnel, ouvrait l'atelier sur une leçon déjà fichée et y créait une v2
+> **vide** qui masquait la fiche finie. Massimo perdait sa fiche en cliquant sur un bouton qui
+> promettait de la faire. ⚠️ Et **l'étape 6 de la clôture a attrapé deux chiffres hérités faux**
+> (3 pièges attribués à la mauvaise fiche, 3 cartes annoncées pour 7) — la vérification datée du
+> lendemain visait moins de la moitié des cartes concernées.
 
 ---
 

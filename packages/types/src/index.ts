@@ -106,6 +106,7 @@ export {
   type FicheDraftDetail,
   type FicheFeedback,
   type FicheListItem,
+  type FicheMnemonique,
   type FichePilotageLesson,
   type FichePilotageTree,
   type FicheRemarque,

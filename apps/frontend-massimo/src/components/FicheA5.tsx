@@ -105,6 +105,21 @@ export const FicheA5 = forwardRef<HTMLDivElement, FicheA5Props>(function FicheA5
         </section>
       )}
 
+      {/* Même libellé anglais qu'à l'écran (§10) — la feuille imprimée ne renomme rien. */}
+      {spec.mnemonique?.moyen && (
+        <section>
+          <h2 className={SECTION_LABEL}>🎩 Mnemonics</h2>
+          <p className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800">
+            {spec.mnemonique.moyen}
+            {spec.mnemonique.sert_a && (
+              <span className="mt-0.5 block text-xs text-slate-500">
+                pour retenir {spec.mnemonique.sert_a}
+              </span>
+            )}
+          </p>
+        </section>
+      )}
+
       {/* 🔴 La date ABSOLUE, et seulement ici (ADR-0054 §3). Une feuille imprimée sans date est
           inclassable dans un classeur — c'est le seul endroit où l'absolu se justifie, et
           l'inverse de la règle d'écran, qui n'affiche que du relatif. */}

@@ -8,10 +8,10 @@
 // Le plein écran réutilise le patron déjà retenu (ADR-0052) — overlay CSS + état React, jamais
 // `requestFullscreen` ; `CloseFullscreenButton` (cible 44 px) ; Échap ; verrou du défilement.
 //
-// ⚠️ **La colonne ne montre que les étapes IMPLÉMENTÉES.** Trois aujourd'hui, six à terme. Les
-// autres ne sont **pas rendues grisées** — même principe que l'étape « Mnemonics », que
-// l'addendum §10 interdit d'afficher quand elle n'a rien à offrir : une étape visible mais morte
-// est une promesse que le produit ne tient pas.
+// ⚠️ **La colonne ne montre que les étapes OFFERTES.** Les six sont implémentées depuis
+// l'ADR-0055 (2026-08-14), mais la ⑥ est **conditionnelle** : elle n'apparaît que si ZETIS a
+// détecté une occasion. Elle n'est **pas rendue grisée** — l'addendum §10 l'interdit : une étape
+// visible mais morte est une promesse que le produit ne tient pas.
 import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -72,7 +72,28 @@ const ETAPES: { id: FicheSection; num: string; titre: string; bulle: string }[] 
     // et pas « je te conseille » : la nuance est toute la différence.
     bulle: "Je me souviens de ce sur quoi tu t'es trompé. On en met sur ta fiche ?",
   },
+  {
+    id: "mini_exemple",
+    num: "⑤",
+    titre: "💡 Un exemple",
+    bulle: "Un exemple, c'est ce qui fait qu'on comprend. Tu en as un en tête ?",
+  },
+  {
+    id: "mnemonique",
+    num: "⑥",
+    titre: "🎩 Mnemonics",
+    // 🔴 **Le ridicule est une QUALITÉ ici, et c'est le seul endroit de la fiche.** Un mnémonique
+    // bête se retient mieux — et il faut le lui dire, sinon il cherchera quelque chose de sérieux.
+    bulle: "Il y a une liste à retenir. Invente ton truc — plus c'est bête, mieux ça marche !",
+  },
 ];
+
+// ⚠️ **L'étape ⑥ n'est PAS toujours offerte** (§10) : elle n'apparaît que si ZETIS a détecté une
+// occasion. Elle n'est pas non plus rendue GRISÉE — une étape visible mais morte est une promesse
+// que le produit ne tient pas. Le compteur doit donc suivre les étapes OFFERTES, jamais `ETAPES`.
+function etapesOffertes(occasion: boolean): typeof ETAPES {
+  return occasion ? ETAPES : ETAPES.filter((e) => e.id !== "mnemonique");
+}
 
 // ~60 caractères par ligne sur la fiche A5. Sert à dire la place RESTANTE, jamais un compteur.
 const CARS_PAR_LIGNE = 60;
@@ -111,6 +132,15 @@ export function AtelierPage() {
   const [piegesProposes, setPiegesProposes] = useState<FicheCandidate[]>([]);
   const [pieges, setPieges] = useState<string[]>([]);
   const piegesRef = useRef<string[]>([]);
+
+  // ── Étapes ⑤ et ⑥ (ADR-0055) ────────────────────────────────────────────────
+  const [miniExemple, setMiniExemple] = useState("");
+  const miniExempleRef = useRef("");
+  const [mnemoMoyen, setMnemoMoyen] = useState("");
+  const mnemoMoyenRef = useRef("");
+  const [mnemoSertA, setMnemoSertA] = useState("");
+  const mnemoSertARef = useRef("");
+  const [amorceExemple, setAmorceExemple] = useState<string | null>(null);
 
   // Dictée
   const [micro, setMicro] = useState<Recording | null>(null);
@@ -163,14 +193,24 @@ export function AtelierPage() {
         setDefinitions(definitionsRef.current);
         piegesRef.current = d.draft.erreurs_a_eviter ?? [];
         setPieges(piegesRef.current);
+        miniExempleRef.current = d.draft.mini_exemple ?? "";
+        setMiniExemple(miniExempleRef.current);
+        mnemoMoyenRef.current = d.draft.mnemonique?.moyen ?? "";
+        setMnemoMoyen(mnemoMoyenRef.current);
+        mnemoSertARef.current = d.draft.mnemonique?.sert_a ?? "";
+        setMnemoSertA(mnemoSertARef.current);
 
-        const [pc, ess, defs, pgs] = await Promise.all([
+        const [pc, ess, defs, pgs, ex] = await Promise.all([
           fetchCandidates(d.id, "points_cles").catch(() => null),
           fetchCandidates(d.id, "essentiel").catch(() => null),
           fetchCandidates(d.id, "definitions").catch(() => null),
           fetchCandidates(d.id, "erreurs_a_eviter").catch(() => null),
+          // ⑤ n'a pas de candidate — on ne vient chercher que son AMORCE. ⑥ n'en a pas non plus
+          // et n'a pas d'amorce : rien à précharger pour elle.
+          fetchCandidates(d.id, "mini_exemple").catch(() => null),
         ]);
         if (annule) return;
+        if (ex) setAmorceExemple(ex.amorce ?? null);
         if (pc) {
           setCandidates(pc.candidates);
           setSlots(pc.slots);
@@ -202,10 +242,19 @@ export function AtelierPage() {
         .filter(([, d]) => d.trim())
         .map(([terme, definition]) => ({ terme, definition })),
       erreurs_a_eviter: piegesRef.current,
+      mini_exemple: miniExempleRef.current || null,
+      // Même règle que les définitions : on ne persiste que ce qui est réellement écrit. Un
+      // mnémonique sans `moyen` n'est pas une donnée — et le vide est le cas NORMAL (§10).
+      mnemonique: mnemoMoyenRef.current.trim()
+        ? { moyen: mnemoMoyenRef.current, sert_a: mnemoSertARef.current }
+        : null,
     };
     try {
-      await saveDraft(detail.id, draft);
-      setDetail((d) => (d ? { ...d, draft } : d));
+      // 🔴 On garde la RÉPONSE : elle porte `mnemonique_occasion`, recalculé côté serveur. C'est
+      // ce qui fait apparaître l'étape ⑥ pendant qu'il choisit ses points-clés, sans dupliquer
+      // la règle ici.
+      const rendu = await saveDraft(detail.id, draft);
+      setDetail((d) => (d ? { ...d, draft, mnemonique_occasion: rendu.mnemonique_occasion } : d));
       setEnregistre(true);
       if (temoin.current) window.clearTimeout(temoin.current);
       temoin.current = window.setTimeout(() => setEnregistre(false), 1600);
@@ -385,11 +434,16 @@ export function AtelierPage() {
   // — et invisibles au compteur. Massimo voyait « 2 étapes sur 4 » avec trois étapes remplies.
   // Un compteur qui SOUS-compte est pire qu'un compteur faux : sur un écran qui s'interdit tout
   // reproche, il minimise le travail de l'enfant. Trouvé au doigt sur iPhone, par aucun test.
+  const offertes = etapesOffertes(detail?.mnemonique_occasion ?? false);
   const remplies = [
     choisis.length > 0,
     essentiel.trim().length > 0,
     Object.values(definitions).some((d) => d.trim()),
     pieges.length > 0,
+    miniExemple.trim().length > 0,
+    // ⚠️ Ne compte que si l'étape est OFFERTE — sinon un mnémonique écrit puis devenu
+    // « sans occasion » ferait un rempli hors du dénominateur.
+    detail?.mnemonique_occasion === true && mnemoMoyen.trim().length > 0,
   ].filter(Boolean).length;
 
   function apercu(id: FicheSection): string {
@@ -406,6 +460,14 @@ export function AtelierPage() {
       return n
         ? `${n} mot${n > 1 ? "s" : ""} sur ${termes.length}`
         : `${termes.length} mots à définir`;
+    }
+    if (id === "mini_exemple") {
+      return miniExemple.trim() ? miniExemple.slice(0, 70) : "un exemple à toi — ou à dicter";
+    }
+    if (id === "mnemonique") {
+      // Pas de reproche quand c'est vide : l'étape ne s'affiche QUE s'il y a une occasion, donc
+      // « à inventer » est une invitation, jamais un rappel de ce qui manque.
+      return mnemoMoyen.trim() ? mnemoMoyen.slice(0, 70) : "à inventer — plus c'est bête, mieux c'est";
     }
     if (pieges.length) return `${pieges.length} piège${pieges.length > 1 ? "s" : ""} sur ta fiche`;
     // 🔴 Aucun piège proposé n'est un état LÉGITIME, pas un manque : il n'a pas encore
@@ -431,13 +493,13 @@ export function AtelierPage() {
         <h1 className="text-xl font-semibold text-slate-100 sm:text-2xl">🧩 {titre}</h1>
         {/* Compte ce qui est COMMENCÉ, jamais ce qui manque (`CLAUDE.md` § Gamification). */}
         <p className="mt-2 text-sm text-zetis-muted" aria-live="polite">
-          {remplies} étape{remplies > 1 ? "s" : ""} sur {ETAPES.length} {remplies > 1 ? "ont" : "a"}{" "}
+          {remplies} étape{remplies > 1 ? "s" : ""} sur {offertes.length} {remplies > 1 ? "ont" : "a"}{" "}
           quelque chose — et rien ne presse.
         </p>
         <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-cyan-400/70 transition-all"
-            style={{ width: `${(remplies / ETAPES.length) * 100}%` }}
+            style={{ width: `${(remplies / offertes.length) * 100}%` }}
           />
         </div>
       </header>
@@ -450,7 +512,7 @@ export function AtelierPage() {
           phrase sélectionnait le texte — et sur iPhone, une sélection déclenche la loupe et le
           menu Copier au milieu du travail. */}
       <div className="flex select-none flex-col gap-2">
-        {ETAPES.map((etape) => {
+        {offertes.map((etape) => {
           const depliee = ouverte === etape.id;
           const faite =
             etape.id === "points_cles"
@@ -551,6 +613,57 @@ export function AtelierPage() {
                       retenus={pieges}
                       onBasculer={basculerPiege}
                     />
+                  )}
+
+                  {/* ⑤ — même nature qu'`essentiel` : un champ libre avec son amorce. Un exemple
+                      ne se choisit pas dans le cours, il s'invente. */}
+                  {etape.id === "mini_exemple" && (
+                    <EtapeChampLibre
+                      valeur={miniExemple}
+                      amorce={amorceExemple}
+                      lignes={3}
+                      placeholder="Par exemple…"
+                      max={FICHE_BUDGETS.miniExemple}
+                      onChange={(v) => {
+                        miniExempleRef.current = v.slice(0, FICHE_BUDGETS.miniExemple);
+                        setMiniExemple(miniExempleRef.current);
+                      }}
+                      onBlur={() => void persister()}
+                    />
+                  )}
+
+                  {/* ⑥ — deux champs d'UNE ligne, et aucune amorce : ZETIS n'oriente pas
+                      l'invention. Le §10 : le meilleur mnémonique est celui que Massimo invente. */}
+                  {etape.id === "mnemonique" && (
+                    <div className="flex flex-col gap-3">
+                      <EtapeChampLibre
+                        valeur={mnemoMoyen}
+                        amorce={null}
+                        lignes={2}
+                        placeholder="Mais Où Est Donc Ornicar…"
+                        max={FICHE_BUDGETS.mnemoMoyen}
+                        onChange={(v) => {
+                          mnemoMoyenRef.current = v.slice(0, FICHE_BUDGETS.mnemoMoyen);
+                          setMnemoMoyen(mnemoMoyenRef.current);
+                        }}
+                        onBlur={() => void persister()}
+                      />
+                      <label className="text-xs text-zetis-muted">
+                        Ça sert à retenir quoi ?
+                        <EtapeChampLibre
+                          valeur={mnemoSertA}
+                          amorce={null}
+                          lignes={1}
+                          placeholder="les conjonctions de coordination"
+                          max={FICHE_BUDGETS.mnemoSertA}
+                          onChange={(v) => {
+                            mnemoSertARef.current = v.slice(0, FICHE_BUDGETS.mnemoSertA);
+                            setMnemoSertA(mnemoSertARef.current);
+                          }}
+                          onBlur={() => void persister()}
+                        />
+                      </label>
+                    </div>
                   )}
 
                   <button
@@ -768,6 +881,46 @@ function EtapeChoix({
 }
 
 // ── Étape ② — le champ libre ───────────────────────────────────────────────────
+
+/**
+ * Champ libre GÉNÉRIQUE des étapes ⑤ et ⑥ (ADR-0055).
+ *
+ * ⚠️ **Volontairement distinct d'`EtapeEssentiel`** : celle-là porte la dictée, la barre de
+ * budget et son vocabulaire (« il te reste de la place pour 2 lignes »). Les fusionner
+ * demanderait de rendre optionnelles la moitié de ses props — `CLAUDE.md` n° 7, une abstraction
+ * prématurée coûte plus qu'elle ne rapporte. À rouvrir si une troisième surface apparaît.
+ *
+ * 🔴 **Jamais de compteur de caractères** : la coupe est silencieuse, comme partout ailleurs sur
+ * cet écran. « 412 / 600 » est une notation déguisée.
+ */
+function EtapeChampLibre({
+  valeur,
+  amorce,
+  lignes,
+  placeholder,
+  max,
+  onChange,
+  onBlur,
+}: {
+  valeur: string;
+  amorce: string | null;
+  lignes: number;
+  placeholder: string;
+  max: number;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+}) {
+  return (
+    <textarea
+      value={valeur || (amorce ?? "")}
+      onChange={(e) => onChange(e.target.value.slice(0, max))}
+      onBlur={onBlur}
+      rows={lignes}
+      placeholder={placeholder}
+      className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-100 placeholder:text-zetis-muted"
+    />
+  );
+}
 
 function EtapeEssentiel({
   valeur,

@@ -23,6 +23,22 @@ export interface FicheDefinition {
   definition: string;
 }
 
+/**
+ * Le moyen mnémotechnique (addendum ADR-0015 §10) — **0 ou 1, et le vide est le cas NORMAL**.
+ *
+ * Un mnémonique marche sur une **liste ou un ordre arbitraire** ; sur un concept il ne marche pas
+ * (il n'y en a pas pour « pourquoi la Terre tremble »). En demander un à chaque fiche produirait
+ * des acronymes forcés plus durs à retenir que la chose elle-même.
+ *
+ * ⚠️ **Bornes à une ligne chacun** (ADR-0055, tranché le 2026-08-14) : le §10 n'en donnait aucune,
+ * alors que tous les autres champs libres en ont — or le budget est **structurel** ici, c'est lui
+ * qui garantit « 1 leçon = 1 page ». Un moyen mnémotechnique qui dépasse une ligne n'en est plus un.
+ */
+export interface FicheMnemonique {
+  moyen: string; // ≤ 160 — « Mais Où Est Donc Ornicar »
+  sert_a: string; // ≤ 160 — « les conjonctions de coordination »
+}
+
 export interface FicheSpec {
   title: string;
   subject: string;
@@ -33,6 +49,7 @@ export interface FicheSpec {
   points_cles: string[]; // 0–5
   erreurs_a_eviter: string[]; // 0–3
   mini_exemple?: string; // 0–1
+  mnemonique?: FicheMnemonique | null; // 0–1, souvent absent — et c'est normal (§10)
 }
 
 // Item de deck (grille matière côté Massimo, liste Papa) — sans le spec complet.
@@ -67,6 +84,9 @@ export interface FicheTile {
   seen: boolean;
   versions: number;
   etapes_remplies: number;
+  // Le DÉNOMINATEUR, et il n'est pas constant : l'étape ⑥ est conditionnelle (ADR-0015 §10).
+  // La barre de la tuile en dérive ses segments — elle en portait 3 EN DUR jusqu'au 2026-08-14.
+  etapes_total: number;
   points_choisis: number;
   // ISO 8601. Quand SA dernière version finie a été touchée (ADR-0054 §3) ; `null` s'il n'a pas
   // de fiche. La fiche de ZETIS n'est JAMAIS datée côté enfant — c'est une information de Papa.
@@ -132,6 +152,7 @@ export interface FicheDraft {
   points_cles: string[];
   erreurs_a_eviter: string[];
   mini_exemple?: string | null;
+  mnemonique?: FicheMnemonique | null;
 }
 
 export interface FicheDraftDetail {
@@ -142,6 +163,10 @@ export interface FicheDraftDetail {
   chapter: string | null;
   version: number;
   draft: FicheDraft;
+  // L'étape ⑥ n'apparaît QUE si ZETIS a détecté une occasion (§10). Recalculé par le serveur à
+  // chaque sauvegarde — et l'atelier sauvegarde à chaque geste : l'étape s'ouvre donc pendant
+  // que Massimo choisit ses points-clés, sans que la règle soit dupliquée côté client.
+  mnemonique_occasion: boolean;
 }
 
 // Vocabulaire FERMÉ. La slice 1 n'implémente que `points_cles` — la seule section qui se
@@ -151,7 +176,8 @@ export type FicheSection =
   | "definitions"
   | "points_cles"
   | "erreurs_a_eviter"
-  | "mini_exemple";
+  | "mini_exemple"
+  | "mnemonique";
 
 // Une phrase tirée du cours, jamais écrite par ZETIS (règle 7 du §5).
 // ⚠️ Les candidates non retenues NE SONT PAS FAUSSES : vraies mais secondaires.
@@ -222,4 +248,8 @@ export const FICHE_BUDGETS = {
   terme: 80,
   definition: 300,
   ligne: 160,
+  // ADR-0055 : une ligne chacun, en réutilisant `ligne` plutôt qu'en inventant une borne. Le §10
+  // n'en donnait aucune — trou hérité, comblé au read-before-code du 2026-08-14.
+  mnemoMoyen: 160,
+  mnemoSertA: 160,
 } as const;
