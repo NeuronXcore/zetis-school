@@ -86,6 +86,16 @@ Les trois portes se dérivent de ce que `fiche-tiles` rend déjà (`etat`, `fich
 C'est le critère qui borne ce chantier : *si une porte demande une donnée que le serveur ne rend
 pas déjà, elle sort du périmètre.*
 
+⚠️ **Ce que « aucun état neuf » veut dire exactement** (précisé le 2026-08-13, au read-before-code) :
+la contrainte porte sur les **trois** choses listées ci-dessus. **Ajouter un champ à un schéma de
+réponse existant est PERMIS** quand la donnée existe déjà en base — c'est le cas de la datation,
+qui a besoin d'`updated_at` dans `FicheTile` (`Fiche` porte `TimestampMixin`). Sans cette
+précision, le titre du paragraphe se lit plus large que la règle et bloque une décision du §3.
+
+🔴 **Et ce critère a mordu tout de suite** : il a **sorti l'écran des versions du périmètre**, cf.
+le §4 ci-dessous. C'est le signe qu'il fait son travail — un critère de bornage qu'on desserre au
+premier obstacle n'a jamais borné quoi que ce soit.
+
 ### §3 — La datation : relative, sur SA fiche, et nulle part ailleurs
 
 La spec le prescrivait déjà (`page-fiches.md`, écran 2) : *« 2 versions · la dernière il y a
@@ -94,7 +104,7 @@ La spec le prescrivait déjà (`page-fiches.md`, écran 2) : *« 2 versions · l
 | Surface | Datation | Motif |
 |---|---|---|
 | Tuile de **sa** fiche | ✅ **relative** — « il y a 3 jours » | c'est la trajectoire du §7, et elle n'existe pas sans le temps |
-| Écran des **versions** | ✅ relative, par version | c'est l'objet même de l'écran |
+| Écran des **versions** | ⏸️ **reportée** — l'écran sort du périmètre (§4) | elle n'a plus de surface où s'afficher |
 | Fiche de **ZETIS** | ❌ **rien** | Massimo se fiche de quand elle a été générée, et « il y a 4 mois » ne peut que **saper la confiance** dans un contenu juste. C'est une information de **Papa** |
 | **Export A5 / impression** | ✅ **absolue** (`13/08/2026`) | une feuille imprimée sans date est inclassable dans un classeur — seul endroit où l'absolu se justifie |
 
@@ -107,14 +117,34 @@ le … » côte à côte sur une fiche non touchée depuis longtemps se lit comm
 frontière de `CLAUDE.md` §gamification (*« aucun décompte », *« pas de pression anxiogène »*).
 On écrit *« ta version 2, il y a 3 jours »*, pas un tableau d'horodatages.
 
-### §4 — Ce que la trajectoire montre, et ce qu'elle ne montre pas
+### §4 — L'écran des versions SORT du périmètre — et c'est le §2 qui l'a exclu
 
-L'écran des versions (écran 7 de la spec) affiche **la suite des versions**, sans commentaire de
-progression. **Aucune comparaison automatique**, aucun « tu as fait plus court » — le §6 de
-l'addendum interdit déjà à ZETIS de juger, et une trajectoire commentée deviendrait une note
-déguisée.
+🔴 **Corrigé le 2026-08-13, au read-before-code, avant toute ligne de code.** Ce paragraphe
+décrivait l'écran 7 comme livré par ce chantier. **Il ne peut pas l'être** :
 
-Ce que Massimo doit pouvoir faire : **ouvrir une version précédente et la lire**. Rien de plus.
+> Les **14** routes élève des fiches ont été listées depuis l'OpenAPI. **Aucune ne rend les fiches
+> personnelles d'une leçon.** `fiche-tiles` rend `versions: 2` — **un compte, pas une liste** — et
+> un seul `fiche_id`. L'écran 7 s'ouvre sur `?v=2` : **le client n'a aucun moyen de savoir quel
+> `fiche_id` est la version 2.** `GET /api/fiches/lessons/{lesson_id}` rendrait exactement ça, mais
+> c'est une route **Papa** (`require_parent`).
+
+Le livrer demanderait donc une **route élève neuve** — ce que le §2 interdit. Le périmètre validé
+l'incluait ; le critère qui le borne l'exclut : **les deux ne pouvaient pas être vrais ensemble**.
+
+**Décision : l'écran 7 est reporté**, avec sa datation par version. Motif retenu contre
+l'élargissement : le §2 n'est pas une contrainte technique, c'est **ce qui garde ce chantier
+petit**, et sa petitesse est son seul argument. L'écran des versions est un écran entier — il
+mérite son propre cadrage, pas une exception glissée dans celui-ci.
+
+**Ce qui reste vrai pour le jour où il se fera**, et qui n'a pas à être re-décidé : l'écran affiche
+**la suite des versions, sans commentaire de progression**. Aucune comparaison automatique, aucun
+« tu as fait plus court » — le §6 de l'addendum interdit déjà à ZETIS de juger, et une trajectoire
+commentée deviendrait une **note déguisée**. Massimo doit pouvoir **ouvrir une version précédente
+et la lire**. Rien de plus.
+
+⚠️ **Conséquence sur le §1** : « ✏️ La retravailler » **reste dans le périmètre** — le geste crée
+la version N+1 et n'a besoin d'aucune liste. C'est *consulter* les versions qui sort, pas *en
+créer* une.
 
 ### §5 — Le signal du §3 redevient interprétable
 
@@ -153,12 +183,14 @@ partagé — la mesure se refait **après** le changement, sur les trois surface
 - les **trois portes** du §1, dérivées de `fiche-tiles` sans route neuve ;
 - la **datation relative** sur la tuile de sa fiche et sur l'écran des versions ;
 - la **datation absolue** sur l'export A5 et l'impression ;
-- l'**écran des versions** (écran 7), en lecture seule ;
 - le pied de `FicheCard` porté à **44 px**.
 
 ## Hors périmètre (nommé)
 
 - **Toute route ou migration neuve** — critère du §2 : une porte qui en demande une sort.
+- 🔴 **L'écran des versions (écran 7) et sa datation par version** — exclus par ce critère même,
+  cf. §4. À cadrer à part : il lui faut une route élève qui liste les fiches personnelles d'une
+  leçon.
 - `mini_exemple`, `mnemonique`, `absent_du_cours`, l'**enrichissement** des fiches existantes —
   ils restent au dos de l'addendum ADR-0015 (§10, §11).
 - La **surface Papa** de lecture des fiches de son fils.
