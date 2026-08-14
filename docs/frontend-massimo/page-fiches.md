@@ -287,12 +287,31 @@ affirmer « c'est faux ».
 
 ### Le sens inverse — depuis le cours, ouvrir sa fiche
 
-**N'existe pas aujourd'hui** : `CoursPage` (`/subjects/:slug/cours`) mène au quiz, jamais aux
-fiches. À créer, **au niveau de chaque leçon** : « 🧩 En faire ma fiche » si rien n'existe,
-« ✍️ Ma fiche » sinon.
+**Livré le 2026-08-14.** `CoursPage` (`/subjects/:slug/cours`) porte, au niveau de chaque leçon :
+« 🧩 En faire ma fiche » si rien n'existe, « ✍️ Ma fiche » sinon.
 
-C'est **le même bouton** que celui de l'écran H — et la même question, **tranchée le 2026-08-12 :
-lire avant de fabriquer est permis.** Les deux entrées s'ouvrent sans condition.
+🔴 **Deux choses changent, pas une — le libellé ET la destination.** Le cadrage disait « il n'y a
+qu'à conditionner le libellé » : c'était faux, et dangereusement.
+
+| Sa fiche | Libellé | Destination |
+|---|---|---|
+| n'existe pas (`zetis`, `a_fabriquer`) | « 🧩 En faire ma fiche » | `/fiches/:slug/:lessonId/atelier` |
+| **est finie** (`ma_fiche`) | **« ✍️ Ma fiche »** | **`/fiches/:slug?fiche=<id>` — SA fiche** |
+| est **commencée** (`commencee`) | « 🧩 En faire ma fiche » | l'atelier — `openDraft` **retrouve** son brouillon, aucune version créée |
+
+🔴 **Ce bouton était une mine, et elle était armée** (trouvé le 2026-08-14). Inconditionnel, il
+ouvrait l'atelier même sur une leçon **déjà fichée** — donc `openDraft` y fabriquait un brouillon
+**vide** en version N+1, qui **masque** la fiche finie (`commencee` prime sur `ma_fiche`). Massimo
+perdait sa fiche en cliquant sur un bouton qui promettait de la faire. C'est le **défaut 4**, et il
+était atteignable **d'ici**, pas seulement en revenant dans l'atelier.
+
+⚠️ **La fiche a désormais une ADRESSE : `?fiche=<id>` sur l'écran 2.** Elle n'en avait aucune —
+elle n'était qu'un état interne de `FicheSubjectPage`, ce qui rendait cette porte irréalisable.
+Le lien est consommé **une fois** ; un id introuvable retombe sur la liste de la matière, jamais
+sur un écran d'erreur. C'est aussi ce dont l'**écran 7** aura besoin le jour où il se fera.
+
+La question de fond reste la même que pour l'écran H, **tranchée le 2026-08-12 : lire avant de
+fabriquer est permis.** Les deux entrées s'ouvrent sans condition.
 
 ### L'écran H — depuis une fiche ZETIS déjà lue
 
@@ -314,9 +333,30 @@ contenu de ZETIS — ce que l'addendum §2 interdit.
 ⚠️ **Aucune condition, aucun gate** : ni « il faut avoir essayé », ni état « a-t-il tenté ? » à
 tenir côté serveur (§3 révisé). Un défaut d'ouverture, jamais un verrou.
 
-⚠️ Le pied compte alors **cinq boutons** (porte · Ajouter à mes cartes · Image A5 · Imprimer, plus
-le retour). **Densité à juger à l'écran sur téléphone avant de figer** — c'est le risque nommé de
-l'ADR-0054, et il n'est pas technique.
+**La porte est sur sa PROPRE rangée, pleine largeur, en couleur d'accent, au-dessus des outils.**
+Décidé le 2026-08-14 **après mesure**, pas d'après une impression :
+
+| Pied à 375 px (largeur utile 309 px) | Rangées de boutons | Lignes | Hauteur |
+|---|---|---|---|
+| avant la porte (3 outils) | 2 | 3 | 181 px |
+| porte **entassée à la fin** du groupe | 2 | 3 | 181 px |
+| porte **en tête** du groupe | 3 | 4 | 233 px |
+| **porte sur sa rangée** (retenu) | 3 | 4 | **237 px** |
+
+🔴 **C'est la POSITION qui décide, pas le libellé** — les trois libellés tiennent dans la même
+rangée. Entassée à la fin, la porte ne coûte rien mais se lit **après « Imprimer »** ; en tête,
+elle coûte une ligne **sans hiérarchie**. Sur sa rangée, le même coût vertical achète une
+hiérarchie explicite, et la porte cesse de concourir avec des outils — ce qui répond au risque de
+« barre d'outils » nommé par l'ADR-0054.
+
+⚠️ **Le pied ne gagne JAMAIS qu'un seul bouton**, contrairement à ce que craignait l'ADR (« trois
+boutons de navigation de plus dans un pied déjà à cinq ») : les trois portes ne coexistent pas —
+la 1ʳᵉ n'apparaît que sur une fiche ZETIS, la 2ᵉ que sur sa fiche finie, et la 3ᵉ vit dans
+`CoursPage`. Le pied porte **trois** outils, pas cinq.
+
+⚠️ **Dette mesurée, non traitée** : quand le titre de la leçon est long, le badge « 📚 D'après ton
+cours » s'enroule sur deux lignes et le pied atteint **5 lignes**. Comportement **préexistant** du
+badge, que la porte n'aggrave pas.
 
 ## Gabarit de l'atelier
 

@@ -68,6 +68,9 @@ export interface FicheTile {
   versions: number;
   etapes_remplies: number;
   points_choisis: number;
+  // ISO 8601. Quand SA dernière version finie a été touchée (ADR-0054 §3) ; `null` s'il n'a pas
+  // de fiche. La fiche de ZETIS n'est JAMAIS datée côté enfant — c'est une information de Papa.
+  updated_at: string | null;
 }
 
 // Arbre de pilotage Papa d'une matière : leçons validées + leurs fiches (1 appel).
@@ -106,6 +109,10 @@ export interface FicheDetail {
   validation_status: FicheValidationStatus;
   spec: FicheSpec;
   seen: boolean;
+  // ISO 8601. Alimente la datation ABSOLUE de l'export A5 / impression (ADR-0054 §3) — « relatif
+  // à l'écran, absolu sur le papier ». Toujours rendue, fiche de ZETIS comprise : c'est l'écran
+  // qui s'interdit de dater un contenu généré, pas la feuille qu'on range dans un classeur.
+  updated_at: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -643,7 +643,19 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
   interrompu était **perdu de vue** alors que le serveur le gardait (constaté à l'usage le
   2026-08-13). Une leçon sans cours **ni** fiche lisible est omise. Coût : **une** requête pour
   toutes les fiches de la matière, jamais une par leçon.
+
+  **`updated_at`** (ajouté le 2026-08-14, ADR-0054 §3) — quand **sa** dernière version finie a été
+  touchée ; `null` s'il n'a pas de fiche. 🔴 **Jamais la date de la fiche de ZETIS** : côté enfant,
+  « il y a 4 mois » sur un contenu généré ne peut que saper la confiance dans un contenu juste, et
+  c'est une information de Papa. La règle se tient donc **à la source** — le serveur ne rend pas de
+  date à dater. ⚠️ Aucune migration : `Fiche` porte `TimestampMixin`.
 - **GET `/api/student/fiches/{id}`** — la fiche (spec complet) ; **404** si non lisible.
+
+  **`updated_at`** (ajouté le 2026-08-14, ADR-0054 §3) — ici la date sort **toujours**, fiche de
+  ZETIS comprise, et ce n'est pas une contradiction avec `fiche-tiles` ci-dessus : *« relatif à
+  l'écran, absolu sur le papier »*. Ce champ alimente l'**export A5 et l'impression**, où une
+  feuille non datée est inclassable dans un classeur. C'est l'**écran** qui s'interdit de dater le
+  contenu de ZETIS, pas le papier — deux règles, deux lectures.
 - **POST `/api/student/fiches/{id}/seen`** — marque la fiche vue (retrait du badge « nouveau »).
   ⚠️ **Quatrième lecteur du gate**, oublié au cadrage : sans lui, ouvrir sa propre fiche renvoie
   404 et son badge « nouveau » ne part jamais.

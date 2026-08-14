@@ -776,6 +776,39 @@ def test_le_corrige_ZETIS_reste_a_un_clic_meme_quand_il_a_sa_fiche(client_db) ->
         assert tuile["zetis_fiche_id"] == zetis.id  # le corrigé reste accessible
 
 
+def test_la_tuile_date_SA_fiche_et_jamais_celle_de_ZETIS(client_db) -> None:
+    """ADR-0054 §3 — la datation ne vit que du côté de Massimo.
+
+    🔴 La fiche de ZETIS n'est **jamais** datée côté enfant : « il y a 4 mois » ne peut que saper
+    la confiance dans un contenu juste, et c'est de toute façon une information de Papa. La règle
+    se tient donc à la SOURCE — le serveur ne rend aucune date à dater.
+
+    ⚠️ Aucune migration : `Fiche` porte `TimestampMixin`, la donnée était déjà en base. Ce test
+    vérifie qu'elle SORT, ce qu'aucun test ne faisait — le champ était neuf et invisible.
+    """
+    _, Session = client_db
+    with Session() as db:
+        # Une leçon où il a SA fiche → datée.
+        sienne_lecon = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        sienne = _fiche_de_massimo(db, sienne_lecon.id, student.id)
+
+        # Une leçon où seul ZETIS a produit → PAS de date.
+        zetis_lecon = _lecon_soeur(db, sienne_lecon, "Rien que ZETIS", content=_COURS)
+        _fiche_zetis(db, zetis_lecon.id, status="validated")
+
+        par_lecon = {t["lesson_id"]: t for t in service.subject_fiche_tiles(db, "mathematiques")}
+
+        a_lui = par_lecon[sienne_lecon.id]
+        assert a_lui["etat"] == "ma_fiche"
+        assert a_lui["updated_at"] is not None
+        assert a_lui["updated_at"] == sienne.updated_at
+
+        de_zetis = par_lecon[zetis_lecon.id]
+        assert de_zetis["etat"] == "zetis"
+        assert de_zetis["updated_at"] is None
+
+
 def test_la_dictee_refuse_le_brouillon_d_un_autre(client_db) -> None:
     """La dictée ne renvoie que du texte — mais elle consomme du Whisper local et laisse une
     trace `ai_jobs`. La faire sur le brouillon d'un autre n'aurait aucun sens."""

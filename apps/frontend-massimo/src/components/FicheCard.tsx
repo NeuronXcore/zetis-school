@@ -37,14 +37,46 @@ function SubjectIcon({ slug }: { slug: string }) {
   );
 }
 
+/**
+ * La porte du §1 de l'ADR-0054. Le site d'appel choisit **laquelle**, jamais **comment elle
+ * s'écrit** : les libellés sont figés par la spec (`page-fiches.md`), et les garder ici est ce
+ * qui empêche deux surfaces de les faire diverger.
+ *
+ * 🔴 **« En faire ma fiche » n'est PAS « La retravailler »** — la fiche de ZETIS n'est pas à lui :
+ * il n'y touche pas, il fabrique la sienne à côté. Un libellé commun laisserait croire qu'il
+ * édite le contenu de ZETIS.
+ */
+export type FichePorteKind = "faire" | "retravailler";
+
+const PORTES: Record<FichePorteKind, { label: string; title: string }> = {
+  faire: {
+    label: "🧩 En faire ma fiche",
+    title: "Fabrique ta propre fiche à partir de cette leçon",
+  },
+  retravailler: {
+    label: "✏️ La retravailler",
+    title: "Tu repars de ce que tu as écrit — ta version d'avant reste lisible",
+  },
+};
+
 export interface FicheCardProps {
   spec: FicheSpec;
   subjectSlug: string;
   /** Handler du pont SRS (chantier séparé). Absent = bouton désactivé (stub). */
   onAddToCards?: () => void;
+  /** La porte du §1. Absente = la surface n'en ouvre aucune (cas du panneau de mindmap). */
+  porte?: { kind: FichePorteKind; onClick: () => void; busy?: boolean };
+  /**
+   * ISO 8601 de la fiche, pour le PAPIER uniquement (export A5 / impression, ADR-0054 §3).
+   *
+   * ⚠️ Ne sert JAMAIS au rendu écran de cette carte : à l'écran, la datation vit sur la tuile
+   * de l'écran 2, en relatif, et seulement pour SA fiche. Ici c'est l'inverse — absolu, et sur
+   * n'importe quelle fiche, parce qu'une feuille non datée est inclassable.
+   */
+  dateISO?: string | null;
 }
 
-export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
+export function FicheCard({ spec, subjectSlug, onAddToCards, porte, dateISO }: FicheCardProps) {
   const a5Ref = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState<null | "image" | "print">(null);
 
@@ -148,21 +180,41 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
         )}
       </div>
 
-      {/* Pied : ancrage canonique + actions */}
-      <footer className="flex flex-wrap items-center gap-3 border-t border-white/10 bg-white/[0.03] p-4">
+      {/* Pied : ancrage canonique + porte + actions */}
+      <footer className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.03] p-4">
         {/* 🔴 **Les boutons de ce pied font 44 px de haut minimum** (ADR-0054 §6). Mesurés à
             **34 px** le 2026-08-13 — sous la cible tactile du projet. `py-1.5` cède la place à
             `min-h-[44px]` + `items-center` : le padding vertical décrivait une hauteur, la
             contrainte la garantit.
 
-            ⚠️ Ce pied est rendu par **quatre** surfaces — `FicheSubjectPage`, `CoursPanel`,
-            `FicheSidePanel` (mindmap) et cette carte. La non-régression se vérifie sur les
-            quatre, pas sur celle qu'on modifie. */}
+            ⚠️ Ce pied est rendu par **DEUX** surfaces — `FicheSubjectPage` et `FicheSidePanel`
+            (mindmap). La non-régression se vérifie sur les deux. *Corrigé le 2026-08-14 : ce
+            commentaire en annonçait quatre et l'ADR §6 trois. `CoursPanel` ne rend pas
+            `FicheCard`, il le cite en commentaire — un `grep -l` avait compté des mentions pour
+            des rendus.* */}
         {/* Provenance canonique (statique) : la fiche dérive du cours validé de la leçon. */}
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">
           📚 D'après ton cours <em className="not-italic opacity-80">« {spec.title} »</em>
         </span>
-        <div className="ml-auto flex flex-wrap gap-2">
+
+        {/* La porte (§1) sur sa PROPRE rangée, pleine largeur, en accent — décidé le 2026-08-14
+            après mesure à 375 px. Entassée à la fin du groupe d'outils elle ne coûtait rien
+            (3 lignes / 181 px) mais se lisait après « Imprimer » ; en tête du groupe elle
+            poussait le pied à 4 lignes SANS hiérarchie. Sur sa rangée, le même coût vertical
+            achète une hiérarchie explicite — et elle cesse de concourir avec des outils. */}
+        {porte && (
+          <button
+            type="button"
+            onClick={porte.onClick}
+            disabled={porte.busy}
+            title={PORTES[porte.kind].title}
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-zetis-accent px-4 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+          >
+            {porte.busy ? "⏳ On y va…" : PORTES[porte.kind].label}
+          </button>
+        )}
+
+        <div className="flex flex-wrap gap-2">
           {/* Pont SRS (chantier séparé) : présent mais désactivé tant que non câblé. */}
           <button
             type="button"
@@ -202,7 +254,7 @@ export function FicheCard({ spec, subjectSlug, onAddToCards }: FicheCardProps) {
       {/* Rendu clair A5 hors écran (portail → body, hors overflow) : source de l'export image / impression. */}
       {createPortal(
         <div aria-hidden className="pointer-events-none fixed left-[-99999px] top-0">
-          <FicheA5 ref={a5Ref} spec={spec} subjectSlug={subjectSlug} />
+          <FicheA5 ref={a5Ref} spec={spec} subjectSlug={subjectSlug} dateISO={dateISO} />
         </div>,
         document.body,
       )}

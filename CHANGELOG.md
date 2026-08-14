@@ -1,5 +1,48 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.84.0 — Sa fiche cesse d'être un cul-de-sac, et elle vit dans le temps
+
+Sur la matière Français, **12 fiches de ZETIS sur 17 ouvraient un cul-de-sac** : on les lisait, et
+il n'y avait rien après. On pouvait fabriquer la sienne, mais le seul chemin passait par la page
+Cours, que rien n'annonçait. Chaque fiche porte désormais **une porte**, et elle dit deux choses
+différentes selon à qui la fiche est.
+
+| Fiche ouverte | Ce qu'elle propose |
+|---|---|
+| celle de **ZETIS** | **« 🧩 En faire ma fiche »** — il fabrique la sienne à côté |
+| **la sienne**, finie | **« ✏️ La retravailler »** — nouvelle version, l'ancienne reste lisible |
+
+**« En faire ma fiche » n'est pas « la retravailler ».** La fiche de ZETIS n'est pas à lui : il n'y
+touche pas. Un libellé unique laisserait croire qu'il édite le contenu de ZETIS.
+
+**Et depuis le cours, quand sa fiche existe, le bouton dit « ✍️ Ma fiche » et ouvre SA fiche.**
+
+> 🔴 **Ce bouton-là détruisait du travail.** Inconditionnel, il ouvrait l'atelier même sur une
+> leçon **déjà fichée** — et l'atelier y fabriquait un brouillon **vide** en version 2, qui
+> **masque** la fiche finie dans la liste. Massimo perdait sa fiche en cliquant sur un bouton qui
+> promettait de la faire. La porte n'est donc pas qu'une commodité : c'est un désamorçage.
+
+**Sa fiche a maintenant une adresse.** Elle n'en avait aucune — elle n'était qu'un état interne de
+l'écran des fiches, ce qui rendait cette porte irréalisable. Un lien peut désormais la désigner
+(`?fiche=<id>`), et un lien vieilli retombe sur la liste de sa matière, jamais sur une erreur.
+
+**La fiche vit dans le temps, et elle le dit comme un souvenir.** *« tu l'as écrite hier — à
+relire »*, *« 2 versions · la dernière il y a 5 jours »*. Jamais un décompte, jamais deux dates
+côte à côte : sur une fiche ancienne, ça se lirait comme un reproche.
+
+> **Relatif à l'écran, absolu sur le papier.** La fiche de ZETIS n'est **jamais** datée à l'écran —
+> « il y a 4 mois » sur un contenu juste ne peut que saper la confiance, et c'est une information
+> de Papa. Mais l'export A5 et l'impression portent une date **absolue** (`13/08/2026`) : une
+> feuille imprimée sans date est inclassable dans un classeur. Deux formes, deux lectures.
+
+**La porte est sur sa propre rangée, en couleur d'accent, au-dessus des outils** — décidé après
+mesure à 375 px, pas d'après une impression. Entassée à la fin du groupe elle ne coûtait aucune
+ligne mais se lisait **après « Imprimer »** ; sur sa rangée, le même coût vertical achète une
+hiérarchie claire, et elle cesse de concourir avec un bouton d'impression.
+
+**Hors périmètre, et nommé** : l'**écran des versions** — il demanderait une route élève qui
+n'existe pas, et le critère qui borne ce chantier l'a exclu le jour même où il a été écrit.
+
 ## 0.83.0 — Ce qu'il écrit devient ce qu'il révise
 
 Ses définitions restaient sur la fiche. Elles deviennent ses **cartes de révision** : recto le

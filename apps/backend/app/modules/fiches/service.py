@@ -375,6 +375,12 @@ def fiche_out(db: Session, row: Fiche, *, seen: bool = False) -> dict:
         "validation_status": row.validation_status,
         "spec": spec,
         "seen": seen,
+        # 🔴 Ici la date sort TOUJOURS, y compris pour une fiche de ZETIS — et ce n'est PAS une
+        # contradiction avec la tuile, qui n'en donne que pour la sienne (ADR-0054 §3). Les deux
+        # règles servent deux lectures : « relatif à l'écran, absolu sur le papier ». Cette date
+        # alimente l'export A5 et l'impression, où une feuille non datée est inclassable dans un
+        # classeur. C'est l'ÉCRAN qui s'interdit de dater le contenu de ZETIS, pas le papier.
+        "updated_at": row.updated_at,
     }
 
 
@@ -570,6 +576,10 @@ def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
                 "versions": len(finies),
                 "etapes_remplies": remplies,
                 "points_choisis": len(points),
+                # La date de SA dernière version finie, et d'elle seule (§3). Jamais celle de
+                # ZETIS : `sienne` est `None` quand il n'a pas de fiche, et le client n'a alors
+                # rien à afficher.
+                "updated_at": sienne.updated_at if sienne else None,
             }
         )
     return tuiles

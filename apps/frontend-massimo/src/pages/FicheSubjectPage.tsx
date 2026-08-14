@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { type FicheDetail, type FicheListItem, type FicheTile } from "@zetis/types";
-import { cardsFromFiche, type FicheCartes } from "../lib/atelier";
+import { cardsFromFiche, reworkFiche, type FicheCartes } from "../lib/atelier";
+import { dateRelative } from "../lib/datation";
 import { FicheCard } from "../components/FicheCard";
 import { CoursPanel } from "../components/CoursPanel";
 import { NeonBackdrop } from "../components/glass";
@@ -25,6 +26,12 @@ export function FicheSubjectPage() {
   const subjectName = (location.state as { name?: string } | null)?.name ?? prettifySlug(slug);
 
   const navigate = useNavigate();
+  // `?fiche=<id>` — l'ADRESSE d'une fiche (ADR-0054 §1, 3ᵉ porte). Elle n'en avait aucune : la
+  // fiche ouverte n'était qu'un état interne de cette page, donc rien ne pouvait y renvoyer.
+  // La page Cours en a besoin pour dire « ✍️ Ma fiche » et ouvrir SA fiche plutôt que l'atelier.
+  const [params, setParams] = useSearchParams();
+  const ficheDemandee = Number(params.get("fiche")) || null;
+  const lienConsomme = useRef(false);
   const [list, setList] = useState<FicheListItem[] | null>(null);
   // La LISTE est leçon-centrée (fabrication) ; `list` reste fiche-centrée et sert le
   // feuilletage ‹/› du viewer, qui est une lecture de deck — deux rôles, deux sources.
@@ -38,6 +45,11 @@ export function FicheSubjectPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   // Cours source affiché À CÔTÉ de la fiche (colonne droite, même page — pas de superposition).
   const [coursOpen, setCoursOpen] = useState(false);
+  // La porte du §1 : `rework` est un aller-retour réseau avant la navigation, donc il se voit.
+  const [porteEnCours, setPorteEnCours] = useState(false);
+  // ⚠️ Message LOCAL, pas `error` : `error` n'est rendu que sur l'écran 2 (la liste). Le poser
+  // depuis l'écran 3 serait muet — l'enfant verrait un bouton qui ne fait rien.
+  const [portePanne, setPortePanne] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -60,6 +72,7 @@ export function FicheSubjectPage() {
       const item = list[idx];
       setOpenIdx(idx);
       setDetail(null);
+      setPortePanne(null); // sinon la panne d'une fiche suivrait le feuilletage jusqu'à la suivante
       setDetailLoading(true);
       try {
         const [fiche] = await Promise.all([fetchFiche(item.id), markFicheSeen(item.id)]);
@@ -76,6 +89,27 @@ export function FicheSubjectPage() {
     [list],
   );
 
+  /**
+   * Le lien profond `?fiche=<id>`, consommé UNE fois.
+   *
+   * ⚠️ Le drapeau se lève même quand la fiche est introuvable : sans lui, un id périmé (fiche
+   * dévalidée, lien partagé qui a vieilli) relancerait la recherche à chaque rendu. Et Massimo
+   * atterrit alors sur la liste de sa matière — pas sur un écran d'erreur pour un lien mort.
+   */
+  useEffect(() => {
+    if (lienConsomme.current || ficheDemandee === null || !list) return;
+    lienConsomme.current = true;
+    const i = list.findIndex((f) => f.id === ficheDemandee);
+    if (i >= 0) void open(i);
+  }, [ficheDemandee, list, open]);
+
+  /** Retour à la liste — on retire `?fiche=` : l'URL désignerait une fiche qui n'est plus ouverte. */
+  const retourALaListe = useCallback(() => {
+    setCoursOpen(false);
+    setOpenIdx(null);
+    if (ficheDemandee !== null) setParams({}, { replace: true });
+  }, [ficheDemandee, setParams]);
+
   const iconUrl = subjectIconFor(slug);
   const pontVersLesCartes = useCallback(async () => {
     if (!detail) return;
@@ -86,6 +120,37 @@ export function FicheSubjectPage() {
       // est rejouable — le serveur met à jour au lieu de dupliquer.
     }
   }, [detail]);
+
+  /**
+   * La porte du §1 — un seul geste, deux chemins, et l'écart entre les deux est TOUT.
+   *
+   * 🔴 « La retravailler » appelle `rework` **avant** de naviguer. Naviguer directement
+   * laisserait `openDraft` fabriquer un brouillon **VIDE** en version N+1 : Massimo cliquerait
+   * « retravailler » et retrouverait une page blanche à la place de son travail. `rework`, lui,
+   * repart de ce qu'il avait écrit. Les deux créent bien un brouillon pour la même leçon — c'est
+   * le contenu qui les sépare.
+   *
+   * Sur une fiche de ZETIS il n'y a rien à reprendre : on ouvre l'atelier directement.
+   */
+  const franchirLaPorte = useCallback(async () => {
+    if (!detail || porteEnCours) return;
+    const versLAtelier = () => navigate(`/fiches/${slug}/${detail.lesson_id}/atelier`);
+    if (detail.validation_status !== "personal") {
+      versLAtelier();
+      return;
+    }
+    setPorteEnCours(true);
+    setPortePanne(null);
+    try {
+      await reworkFiche(detail.id);
+      versLAtelier();
+    } catch {
+      // On ne navigue PAS en cas d'échec : l'atelier créerait alors la v2 vide qu'on vient
+      // d'éviter. Mieux vaut ne rien faire et le dire que faire la mauvaise chose en silence.
+      setPortePanne("Impossible d'ouvrir ta fiche pour l'instant. Réessaie dans un moment.");
+      setPorteEnCours(false);
+    }
+  }, [detail, navigate, porteEnCours, slug]);
 
   const heading = (
     <div className="flex items-center gap-2 text-slate-200">
@@ -108,10 +173,7 @@ export function FicheSubjectPage() {
           <div className="mb-4 flex items-center justify-between" data-print-hide>
             <button
               type="button"
-              onClick={() => {
-                setCoursOpen(false);
-                setOpenIdx(null);
-              }}
+              onClick={retourALaListe}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:border-cyan-400/40"
             >
               ← Retour
@@ -178,7 +240,19 @@ export function FicheSubjectPage() {
                       ? pontVersLesCartes
                       : undefined
                   }
+                  dateISO={detail.updated_at}
+                  porte={{
+                    // Sa fiche → on la retravaille ; celle de ZETIS → il fabrique la sienne à côté.
+                    kind: detail.validation_status === "personal" ? "retravailler" : "faire",
+                    onClick: () => void franchirLaPorte(),
+                    busy: porteEnCours,
+                  }}
                 />
+                {portePanne && (
+                  <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    {portePanne}
+                  </p>
+                )}
                 {bilanPont && (
                   <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
                     {bilanPont.cartes === 0
@@ -293,6 +367,17 @@ function TuileLecon({
           ? { texte: "⭐ Fiche ZETIS", classe: "bg-white/10 text-slate-300" }
           : { texte: "🧩 À fabriquer", classe: "bg-fuchsia-500/15 text-fuchsia-200" };
 
+  // 🔴 La date n'est calculée QUE pour SA fiche (ADR-0054 §3) : « il y a 4 mois » sur un contenu
+  // généré ne peut que saper la confiance dans un contenu juste, et c'est de toute façon une
+  // information de Papa.
+  //
+  // ⚠️ **Ce garde est une SECONDE barrière, pas celle qui tient** — vérifié par sabotage le
+  // 2026-08-14 : le retirer ne casse aucun test, parce que la branche `zetis` de `sousTitre`
+  // n'utilise pas `quand`. Ce que le test-verrou pin, c'est le RENDU (aucune date sur une tuile
+  // ZETIS, même si le serveur en envoie une). Le garde protège le jour où quelqu'un écrira
+  // `quand` dans cette branche-là ; il ne prouve rien tout seul.
+  const quand = etat === "ma_fiche" ? dateRelative(tuile.updated_at) : null;
+
   const sousTitre =
     etat === "commencee"
       ? tuile.points_choisis > 0
@@ -300,8 +385,13 @@ function TuileLecon({
         : "tu l'as ouverte — reprends où tu veux"
       : etat === "ma_fiche"
         ? tuile.versions > 1
-          ? `${tuile.versions} versions · la dernière est la tienne`
-          : "à relire — c'est la tienne"
+          ? // La phrase de la spec, enfin datée : « 2 versions · la dernière il y a 5 jours ».
+            quand
+            ? `${tuile.versions} versions · la dernière ${quand}`
+            : `${tuile.versions} versions · la dernière est la tienne`
+          : quand
+            ? `tu l'as écrite ${quand} — à relire`
+            : "à relire — c'est la tienne"
         : etat === "zetis"
           ? "à lire"
           : "≈ 5 minutes";

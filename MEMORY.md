@@ -6,165 +6,161 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 🚧 CHANTIER EN COURS — slice 4 : la fiche vit dans le temps (ADR-0054)
+### ✅ CHANTIER COMPLET — slice 4 : la fiche vit dans le temps (ADR-0054)
 
-Branche **`feat/la-fiche-vit-dans-le-temps`**, base **`1afb88e`**.
-⚠️ **`main` a AVANCÉ depuis** (`d12e856` : correction du §4 de l'ADR). La branche n'est pas
-rebasée — c'est volontaire, les fichiers sont disjoints. L'état commité se lit par
-`git log --oneline main..HEAD`.
+Branche **`feat/la-fiche-vit-dans-le-temps`**, base **`d12e856`** (`main` y a été **mergé** en cours
+de session — il avait avancé, cf. « le rattrapage » plus bas). L'état commité se lit par
+`git log --oneline main..HEAD` ; le travail de clôture n'est **pas encore commité**.
 
-> 🔴 **NE PAS MERGER.** Sur les cinq points du périmètre, **un seul** est fait. Merger mettrait un
-> pied de fiche agrandi sans les portes qui le justifient.
+> ✅ **Les QUATRE points du périmètre sont livrés**, et chacun a été vu à l'écran sur un vrai
+> backend, pas seulement testé. **PROCHAIN PAS = commit + push + PR.** (Voir tout en bas.)
 
-#### ✅ FAIT
+#### ✅ FAIT — le périmètre, point par point
 
-- **La spec complétée** (commitée) : la section « datation » à quatre surfaces, l'**écran H
-  décrit** — il n'était que *nommé en référence* depuis le premier cadrage, et c'est exactement
-  pour ça qu'il n'existe pas dans le produit.
-- **Temps 1 — le pied de `FicheCard` à 44 px**, mesuré à l'écran sur les **deux** surfaces
-  (`FicheSubjectPage`, `FicheSidePanel` de la mindmap), aucun débordement à 375 px.
-- **Le compteur d'étapes corrigé** — défaut trouvé **au doigt sur iPhone**, hors périmètre, décrit
-  plus bas. 2 verrous ajoutés.
+| Point du périmètre ADR-0054 | État |
+|---|---|
+| Les **trois portes** du §1 | ✅ les deux du pied de `FicheCard` + celle de `CoursPage` |
+| Datation **relative** sur la tuile de sa fiche (§3) | ✅ « tu l'as écrite hier — à relire » |
+| Datation **absolue** sur l'export A5 / impression (§3) | ✅ « · ZETIS · 13/08/2026 » |
+| Pied de `FicheCard` à **44 px** (§6) | ✅ (fait plus tôt dans le chantier) |
 
-#### 🚧 EN COURS / À FAIRE — le gros du périmètre
+**Ce qui a été écrit, et qui n'était pas prévu au cadrage :**
 
-1. **Les trois portes** (§1) : depuis une fiche ZETIS « 🧩 En faire ma fiche » · depuis la sienne
-   « ✏️ La retravailler » · depuis le cours « ✍️ Ma fiche » quand elle existe.
-   ⚠️ **Deux seulement sont neuves** : `CoursPage:241` porte déjà l'entrée, il n'y a qu'à
-   **conditionner le libellé**.
-2. **La datation** (§3) : `updated_at` à ajouter à `FicheTile` (**il n'en porte aucune**), puis le
-   rendu relatif sur la tuile.
+- **`?fiche=<id>` — la fiche a enfin une ADRESSE.** Elle n'en avait aucune : elle n'était qu'un état
+  interne de `FicheSubjectPage`, ouverte par index de liste. Sans ça, la 3ᵉ porte était
+  **irréalisable**. Le lien est consommé une fois ; un id introuvable retombe sur la liste, jamais
+  sur un écran d'erreur.
+- **`lib/datation.ts`** — module PUR (`dateRelative` + `dateAbsolue`), testable sans rendre une page.
+- **`lib/atelier.ts` → `reworkFiche()`** — le helper front manquait alors que la route existait.
+- **`FicheCard.test.tsx`** — ce composant n'avait **aucun** test (lacune préexistante).
+
+#### 🔴 LE PIÈGE CENTRAL — pourquoi « La retravailler » n'est pas une navigation
+
+`openDraft` (ce que l'atelier appelle en arrivant) crée un brouillon **VIDE** en version N+1 ;
+`rework` crée la version N+1 **pré-remplie de ce qu'il avait écrit**. Une porte « La retravailler »
+qui se contenterait de naviguer vers l'atelier rendrait donc une **page blanche** à la place de son
+travail — c'est le **défaut 4**, qui attendait d'être rejoué.
+
+L'ordre est la fonctionnalité : **`rework` d'abord, navigation ensuite** (`openDraft` retrouve alors
+le brouillon existant). En cas d'échec réseau on **ne navigue pas** — partir quand même créerait la
+v2 vide qu'on vient d'éviter.
+
+🔴 **Et la même mine était DÉJÀ ARMÉE dans `CoursPage`** : son bouton était inconditionnel, donc sur
+une leçon déjà fichée il ouvrait l'atelier et écrasait la fiche finie. Le défaut 4 était atteignable
+**depuis la page Cours**, pas seulement en revenant dans l'atelier — ce que la description
+précédente de ce défaut ne disait pas.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Trois libellés distincts.** « En faire ma fiche » ≠ « la retravailler » : la fiche de ZETIS
-   n'est pas à lui. Emoji **✏️** — **la spec fait foi**, l'ADR s'y est aligné.
-2. **Aucune route, aucune colonne, aucune migration** — et c'est le **critère qui borne**.
-   Ajouter un champ à un schéma existant est **permis** (§2 précisé).
-3. 🔴 **L'écran 7 (versions) est SORTI du périmètre**, exclu par ce critère même : aucune route
-   élève ne liste les fiches personnelles d'une leçon (14 routes vérifiées à l'OpenAPI).
-4. **Relatif à l'écran, absolu sur le papier, RIEN sur la fiche de ZETIS.**
-5. **Ne pas appliquer la réponse graduée du §3 de l'addendum** avant deux semaines d'usage réel
-   avec les portes — le signal mesurait l'interface, pas le comportement.
+1. **Trois libellés distincts.** « En faire ma fiche » ≠ « La retravailler » ≠ « Ma fiche ». Emoji
+   **✏️** — la spec fait foi. Les libellés vivent **dans `FicheCard`**, pas au site d'appel : c'est
+   ce qui empêche deux surfaces de les faire diverger.
+2. **Aucune route, aucune colonne, aucune migration** — ajouter un champ à un schéma de réponse
+   existant reste **permis** (§2 précisé). ⚠️ Ce critère ne voit que le **serveur** : il a déclaré
+   « réalisable » une porte qui n'avait pas d'adresse côté client.
+3. 🔴 **L'écran 7 (versions) est HORS périmètre**, exclu par ce critère même.
+4. **Relatif à l'écran, absolu sur le papier, RIEN sur la fiche de ZETIS.** Les trois règles
+   ensemble, elles ne se contredisent pas : l'écran s'interdit de dater un contenu généré, le papier
+   non, parce qu'une feuille non datée est inclassable.
+5. **La porte est sur sa PROPRE rangée**, pleine largeur, en accent, au-dessus des outils —
+   **décidé par l'humain le 2026-08-14 après mesure** (voir le tableau de `page-fiches.md`). Entassée
+   à la fin elle ne coûtait rien mais se lisait après « Imprimer ».
+6. **Les défauts 2, 3 et 4 vont dans un chantier à part**, « la fiche répond quand on la touche ».
+   ⚠️ Le défaut 4 est désormais **partiellement** désamorcé (la porte de `CoursPage` ne le déclenche
+   plus) mais **la cause reste** : revenir dans l'atelier après `finish` crée toujours une v2 vide.
+7. **Ne pas appliquer la réponse graduée** du §3 de l'addendum avant deux semaines d'usage réel.
 
-#### 🔴 QUATRE DÉFAUTS TROUVÉS À L'ÉCRAN — aucun par un test
+#### ⚠️ PIÈGES — tous consignés dans `TROUBLESHOOTING.md` §`feat/la-fiche-vit-dans-le-temps`
 
-C'est la justification vivante du `WORKFLOW.md §5bis`, quatrième session de suite.
+Dix sous-sections, dont **cinq nées de cette session**. Les deux qui resserviront le plus vite :
 
-| | Défaut | État |
-|---|---|---|
-| 1 | **Le compteur d'étapes sous-comptait** — `remplies` listait 3 étapes quand `ETAPES` en portait 4 : les pièges étaient rendus, jalonnés, sauvegardés, **invisibles au compteur**. « 2 étapes sur 4 » pour trois remplies | ✅ **corrigé**, 2 verrous |
-| 2 | **`finish` renvoie à la LISTE**, pas à la fiche qu'on vient de finir — le moment de la récompense mène à un écran de recherche | ❌ |
-| 3 | **Le bouton du pont est MUET** : il écrit 3 cartes et ne dit rien. En supprimant le doublon de bouton, j'ai perdu les états `envoi`/`fait` | ❌ |
-| 4 | **Revenir dans l'atelier après `finish` crée une v2 VIDE qui MASQUE la fiche finie** (priorité `commencee > ma_fiche`). La fiche devient inatteignable | ❌ |
+- 🔴 **Un mock incomplet laisse la suite verte sans rien exercer** — arrivé **deux fois le même
+  jour** (705 → 705 tests sur du code neuf). Le second cas est le pire : un chargement délibérément
+  **non bloquant** transforme toute absence de mock en repli silencieux.
+- ⚠️ **`git commit --no-edit` laisse les commentaires `#` dans le message de merge** (le mode
+  `cleanup` retombe sur `whitespace` sans éditeur). Réparé par `--amend --cleanup=strip`.
 
-🔴 **Le défaut 3 a une conséquence de méthode** : un compteur qui **sous-compte** est pire qu'un
-compteur faux — sur un écran qui s'interdit tout reproche, il minimise le travail de l'enfant.
+#### 🔴 UN SABOTAGE EST RESTÉ VERT — et c'était la contre-épreuve qui visait mal
 
-**Arbitrage pris (2026-08-14) : les défauts 2, 3 et 4 vont dans un chantier à part**, « la fiche
-répond quand on la touche ». Motif : *ils viennent tous de la même chose — le produit agit et ne
-dit rien.* Traités ensemble ils donneront une réponse cohérente ; glissés un par un dans la slice
-4, trois rustines. ⚠️ Le défaut 2 et l'écran 7 ont **le même besoin** : donner une **adresse** à
-la fiche (elle n'est qu'un état interne de `FicheSubjectPage` aujourd'hui).
+Neuf contre-épreuves jouées, huit rouges. La verte : retirer le garde `etat === "ma_fiche"` du
+calcul de la date ne casse rien **parce que la branche `zetis` n'utilise pas cette variable**. Le
+sabotage bien visé (faire afficher la date par cette branche) est rouge.
 
-#### ⚠️ CE QUE LA VÉRIFICATION iPHONE A PROUVÉ — et ce qu'elle n'a pas prouvé
-
-**Prouvé sur un vrai iPhone, le 2026-08-14** :
-
-- ✅ **Le glisser au doigt marche et persiste** — 5 phrases en base. **Dette n°1 levée**, ouverte
-  depuis la slice 1 et partie deux fois en `main` sans preuve.
-- ✅ **Les définitions et les pièges s'écrivent** — 4 définitions, 3 pièges.
-- ✅ 🔴 **LE PONT A TOURNÉ EN VRAI** : **3 cartes** `definition_perso`. Le 4ᵉ terme
-  (« personnages », venu du **gras du cours**) n'a aucune notion derrière et a été écarté —
-  le garde-fou des **deux nombres** est juste sur de vraies données.
-
-**NON prouvé, et à ne pas confondre avec un succès** :
-
-- 🟡 **Le masquage n'est qu'INDIQUÉ.** Français annonce `due_count: 156` ; sans masquage ce serait
-  159 (les 3 `definition` de ZETIS sont dues depuis juillet). **Je n'ai pas mesuré 159 avant** —
-  c'est une déduction, pas une comparaison.
-- ⚠️ **« Le mélange du jour ne sert que des maths » ne prouve RIEN** : Français a **156** cartes
-  dues et le mélange est plafonné à **12**. L'absence s'explique par le plafond, pas par le
-  masquage. *Motif « contre-épreuve mal visée », déjà consigné.*
-- ❌ **Les cartes personnelles servies à la place** — impossible aujourd'hui : elles sont dues
-  **demain** (`INTERVALLE_PREMIERE_CARTE = 1`).
-
-🔴 **TROU D'UN JOUR, découvert au passage et non traité** : entre le moment où Massimo écrit sa
-définition et le lendemain, **la définition de cette notion n'est révisable d'aucun côté** — la
-carte de ZETIS est masquée, la sienne n'est pas encore due. Conforme aux décisions prises,
-et contraire à ce qu'un enfant attend après avoir écrit trois définitions.
-
-#### 🔴 UN DOUTE SUR CE QUE J'AI ÉCRIT LE MATIN MÊME
-
-`TROUBLESHOOTING.md` affirme que le brouillon 51 (v2 vide) a été **vidé par le défaut StrictMode**.
-Le défaut 4 ci-dessus donne une explication **concurrente qui n'a besoin d'aucun bug** : un simple
-retour dans l'atelier crée une v2 vide. Elle colle mieux aux faits.
-**Je ne sais pas laquelle est vraie** — mais la première a été écrite avec assurance, et c'est ça
-qu'il faut corriger avant de la croire.
+**Le garde est une seconde barrière, pas le mécanisme** — son commentaire le dit désormais dans le
+code, sinon un futur lecteur s'y fierait. *3ᵉ occurrence du motif « contre-épreuve mal visée ».*
 
 #### 🧾 DETTES OUVERTES
 
-**Nées de cette slice :**
+**Nées de cette session :**
 
-- 🔴 Les **défauts 2, 3, 4** ci-dessus, non corrigés (chantier à part).
-- 🔴 Le **trou d'un jour** du masquage.
-- 🔴 Le **doute** sur le diagnostic du brouillon 51.
-- ⚠️ **L'ADR §6 dit « les trois surfaces »** qui rendent `FicheCard` — **elles sont deux**
-  (`FicheSubjectPage`, `FicheSidePanel`). `CoursPanel` ne le rend PAS : il le cite en commentaire,
-  et un `grep -l` m'a fait compter des mentions pour des rendus. À corriger sur `main`.
-- ⚠️ **Le pied s'enroule sur DEUX lignes à 375 px** *avant* d'ajouter la porte. Risque de densité
-  de l'ADR, désormais mesuré. Il faudra peut-être **sortir la porte du pied** plutôt que l'y
-  entasser.
+- ⚠️ **Le pied atteint 5 lignes à 375 px quand le titre de la leçon est long** — le badge « 📚
+  D'après ton cours » s'enroule sur deux lignes. **Préexistant**, la porte ne l'aggrave pas, mais
+  ce n'était pas mesuré avant.
+- ⚠️ **L'ADR-0054 porte deux comptes faux** : « les trois surfaces » qui rendent `FicheCard` (elles
+  sont **deux**) et « un pied déjà à cinq » boutons (il en porte **trois**). Corrigés dans le code
+  et dans `page-fiches.md`, **pas encore dans l'ADR** — un addendum le mérite.
+- ⚠️ **`FicheSidePanel` (mindmap) ne reçoit aucune porte.** Volontaire — l'ADR §1 la pose sur
+  l'écran 3 — mais à re-décider si Massimo lit ses fiches depuis la mindmap.
 
-**Remontées de la slice 3 :**
+**Nées plus tôt dans le chantier, toujours ouvertes :**
 
-- ⚠️ **Le masquage à confirmer demain** (cf. plus haut) — c'est la seule dette qui a une **date**.
-- ⚠️ **`review_load` de Papa compte des cartes masquées** — décision assumée.
-- ⚠️ **Le commentaire de `coverage.py:364`** reste faux deux fois · **le veto d'un cours** reste
-  impossible dès qu'une fiche personnelle existe · **aucun linter Python**.
-- ⚠️ **La dictée n'a jamais été exercée avec un vrai micro.**
+- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE et non à la fiche qu'on vient de finir · le
+  bouton du pont SRS est **muet** (états `envoi`/`fait` perdus). Chantier à part.
+- 🔴 **Défaut 4, cause non traitée** : revenir dans l'atelier après `finish` crée une v2 vide qui
+  masque la fiche finie. Seule la porte de `CoursPage` est désamorcée.
+- 🔴 **Le trou d'un jour** : entre le moment où il écrit sa définition et le lendemain, cette notion
+  n'est révisable d'aucun côté (carte ZETIS masquée, la sienne pas encore due).
+- 🔴 **Le doute sur le brouillon 51** n'est pas tranché — StrictMode ou défaut 4 ? Deux origines
+  coexistent manifestement (53 née PLEINE, 54 née VIDE) et on n'a pas établi laquelle a produit quoi.
+- ⚠️ **Le masquage SRS reste à confirmer** — c'est la seule dette qui a une **date** : le
+  **2026-08-15**, ouvrir le deck **Français** (**pas** le mélange, plafonné à 12 pour 156 dues : il
+  ne prouverait rien) et vérifier que ces **SEPT** notions servent **sa** définition et jamais celle
+  de ZETIS — *Narrateur · Schéma narratif · Personnage principal · Proposition indépendante ·
+  Juxtaposition · Coordination · Conjonction de coordination* (cartes 322 à 328, relevées en base à
+  la clôture ; la note précédente n'en annonçait que trois).
 
-#### ▶ PROCHAIN PAS
+**Remontées des slices précédentes :**
 
-1. **Reprendre le périmètre là où il s'est arrêté** : les **deux portes neuves** dans le pied de
-   `FicheCard` (l'écran H), puis le **libellé conditionnel** de `CoursPage:241`, puis la
-   **datation** (`updated_at` dans `FicheTile`).
-2. ⚠️ **Avant de coder les portes** : remesurer l'enroulement du pied à 375 px avec un bouton de
-   plus. Si le pied passe à trois lignes, en parler **avant** de le figer.
-3. **Demain** : ouvrir le deck **Français** (pas le mélange) et vérifier que *Narrateur*,
-   *Schéma narratif* et *Personnage principal* servent **ta** définition et **jamais** celle de
-   ZETIS. C'est la seule preuve possible du masquage.
+- ⚠️ `review_load` de Papa compte des cartes masquées — assumé · le commentaire de `coverage.py:364`
+  reste faux deux fois · le **veto d'un cours** reste impossible dès qu'une fiche personnelle existe
+  · **aucun linter Python** · **la dictée n'a jamais été exercée avec un vrai micro**.
 
 #### 🧪 DONNÉES DE TEST LAISSÉES EN BASE (dev)
 
-⚠️ **Relevé à la clôture, et il avait déjà changé depuis le contrôle précédent** — l'usage a
-continué sur l'iPhone pendant que j'écrivais :
-
 | Fiche | Leçon | État | Version | Contenu |
 |---|---|---|---|---|
-| **42** | 7 | `personal` | 1 | 4 points-clés, 0 définition |
-| **44** | 1 | `personal` | 1 | 5 points-clés, 4 définitions (A/B/C/D), 3 pièges |
-| **53** | 1 | `personal` | **2** | **5 points-clés, 4 définitions — née PLEINE** |
-| **54** | 1 | `personal_draft` | **3** | **vide** |
+🔴 **RECOMPTÉ en base à la clôture, et DEUX chiffres hérités étaient faux** — ils venaient de la
+session précédente et n'avaient jamais été revérifiés. C'est exactement ce que l'étape 6 du
+`/cloture` existe pour attraper.
 
-🔴 **Deux faits neufs, et ils ne disent pas la même chose** :
-- **53 est née PLEINE** : une version 2 qui porte le contenu de la 1. C'est le §7 qui fonctionne
-  — la trajectoire dans le temps existe pour de vrai, première fois sur de vraies données.
-- **54 est née VIDE** en version 3 : le **défaut 4 s'est rejoué une troisième fois**.
+| Fiche | Leçon | État | Version | Contenu (vérifié en base le 2026-08-14) |
+|---|---|---|---|---|
+| **42** | 7 | `personal` | 1 | 4 points-clés, 0 définition, 0 piège |
+| **44** | 1 | `personal` | 1 | 5 points-clés, 4 définitions, **0 piège** *(et non 3 — corrigé)* |
+| **53** | 1 | `personal` | **2** | 5 points-clés, 4 définitions, **3 pièges** — **née PLEINE** (le §7 marche) |
+| **54** | 1 | `personal_draft` | **3** | **vide** — le défaut 4, 3ᵉ occurrence |
 
-⚠️ **Le doute sur le brouillon 51 n'est PAS tranché pour autant.** Deux origines coexistent
-manifestement — l'une qui copie, l'autre qui crée du vide — et je n'ai pas établi laquelle a
-produit quoi. **Ne pas conclure avant d'avoir reproduit**, c'est précisément ce que la première
-version de l'entrée `TROUBLESHOOTING` n'a pas fait.
+⚠️ **Les 3 pièges sont sur la 53, pas sur la 44.** Cohérent avec `rework` : la v2 naît avec le
+contenu de la v1 (5 points-clés + 4 définitions), et les pièges ont été ajoutés **ensuite**, dans la
+v2. L'ancienne note inversait les deux.
 
-- **3 cartes `definition_perso`** sur Narrateur / Schéma narratif / Personnage principal, dues le
-  **2026-08-15**.
-- Brouillons **51** et **52** (v2 vides) **supprimés** après inspection, chacun montré avant.
-  ⚠️ **54 est resté** — il masque la fiche 53 dans la liste (`commencee > ma_fiche`).
+⚠️ **54 est resté** : il masque la fiche 53 dans la liste (`commencee > ma_fiche`). Les brouillons
+51 et 52 ont été supprimés après inspection. **7 cartes `definition_perso`** (*et non 3 — corrigé*),
+toutes dues le **2026-08-15**.
 
 ⚠️ **Ce qui tourne à la clôture** : infra Docker + **paire LAN** (`backend-lan` :8004 /
-`massimo-lan` :5180), laissée allumée pour la vérification de demain. L'IP Wi-Fi était
-`10.82.84.122` — **elle bouge au gré du DHCP**, la relire au lancement.
+`massimo-lan` :5180). L'IP Wi-Fi était `10.82.84.122` — **elle bouge au gré du DHCP**, la relire au
+lancement (`ipconfig getifaddr en0`, jamais `en10`).
+
+#### ▶ PROCHAIN PAS
+
+1. **Vérifier le diff, relancer les suites, puis commiter** (message suggéré rendu à la clôture).
+2. **Pousser**, ouvrir la **PR**, merger.
+3. 🔴 **Revenir faire l'étape 4bis** (`WORKFLOW.md §5`) : remettre ce fichier au réel — squash, n° de
+   PR, branche supprimée, « rien à pousser ». Ce qui est écrit ici sera **faux** dès le merge.
+4. **Le 2026-08-15** : la vérification datée du masquage SRS (ci-dessus), la seule dette qui expire.
+5. Ensuite seulement : l'addendum ADR-0054 sur les deux comptes faux, puis le cadrage du chantier
+   « la fiche répond quand on la touche » (défauts 2, 3, 4).
 
 ---
 
