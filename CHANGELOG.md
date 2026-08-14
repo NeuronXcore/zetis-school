@@ -1,5 +1,41 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.85.0 — L'atelier tient enfin sa promesse de six étapes
+
+Il en annonçait six et en rendait quatre depuis le premier jour. Les deux manquantes arrivent, et
+elles n'étaient pas au même stade.
+
+**💡 Un exemple.** ZETIS écrivait des exemples sur ses fiches ; Massimo ne pouvait pas en écrire
+sur les siennes. Sur un produit dont tout l'argument est « ta fiche à toi, à côté de celle de
+ZETIS », c'était une inégalité visible à l'écran — et personne ne l'avait nommée. Un exemple ne se
+choisit pas dans le cours, il s'invente : champ libre, avec une amorce pour ne pas laisser la page
+blanche.
+
+**🎩 Mnemonics — et elle n'apparaît que quand il y a quelque chose à retenir.** Un moyen
+mnémotechnique marche sur une liste ou un ordre arbitraire ; sur un concept, il n'y en a pas. ZETIS
+repère l'occasion, Massimo invente, et le message est assumé : **plus c'est bête, mieux ça marche**.
+
+> **Le meilleur moyen mnémotechnique est celui qu'on invente soi-même.** Celui d'un autre est une
+> chose de plus à mémoriser. C'est le seul endroit de la fiche où ZETIS ne propose rien — ni
+> candidate, ni amorce.
+
+**L'étape n'est jamais affichée grisée** quand il n'y a pas d'occasion : elle n'est pas là, tout
+simplement. Une étape visible mais morte est une promesse que le produit ne tient pas.
+
+> 🔴 **Un compteur mentait depuis une journée.** La tuile d'une fiche commencée annonçait « sur 3 »
+> — en dur — et son décompte ignorait les pièges, pendant que l'atelier disait « sur 4 ». Un
+> compteur qui **sous-compte** est pire qu'un compteur faux : sur un écran qui s'interdit tout
+> reproche, il minimise le travail de l'enfant. Les deux disent maintenant la même chose, et le
+> dénominateur suit l'étape conditionnelle.
+
+**Aucune migration** : la donnée vivait déjà dans une colonne JSON. En revanche le prompt de
+génération passe en **v2** — il ne pouvait pas en être autrement : le schéma part au modèle, et lui
+montrer un champ sans lui dire quand le laisser vide aurait produit des acronymes forcés sur presque
+toutes les leçons.
+
+**Reste au dos** : le corrigé de ZETIS (montrer le sien après la tentative) et l'enrichissement des
+fiches déjà écrites, qui n'ont pas de mnémonique et n'en auront pas d'elles-mêmes.
+
 ## 0.84.0 — Sa fiche cesse d'être un cul-de-sac, et elle vit dans le temps
 
 Sur la matière Français, **12 fiches de ZETIS sur 17 ouvraient un cul-de-sac** : on les lisait, et

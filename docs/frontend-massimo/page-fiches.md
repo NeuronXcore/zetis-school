@@ -574,7 +574,8 @@ l'écart est volontaire :
 | Étape ② ✍️ L'essentiel | ❌ | ✅ champ libre + **amorce** + **dictée** |
 | Étape ③ 📖 Les définitions | ❌ | ✅ terme donné, définition écrite |
 | Étape ④ ⚠️ Les pièges | ❌ | ✅ **livrée en slice 3** — proposés depuis ses ERREURS mesurées, avec leur **raison** ; un oui/non, pas un glisser |
-| Étapes ⑤ et ⑥ | ❌ | ❌ **toujours pas rendues** — ni grisées : une étape visible mais morte est une promesse que le produit ne tient pas (même principe que « Mnemonics », §10) |
+| Étape ⑤ 💡 Un exemple | ❌ | ✅ **livrée le 2026-08-14** (ADR-0055) — champ libre + amorce ; sa section était refusée par un 400 côté serveur, comme ⑥ |
+| Étape ⑥ 🎩 Mnemonics | ❌ | ✅ **livrée**, **conditionnelle** — elle n'apparaît que si ZETIS détecte une liste ou un ordre arbitraire, et n'est **jamais** rendue grisée (§10). 🔴 L'occasion se lit dans les `points_cles` de la **fiche ZETIS** d'abord, pas dans le brouillon |
 | Retour d'analyse | ✅ réussites seules | ✅ **1-2 réussites + 0-2 remarques**, dont `recopie` — mais **jamais sur `points_cles`**, où recopier *est* le geste demandé |
 | Pont « 🃏 Ajouter à mes cartes » | ❌ | ✅ **livré en slice 3** — et c'est le bouton que `FicheCard` portait DÉJÀ, désactivé depuis l'ADR-0015 §6, avec sa prop `onAddToCards` prête. 🔴 En avoir ajouté un second dessous a donné **deux boutons au même emoji pour le même geste, dont un mort** : vu à l'écran, invisible à tous les tests |
 | Écran 2 — une tuile par leçon, 4 états | ❌ l'entrée passait par **le cours** (§12) | ✅ **livré** — `GET …/fiche-tiles` + `FicheSubjectPage` |

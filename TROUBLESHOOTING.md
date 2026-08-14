@@ -4,6 +4,81 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/les-deux-etapes-qui-manquent` — 2026-08-14
+
+### 🔴 Ajouter un champ au `FicheSpec` CHANGE la génération de toutes les fiches
+
+`service.py` passe **`FicheSpec.model_json_schema()` au modèle** en contrainte de sortie, et le
+`SYSTEM_PROMPT` décrit le schéma **une seconde fois** à la main. Ajouter `mnemonique` au modèle
+Pydantic le rend donc visible au LLM **sans consigne et sans few-shot** — et le §10 de l'addendum
+ADR-0015 dit exactement ce qui se passe alors : *« un modèle qui voit un champ se croit tenu de le
+remplir »*, soit des acronymes forcés sur peut-être 4 leçons sur 5.
+
+🔴 **L'ADR-0055 se contredisait là-dessus** : son §3 ajoutait le champ, son §5 excluait le prompt.
+Le code le disait pourtant en toutes lettres (`schemas.py` : *« `FicheSpec` reste littéralement
+inchangé »*), et le read-before-code l'a trouvé avant la première ligne.
+
+**Parade, écrite dans le code** : *toucher au `FicheSpec` OBLIGE à toucher au prompt dans le même
+geste* — consigne + few-shot + `FICHE_PROMPT_VERSION`. Et le few-shot qui **omet** le champ n'est
+pas un oubli à compléter : c'est lui qui enseigne au modèle que l'absence est normale.
+
+### 🔴 Une heuristique jugée sur des exemples inventés ne prouve RIEN
+
+L'heuristique d'occasion (« y a-t-il une liste à retenir ? ») a été écrite avec deux signaux et
+testée sur des chaînes fabriquées. Elle passait. Mesurée **en base**, sur les vraies fiches :
+
+| Signal | Fiches concernées |
+|---|---|
+| « ≥ 3 points-clés » | **27 / 27 — 100 %** |
+| « un point-clé qui énumère » | **4 / 27 — 15 %** |
+
+Le premier signal ne distingue **rien** : le prompt demande jusqu'à cinq points-clés et le modèle
+les remplit. C'était le signal d'alarme que l'ADR nommait lui-même — *« détectée sur presque toutes
+les leçons → trop large »* — et il était au rouge dès la première mesure.
+
+Et le resserrage a dû être mesuré **deux fois** : la requête SQL de contrôle ne comptait que les
+virgules, alors que le code coupait aussi sur « et ». Annoncé « 4 leçons », le code en donnait
+**7** — trois faux positifs sur de simples phrases françaises (*« Résumer **et** reformuler »*).
+
+**Parade** : quand un ADR exige de mesurer une heuristique sur de vraies données **avant de la
+figer**, ce n'est pas une formalité de suivi. ⚠️ Et **mesurer avec une requête qui APPROXIME la
+règle ne compte pas** : il faut exécuter **la vraie fonction** sur les vraies données — sinon on
+vérifie une heuristique qu'on n'a pas écrite.
+
+### 🔴 Un signal calculé sur la MAUVAISE source — trouvé à l'écran, par une question
+
+L'occasion était calculée sur les points-clés **du brouillon de Massimo**, qui est vide quand il
+ouvre l'atelier. L'étape ⑥ n'apparaissait donc **jamais à l'ouverture**, sur aucune leçon : il
+fallait qu'il choisisse d'abord trois points lui-même. Mesuré : **1 leçon** au lieu de **27**.
+
+L'occasion est une propriété de la **LEÇON** — le §10 dit *« ZETIS **détecte** l'occasion »*, et le
+§11 la cherche dans les `points_cles` **des fiches de ZETIS**. Les deux paragraphes le disaient ;
+j'ai lu « `points_cles` » sans me demander *ceux de qui*.
+
+**Parade** : pour un signal dérivé d'une donnée qui existe en plusieurs exemplaires (la fiche de
+ZETIS, le brouillon de l'élève, le cours), écrire **de qui** avant d'écrire la règle. Et le
+vérifier par un compte en base, où l'écart 1 vs 27 saute aux yeux.
+
+### ⚠️ Un défaut corrigé sur UNE surface reste vivant sur l'autre
+
+Le compteur d'étapes a été corrigé côté atelier le 2026-08-14 (4 étapes au lieu de 3). **Le même
+défaut est resté côté serveur** — `subject_fiche_tiles` en comptait trois, et la barre de la tuile
+portait **« sur 3 » en dur**. Un brouillon avec des pièges affichait « 2 sur 3 » sur la tuile
+pendant que l'atelier disait « 3 sur 4 » : deux compteurs, deux vérités, pendant une journée.
+
+**Parade** : après avoir corrigé un compteur, chercher les **autres** lecteurs de la même notion
+(`grep -rn "etapes_remplies"`). Une correction validée sur la surface où le défaut a été vu ne dit
+rien des surfaces où il n'a pas été cherché.
+
+### ⚠️ Un import manquant fait tomber 35 tests d'un coup — et c'est une bonne nouvelle
+
+`AUTHOR_ZETIS` utilisé sans être importé dans `atelier.py` : `NameError` à l'exécution, **35 tests
+rouges** en une passe, cause affichée en clair au premier `-x`. Réparé en une ligne.
+
+**À retenir** : ce mode d'échec est **bruyant et instantané**, à l'opposé des défauts de cette
+session (un signal calculé sur la mauvaise source, un compteur qui sous-compte) qui étaient
+**silencieux et verts**. Ce sont ceux-là qui coûtent, pas les `NameError`.
+
 ## Chantier `feat/la-fiche-vit-dans-le-temps` — 2026-08-14
 
 ### 🔴 Ajouter une étape à un accordéon sans toucher son COMPTEUR

@@ -178,6 +178,23 @@ export function FicheCard({ spec, subjectSlug, onAddToCards, porte, dateISO }: F
             </p>
           </Section>
         )}
+
+        {/* ⚠️ Libellé ANGLAIS assumé — « Mnemonics » à l'écran, `mnemonique` au schéma. Arbitré
+            par le commanditaire le 2026-08-12 : le terme est court, il se retient, et il évite
+            « moyen mnémotechnique », qui est un mot d'adulte. Écart libellé / API assumé.
+            Souvent absent, et c'est NORMAL (§10) : la section ne se rend pas à vide. */}
+        {spec.mnemonique?.moyen && (
+          <Section icon="🎩" label="Mnemonics">
+            <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-sm text-slate-100">
+              {spec.mnemonique.moyen}
+              {spec.mnemonique.sert_a && (
+                <span className="mt-1 block text-xs text-zetis-muted">
+                  pour retenir {spec.mnemonique.sert_a}
+                </span>
+              )}
+            </p>
+          </Section>
+        )}
       </div>
 
       {/* Pied : ancrage canonique + porte + actions */}

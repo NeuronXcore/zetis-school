@@ -644,6 +644,10 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
   2026-08-13). Une leçon sans cours **ni** fiche lisible est omise. Coût : **une** requête pour
   toutes les fiches de la matière, jamais une par leçon.
 
+  **`etapes_total`** (ajouté le 2026-08-14, ADR-0055) — le **dénominateur**, et il n'est pas
+  constant : l'étape ⑥ est conditionnelle, donc 5 ou 6. La barre de la tuile en dérive ses
+  segments — elle en portait **3 en dur**, et `etapes_remplies` ignorait les pièges.
+
   **`updated_at`** (ajouté le 2026-08-14, ADR-0054 §3) — quand **sa** dernière version finie a été
   touchée ; `null` s'il n'a pas de fiche. 🔴 **Jamais la date de la fiche de ZETIS** : côté enfant,
   « il y a 4 mois » sur un contenu généré ne peut que saper la confiance dans un contenu juste, et
@@ -671,6 +675,13 @@ L'appartenance est vérifiée côté serveur sur chaque route : une fiche person
 
 - **POST `/api/student/fiches/draft`** `{lesson_id}` → `FicheDraftOut`. Ouvre **ou retrouve** le
   brouillon d'une leçon. **Idempotent** : deux ouvertures ne font pas deux brouillons.
+
+  **`mnemonique_occasion`** (ajouté le 2026-08-14, ADR-0055) — l'étape ⑥ n'apparaît **que** si
+  ZETIS a détecté une occasion (§10). Recalculé **à chaque sauvegarde**, donc l'étape s'ouvre
+  pendant que Massimo choisit ses points-clés, sans dupliquer la règle côté client.
+  🔴 **Deux sources, la LEÇON d'abord** : les `points_cles` de la fiche ZETIS validée, puis ceux
+  du brouillon. Ne lire que le brouillon faisait apparaître l'étape sur **1 leçon sur 27** —
+  il est vide à l'ouverture.
 - **PATCH `/api/student/fiches/draft/{id}`** `{draft: FicheDraft}` → `FicheDraftOut`. Sauvegarde
   **partielle**, appelée à chaque geste — c'est elle qui tient « tout est gardé au fur et à
   mesure ». ⚠️ **Remplacement franc**, pas une fusion : une fusion rendrait impossible de **vider**
@@ -684,6 +695,14 @@ L'appartenance est vérifiée côté serveur sur chaque route : une fiche person
   | `definitions` | jusqu'à **4 termes** — les **notions** de la leçon, puis le **gras** du cours | — | ZETIS donne le mot, il **écrit** |
   | `essentiel` | **aucune** | le début de phrase | il **écrit**, seul |
   | `erreurs_a_eviter` | jusqu'à **3 pièges**, tirés de ses ERREURS mesurées | — | ZETIS rappelle, il **confirme** |
+  | `mini_exemple` | **aucune** | « Par exemple, » | il **écrit**, seul |
+  | `mnemonique` | **aucune** | **aucune** | il **invente**, seul |
+
+  **Les six sections répondent** depuis l'ADR-0055 (2026-08-14) ; le 400 ne protège plus que les
+  sections **hors vocabulaire**. 🔴 `mnemonique` est la seule sans amorce, et c'est voulu : *le
+  meilleur moyen mnémotechnique est celui que Massimo invente* — une amorce orienterait déjà son
+  invention. ⚠️ Cette route ne décide **pas** de la visibilité de l'étape ⑥ : c'est
+  `mnemonique_occasion` (ci-dessous) qui le fait.
 
   ⚠️ `essentiel` rend une **amorce et zéro candidate** — ce n'est pas un manque : une synthèse est
   absente du cours par définition (§8). L'amorce est le titre de la leçon coupé à son premier

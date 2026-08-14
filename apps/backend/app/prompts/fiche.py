@@ -20,7 +20,16 @@ from app.modules.fiches.schemas import (
     MAX_POINTS_CLES,
 )
 
-FICHE_PROMPT_VERSION = "v1"
+# v2 (2026-08-14, ADR-0055) : `mnemonique` entre au `FicheSpec`, donc au schéma qui part au modèle
+# — et il ne pouvait PAS y entrer seul. Le §10 de l'addendum ADR-0015 exige trois garde-fous, dont
+# deux vivent ici : la consigne explicite (« que s'il y a une liste ou un ordre arbitraire »), et
+# **au moins un few-shot où le champ est nul**.
+#
+# 🔴 **Le few-shot unique ci-dessous omet `mnemonique` VOLONTAIREMENT.** Ne pas « compléter »
+# l'exemple : c'est lui qui enseigne au modèle que l'absence est le cas normal, pendant que le
+# schéma JSON lui enseigne la forme. Un modèle qui voit un champ se croit tenu de le remplir —
+# et produirait des acronymes forcés sur peut-être 4 leçons sur 5.
+FICHE_PROMPT_VERSION = "v2"
 
 SYSTEM_PROMPT = (
     "Tu es ZETIS, un concepteur de fiches de révision pour un enfant d'environ 12 ans. À partir "
@@ -36,7 +45,8 @@ SYSTEM_PROMPT = (
     f'  "definitions": [ {{"terme": str, "definition": str}} ]  (0 à {MAX_DEFINITIONS}),\n'
     f'  "points_cles": [ str ]        (0 à {MAX_POINTS_CLES}, chacun très court),\n'
     f'  "erreurs_a_eviter": [ str ]   (0 à {MAX_ERREURS}, chacune très courte),\n'
-    '  "mini_exemple": str (optionnel : UN exemple concret, court)\n'
+    '  "mini_exemple": str (optionnel : UN exemple concret, court),\n'
+    '  "mnemonique": {"moyen": str, "sert_a": str} (optionnel, SOUVENT ABSENT)\n'
     "}\n\n"
     "CONTRAINTES DE CONTENU :\n"
     "- Le COURS VALIDÉ fait foi : n'invente rien qu'il ne contienne (mêmes notations, mêmes "
@@ -47,6 +57,11 @@ SYSTEM_PROMPT = (
     f"- `points_cles` : au plus {MAX_POINTS_CLES} puces, chacune ≤ 12 mots.\n"
     f"- `erreurs_a_eviter` : au plus {MAX_ERREURS} pièges fréquents, formulés positivement.\n"
     "- `mini_exemple` : facultatif, UN exemple concret résolu en une ou deux phrases.\n"
+    "- `mnemonique` : n'en propose un QUE s'il y a une LISTE ou un ORDRE ARBITRAIRE à retenir "
+    "(les conjonctions de coordination, l'ordre des planètes). Sur un concept, il n'y en a pas : "
+    "LAISSE LE CHAMP ABSENT. L'absence est le cas normal et attendu — un mnémonique forcé est "
+    "plus dur à retenir que la chose elle-même. `moyen` et `sert_a` tiennent chacun sur UNE "
+    "ligne.\n"
     "- Ton bienveillant : n'emploie JAMAIS « échec », « lacune », « nul », « faute ». Préfère "
     "« à consolider », « point de vigilance », « prochaine étape ».\n"
     "- Reste dans le périmètre d'UNE leçon : ne couvre pas tout le chapitre."

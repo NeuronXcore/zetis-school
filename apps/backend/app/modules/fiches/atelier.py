@@ -38,6 +38,7 @@ from app.db.models import (
 )
 from app.modules.fiches.population import (
     AUTHOR_MASSIMO,
+    AUTHOR_ZETIS,
     STATUS_DRAFT,
     STATUS_PERSONAL,
     draft_of_student,
@@ -114,9 +115,68 @@ def _context(db: Session, lesson: Lesson) -> dict:
     }
 
 
+#: Au-delà de ce nombre d'éléments énumérés dans UN point-clé, il y a « une liste à retenir ».
+_SEUIL_LISTE = 3
+
+
+def occasion_mnemonique(points_cles: list[str]) -> bool:
+    """Y a-t-il une OCCASION de moyen mnémotechnique ? (addendum ADR-0015 §10)
+
+    🔴 **Déterministe, et c'est le critère qui borne l'ADR-0055** : la règle 7 du §5 fonde tout
+    l'atelier sur le déterminisme, et un appel LLM rendrait l'apparition de l'étape **non
+    reproductible d'une session à l'autre**.
+
+    Un mnémonique marche sur une **liste ou un ordre arbitraire** ; sur un concept il ne marche
+    pas. **Un seul signal : un point-clé qui ÉNUMÈRE** au moins 3 éléments — « qui, que, dont, où ».
+
+    🔴 **Un second signal a existé et il a été RETIRÉ le 2026-08-14 : « au moins 3 points-clés ».**
+    Mesuré en base, il répondait vrai sur **27 fiches sur 27** — le prompt demande jusqu'à cinq
+    points-clés et le modèle les remplit, donc ce signal ne distinguait **rien**. L'étape ⑥ se
+    serait affichée sur « Division de fractions » pour annoncer *« il y a une liste à retenir »*
+    là où il n'y a qu'une méthode. C'est exactement l'acronyme forcé que le §10 refuse.
+
+    Avec l'énumération seule : **4 leçons sur 27**, et ce sont les bonnes — les pronoms relatifs,
+    les quatre nations, leurs capitales, et une fiche où ZETIS avait déjà écrit « MOULIN » en plein
+    milieu d'un point-clé faute d'endroit où le mettre.
+
+    🔴 **On coupe sur la VIRGULE, jamais sur « et ».** Mesuré : ajouter « et » aux séparateurs
+    faisait passer de **4 à 7 leçons**, en attrapant des phrases françaises ordinaires — *« Résumer
+    **et** reformuler un texte »*, *« Lire **et** comprendre un texte poétique »*. Une conjonction
+    n'est pas une énumération ; une virgule répétée, si.
+
+    ⚠️ **Le vide reste le cas fréquent et normal** (§10). Une étape qui n'apparaît pas n'est pas
+    un manque.
+    """
+    lignes = [p.strip() for p in points_cles if p and p.strip()]
+    return any(
+        len([m for m in re.split(r"[,;]", ligne) if m.strip()]) >= _SEUIL_LISTE
+        for ligne in lignes
+    )
+
+
+def _points_cles_de_zetis(db: Session, lesson_id: int) -> list[str]:
+    """Les points-clés de la fiche ZETIS validée d'une leçon — vide si elle n'existe pas.
+
+    C'est là que vit l'occasion la plupart du temps : la leçon contient une liste (les pronoms
+    relatifs, les conjonctions de coordination), et ZETIS l'a déjà repérée en écrivant sa fiche.
+    """
+    row = db.scalar(
+        select(Fiche)
+        .where(
+            Fiche.lesson_id == lesson_id,
+            Fiche.author == AUTHOR_ZETIS,
+            Fiche.validation_status == "validated",
+        )
+        .order_by(Fiche.id.desc())
+    )
+    spec = (row.spec_json or {}) if row else {}
+    return [str(p) for p in (spec.get("points_cles") or [])]
+
+
 def _draft_out(db: Session, row: Fiche) -> dict:
     lesson = db.get(Lesson, row.lesson_id)
     ctx = _context(db, lesson) if lesson else {}
+    draft = FicheDraft.model_validate(row.spec_json or {}).model_dump()
     return {
         "id": row.id,
         "lesson_id": row.lesson_id,
@@ -124,7 +184,21 @@ def _draft_out(db: Session, row: Fiche) -> dict:
         "lesson_title": ctx.get("title", ""),
         "chapter": ctx.get("chapter"),
         "version": row.version,
-        "draft": FicheDraft.model_validate(row.spec_json or {}).model_dump(),
+        "draft": draft,
+        # Recalculé à CHAQUE sauvegarde — et l'atelier sauvegarde à chaque geste. C'est ce qui
+        # fait apparaître l'étape ⑥ pendant qu'il choisit ses points-clés, sans dupliquer la
+        # règle côté client (elle resservira au §11, surface Papa, qui n'est pas de ce chantier).
+        #
+        # 🔴 **DEUX sources, et la première est celle de la LEÇON** (corrigé le 2026-08-14, au
+        # doigt sur l'écran). La version initiale ne regardait que le brouillon de Massimo : sur
+        # une leçon pleine de listes, l'étape n'apparaissait pas tant qu'il n'avait pas lui-même
+        # choisi trois points. **Mesuré : 27 leçons présentent une occasion côté ZETIS, contre 1
+        # côté brouillons.** L'occasion est une propriété de la LEÇON — le §10 dit « ZETIS détecte
+        # l'occasion », et le §11 la cherche dans les `points_cles` des fiches de ZETIS.
+        "mnemonique_occasion": (
+            occasion_mnemonique(draft.get("points_cles") or [])
+            or occasion_mnemonique(_points_cles_de_zetis(db, row.lesson_id))
+        ),
     }
 
 
@@ -681,10 +755,22 @@ def _amorce_essentiel(titre: str) -> str:
 def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> dict:
     """Ce que la section offre pour DÉMARRER — le tableau est dans `FicheCandidatesOut`.
 
-    Trois sections ouvertes (slices 1 et 2). Les autres **refusent explicitement** plutôt que de
-    rendre une liste vide, qui se lirait « il n'y a rien ici ».
+    **Les six sections sont ouvertes** depuis l'ADR-0055 (2026-08-14). Une section non implémentée
+    **refuserait explicitement** plutôt que de rendre une liste vide, qui se lirait « il n'y a rien
+    ici » — le garde-fou reste, il n'a simplement plus personne à refuser.
+
+    ⚠️ Ce texte annonçait « trois sections ouvertes (slices 1 et 2) » alors que le tuple en portait
+    **quatre** depuis la slice 3 : `erreurs_a_eviter` y avait été ajouté sans que la phrase suive.
+    Corrigé au read-before-code du 2026-08-14.
     """
-    if section not in ("points_cles", "definitions", "essentiel", "erreurs_a_eviter"):
+    if section not in (
+        "points_cles",
+        "definitions",
+        "essentiel",
+        "erreurs_a_eviter",
+        "mini_exemple",
+        "mnemonique",
+    ):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=f"La section « {section} » ne se prépare pas à cette étape.",
@@ -702,6 +788,28 @@ def candidates(db: Session, *, draft_id: int, student_id: int, section: str) -> 
             "slots": 1,
             "amorce": _amorce_essentiel(lesson.title),
         }
+
+    if section == "mini_exemple":
+        # Même nature qu'`essentiel` : un exemple ne se CHOISIT pas dans le cours, il s'invente.
+        # Zéro candidate, et ce n'est pas un manque. L'amorce ne dit rien du contenu — elle
+        # enlève seulement le premier pas (règle 1 des champs libres, §9).
+        return {
+            "section": "mini_exemple",
+            "candidates": [],
+            "slots": 1,
+            "amorce": "Par exemple, ",
+        }
+
+    if section == "mnemonique":
+        # 🔴 **Ni candidate, ni amorce, et c'est le seul endroit de la fiche où c'est voulu.**
+        # Le §10 : *le meilleur moyen mnémotechnique est celui que Massimo invente* — celui d'un
+        # autre est une chose de plus à mémoriser. Une amorce orienterait déjà son invention.
+        #
+        # ⚠️ **La DÉTECTION de l'occasion ne vit pas ici** : elle est calculée côté client sur les
+        # points-clés du brouillon, pour que l'étape apparaisse **pendant** qu'il les choisit
+        # plutôt qu'à la sauvegarde suivante. Cette route ne décide donc pas de la visibilité de
+        # l'étape ; elle répond simplement au lieu de refuser.
+        return {"section": "mnemonique", "candidates": [], "slots": 1}
 
     if section == "erreurs_a_eviter":
         # 🔴 **La seule section que ZETIS peut pré-remplir sans enfreindre la règle 7** (§8) :

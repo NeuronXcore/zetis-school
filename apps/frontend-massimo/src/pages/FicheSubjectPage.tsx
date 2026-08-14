@@ -422,9 +422,16 @@ function TuileLecon({
 
       {/* Sur une étape commencée, trois pastilles disent OÙ il en est — sans jamais montrer ce
           qui manque comme une dette. */}
+      {/* 🔴 **Les segments dérivent de la donnée, ils ne sont plus 3 EN DUR** (2026-08-14). La
+          barre annonçait « sur 3 » pour un atelier qui en compte six, dont une conditionnelle —
+          et le compteur serveur ignorait les pièges par-dessus le marché. Un compteur qui
+          sous-compte minimise le travail de l'enfant sur un écran qui s'interdit tout reproche. */}
       {etat === "commencee" && (
-        <div className="flex gap-1" aria-label={`${tuile.etapes_remplies} étapes sur 3 commencées`}>
-          {[0, 1, 2].map((i) => (
+        <div
+          className="flex gap-1"
+          aria-label={`${tuile.etapes_remplies} étapes sur ${tuile.etapes_total} commencées`}
+        >
+          {Array.from({ length: tuile.etapes_total }, (_, i) => i).map((i) => (
             <span
               key={i}
               className={`h-1.5 flex-1 rounded-full ${

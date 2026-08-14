@@ -659,7 +659,7 @@ def _fiche_de_massimo(db, lesson_id: int, student_id: int) -> Fiche:
     return row
 
 
-def _fiche_zetis(db, lesson_id: int, *, status: str) -> Fiche:
+def _fiche_zetis(db, lesson_id: int, *, status: str, points_cles: list[str] | None = None) -> Fiche:
     row = Fiche(
         lesson_id=lesson_id,
         spec_json={
@@ -668,7 +668,9 @@ def _fiche_zetis(db, lesson_id: int, *, status: str) -> Fiche:
             "level": "4e",
             "essentiel": "Celle de ZETIS.",
             "definitions": [],
-            "points_cles": [],
+            # ⚠️ Paramétrable depuis le 2026-08-14 : l'occasion de mnémonique se lit ICI, dans les
+            # points-clés de la fiche de ZETIS, et non dans le brouillon de Massimo.
+            "points_cles": points_cles or [],
             "erreurs_a_eviter": [],
         },
         validation_status=status,
@@ -776,6 +778,81 @@ def test_le_corrige_ZETIS_reste_a_un_clic_meme_quand_il_a_sa_fiche(client_db) ->
         assert tuile["zetis_fiche_id"] == zetis.id  # le corrigé reste accessible
 
 
+def test_la_tuile_compte_TOUTES_les_etapes_remplies(client_db) -> None:
+    """🔴 Le défaut du compteur, corrigé côté ATELIER le 2026-08-14 et **pas ici**.
+
+    Ce compteur-là en portait trois (points-clés, essentiel, définitions) : les **pièges** étaient
+    sauvegardés en base et invisibles. Un brouillon avec des pièges affichait « 2 sur 3 » sur la
+    tuile pendant que l'atelier disait « 3 sur 4 ». Deux compteurs, deux vérités.
+
+    ⚠️ Un compteur qui SOUS-compte est pire qu'un compteur faux : sur un écran qui s'interdit tout
+    reproche, il minimise le travail de l'enfant.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+
+        # Quatre sections remplies, dont les DEUX que l'ancien compteur ignorait.
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(
+                **{
+                    **brouillon["draft"],
+                    "essentiel": "Une synthèse.",
+                    "erreurs_a_eviter": ["Un piège"],
+                    "mini_exemple": "Un exemple.",
+                    "mnemonique": {"moyen": "MOEDQ", "sert_a": "les relatifs"},
+                }
+            ),
+        )
+
+        tuile = next(
+            t for t in service.subject_fiche_tiles(db, "mathematiques") if t["lesson_id"] == lesson.id
+        )
+        assert tuile["etapes_remplies"] == 4  # essentiel + pièges + exemple + mnémonique
+        # ⑥ compte au total parce qu'il en a écrit un, même sans occasion détectée.
+        assert tuile["etapes_total"] == 6
+
+
+def test_le_denominateur_de_la_tuile_suit_l_etape_CONDITIONNELLE(client_db) -> None:
+    """L'étape ⑥ n'apparaît que sur occasion — le dénominateur ne doit donc pas la promettre."""
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        student = get_default_student(db)
+        brouillon = _ouvrir(db, lesson.id)
+
+        # Un seul point-clé, aucune énumération : pas d'occasion → 5 étapes offertes.
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(**{**brouillon["draft"], "points_cles": ["Un seul point"]}),
+        )
+        tuile = next(
+            t for t in service.subject_fiche_tiles(db, "mathematiques") if t["lesson_id"] == lesson.id
+        )
+        assert tuile["etapes_total"] == 5
+
+        # Un point-clé qui ÉNUMÈRE : une liste à retenir → l'occasion existe → 6.
+        atelier.patch_draft(
+            db,
+            draft_id=brouillon["id"],
+            student_id=student.id,
+            draft=FicheDraft(
+                **{**brouillon["draft"], "points_cles": ["Les pronoms : qui, que, dont, où"]}
+            ),
+        )
+        tuile = next(
+            t for t in service.subject_fiche_tiles(db, "mathematiques") if t["lesson_id"] == lesson.id
+        )
+        assert tuile["etapes_total"] == 6
+
+
 def test_la_tuile_date_SA_fiche_et_jamais_celle_de_ZETIS(client_db) -> None:
     """ADR-0054 §3 — la datation ne vit que du côté de Massimo.
 
@@ -823,20 +900,93 @@ def test_la_dictee_refuse_le_brouillon_d_un_autre(client_db) -> None:
         assert getattr(err.value, "status_code", None) == 404
 
 
-def test_une_section_non_implementee_refuse_explicitement(client_db) -> None:
+def test_une_section_INCONNUE_refuse_explicitement(client_db) -> None:
     """Refuser en nommant la section vaut mieux qu'une liste vide, qui se lirait
-    « il n'y a rien à retenir ici »."""
+    « il n'y a rien à retenir ici ».
+
+    🔴 **Ce test visait `mnemonique` jusqu'au 2026-08-14** — l'ADR-0055 a ouvert la section, donc
+    la cible a changé, **mais pas la règle**. Il n'est pas supprimé : le garde-fou protège
+    désormais toute section hors du vocabulaire fermé, `absent_du_cours` compris (hors périmètre
+    v1 depuis l'ADR-0015, et le seul type à faux positifs).
+
+    ⚠️ Les **six** sections du vocabulaire répondent maintenant ; c'est volontaire, et le test
+    ci-dessous le vérifie aussi — sinon « aucune section ne refuse » se lirait à tort comme
+    « le garde-fou a sauté ».
+    """
     _, Session = client_db
     with Session() as db:
         lesson = _seed_validated_lesson(db, content=_COURS)
         student = get_default_student(db)
         brouillon = _ouvrir(db, lesson.id)
 
-        with pytest.raises(Exception) as err:
-            atelier.candidates(
-                db, draft_id=brouillon["id"], student_id=student.id, section="mnemonique"
+        for inconnue in ("absent_du_cours", "resume", ""):
+            with pytest.raises(Exception) as err:
+                atelier.candidates(
+                    db, draft_id=brouillon["id"], student_id=student.id, section=inconnue
+                )
+            assert getattr(err.value, "status_code", None) == 400
+
+        # Et les deux sections ouvertes par l'ADR-0055 répondent, elles.
+        for ouverte in ("mini_exemple", "mnemonique"):
+            rendu = atelier.candidates(
+                db, draft_id=brouillon["id"], student_id=student.id, section=ouverte
             )
-        assert getattr(err.value, "status_code", None) == 400
+            assert rendu["section"] == ouverte
+            assert rendu["candidates"] == []  # ni l'un ni l'autre ne se CHOISIT dans le cours
+
+
+def test_l_occasion_vient_de_la_LECON_avant_le_brouillon(client_db) -> None:
+    """🔴 Défaut trouvé À L'ÉCRAN le 2026-08-14, par une question : « pas de mnemonics ???? »
+
+    La première version ne regardait que les points-clés du BROUILLON. Sur une leçon pleine de
+    listes, l'étape ⑥ n'apparaissait donc pas tant que Massimo n'avait pas lui-même choisi trois
+    points — et il ouvre l'atelier avec zéro.
+
+    **Mesuré en base : 27 fiches ZETIS présentent une occasion, contre 1 brouillon.** L'étape
+    s'affichait sur une leçon au lieu de vingt-sept. L'occasion est une propriété de la LEÇON
+    (§10, « ZETIS **détecte** l'occasion » ; §11, « dans les `points_cles` » des fiches de ZETIS).
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        # La fiche de ZETIS porte une énumération — le cas d'école du §10.
+        _fiche_zetis(
+            db,
+            lesson.id,
+            status="validated",
+            points_cles=["Les pronoms courants : qui, que, dont, où"],
+        )
+        brouillon = _ouvrir(db, lesson.id)
+
+        # Le brouillon est VIDE, et l'occasion existe quand même.
+        assert brouillon["draft"]["points_cles"] == []
+        assert brouillon["mnemonique_occasion"] is True
+
+
+def test_l_occasion_de_mnemonique_est_deterministe(client_db) -> None:
+    """§10 — un mnémonique marche sur une LISTE ou un ORDRE ARBITRAIRE, pas sur un concept.
+
+    🔴 **Déterministe, et c'est le critère qui borne l'ADR-0055** : un appel LLM rendrait
+    l'apparition de l'étape non reproductible d'une session à l'autre.
+    """
+    # Pas d'occasion : aucune énumération, quel que soit le NOMBRE de points-clés.
+    assert atelier.occasion_mnemonique([]) is False
+    assert atelier.occasion_mnemonique(["La Terre tremble quand deux plaques glissent"]) is False
+    assert atelier.occasion_mnemonique(["Un point", "  ", "Deux points"]) is False
+
+    # 🔴 **Le signal « ≥ 3 points-clés » a été RETIRÉ le 2026-08-14** : mesuré, il répondait vrai
+    # sur 27 fiches sur 27 — le prompt en demande jusqu'à cinq et le modèle les remplit. L'étape
+    # ⑥ se serait affichée sur « Division de fractions » pour annoncer une liste inexistante.
+    assert atelier.occasion_mnemonique(["Un", "Deux", "Trois"]) is False
+    assert atelier.occasion_mnemonique(["Numérateur", "Dénominateur", "Inverse", "Simplifier"]) is False
+
+    # Occasion par l'ÉNUMÉRATION, seul signal retenu — même sur un point-clé unique.
+    assert atelier.occasion_mnemonique(["Les pronoms relatifs : qui, que, dont, où"]) is True
+    # 🔴 **« et » n'est PAS un séparateur** — mesuré le 2026-08-14 : l'ajouter faisait passer de
+    # 4 à 7 leçons en attrapant des phrases ordinaires (« Résumer ET reformuler un texte »,
+    # « Lire ET comprendre un texte poétique »). Une conjonction n'est pas une énumération.
+    assert atelier.occasion_mnemonique(["Mars et Vénus et Jupiter"]) is False
+    assert atelier.occasion_mnemonique(["Résumer et reformuler un texte, sans le trahir"]) is False
 
 
 def test_un_cours_non_ecrit_le_dit_au_lieu_de_rendre_une_liste_vide(client_db) -> None:
