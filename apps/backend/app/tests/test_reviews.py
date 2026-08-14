@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 import app.db.models as m
 import app.modules.memory.service as srv
 from app.modules.activity.timeutils import today_local
+from app.modules.memory.population import CARD_TYPE_DEFINITION_PERSO
 from app.modules.memory.service import (
     REVIEW_SESSION_MAX_CHAPTER,
     REVIEW_SESSION_MAX_SUBJECT,
@@ -45,8 +46,22 @@ def _subject(db, slug, name=None, sort_order=0):
     return subj
 
 
-def _card(db, student, subject, *, due_at, front="Question ?", back="Réponse.", status="scheduled"):
-    """Crée une carte (avec son propre Skill dans la matière donnée) et la renvoie."""
+def _card(
+    db,
+    student,
+    subject,
+    *,
+    due_at,
+    front="Question ?",
+    back="Réponse.",
+    status="scheduled",
+    card_type="definition",
+):
+    """Crée une carte (avec son propre Skill dans la matière donnée) et la renvoie.
+
+    ⚠️ Chaque carte a son PROPRE `Skill` : une carte `definition_perso` créée ici ne masque donc
+    aucune carte `definition` existante (le masquage du §13 vise la même notion).
+    """
     skill = m.Skill(subject_id=subject.id, name=f"notion-{subject.slug}-{due_at.isoformat()}", level="4e")
     db.add(skill)
     db.flush()
@@ -58,6 +73,7 @@ def _card(db, student, subject, *, due_at, front="Question ?", back="Réponse.",
         interval_days=1,
         due_at=due_at,
         status=status,
+        card_type=card_type,
     )
     db.add(card)
     db.flush()
@@ -95,7 +111,9 @@ def _lesson(db, chapter, *, status="validated", sort_order=0, title="Leçon"):
     return lesson
 
 
-def _chapter_card(db, student, subject, lesson, *, due_at, status="scheduled", name=None):
+def _chapter_card(
+    db, student, subject, lesson, *, due_at, status="scheduled", name=None, card_type="definition"
+):
     """Une carte RÉSOLVABLE par le chapitre de `lesson` : la chaîne complète est câblée."""
     skill = m.Skill(
         subject_id=subject.id,
@@ -113,6 +131,7 @@ def _chapter_card(db, student, subject, lesson, *, due_at, status="scheduled", n
         interval_days=1,
         due_at=due_at,
         status=status,
+        card_type=card_type,
     )
     db.add(card)
     db.flush()
@@ -234,6 +253,102 @@ def test_caps_serve_oldest_and_interleave(client_db):
     # éclair → 5.
     flash = client.post("/api/student/reviews/session", json={"deck": "mix_flash"}).json()
     assert len(flash) == 5
+
+
+# --- Le quota de deux places (ADR-0056, règle C) ------------------------------------
+#
+# Le défaut mesuré le 2026-08-14 : les 7 définitions écrites par Massimo étaient aux rangs
+# **153 à 159 sur 159** dans la file du Français. Le tri `due_at asc` sert les plus anciennes,
+# et ce qu'il vient d'écrire est par construction le plus RÉCENT. Le §13 de l'addendum ADR-0015
+# promettait *« c'est celle-là qu'il doit pouvoir retrouver »* : la file disait le contraire.
+
+
+def test_une_carte_personnelle_due_est_atteignable_dans_sa_matiere(client_db):
+    """🔒 LE VERROU nommé d'avance par l'ADR-0056 §4.
+
+    Le décor REPRODUIT le défaut : un arriéré plus grand que le plafond, et la carte
+    personnelle **la plus récente de tous** — donc la dernière de la file, hors d'atteinte.
+    Sans cet arriéré, le test passerait avant le correctif et ne prouverait rien.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        fr = _subject(db, "francais", "Français", sort_order=1)
+        for i in range(REVIEW_SESSION_MAX_SUBJECT + 4):  # 12 cartes de ZETIS, toutes en retard
+            _card(db, student, fr, due_at=now - timedelta(days=40 - i))
+        sienne = _card(
+            db,
+            student,
+            fr,
+            due_at=now - timedelta(minutes=5),  # écrite à l'instant : la PLUS RÉCENTE
+            card_type=CARD_TYPE_DEFINITION_PERSO,
+        )
+        db.commit()
+        sienne_id = sienne.id
+
+    served = client.post(
+        "/api/student/reviews/session", json={"deck": {"subject": "francais"}}
+    ).json()
+    # Le quota change LESQUELLES, jamais COMBIEN : la session sert toujours son plafond.
+    assert len(served) == REVIEW_SESSION_MAX_SUBJECT
+    assert sienne_id in {c["card_id"] for c in served}
+
+
+def test_sans_carte_personnelle_due_la_session_est_exactement_celle_d_avant(client_db):
+    """🔒 L'AUTRE MOITIÉ de la règle (ADR-0056 §5, point 1) — celle que personne ne pense à tester.
+
+    Le quota **réserve au plus**, jamais d'office : sans carte personnelle due, les deux places
+    retournent à la file et la session est celle d'aujourd'hui, dans le même ordre.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        fr = _subject(db, "francais", "Français", sort_order=1)
+        par_age = []
+        for i in range(REVIEW_SESSION_MAX_SUBJECT + 4):
+            card = _card(db, student, fr, due_at=now - timedelta(days=40 - i))
+            par_age.append((now - timedelta(days=40 - i), card.id))
+        db.commit()
+        attendu = [cid for _, cid in sorted(par_age)][:REVIEW_SESSION_MAX_SUBJECT]
+
+    served = client.post(
+        "/api/student/reviews/session", json={"deck": {"subject": "francais"}}
+    ).json()
+    assert [c["card_id"] for c in served] == attendu  # les 8 plus anciennes, dans l'ordre
+
+
+def test_le_deck_chapitre_reserve_ses_places_SANS_clause_d_echeance(client_db):
+    """🔒 Le deck chapitre sert des cartes **NON DUES** (ADR-0049 §3) — et le quota doit s'y
+    composer sans réintroduire d'échéance.
+
+    Toutes les cartes de ce décor sont dues **dans le futur**. Un quota qui filtrerait sur
+    `_due_conditions` ne trouverait aucune carte personnelle et laisserait la sienne au fond.
+    """
+    client, Session = client_db
+    now = datetime.now(timezone.utc)
+    with Session() as db:
+        student = _student(db)
+        subj = _subject(db, "histoire", "Histoire")
+        chapter = _chapter(db, "La Révolution")
+        lesson = _lesson(db, chapter)
+        for i in range(REVIEW_SESSION_MAX_CHAPTER + 4):
+            _chapter_card(db, student, subj, lesson, due_at=now + timedelta(days=i))
+        sienne = _chapter_card(
+            db,
+            student,
+            subj,
+            lesson,
+            due_at=now + timedelta(days=365),  # la plus lointaine de toutes
+            card_type=CARD_TYPE_DEFINITION_PERSO,
+        )
+        db.commit()
+        cid, sienne_id = chapter.id, sienne.id
+
+    served = client.post("/api/student/reviews/session", json={"deck": {"chapter": cid}}).json()
+    assert len(served) == REVIEW_SESSION_MAX_CHAPTER
+    assert sienne_id in {c["card_id"] for c in served}
 
 
 # --- consolidation détectée côté serveur -------------------------------------------
