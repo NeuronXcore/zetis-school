@@ -6,13 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — les deux étapes qui manquent (ADR-0055)
+### ✅ CHANTIER MERGÉ — les deux étapes qui manquent (ADR-0055)
 
-Branche **`feat/les-deux-etapes-qui-manquent`**, base **`b412dff`**. **NON COMMITÉ.**
-L'état se lit par `git status` ; le travail se lit ci-dessous.
+**MERGÉ dans `main` le 2026-08-14 — PR [#126](https://github.com/NeuronXcore/zetis-school/pull/126),
+squash `4910f4b`.** Branche `feat/les-deux-etapes-qui-manquent` **supprimée** (origin et local),
+base d'origine `b412dff`. **Rien à pousser.** *(Étape 4bis faite dans la foulée du merge.)*
 
-> ✅ **Les SEPT points du périmètre sont livrés**, plus **trois arbitrages pris en séance** que
-> l'ADR ne prévoyait pas. **PROCHAIN PAS = commit + push + PR** (tout en bas).
+> ✅ **Les SEPT points du périmètre sont livrés**, plus **trois arbitrages pris en séance**.
+> 🔴 **NE PAS RÉ-IMPLÉMENTER** : ce qui suit décrit ce qui EST dans `main`, pas du travail à faire.
+
+> ⚠️ **Mergé sans relecture visuelle humaine** — décision assumée. Tout ce que ce compte rendu
+> appelle « vu à l'écran » a été mesuré par l'agent dans le DOM, sur la paire LAN.
 
 #### ✅ FAIT
 
@@ -149,10 +153,23 @@ Brouillon **54** : 3 points-clés écrits pour la démo. Brouillon **56** (leço
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff, relancer les suites, commiter, pousser, PR, merger.**
-2. 🔴 **Étape 4bis** juste après le merge — ce fichier sera faux dès la fusion.
-3. 🔴 **Le 2026-08-15** : la vérification du masquage SRS, la seule dette qui expire.
-4. **Cadrer l'enrichissement** (décisions ci-dessus déjà prises) — sur `main`, pas sur une branche.
+Le chantier est **mergé** : il n'y a rien à y reprendre. Dans l'ordre :
+
+1. 🔴 **Le 2026-08-15 — la seule dette qui EXPIRE.** Deck **Français** (pas le mélange), les
+   **sept** notions des cartes 322→328 : servent-elles **sa** définition et jamais celle de ZETIS ?
+   Passé ce jour, les cartes ne sont plus dues et la preuve devient impossible.
+2. **Une session de CADRAGE sur `main`**, qui porte DEUX addenda allant ensemble :
+   - **§11 de l'addendum ADR-0015** — l'enrichissement des fiches déjà créées, **révisé** par le
+     commanditaire : *enrichir* et non régénérer, et les fiches **sortent des decks par lot**.
+     ⚠️ Restent à trancher : la taille du lot et l'ordre. Le mécanisme n'existe pas.
+   - **§4 de l'ADR-0055** — il décrit encore **deux** signaux d'occasion ; le code n'en garde
+     qu'un. C'est le code qui a raison, et ce fichier dit pourquoi.
+3. 🔴 **Exercer le prompt v2 sur une vraie génération** — seule pièce du chantier qu'aucun test ni
+   aucune vérification d'écran ne couvre.
+4. Plus tard : cadrer « la fiche répond quand on la touche » (défauts 2, 3 et la cause du 4).
+
+⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
+encore ouvertes devront être **remontées**, pas enterrées avec le récit.
 
 ---
 
