@@ -6,15 +6,16 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — `/missions` se range par chapitre (ADR-0057 addendum, **la 5ᵉ et DERNIÈRE**)
+### ✅ CHANTIER MERGÉ — `/missions` se range par chapitre (ADR-0057 addendum, **la 5ᵉ et DERNIÈRE**)
 
-Branche **`feat/une-seule-facon-de-trouver-missions`**, base `94d32df`.
-**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
-committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
+**MERGÉ dans `main` le 2026-08-14 — PR [#132](https://github.com/NeuronXcore/zetis-school/pull/132),
+squash `ff3d843`.** Branche `feat/une-seule-facon-de-trouver-missions` **supprimée** (locale et
+distante), base d'origine `94d32df`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
-> 🔴 **Le motif « une seule façon de trouver » est COMPLET sur ses cinq pages** — Capsules
+> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Le motif « une seule façon de trouver » est **COMPLET** — Capsules
 > (étalon), Quiz, Fiches, Mindmaps, Révision, Missions — plus la galaxie qui l'avait déjà.
 > **L'ADR-0057 n'a plus aucun arbitrage en suspens.**
+> ✅ **Écran VU** : Maths rangée en 4 groupes, recherche traversante, écran 1 intact.
 
 #### ✅ FAIT
 
@@ -136,17 +137,17 @@ d'écran, ⚠️ elle **meurt avec la session**. Token de Massimo posé à la ma
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
-   (`docs/WORKFLOW.md §5`) : revenir écrire ici le squash, le n° de PR, « branche supprimée » et
-   « rien à pousser ».
-2. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
+Le chantier est **mergé**, et le motif entier avec lui : il n'y a rien à y reprendre.
+**Un seul chantier à la fois** :
+
+1. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
    `showSubjectHeader` sur **`/quiz`** (désormais la seule page du motif à ne pas l'avoir).
+2. 🔴 **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
+   **Pas cadré** : c'est le prochain vrai chantier, et il demande un `/cadrage`.
 3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
 4. **Deux arbitrages d'écran** nés des slices Révision et Missions : les icônes de chapitre
    identiques · « Sans chapitre » à 19 % en Maths.
-5. **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
-   **Pas cadré** : c'est le prochain vrai chantier, et il demande un `/cadrage`.
-6. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
+5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
