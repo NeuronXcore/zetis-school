@@ -476,6 +476,23 @@ def list_subject_fiches(db: Session, subject_slug: str) -> list[dict]:
     ]
 
 
+def student_fiche_tiles_index(db: Session) -> list[dict]:
+    """Toutes les tuiles, toutes matières (ADR-0057, slice Fiches) — l'écran 2 cherche large.
+
+    🔴 **Aucune règle neuve** : c'est `subject_fiche_tiles` appelée matière par matière, dans
+    l'ordre du programme. Le filtre du « servable » (leçon validée de l'année active, contenu ou
+    fiche lisible) reste **là où il est**, et cette fonction ne le reformule pas — deux
+    formulations d'un même filtre finissent toujours par diverger.
+
+    ⚠️ **L'ordre est significatif et il est préservé** : `Chapter.sort_order`, puis
+    `Lesson.sort_order` — l'ordre du **programme**, pas l'alphabétique.
+    """
+    out: list[dict] = []
+    for subject in db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)):
+        out.extend(subject_fiche_tiles(db, subject.slug))
+    return out
+
+
 def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
     """Une tuile par LEÇON — l'écran 2 (`page-fiches.md`), avec ses quatre états.
 
@@ -591,7 +608,9 @@ def subject_fiche_tiles(db: Session, subject_slug: str) -> list[dict]:
                 "lesson_id": lesson.id,
                 "title": lesson.title,
                 "chapter": chapter_name,
+                "chapter_id": lesson.chapter_id,
                 "subject_slug": subject.slug,
+                "subject": subject.name,
                 "etat": etat,
                 "draft_id": brouillon.id if brouillon else None,
                 "fiche_id": (sienne or zetis).id if (sienne or zetis) else None,

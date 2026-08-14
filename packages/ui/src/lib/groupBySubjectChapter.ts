@@ -34,6 +34,21 @@ export interface SubjectGroup<T> {
 
 export const NO_CHAPTER_LABEL = "Sans chapitre";
 
+export interface GroupOptions {
+  /**
+   * Rang d'un chapitre — **plus petit = plus haut**. Par défaut : l'ordre alphabétique.
+   *
+   * 🔴 **L'alphabétique n'a de sens que faute de mieux.** Les fiches arrivent dans l'ordre du
+   * **programme** (`Chapter.sort_order`, puis `Lesson.sort_order`) : Grammaire, Lecture,
+   * Orthographe, Individu et société — une progression d'année, pas un dictionnaire. Les trier
+   * par nom effacerait cette information sans que rien ne le signale.
+   *
+   * La page qui tient un ordre signifiant le passe ici ; celles qui n'en ont pas gardent le
+   * défaut, et leur écran ne bouge pas (parité Capsules et Quiz).
+   */
+  chapterOrder?: (chapter: { id: number | null; name: string }) => number;
+}
+
 /**
  * Groupe par matière puis par chapitre, en filtrant sur le **titre**.
  *
@@ -44,6 +59,7 @@ export const NO_CHAPTER_LABEL = "Sans chapitre";
 export function groupBySubjectChapter<T extends GroupableItem>(
   items: T[],
   query = "",
+  opts: GroupOptions = {},
 ): SubjectGroup<T>[] {
   const q = normalizeSearch(query);
   const filtered = q ? items.filter((c) => normalizeSearch(c.title).includes(q)) : items;
@@ -72,8 +88,9 @@ export function groupBySubjectChapter<T extends GroupableItem>(
   const result: SubjectGroup<T>[] = [];
   for (const s of subjects.values()) {
     const chapters = [...s.chapters.values()].sort((a, b) => {
-      if (a.id == null) return 1; // « Sans chapitre » en dernier
+      if (a.id == null) return 1; // « Sans chapitre » en dernier, quel que soit l'ordre demandé
       if (b.id == null) return -1;
+      if (opts.chapterOrder) return opts.chapterOrder(a) - opts.chapterOrder(b);
       return a.name.localeCompare(b.name, "fr");
     });
     const count = chapters.reduce((n, ch) => n + ch.items.length, 0);

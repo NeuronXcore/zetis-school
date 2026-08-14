@@ -136,6 +136,16 @@ def student_fiches_summary(db: Session = Depends(get_db)) -> dict:
     return service.fiches_summary(db)
 
 
+@student_router.get("/fiche-tiles", response_model=list[FicheTile])
+def student_fiche_tiles_index(db: Session = Depends(get_db)) -> list[dict]:
+    """Toutes les tuiles, toutes matières (ADR-0057) — la recherche de l'écran 2 traverse.
+
+    Même contenu et même filtre que la route par matière ci-dessous, concaténés dans l'ordre du
+    **programme** (`Subject.sort_order`, puis chapitre, puis leçon).
+    """
+    return service.student_fiche_tiles_index(db)
+
+
 @student_router.get("/subjects/{subject_slug}/fiche-tiles", response_model=list[FicheTile])
 def student_subject_fiche_tiles(subject_slug: str, db: Session = Depends(get_db)) -> list[dict]:
     """Une tuile par LEÇON — l'écran de fabrication (`page-fiches.md` écran 2).

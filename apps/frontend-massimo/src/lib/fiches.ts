@@ -48,6 +48,15 @@ export async function fetchSubjectFiches(slug: string): Promise<FicheListItem[]>
  * feuilletage du deck de révision ; celle-ci est leçon-centrée et sert la fabrication — elle
  * seule peut montrer un brouillon commencé ou une leçon encore vierge.
  */
+/** `GET /api/student/fiche-tiles` — toutes les tuiles, toutes matières (ADR-0057, slice Fiches).
+ *
+ * L'écran 2 en dérive la matière ouverte : **une seule source**, pour que la recherche puisse
+ * traverser les matières sans qu'un second chargement raconte autre chose. L'ordre est celui du
+ * **programme** (matière, puis chapitre, puis leçon) — il est significatif, il se préserve. */
+export async function fetchFicheTilesIndex(): Promise<FicheTile[]> {
+  return asJson(await fetch(`${API_URL}/api/student/fiche-tiles`, { headers: headers() }));
+}
+
 export async function fetchSubjectFicheTiles(slug: string): Promise<FicheTile[]> {
   return asJson(
     await fetch(`${API_URL}/api/student/subjects/${slug}/fiche-tiles`, { headers: headers() }),

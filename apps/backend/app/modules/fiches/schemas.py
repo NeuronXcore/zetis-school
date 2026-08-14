@@ -315,7 +315,12 @@ class FicheTile(BaseModel):
     lesson_id: int
     title: str
     chapter: str | None = None
+    # 🔴 L'IDENTIFIANT du chapitre, pas seulement son nom (ADR-0057, slice Fiches) : c'est lui qui
+    # groupe. Sans lui, deux chapitres homonymes fusionneraient, et surtout la brique partagée
+    # rangerait TOUT sous « Sans chapitre » — le défaut exact qu'un sabotage a démasqué en slice 1.
+    chapter_id: int | None = None
     subject_slug: str = ""
+    subject: str = ""  # nom affichable de la matière — l'étagère le montre
     etat: FicheTileEtat
     # Ce qu'il faut ouvrir au clic, selon l'état.
     draft_id: int | None = None  # son brouillon à reprendre

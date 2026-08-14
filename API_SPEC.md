@@ -643,6 +643,15 @@ force le cours de la leçon + complément RAG, comme le quiz de fin de cours). `
   fiches ZETIS validées **et** celles de Massimo : un deck où il n'a que les siennes n'est pas
   « bientôt ».
 - **GET `/api/student/subjects/{slug}/fiches`** — deck d'une matière (fiches lisibles, `seen`).
+- 🔴 **GET `/api/student/fiche-tiles`** → `list[FicheTile]`, **toutes matières** (ADR-0057, slice
+  Fiches). Même contenu et **même filtre** que la route par matière ci-dessous — c'est elle,
+  appelée matière par matière : aucune règle neuve, donc rien à faire diverger. L'ordre est celui
+  du **programme** (`Subject.sort_order`, puis `Chapter.sort_order`, puis `Lesson.sort_order`), et
+  il est **significatif** : la surface s'en sert pour ranger les chapitres. L'écran 2 en dérive la
+  matière ouverte — **une seule source**, pour qu'une recherche puisse traverser les matières sans
+  qu'un second chargement raconte autre chose du même objet.
+  ⚠️ `FicheTile` porte désormais **`chapter_id`** (l'identifiant, pas seulement le nom — c'est lui
+  qui groupe) et **`subject`** (le nom affichable).
 - **GET `/api/student/subjects/{slug}/fiche-tiles`** → `list[FicheTile]`. **Une tuile par LEÇON**
   (écran 2 de `page-fiches.md`), à quatre états : `commencee` · `ma_fiche` · `zetis` ·
   `a_fabriquer`. ⚠️ **Route séparée, pas un élargissement de la précédente** : celle du dessus est

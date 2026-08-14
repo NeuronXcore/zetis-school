@@ -76,7 +76,11 @@ export interface FicheTile {
   lesson_id: number;
   title: string;
   chapter: string | null;
+  // 🔴 L'IDENTIFIANT, pas seulement le nom (ADR-0057) : c'est lui qui groupe. Sans lui, la brique
+  // partagée rangerait tout sous « Sans chapitre » — le défaut qu'un sabotage a démasqué.
+  chapter_id: number | null;
   subject_slug: string;
+  subject: string; // nom affichable de la matière — l'étagère le montre
   etat: FicheTileEtat;
   draft_id: number | null; // son brouillon à reprendre
   fiche_id: number | null; // sa fiche finie, ou à défaut celle de ZETIS

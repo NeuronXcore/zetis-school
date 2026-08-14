@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { type FicheDetail, type FicheListItem, type FicheTile } from "@zetis/types";
+import { groupBySubjectChapter } from "@zetis/ui";
+import { SubjectChapterShelves } from "../components/browse/SubjectChapterShelves";
 import { cardsFromFiche, reworkFiche, type FicheCartes } from "../lib/atelier";
 import { dateRelative } from "../lib/datation";
 import { FicheCard } from "../components/FicheCard";
@@ -11,7 +13,7 @@ import { subjectIconFor } from "../lib/subjectIcons";
 import { subjectEmoji } from "../lib/subjectEmoji";
 import {
   fetchFiche,
-  fetchSubjectFicheTiles,
+  fetchFicheTilesIndex,
   fetchSubjectFiches,
   markFicheSeen,
 } from "../lib/fiches";
@@ -35,7 +37,11 @@ export function FicheSubjectPage() {
   const [list, setList] = useState<FicheListItem[] | null>(null);
   // La LISTE est leçon-centrée (fabrication) ; `list` reste fiche-centrée et sert le
   // feuilletage ‹/› du viewer, qui est une lecture de deck — deux rôles, deux sources.
-  const [tuiles, setTuiles] = useState<FicheTile[] | null>(null);
+  // 🔴 **UNE SEULE SOURCE** (ADR-0057, slice Fiches) : la page charge TOUTES les tuiles et en
+  // dérive la matière ouverte. Deux chargements — l'un par matière, l'autre global — auraient
+  // pu raconter deux choses différentes du même objet.
+  const [index, setIndex] = useState<FicheTile[] | null>(null);
+  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [detail, setDetail] = useState<FicheDetail | null>(null);
@@ -54,16 +60,21 @@ export function FicheSubjectPage() {
   useEffect(() => {
     let alive = true;
     setError(null);
-    Promise.all([fetchSubjectFiches(slug), fetchSubjectFicheTiles(slug)])
-      .then(([fiches, t]) => {
+    Promise.all([fetchSubjectFiches(slug), fetchFicheTilesIndex()])
+      .then(([fiches, toutes]) => {
         if (!alive) return;
         setList(fiches);
-        setTuiles(t);
+        setIndex(toutes);
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"));
     return () => {
       alive = false;
     };
+  }, [slug]);
+
+  // Un filtre ne survit pas au changement de portée (ADR-0057 §8, règle 3).
+  useEffect(() => {
+    setSearch("");
   }, [slug]);
 
   const open = useCallback(
@@ -151,6 +162,20 @@ export function FicheSubjectPage() {
       setPorteEnCours(false);
     }
   }, [detail, navigate, porteEnCours, slug]);
+
+  // La matière ouverte se DÉRIVE de l'index — une seule source (voir plus haut).
+  const cherche = search.trim().length > 0;
+  const tuiles = (index ?? []).filter((t) => t.subject_slug === slug);
+  // ⚠️ **L'ordre des chapitres est celui du PROGRAMME**, pas l'alphabétique : le serveur les rend
+  // triés par `Chapter.sort_order`, et cette progression a un sens que le dictionnaire n'a pas.
+  // Le rang d'un chapitre = son rang de première apparition dans l'index.
+  const rangs = new Map<number, number>();
+  for (const t of index ?? []) {
+    if (t.chapter_id != null && !rangs.has(t.chapter_id)) rangs.set(t.chapter_id, rangs.size);
+  }
+  const groupes = groupBySubjectChapter(cherche ? (index ?? []) : tuiles, search, {
+    chapterOrder: (ch) => (ch.id == null ? Number.MAX_SAFE_INTEGER : (rangs.get(ch.id) ?? 0)),
+  });
 
   const heading = (
     <div className="flex items-center gap-2 text-slate-200">
@@ -303,9 +328,9 @@ export function FicheSubjectPage() {
           <p className="mb-4 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>
         )}
 
-        {tuiles === null ? (
+        {index === null ? (
           <p className="text-zetis-muted">Chargement…</p>
-        ) : tuiles.length === 0 ? (
+        ) : tuiles.length === 0 && !cherche ? (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl">
             <p className="text-2xl">🌱</p>
             <p className="mt-2 text-lg font-semibold text-slate-100">
@@ -318,21 +343,45 @@ export function FicheSubjectPage() {
         ) : (
           <>
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
-              Tes fiches, et celles qui restent à faire
+              {cherche ? "Ce que tu cherches" : "Tes fiches, et celles qui restent à faire"}
             </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {tuiles.map((t) => (
+            <SubjectChapterShelves
+              groups={groupes}
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Rechercher une leçon…"
+              emptyLabel={(q) => `Aucune leçon ne correspond à « ${q} ».`}
+              itemKey={(t) => t.lesson_id}
+              gridClassName="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              defaultOpen
+              // La page nomme déjà la matière (rétrolien + titre) : hors recherche, l'étagère ne
+              // la répète pas — elle l'écrivait TROIS fois.
+              // 🔴 **Mais dès qu'on cherche, elle la nomme toujours**, même pour un seul groupe :
+              // un résultat de Maths affiché sous un titre « Français », sans rien qui dise d'où
+              // il vient, est le cul-de-sac que la règle « emmener » existe pour empêcher.
+              // (Défaut de la première version de cette condition, attrapé par son propre test.)
+              showSubjectHeader={cherche || groupes.length > 1}
+              renderItem={(t) => (
                 <TuileLecon
-                  key={t.lesson_id}
                   tuile={t}
                   onLire={(ficheId) => {
+                    // 🔴 « EMMENER, jamais afficher sans y mener » : une tuile d'une AUTRE
+                    // matière ne peut pas s'ouvrir ici — `list` est fiche-centrée et ne porte
+                    // que la matière courante. On va la chercher là où elle vit, par son adresse
+                    // (`?fiche=`, la 3ᵉ porte de l'ADR-0054).
+                    if (t.subject_slug !== slug) {
+                      navigate(`/fiches/${t.subject_slug}?fiche=${ficheId}`);
+                      return;
+                    }
                     const i = list?.findIndex((f) => f.id === ficheId) ?? -1;
                     if (i >= 0) void open(i);
                   }}
-                  onFabriquer={() => navigate(`/fiches/${slug}/${t.lesson_id}/atelier`)}
+                  onFabriquer={() =>
+                    navigate(`/fiches/${t.subject_slug}/${t.lesson_id}/atelier`)
+                  }
                 />
-              ))}
-            </div>
+              )}
+            />
           </>
         )}
       </div>
@@ -403,11 +452,10 @@ function TuileLecon({
         onClick={() => (versLAtelier ? onFabriquer() : tuile.fiche_id && onLire(tuile.fiche_id))}
         className="flex flex-col gap-1 text-left"
       >
-        {tuile.chapter && (
-          <span className="text-[11px] font-medium uppercase tracking-wide text-cyan-300">
-            {tuile.chapter}
-          </span>
-        )}
+        {/* 🔴 Le chapitre ne s'écrit PLUS ici (ADR-0057, slice Fiches) : l'étagère qui range la
+            tuile le porte déjà, juste au-dessus. Le laisser affichait le même mot deux fois à
+            trois lignes d'intervalle — trouvé par un test qui butait sur « Found multiple
+            elements: Zébu », pas par une relecture. */}
         <span className="font-semibold text-slate-100">{tuile.title}</span>
         <span className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`rounded-full px-2 py-0.5 ${pastille.classe}`}>{pastille.texte}</span>

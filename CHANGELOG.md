@@ -1,5 +1,23 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.88.0 — Les fiches se rangent aussi, dans l'ordre du programme
+
+Dix-sept leçons de Français à la file, sans repère : l'écran des fiches avait le même défaut que
+celui des quiz. Les tuiles sont désormais **rangées par chapitre**, et un **champ de recherche**
+retrouve une leçon au mot-clé — depuis le Français, « pythagore » ramène la leçon de Maths, sous
+son chapitre, et le clic emmène là où elle vit.
+
+> **L'ordre est celui du programme, pas du dictionnaire.** Grammaire, Lecture et compréhension,
+> Orthographe : cette suite est une progression d'année. La trier par ordre alphabétique aurait
+> effacé une information que personne n'aurait vue disparaître.
+
+**Le chapitre ne s'écrit plus deux fois** — l'étagère le porte, la tuile ne le répète plus. Et la
+matière ne s'écrit plus trois fois : hors recherche, l'étagère se tait, puisque la page la nomme
+déjà. Dès qu'on cherche, elle reparle — sinon on ne saurait pas d'où vient un résultat.
+
+**Une seule source** : la page charge toutes les tuiles et en dérive la matière ouverte. Deux
+chargements — l'un par matière, l'autre global — auraient pu raconter deux choses du même objet.
+
 ## 0.87.0 — Les quiz se rangent par chapitre, et se cherchent au mot
 
 La page Quiz donnait une liste plate : dix-sept quiz de Français à la file, sans repère. Ils sont

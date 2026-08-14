@@ -52,6 +52,14 @@ export interface SubjectChapterShelvesProps<T extends GroupableItem> {
    * `/quiz?subject=mathematiques` affichait un accordéon clos au lieu de ses quiz.
    */
   defaultOpen?: boolean;
+  /**
+   * En-tête de matière (icône + nom + compte). **`true` par défaut = parité Capsules.**
+   *
+   * 🔴 Le passer à `false` quand la page NOMME DÉJÀ la matière : sur l'écran d'une matière, elle
+   * était écrite **trois fois** — rétrolien, titre de page, et en-tête d'étagère. Trouvé à
+   * l'écran le 2026-08-14, invisible à tous les tests.
+   */
+  showSubjectHeader?: boolean;
 }
 
 export function SubjectChapterShelves<T extends GroupableItem>({
@@ -64,6 +72,7 @@ export function SubjectChapterShelves<T extends GroupableItem>({
   itemKey,
   gridClassName = "grid grid-cols-1 gap-3 sm:grid-cols-3",
   defaultOpen = false,
+  showSubjectHeader = true,
 }: SubjectChapterShelvesProps<T>) {
   // Une seule mise en évidence à la fois : le dépliage est de la NAVIGATION, la recherche est un
   // FILTRE. Les faire cohabiter rendrait l'écran illisible (règle 2 de la galaxie, ADR-0057 §8).
@@ -97,17 +106,19 @@ export function SubjectChapterShelves<T extends GroupableItem>({
                 key={key}
                 className="overflow-hidden rounded-2xl border border-zetis-border bg-zetis-surface"
               >
-                <button
-                  type="button"
-                  onClick={() => setExpanded((m) => ({ ...m, [key]: !m[key] }))}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left font-bold"
-                >
-                  <SubjectIcon slug={shelf.slug} size={28} />
-                  {shelf.name}
-                  <span className="ml-auto text-sm font-medium text-zetis-muted">
-                    {shelf.count} · {open ? "▾" : "▸"}
-                  </span>
-                </button>
+                {showSubjectHeader && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((m) => ({ ...m, [key]: !m[key] }))}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left font-bold"
+                  >
+                    <SubjectIcon slug={shelf.slug} size={28} />
+                    {shelf.name}
+                    <span className="ml-auto text-sm font-medium text-zetis-muted">
+                      {shelf.count} · {open ? "▾" : "▸"}
+                    </span>
+                  </button>
+                )}
                 {open && (
                   <div className="px-4 pb-4">
                     {shelf.chapters.map((ch) => (

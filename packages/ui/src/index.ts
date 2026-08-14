@@ -75,6 +75,7 @@ export {
   groupBySubjectChapter,
   NO_CHAPTER_LABEL,
   type GroupableItem,
+  type GroupOptions,
   type ChapterGroup,
   type SubjectGroup,
 } from "./lib/groupBySubjectChapter";

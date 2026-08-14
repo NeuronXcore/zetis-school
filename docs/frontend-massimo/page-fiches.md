@@ -46,9 +46,26 @@ Une tuile par leçon. **Quatre états**, qui cohabitent dans la même liste :
 **Aucun état n'est un reproche.** Le brouillon n'affiche jamais « inachevé » ni « abandonné », et
 rien ne décompte de jours — tenu par un test.
 
-Source : **`GET /api/student/subjects/{slug}/fiche-tiles`** (livrée en slice 2). ⚠️ *Pas*
-`…/fiches`, qui est **fiche-centrée** et sert le deck de révision : elle ne peut montrer ni un
-brouillon ni une leçon vierge, faute d'objet à lister.
+Source : **`GET /api/student/fiche-tiles`** — l'index de **toutes** les matières (ADR-0057), dont
+l'écran dérive celle qui est ouverte. ⚠️ *Pas* `…/fiches`, qui est **fiche-centrée** et sert le
+deck de révision : elle ne peut montrer ni un brouillon ni une leçon vierge, faute d'objet à
+lister. *(La route par matière existe toujours et sert la page Cours.)*
+
+#### Rangées par CHAPITRE, et cherchables au mot (ADR-0057)
+
+Les tuiles ne sont plus une liste à plat : elles sont **groupées par chapitre**, dans l'ordre du
+**programme** (`Chapter.sort_order`) — jamais l'alphabétique, qui effacerait la progression de
+l'année. Un **champ de recherche** filtre sur le titre de la leçon.
+
+- 🔴 **La recherche traverse les matières** (règle des capsules, arbitrée le 2026-08-14) : on
+  cherche sans savoir où c'est rangé. Un résultat d'une autre matière apparaît **sous son étagère
+  nommée**, et le clic **emmène** Massimo là où il vit — jamais un résultat qu'on voit sans
+  pouvoir l'atteindre.
+- **L'étagère ne répète pas la matière** quand la page la nomme déjà (hors recherche) : elle
+  s'écrivait trois fois. En recherche, elle la nomme **toujours** — sinon on ne saurait pas d'où
+  vient un résultat.
+- **Le chapitre ne s'écrit plus sur la tuile** : l'étagère qui la range le porte déjà.
+- Un filtre **ne survit pas** au changement de matière.
 
 🔴 **Priorité des états, quand plusieurs sont vrais** : `commencée` **avant** `ta fiche`. S'il a
 rouvert sa fiche pour la retravailler (écran 7), c'est ce travail-là qu'il veut reprendre, pas
