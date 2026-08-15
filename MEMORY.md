@@ -142,8 +142,16 @@ Le chantier est **mergé**, et le motif entier avec lui : il n'y a rien à y rep
 
 1. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
    `showSubjectHeader` sur **`/quiz`** (désormais la seule page du motif à ne pas l'avoir).
-2. 🔴 **« La fiche répond quand on la touche »** — défauts 2, 3 et la cause du 4 de l'ADR-0054.
-   **Pas cadré** : c'est le prochain vrai chantier, et il demande un `/cadrage`.
+2. ✅ **« La fiche répond quand on la touche » est CADRÉ** (2026-08-14) —
+   `adr-0058-la-fiche-repond-quand-on-la-touche.md`. Prochain pas :
+   **`/ouverture ADR-0058`**, après le commit du lot Décision.
+
+   🔴 **Le cadrage a trouvé pire que la dette annoncée.** Les défauts 2/3/4 disent la même chose
+   (*un geste sans réponse*), et le **défaut 4 s'est RÉALISÉ deux fois en base** : brouillons
+   **id=54** (v3, leçon 1) et **id=59** (v4, leçon 7), vides derrière des fiches finies. Et
+   **`rework` les rend** (`atelier.py:330`) — donc « La retravailler », le chemin réputé sûr,
+   **rend aujourd'hui la page blanche** sur ces deux leçons. ⚠️ **Mesure refaite une fois** : le
+   statut est `personal_draft`, pas `draft` ; la 1re passe annonçait **0 cas**.
 3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
 4. **Deux arbitrages d'écran** nés des slices Révision et Missions : les icônes de chapitre
    identiques · « Sans chapitre » à 19 % en Maths.
