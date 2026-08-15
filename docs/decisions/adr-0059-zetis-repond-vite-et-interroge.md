@@ -549,6 +549,13 @@ observe qu'on *demande* le défilement, pas que le bloc devienne visible. La vis
 été vue à l'écran, en 375 px. C'est la cinquième fois dans ce dépôt qu'un défaut n'existe que
 pour l'œil.
 
+**Second défaut, sur le même écran** : la SEULE sortie visible d'une interrogation — « On arrête »
+— portait la classe `chat-ghost` **seule**, alors que la règle CSS est le sélecteur **composé**
+`.chat-tool.chat-ghost`. Une moitié de sélecteur ne correspond à rien : 68 px de texte nu, sans
+fond, sans bordure, sans marge de clic. Un enfant qui veut arrêter ne reconnaît pas un bouton
+là-dedans, et l'`adr-0026` §4 promet qu'on peut toujours partir. Une classe qui n'existe qu'à
+moitié est invisible à `tsc`, à `vitest` et à la relecture de code — seulement à l'œil.
+
 ### §21 — Addendum du 2026-08-15 : le LaTeX se voit ET s'entend
 
 Vu à l'écran : *« pour faire $1/2 + 1/3$, on ne peut pas le faire directement »*. **Deux dégâts,
@@ -738,6 +745,10 @@ Tests-verrous, avec le **sabotage** qui doit les faire rougir — joué pour de 
     voix continuerait de dire « dollar »).
 24. **§21 — `5 $` n'est pas une formule** — sabotage : retirer les gardes d'espace de
     `_MATH_INLINE`.
+25. **§20 — la sortie d'une interrogation RESSEMBLE à un bouton** (`chat-tool chat-ghost`) —
+    sabotage : retirer `chat-tool`. ⚠️ jsdom ne charge pas la feuille de style : le verrou observe
+    la CLASSE, pas le rendu. Il attrape exactement la faute commise, une moitié de sélecteur
+    composé, et rien de plus.
 
 ⚠️ Tout test de résolution ou de **non**-résolution utilise l'embedder **crc32**, jamais
 `FakeEmbeddingProvider` — non déterministe, vert une fois sur deux.

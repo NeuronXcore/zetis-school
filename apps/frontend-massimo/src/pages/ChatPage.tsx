@@ -610,7 +610,17 @@ export function ChatPage() {
             Question {interro.asked} sur {interro.total} · {interro.skill_name}
           </p>
           <div className="chat-offer-row">
-            <button type="button" className="chat-ghost" onClick={() => void send("stop", "text")}>
+            {/* ⚠️ `chat-tool chat-ghost`, jamais `chat-ghost` seul : la règle CSS est le
+                sélecteur COMPOSÉ `.chat-tool.chat-ghost`. Posée seule, la classe ne correspond à
+                rien — vu à l'écran le 2026-08-15 : la SEULE sortie visible d'une interrogation
+                était 68 px de texte nu, sans fond, sans bordure, sans marge de clic. Un enfant
+                qui veut arrêter ne reconnaît pas un bouton là-dedans, et l'`adr-0026` §4 promet
+                qu'on peut toujours partir. */}
+            <button
+              type="button"
+              className="chat-tool chat-ghost"
+              onClick={() => void send("stop", "text")}
+            >
               On arrête
             </button>
           </div>

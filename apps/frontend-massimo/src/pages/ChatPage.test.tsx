@@ -471,7 +471,17 @@ describe("ChatPage", () => {
     await waitFor(() =>
       expect(screen.getByText(/Question 2 sur 3/)).toBeInTheDocument(),
     );
-    expect(screen.getByRole("button", { name: /On arrête/ })).toBeInTheDocument();
+    const sortie = screen.getByRole("button", { name: /On arrête/ });
+    expect(sortie).toBeInTheDocument();
+    // 🔴 Et elle doit RESSEMBLER à une sortie. Vu à l'écran le 2026-08-15 : la classe posée était
+    // `chat-ghost` SEULE, alors que la règle CSS est le sélecteur COMPOSÉ `.chat-tool.chat-ghost`.
+    // Résultat : 68 px de texte nu, sans fond, sans bordure, sans marge de clic — la seule sortie
+    // visible d'une interrogation n'avait pas l'air d'un bouton, et l'ADR-0026 §4 promet qu'on
+    // peut toujours partir.
+    // ⚠️ jsdom ne charge pas la feuille de style : ce verrou observe la CLASSE, pas le rendu. Il
+    // attrape exactement la faute commise — une moitié de sélecteur composé — et rien de plus.
+    // Sabotage : retirer `chat-tool` de la classe.
+    expect(sortie).toHaveClass("chat-tool", "chat-ghost");
     expect(screen.queryByText(/score|bonne réponse|erreur/i)).not.toBeInTheDocument();
   });
 
