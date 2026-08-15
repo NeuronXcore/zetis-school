@@ -37,4 +37,33 @@ d'opérer sur la mauvaise base — le piège s'est déclenché en vrai le 2026-0
 | base cible ambiguë ou configuration illisible | `2` |
 | effacement **incomplet** après `--apply` | `3` |
 
+### En PRODUCTION — deux obstacles, une commande
+
+Le geste n'est pas le même qu'en dev, pour deux raisons **vérifiées dans le dépôt** :
+
+1. **Postgres n'est joignable que depuis le réseau du compose** — `docker-compose.prod.yml` le pose
+   sur le seul réseau `interne`, sans port publié. On ne l'atteint pas depuis l'hôte.
+2. **`scripts/` n'est pas dans l'image backend** — `infra/docker/backend.Dockerfile` ne copie que
+   `apps/backend`. Il faut donc **monter** le script au moment de l'exécuter.
+
+D'où la forme : on tourne **dans** le réseau, avec le script monté, et en court-circuitant
+l'entrypoint (il applique les migrations puis lance uvicorn — on ne veut ni l'un ni l'autre).
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/scripts:/scripts:ro" --entrypoint python \
+  backend /scripts/purge_chat_verbatim.py
+```
+
+Puis, une fois le bilan lu, la même commande avec `--apply` à la fin.
+
+`ZETIS_DATABASE_URL` est déjà dans l'environnement du service `backend` : le script la reprend via
+la configuration de l'app, sans qu'on ait à la retaper. `POSTGRES_PASSWORD` doit être dans le
+`.env` de la racine — le compose s'arrête tout seul sinon (`:?`).
+
+⚠️ **Cette commande n'a PAS été exécutée** : elle est dérivée du `docker-compose.prod.yml` et du
+`backend.Dockerfile`, tous deux lus, mais aucune pile de production n'était joignable le
+2026-08-15. Le bilan étant sans effet de bord, lancez-le **d'abord** : il vaut vérification de la
+commande autant que de la base.
+
 Passé en dev le 2026-08-15 (78 lignes, 4 juillet → 14 août). **Reste à passer en production.**

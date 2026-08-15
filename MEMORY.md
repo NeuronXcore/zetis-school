@@ -220,8 +220,11 @@ Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus.
 1. 🔴 **Passer `purge_chat_verbatim.py --apply` sur la PRODUCTION.** Seul travail réellement ouvert
    de ce chantier, et il porte sur la **vie privée de Massimo** — donc prioritaire sur toute
    nouvelle fonctionnalité. Le dev est fait ; la prod n'était pas joignable depuis la session.
-   ⚠️ **`ZETIS_DATABASE_URL`**, jamais `DATABASE_URL` (ignorée en silence par l'app). Bilan sans
-   `--apply` d'abord — sans risque. Procédure : `scripts/README.md`.
+   ⚠️ **Le geste n'est pas celui du dev** : en prod, Postgres n'est que sur le réseau `interne`
+   (aucun port publié) et `scripts/` n'est **pas** dans l'image backend. Il faut tourner *dans* le
+   compose, script monté, entrypoint court-circuité — **commande écrite dans `scripts/README.md`,
+   mais JAMAIS exécutée** (aucune pile de prod joignable le 2026-08-15). Le bilan est sans effet
+   de bord : il vaut vérification de la commande autant que de la base. Lancez-le d'abord.
 2. **Juger la qualité du décodage glouton sur une vraie voix** — seule dette du chantier qui touche
    la **justesse** de ce que ZETIS comprend. Repli : `beam_size=2`, jamais le retour à 5.
 3. Puis **`/ouverture`** sur le chantier suivant. Le reste des dettes est nommé ci-dessus.
