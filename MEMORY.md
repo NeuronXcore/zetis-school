@@ -13,9 +13,12 @@
 Base `4dffacf` (le commit de cadrage, parti seul et en premier). `main` est à jour avec `origin` :
 **rien à pousser**.
 
-⚠️ **La branche `feat/trois-temoins-de-plus` N'A PAS été supprimée** — ni en local, ni sur
-`origin`. Ce n'est pas un oubli constaté après coup : la suppression n'a pas été demandée, et elle
-est irréversible côté distant. À supprimer quand vous le voudrez.
+✅ **Branche `feat/trois-temoins-de-plus` supprimée** (locale et distante, 2026-08-15), vérifié par
+`git ls-remote` — la ref de suivi ne fait pas foi, elle a déjà menti dans les deux sens.
+⚠️ `git branch --merged main` ne la listait **pas**, et ce n'était pas un signal d'alerte : un
+merge en **squash** ne fait pas des commits d'origine des ancêtres de `main`. La preuve utile est
+`git diff --stat <branche> <squash>` — arbres identiques, donc rien à perdre. `-D` était donc
+requis, et légitime.
 
 ⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
 
@@ -238,7 +241,7 @@ Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étap
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs :
 
-- la branche `feat/trois-temoins-de-plus` **existe toujours**, locale et distante ;
+- ~~la branche `feat/trois-temoins-de-plus` existe toujours~~ — **supprimée** le 2026-08-15 ;
 - les serveurs `backend-dev` :8001 et `massimo-dev` :5176 sont morts avec la session ;
 - la base de **dev** porte les points zéro (267 / 37) et le watermark d'agenda avancé ;
 - la permission `Bash(gh pr merge:*)` a été ajoutée à `.claude/settings.local.json` (gitignoré).
