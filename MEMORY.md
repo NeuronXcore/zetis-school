@@ -147,11 +147,18 @@ Le chantier est **mergé**, et le motif entier avec lui : il n'y a rien à y rep
    **`/ouverture ADR-0058`**, après le commit du lot Décision.
 
    🔴 **Le cadrage a trouvé pire que la dette annoncée.** Les défauts 2/3/4 disent la même chose
-   (*un geste sans réponse*), et le **défaut 4 s'est RÉALISÉ deux fois en base** : brouillons
-   **id=54** (v3, leçon 1) et **id=59** (v4, leçon 7), vides derrière des fiches finies. Et
-   **`rework` les rend** (`atelier.py:330`) — donc « La retravailler », le chemin réputé sûr,
-   **rend aujourd'hui la page blanche** sur ces deux leçons. ⚠️ **Mesure refaite une fois** : le
-   statut est `personal_draft`, pas `draft` ; la 1re passe annonçait **0 cas**.
+   (*un geste sans réponse*), et le **défaut 4 s'est RÉALISÉ en base** : le brouillon **id=59**
+   (v4, leçon 7) est **vide** derrière trois fiches finies, et **`rework` le rend**
+   (`atelier.py:330`) — donc « La retravailler », le chemin réputé sûr, **rend aujourd'hui la page
+   blanche** sur cette leçon.
+
+   🔴 **La mesure a été fausse DEUX fois avant d'être juste — 0, puis 2, puis 1** (ADR corrigé sur
+   `main` le 2026-08-15, **avant la première ligne de code**) : (a) statut `draft` au lieu de
+   `personal_draft` ; (b) **six sections nommées d'après les ÉTAPES À L'ÉCRAN** (`pieges`,
+   `exemple`, `methode` **n'existent pas** dans `FicheDraft`). 🔴 **Le brouillon id=54 (leçon 1)
+   porte des `points_cles` — c'est du TRAVAIL de Massimo, à ne pas toucher** ; le prédicat faux
+   l'aurait écrasé, ce qui est **le signal d'erreur n° 3 de l'ADR, écrit dans l'ADR lui-même**.
+   **Parade figée** : « vide » se dérive de `FicheDraft.model_fields`, jamais d'une liste recopiée.
 3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
 4. **Deux arbitrages d'écran** nés des slices Révision et Missions : les icônes de chapitre
    identiques · « Sans chapitre » à 19 % en Maths.
