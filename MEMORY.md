@@ -19,22 +19,25 @@ est irréversible côté distant. À supprimer quand vous le voudrez.
 
 ⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
 
-> 🔴 **LA RELECTURE VISUELLE N'A PAS EU LIEU, ET LE CHANTIER EST MERGÉ QUAND MÊME — 6ᵉ occurrence.**
-> Elle n'a pas été sautée par distraction : l'agent ne peut pas se connecter à l'app (règle
-> permanente — ne jamais saisir de mot de passe), et le merge a été fait par le commanditaire en
-> connaissance de cause, l'objection lui ayant été exposée trois fois, dont en tête du corps de la
-> PR. **Ce n'est donc pas une dette de rigueur, c'est une contrainte structurelle** : *aucun
-> chantier d'interface de ce dépôt ne peut être relu visuellement par l'agent seul.*
-> Le chantier précédent (ADR-0059) est le seul à l'avoir eue avant son merge — parce qu'un humain
-> l'a faite — et elle y avait produit **trois défauts que rien d'autre n'avait vus**.
+> ✅ **RELECTURE VISUELLE FAITE — par le commanditaire, le 2026-08-15, APRÈS le merge. Les trois
+> points tiennent, aucun défaut trouvé.**
+> 1. **Matières** affiche `9+` ✅
+> 2. **ELI5** et **Quiz** n'affichent **aucune pastille** ✅ — le point zéro fait ce qu'il annonce
+> 3. le badge **Agenda RESTE** allumé sur l'Accueil ✅ — c'est tout l'objet de la révocation, et
+>    c'était le seul des quatre dont la correction n'était prouvée que par un test
 >
-> **Ce qu'il reste à regarder, maintenant que c'est en production de dev** — c'est devenu une
-> vérification *post-merge*, pas un gate :
-> 1. **Matières** doit afficher `9+` ;
-> 2. **ELI5** et **Quiz** ne doivent afficher **aucune pastille** (point zéro) ;
-> 3. le badge **Agenda** doit **RESTER** allumé sur l'Accueil au lieu de s'éteindre sous les yeux —
->    c'est tout l'objet de la révocation, et c'est le seul des quatre dont la correction n'est
->    prouvée que par un test.
+> ⚠️ **Elle a eu lieu APRÈS le merge, et c'est la 6ᵉ fois qu'elle ne précède pas la PR.** À écrire
+> une fois pour toutes, parce que ce n'est pas une dette de rigueur mais une **contrainte
+> structurelle** : *l'agent ne peut pas se connecter à l'app* (règle permanente — ne jamais saisir
+> de mot de passe), donc **aucun chantier d'interface de ce dépôt ne peut être relu visuellement
+> par l'agent seul**. Le merge a été fait en connaissance de cause, l'objection ayant été exposée
+> trois fois, dont en tête du corps de la PR.
+>
+> **Ce que ça coûte, et ce que ça n'a pas coûté ici** : sur l'ADR-0059, la relecture — faite
+> *avant* le merge — avait produit **trois défauts que rien d'autre n'avait vus**. Ici elle n'en a
+> produit aucun, mais ce résultat était inconnu au moment de merger. La leçon n'est donc pas « on
+> pouvait s'en passer » : c'est que **le gate doit être posé chez l'humain, pas chez l'agent**, et
+> qu'un chantier d'interface devrait attendre son regard avant la PR.
 
 #### Ce qui a motivé le chantier
 
@@ -94,9 +97,9 @@ a coupé ce constat en deux, et **les deux moitiés étaient fausses différemme
 
 **Nées de ce chantier :**
 
-- 🔴 **La relecture visuelle n'a pas eu lieu, et le chantier est mergé** (détail en tête). Devenue
-  une vérification **post-merge** : Matières à `9+`, ELI5 et Quiz **sans pastille**, et le badge
-  Agenda qui **reste** sur l'Accueil.
+- ✅ **~~La relecture visuelle n'a pas eu lieu~~ — FAITE le 2026-08-15, les trois points tiennent,
+  aucun défaut** (détail en tête). Elle a eu lieu **après** le merge : la contrainte reste entière
+  pour les prochains chantiers d'interface, et elle est structurelle, pas circonstancielle.
 - 🔴 **LES DEUX MIGRATIONS NE SONT PAS EN PRODUCTION** — et c'est désormais la dette la plus
   urgente, puisque le code qui les attend est sur `main`. `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`,
   **chaînées** (les poser en parallèle donnerait deux têtes Alembic, silencieusement, et
@@ -200,8 +203,7 @@ Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étap
    bloquant. Le code est sur `main` et lit `eli5_views` / `quiz_views` ; sans les tables,
    `GET /api/student/news/summary` tombe et **les dix badges de Massimo tombent avec**.
    Chaînées : `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`. Procédure et pièges : `scripts/README.md`.
-2. **Regarder les badges à l'écran** — la vérification qui n'a pas pu se faire avant le merge (voir
-   en tête). Trois choses précises à voir, listées là-haut.
+2. ✅ ~~Regarder les badges à l'écran~~ — **fait le 2026-08-15, les trois points tiennent.**
 3. **Juger la qualité du décodage glouton sur une vraie voix** — dette héritée de l'ADR-0059, qui
    était déjà « le premier pas ouvert » à sa clôture et l'est resté.
 4. Puis **`/ouverture`** ou une session de **cadrage** sur `main`, selon que le chantier suivant a
