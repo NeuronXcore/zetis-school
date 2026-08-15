@@ -726,7 +726,7 @@ describe("MatiereDetailPage — panoplie", () => {
     renderPage();
     await ouvrirNotion(/La cellule/, /Mitose/);
     fireEvent.click(activite("Voir le cours"));
-    expect(navigateMock).toHaveBeenCalledWith("/subjects/svt/cours", undefined);
+    expect(navigateMock).toHaveBeenCalledWith("/subjects/svt/cours?lesson=3", undefined);
   });
 
   it("dit que quiz et révision ouvrent la MATIÈRE, sans promettre la notion", async () => {

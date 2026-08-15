@@ -252,6 +252,38 @@ elle est une métadonnée légitime.
 Sans cela, « ZETIS est plus réactif » resterait une impression. Les chiffres avant/après se
 consignent dans `MEMORY.md`.
 
+#### 🔴 Les mesures, faites le 2026-08-15 — et elles déplacent le diagnostic
+
+Machine du commanditaire, Ollama et Piper réels, énoncé de 4,3 s, meilleur de 3 passes :
+
+| Maillon | Avant | Après | Part |
+|---|---|---|---|
+| STT (Whisper `small`, int8, CPU) | 1,23 s | **1,00 s** | 9 % |
+| 🔴 **Moteur** (`qwen3.6:35b-a3b`, un tour, JSON forcé) | **9,41 s** | 9,41 s | **83 %** |
+| TTS (Piper) | 0,70 s | *sort du chemin critique* | 6 % |
+| **Temps au premier mot** | **≈ 11,3 s** | **≈ 10,4 s** | |
+| **Temps au premier signe pour Massimo** | **≈ 11,3 s** | **≈ 1,0 s** | |
+
+**Trois enseignements, dont deux corrigent ce cadrage :**
+
+1. 🔴 **Le décodage glouton rapporte ~20 %, pas « 2 à 3 fois »** comme l'annonçait le §5.3. La
+   transcription reste **identique au mot près**. Le gain est réel et gratuit, mais petit.
+2. 🔴 **Le STT n'a jamais été le goulot. Le moteur l'est, à lui seul 83 % de l'attente.** La
+   question posée — *« comment rendre ZETIS plus réactif ? »* — trouve donc sa vraie réponse
+   ailleurs que là où le chantier la cherchait. C'est précisément ce que le §6 existait pour
+   découvrir, et il l'a découvert **avant** qu'on optimise au jugé.
+3. **Le gain qui compte n'est pas dans le débit, il est dans la perception.** Massimo passe
+   d'aucun signe pendant 11 s à sa propre phrase affichée en 1 s. Le chiffre à retenir n'est pas
+   le total, c'est celui-là.
+
+**Conséquence pour la suite** : la vraie latence de ZETIS se traite sur le maillon moteur —
+réponse plus courte (§7 le prévoit déjà), streaming du texte, ou modèle plus petit pour le tour
+conversationnel. Aucun de ces trois n'est dans ce chantier ; ils sont désormais **nommés et
+chiffrés** pour le prochain.
+
+⚠️ **Et cela renforce le risque du §9** : élargir le contexte injecté part d'une base à 9,4 s,
+pas d'une base neutre. Le budget du cours devra être choisi en le mesurant, jamais en l'estimant.
+
 ### §7 — ZETIS répond : le serveur ancre, il ne croit jamais le modèle
 
 **Une seule passe LLM par tour.** Le contexte canonique est déjà pré-injecté par `resolve_skill`
@@ -452,6 +484,118 @@ Le verrou est élargi en conséquence, et une route de dictée dédiée au chat
 (`POST /api/student/chat/transcribe`, `require_child`) rend la trace aveugle au contenu. Elle est
 aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul geste, deux problèmes.**
 
+**L'existant est soldé, pas seulement le code** (2026-08-15). `scripts/purge_chat_verbatim.py`
+retire la clé `transcript` des lignes déjà écrites. Il **efface la clé, pas la ligne** : le
+`job_type`, la durée et la taille de l'audio survivent — la trace d'exécution qu'exige
+`CLAUDE.md` §Règles IA. La règle est *« aucun `ai_jobs` ne porte un TEXTE de Massimo »*, pas
+*« aucune dictée n'a eu lieu »*.
+
+Passé sur la base de **dev** : 78 lignes, du 4 juillet au 14 août, vérifiées à zéro après coup.
+⚠️ **La production reste à traiter** — le script est fait pour ça, bilan par défaut et écriture
+sur `--apply` seulement.
+
+### §19 — 🔴 Addendum du 2026-08-15 (au micro) : sans notion, on cherche dans les COURS
+
+Le §9 posait la cascade *cours → RAG → refus honnête*, et le §7 la contrainte d'ancrage. Les deux
+sont suspendus au **même point de départ** : `resolve_skill`, qui vectorise le message **entier**
+et le compare aux noms de notions. Le chantier n'avait jamais interrogé ce qui se passe quand ce
+point de départ se tait.
+
+Au micro, sur *« explique-moi la différence entre le narrateur et le personnage principal »* :
+deux notions dans une phrase, la similarité se dilue, **aucune** ne passe le seuil de 0,72. Sans
+notion, pas de matière ; sans matière, pas de contexte canonique et pas de repli RAG. ZETIS a
+répondu *« je ne l'ai pas encore dans tes cours »* — **alors que le cours sur le Narrateur existe
+et est validé**. Le refus honnête du §8 s'est retourné en affirmation fausse.
+
+Trois corrections, dans cet ordre, et **chacune répare autre chose** :
+
+1. **Le repli RAG cherche toutes matières confondues** quand aucune notion ne résout. Il était
+   indexé sur la matière de la notion résolue : mort exactement là où le §9 le voulait. Le
+   plancher de distance devient le seul garde-fou — c'est sa raison d'être.
+2. **Un second refus, distinct** — `NOTE_NOTION_INCERTAINE`. *« Je n'ai pas identifié de quoi tu
+   parles »* et *« je n'ai pas ce contenu »* sont deux choses différentes, et la seconde est une
+   affirmation que le serveur **n'est pas en position de faire** quand la première est vraie.
+3. 🔴 **Le vrai correctif : on cherche dans les cours validés eux-mêmes.** Le RAG ne pouvait pas
+   en tenir lieu — **il n'indexe que les sources ingérées, jamais les cours**. Un dépôt dont les
+   cours n'ont pas été ingérés comme sources aurait obtenu le refus poli au lieu de la réponse.
+
+`lesson_resolution.lesson_matching_text` répond à la question **inverse** de celle du module :
+*de quel cours validé cette phrase parle-t-elle ?* Aucun embedding, donc rien à diluer — elle
+regarde ce que les cours **s'appellent**. Elle vit dans ce module et pas dans `chat/` pour la
+raison de l'`adr-0037` : le périmètre (année active, chapitre validé) n'existe qu'à un endroit.
+C'est le même précédent qu'`ordered_chapter_skill_ids`, qui y héberge déjà la traversée inverse.
+
+**La porte d'entrée est le titre du cours ou le nom d'une de ses notions ; le contenu ne fait que
+départager.** C'est le garde-fou, et il est plus important que la fonction : « différence »
+apparaît dans n'importe quel cours de maths, et ancrer ZETIS dessus le ferait répondre à côté
+**avec l'aplomb d'une source validée** — strictement pire que le refus qu'on répare. Le contenu
+ne peut donc jamais élire un cours à lui seul. Effet de bord heureux : sans candidat par le
+titre, aucun `content_markdown` n'est chargé.
+
+*Ce qu'on ne prétend pas régler* : une question qui n'emprunte aucun mot au titre du cours reste
+sans ancrage, et ZETIS demande de préciser. C'est le comportement voulu — le §7 tient.
+
+### §20 — Addendum du 2026-08-15 (relecture visuelle) : ce qu'on propose doit être VU
+
+La relecture visuelle attendait un **débordement horizontal** du menu passé à six boutons — le
+panneau voisin déborde déjà de 94 px en 390 px. Mesuré dans le DOM à 375 px : `scrollWidth ==
+clientWidth == 301`. **Zéro débordement** ; les boutons s'empilent en colonne, la crainte était
+sans objet.
+
+Le vrai défaut était perpendiculaire, et personne ne le cherchait : le menu était rendu **788 px
+sous le pli** d'un écran de 812 px. Présent dans le DOM, cliquable, tracé côté serveur —
+**jamais vu**. `ChatPage` n'a jamais eu la moindre logique de défilement, et ça tenait tant que
+ZETIS ne répondait qu'une ligne. **C'est le §7 qui l'a cassé** : lui apprendre à répondre au fond
+a fait grandir le karaoké jusqu'à occuper tout l'écran et pousser dehors ce qui le suit. Une
+porte ouverte sur du vide, cette fois par le bas — et le seul défaut de ce chantier qu'aucun test
+ne pouvait voir, parce que jsdom ne mesure rien.
+
+Une ancre en fin de rendu, amenée sous les yeux quand un bloc **apparaît** — jamais sur `words`,
+qui grandit mot à mot et arracherait la lecture. `block: "nearest"` ne déplace rien quand le bloc
+est déjà visible : un tour qui n'a rien à proposer ne fait pas sauter la page.
+
+⚠️ **Ce que le test ne prouve pas, et le dit** : jsdom ne mesure aucune géométrie, donc le verrou
+observe qu'on *demande* le défilement, pas que le bloc devienne visible. La visibilité réelle a
+été vue à l'écran, en 375 px. C'est la cinquième fois dans ce dépôt qu'un défaut n'existe que
+pour l'œil.
+
+**Second défaut, sur le même écran** : la SEULE sortie visible d'une interrogation — « On arrête »
+— portait la classe `chat-ghost` **seule**, alors que la règle CSS est le sélecteur **composé**
+`.chat-tool.chat-ghost`. Une moitié de sélecteur ne correspond à rien : 68 px de texte nu, sans
+fond, sans bordure, sans marge de clic. Un enfant qui veut arrêter ne reconnaît pas un bouton
+là-dedans, et l'`adr-0026` §4 promet qu'on peut toujours partir. Une classe qui n'existe qu'à
+moitié est invisible à `tsc`, à `vitest` et à la relecture de code — seulement à l'œil.
+
+### §21 — Addendum du 2026-08-15 : le LaTeX se voit ET s'entend
+
+Vu à l'écran : *« pour faire $1/2 + 1/3$, on ne peut pas le faire directement »*. **Deux dégâts,
+pas un.** Massimo lit des dollars au milieu d'une phrase, et **Piper les prononce** — la réponse
+parlée devient « dollar un demi plus un tiers dollar ». La voix est la surface principale du
+chat ; corriger côté front n'aurait réparé que la moitié visible.
+
+C'est encore le §7 qui l'a fait apparaître : un aiguilleur ne produit pas de formules, un
+répondeur si.
+
+**Deux gestes, et ils ne se remplacent pas.** Le prompt (`RÈGLE DE VOIX`) réduit à la source et
+améliore la formulation — à l'essai, le moteur est passé de `$3/6$` à « trois sixièmes », ce
+qu'aucun nettoyage n'aurait pu produire. Le nettoyage serveur, lui, **garantit** : une consigne
+ne garantit rien, c'est la doctrine du §7 appliquée une fois de plus.
+
+Le nettoyage vit dans `_sanitize` — le seul point que **toute** réplique traverse, tour de chat
+comme tour d'interrogation. On retire les délimiteurs (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`), on
+déplie `\frac{a}{b}` en `a/b`, on traduit une courte liste de commandes (`\times` → `×`). **Le
+contenu survit toujours** : « 1/2 + 1/3 » se lit et se dit très bien.
+
+⚠️ **`5 $` n'est pas une formule.** Le délimiteur LaTeX est collé à son contenu, la devise en est
+séparée par une espace ; `_MATH_INLINE` l'exige. Sans cette garde, deux prix dans une phrase se
+mangeraient l'un l'autre.
+
+⚠️ La liste de commandes est **volontairement courte**. Une commande inconnue reste telle quelle
+plutôt que d'être devinée : visible, donc corrigeable, au lieu d'être silencieusement déformée.
+
+*Non traité, et nommé* : les exposants (`x^2`) restent tels quels. Ils se lisent, ils se disent
+mal. À rouvrir si Massimo travaille les puissances.
+
 ## Alternatives considérées
 
 - **Router une question de fond vers ELI5** (garder « aiguilleur »). Écartée par le
@@ -469,6 +613,17 @@ aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul gest
   ajouterait un artefact commité qui périme.
 - **`/quiz/:id` et `/capsules/:id` en chemin.** Écartées par le §3 : `?quiz=` et `?capsule=`
   suivent le patron déjà établi et ne coûtent aucune route.
+- **Vectoriser les cours pour les retrouver sémantiquement** (§19). Écartée : `Lesson` n'a aucune
+  colonne d'embedding, en ajouter une demanderait une migration et un ré-indexage à chaque
+  réécriture de cours — pour un repli de dernier recours. *La recherche par enseigne coûte une
+  requête sur des colonnes courtes.*
+- **Ingérer les cours dans le RAG pour que le repli existant suffise** (§19). Écartée : le RAG
+  porte des sources *validées par Papa* avec leur provenance ; y verser les cours créerait une
+  seconde copie à tenir synchrone, et le §9 aurait ancré sur un extrait là où le cours entier est
+  disponible et canonique.
+- **Baisser le seuil de résolution de notion** (§19). Écartée : elle règlerait ce cas en en
+  cassant d'autres — un seuil bas fait résoudre n'importe quel message vers la notion la moins
+  éloignée, et le §7 s'ancrerait alors **à tort** au lieu de se taire.
 - **Traiter la fuite de verbatim en chantier séparé.** Écartée : on livrerait sciemment une
   fonctionnalité qui aggrave une fuite connue et mesurée.
 - **Réactiver le VAD Silero pour gagner du temps.** Écartée : échec réel déjà documenté dans le
@@ -478,7 +633,7 @@ aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul gest
 
 **Backend** — `chat/{actions,service,store,announce,router,schemas}.py` · `prompts/chat.py`
 (+ `chat_recall.py`) · `rag/service.py` · `ai/canonical_context.py` (§12) ·
-`stt/{provider,service}.py` · `core/config.py`.
+`stt/{provider,service}.py` · `core/config.py` · `lesson_resolution.py` (§19, addendum).
 
 **Frontend Massimo** — `lib/{notionRoutes,chatActions,chat,dictation,voice}.ts` ·
 `pages/{ChatPage,QuizPage,CapsulesIAPage,MindmapSubjectPage}.tsx` · `pages/chat.css`.
@@ -584,6 +739,26 @@ Tests-verrous, avec le **sabotage** qui doit les faire rougir — joué pour de 
     modification**.
 17. **La source est affichée, jamais parlée** — sabotage : la concaténer au `reply` avant la
     synthèse.
+18. **§19 — sans notion résolue, un cours validé ancre quand même la réponse** — sabotage :
+    retirer `lesson_matching_text` de `_contexte_sans_notion` (`grounding` retombe à `aucune`).
+19. **§19 — le CONTENU seul n'élit jamais un cours** — sabotage : rendre éligibles les
+    correspondances de contenu. 🔴 C'est le verrou qui rend le §19 sûr, pas celui qui le rend
+    utile : sans lui, ZETIS répond à côté avec l'aplomb d'une source validée.
+20. **§19 — le périmètre du chat est celui de `lessons_by_skill`, plus `validated` et cours
+    rédigé** — sabotage : accepter un brouillon (le gate de Papa serait contourné par le chat).
+21. **§20 — un bloc qui apparaît est amené sous les yeux** — sabotage : retirer le `useEffect`,
+    ou le brancher sur `words` (il défilerait à chaque mot du karaoké).
+22. **§20 — un tour sans rien à proposer ne déplace pas le regard** — sabotage : défiler
+    inconditionnellement.
+23. **§21 — aucun LaTeX ne parvient à Massimo, et le contenu survit** — sabotage : retirer
+    `_sans_latex` de `_sanitize`, ou le poser côté front (le verrou resterait vert pendant que la
+    voix continuerait de dire « dollar »).
+24. **§21 — `5 $` n'est pas une formule** — sabotage : retirer les gardes d'espace de
+    `_MATH_INLINE`.
+25. **§20 — la sortie d'une interrogation RESSEMBLE à un bouton** (`chat-tool chat-ghost`) —
+    sabotage : retirer `chat-tool`. ⚠️ jsdom ne charge pas la feuille de style : le verrou observe
+    la CLASSE, pas le rendu. Il attrape exactement la faute commise, une moitié de sélecteur
+    composé, et rien de plus.
 
 ⚠️ Tout test de résolution ou de **non**-résolution utilise l'embedder **crc32**, jamais
 `FakeEmbeddingProvider` — non déterministe, vert une fois sur deux.

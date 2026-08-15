@@ -84,9 +84,41 @@ class ChatStore:
         turns.append(ChatTurn(role=role, text=text))
         self._write_raw(self._key(student_id, session_id), json.dumps([asdict(t) for t in turns]))
 
+    @staticmethod
+    def _state_key(student_id: int, session_id: str) -> str:
+        """Clé de l'état d'interrogation — SECONDE clé, même couche, même TTL (`adr-0059` §10)."""
+        return f"chat:{student_id}:{session_id}:recall"
+
+    def read_state(self, student_id: int, session_id: str) -> dict | None:
+        """État de l'interrogation en cours, ou `None`.
+
+        ⚠️ **Redis, jamais PostgreSQL.** Une interrogation a besoin de savoir « on en est à la
+        question 2 sur 3, sur la notion 7 » — le fil de tours `{role, text}` ne le porte pas, et
+        le redemander au moteur à chaque tour serait coûteux et non déterministe. L'`adr-0026` §1
+        ne dit pas « pas d'état » : il dit **éphémère par construction**. Cette clé vit et meurt
+        exactement comme le verbatim, et ne porte que des ÉTIQUETTES (jamais les réponses de
+        Massimo, qui transitent et sont oubliées).
+        """
+        raw = self._read_raw(self._state_key(student_id, session_id))
+        return json.loads(raw) if raw else None
+
+    def write_state(self, student_id: int, session_id: str, state: dict) -> None:
+        """Écrit l'état ET repose le TTL — même primitive, donc même garantie que les tours."""
+        self._write_raw(self._state_key(student_id, session_id), json.dumps(state))
+
+    def clear_state(self, student_id: int, session_id: str) -> None:
+        """Fin d'interrogation : l'état disparaît, la conversation continue."""
+        self._delete_raw(self._state_key(student_id, session_id))
+
     def close_session(self, student_id: int, session_id: str) -> None:
-        """Purge EXPLICITE à la clôture — le verbatim disparaît immédiatement, sans attendre le TTL."""
+        """Purge EXPLICITE à la clôture — le verbatim disparaît immédiatement, sans attendre le TTL.
+
+        ⚠️ **LES DEUX clés.** Oublier l'état d'interrogation y laisserait un orphelin jusqu'au
+        TTL : pas une fuite de verbatim (il ne porte que des étiquettes), mais une session close
+        qui « se souvient » d'une interrogation en cours. Un test-verrou couvre les deux.
+        """
         self._delete_raw(self._key(student_id, session_id))
+        self.clear_state(student_id, session_id)
 
     def user_turn_count(self, student_id: int, session_id: str) -> int:
         """Nombre de messages de Massimo (base de l'anti-spam §Points ouverts 3)."""

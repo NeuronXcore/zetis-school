@@ -16,7 +16,11 @@ from sqlalchemy import select
 import app.db.models as m
 from app.modules.ai.canonical_context import resolve_canonical_context
 from app.modules.galaxy.service import _course_lessons_by_skill
-from app.modules.lesson_resolution import lessons_by_skill, lessons_of_skill
+from app.modules.lesson_resolution import (
+    lesson_matching_text,
+    lessons_by_skill,
+    lessons_of_skill,
+)
 from app.modules.production import runner
 from app.modules.production.equipment import _skill_lesson
 from app.tests.fakes import FakeEmbeddingProvider
@@ -260,3 +264,133 @@ def test_le_lot_ne_fait_quUNE_requete_pour_toutes_ses_notions(client_db) -> None
 
     # Deux : l'année active, puis les leçons. Jamais une par notion.
     assert compte["n"] == 2, f"{compte['n']} requêtes pour {len(ids)} notions"
+
+
+# --- « De quel cours cette phrase parle-t-elle ? » — le sens INVERSE (ADR-0059, live 2026-08-15) ---
+
+
+def _cours(db, chapitre, *, titre: str, contenu: str, statut: str = "validated") -> m.Lesson:
+    """Une leçon dont on maîtrise le titre ET le contenu — les deux entrées de la recherche."""
+    lecon = m.Lesson(
+        chapter_id=chapitre.id,
+        title=titre,
+        content_markdown=contenu,
+        status=statut,
+        created_by="papa",
+    )
+    db.add(lecon)
+    db.commit()
+    return lecon
+
+
+def test_le_cours_est_retrouve_par_un_mot_de_son_TITRE(client_db) -> None:
+    """🔴 LE défaut né au micro : deux notions dans une phrase, et plus rien ne s'ancre.
+
+    « Explique-moi la différence entre le narrateur et le personnage principal » ne résout aucune
+    notion — la similarité se dilue entre les deux. Le cours, lui, s'appelle « Le narrateur ».
+
+    Sabotage : ne comparer que sur le contenu, ou rendre `None` sans regarder le titre.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapitre = _chapitre(db, _annee(db))
+        _cours(db, chapitre, titre="Le narrateur", contenu="Celui qui raconte l'histoire.")
+        trouve = lesson_matching_text(
+            db, text="explique-moi la différence entre le narrateur et le personnage principal"
+        )
+        assert trouve is not None and trouve.title == "Le narrateur"
+
+
+def test_le_nom_d_une_NOTION_ouvre_aussi_la_porte(client_db) -> None:
+    """Un cours peut s'appeler « Chapitre 3 » et enseigner les nombres relatifs.
+
+    Le titre n'est pas la seule enseigne : les notions portées comptent autant.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapitre = _chapitre(db, _annee(db))
+        # `_lecon` rattache la notion seedée (« Nombres relatifs ») à la leçon.
+        _lecon(db, chapitre, titre="Chapitre 3", cours=True)
+        trouve = lesson_matching_text(db, text="c'est quoi les nombres relatifs déjà ?")
+        assert trouve is not None and trouve.title == "Chapitre 3"
+
+
+def test_le_CONTENU_seul_ne_suffit_JAMAIS_a_elire_un_cours(client_db) -> None:
+    """🔴 Le garde-fou de la fonction, et la raison pour laquelle elle est sûre.
+
+    « Différence » apparaît dans n'importe quel cours de maths. Ancrer ZETIS dessus lui ferait
+    répondre à côté **avec l'aplomb d'une source validée** — pire que le refus qu'on répare.
+
+    Sabotage : rendre les candidats du contenu éligibles, ou baisser le poids du titre.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapitre = _chapitre(db, _annee(db))
+        _cours(
+            db,
+            chapitre,
+            titre="Les fractions",
+            contenu="On calcule la différence entre le narrateur et le personnage principal.",
+        )
+        assert lesson_matching_text(db, text="parle-moi du narrateur") is None
+
+
+def test_le_contenu_DEPARTAGE_deux_cours_dont_le_titre_mord(client_db) -> None:
+    """Le contenu ne peut pas élire, mais il classe : c'est tout son rôle."""
+    _, Session = client_db
+    with Session() as db:
+        chapitre = _chapitre(db, _annee(db))
+        _cours(db, chapitre, titre="Le narrateur", contenu="Généralités.")
+        _cours(
+            db,
+            chapitre,
+            titre="Le narrateur et le point de vue",
+            contenu="Le personnage principal est celui dont on raconte l'histoire.",
+        )
+        trouve = lesson_matching_text(
+            db, text="la différence entre le narrateur et le personnage principal"
+        )
+        assert trouve is not None and trouve.title == "Le narrateur et le point de vue"
+
+
+def test_les_mots_TROP_COURANTS_n_ouvrent_aucune_porte(client_db) -> None:
+    """« Explique », « comment », « chose » : un cours intitulé avec eux ne serait pas un candidat.
+
+    Sans ce filtre, la moindre politesse de Massimo ancrerait ZETIS sur un cours au hasard.
+    """
+    _, Session = client_db
+    with Session() as db:
+        chapitre = _chapitre(db, _annee(db))
+        _cours(db, chapitre, titre="Comment expliquer une chose", contenu="Peu importe.")
+        assert lesson_matching_text(db, text="explique-moi comment faire cette chose") is None
+
+
+def test_le_perimetre_est_celui_du_module_brouillons_et_cours_vides_exclus(client_db) -> None:
+    """⚠️ Le chat s'ancre sur ce qu'il trouve ici : un brouillon contournerait le gate de Papa.
+
+    Trois exclusions, chacune sabotable séparément : leçon non validée, cours non rédigé,
+    chapitre non validé.
+    """
+    _, Session = client_db
+    with Session() as db:
+        annee = _annee(db)
+        valide = _chapitre(db, annee)
+        _cours(db, valide, titre="Le narrateur brouillon", contenu="x", statut="draft")
+        vide = m.Lesson(
+            chapter_id=valide.id, title="Le narrateur vide", content_markdown=None,
+            status="validated", created_by="papa",
+        )
+        db.add(vide)
+        en_attente = _chapitre(db, annee, valide=False)
+        _cours(db, en_attente, titre="Le narrateur non validé", contenu="x")
+        assert lesson_matching_text(db, text="parle-moi du narrateur") is None
+
+
+def test_une_annee_CLOSE_n_ancre_plus_le_chat(client_db) -> None:
+    """Même resserrement que `resolve_canonical_context` : ce qui n'est plus atteignable par
+    Massimo n'a pas à nourrir ce qu'on lui dit."""
+    _, Session = client_db
+    with Session() as db:
+        close = _annee(db, statut="closed", label="2025-2026")
+        _cours(db, _chapitre(db, close), titre="Le narrateur", contenu="Ancien cours.")
+        assert lesson_matching_text(db, text="parle-moi du narrateur") is None

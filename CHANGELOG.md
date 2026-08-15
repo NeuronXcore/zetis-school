@@ -1,5 +1,61 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.93.0 — ZETIS répond vite, ouvre la ressource exacte, et interroge
+
+Massimo demandait « ma fiche sur les fractions » et ZETIS ouvrait **les douze fiches de Maths** ;
+il posait une vraie question et n'obtenait qu'un lien ; il parlait au micro et ne voyait **rien
+pendant onze secondes**.
+
+- **Le chat ouvre la ressource, plus le paquet.** La fiche, le cours, le quiz, la capsule, la
+  carte. Les adresses existaient déjà — depuis deux ADR pour certaines — et **aucune des deux
+  tables de routes du dépôt ne les utilisait**.
+- **Le chapitre devient visible.** « Fais-moi réviser l'orthographe » proposait d'*ajouter
+  orthographe au programme*, alors que c'est un chapitre de Français déjà validé. Le chat ne
+  connaissait que les deux extrémités de la hiérarchie et ratait l'étage du milieu — celui dont un
+  enfant parle le plus naturellement.
+- **ZETIS répond au fond**, à partir du cours validé puis des documents. Sans source, il ne
+  répond pas : il le dit et le note. La règle ne repose pas sur la docilité du moteur — le serveur
+  sait ce qu'il a fourni et **remplace** une réponse qui n'était ancrée sur rien.
+- **ZETIS interroge à l'oral.** Trois questions, et c'est le serveur qui arrête. Aucun verdict
+  n'est binaire : une réponse mal transcrite obtient « redis-moi autrement », jamais « faux ».
+- **Il donne signe de vie.** Le texte s'affiche sans attendre la voix, et la phrase de Massimo
+  s'affiche avant même que ZETIS réponde : de onze secondes de silence à une seconde.
+
+> 🔴 **La mesure a démenti le cadrage, deux fois.** Le réglage de transcription visé rapportait
+> ~20 %, pas « deux à trois fois ». Et surtout : **le micro n'a jamais été le goulot** — le moteur
+> pèse 83 % de l'attente. La vraie latence se traitera ailleurs, et c'est maintenant chiffré.
+
+> 🔴 **Une fuite refermée, mesurée en base : 78 lignes portaient les mots dictés par Massimo**, du
+> 4 juillet au 14 août. Le garde-fou censé l'interdire regardait à côté — il filtrait un seul type
+> de tâche, et la dictée passait par un autre. Rien de ce que Massimo dit n'entre plus dans une
+> table durable.
+
+**Quatre défauts sur six essais au micro n'étaient visibles que là** : une matière proposée comme
+notion, une page muette quand sa voisine marchait, la galaxie ouvrant les fiches, et ZETIS ouvrant
+la bonne page *en disant qu'il ne connaissait pas le sujet*.
+
+> 🔴 **Et un cinquième, le plus grave, trouvé au micro lui aussi.** À « la différence entre le
+> narrateur et le personnage principal », ZETIS a répondu qu'il n'avait pas ça dans les cours —
+> **le cours sur le Narrateur existait, validé**. Nommer deux notions dans une phrase suffisait à
+> ce qu'aucune ne soit reconnue, et tout l'ancrage mourait avec la reconnaissance. ZETIS cherche
+> désormais dans les cours **eux-mêmes**, d'après ce qu'ils s'appellent. Quand il ne trouve
+> toujours pas, il demande de préciser au lieu d'affirmer qu'il ne l'a pas : *« je n'ai pas
+> compris de quoi tu parles »* et *« je n'ai pas ce cours »* ne sont pas la même phrase.
+
+**La relecture visuelle a été faite, pour la première fois dans ce dépôt sur un chantier
+d'interface** — et elle a trouvé deux défauts de plus. Le menu d'une notion était rendu **sous le
+pli**, présent et cliquable mais jamais visible : apprendre à ZETIS à répondre au fond avait fait
+grandir sa réponse jusqu'à pousser dehors ce qui la suivait. Et « On arrête » — la seule sortie
+d'une interrogation — n'avait pas la forme d'un bouton, une classe CSS posée à moitié qu'aucun
+outil ne pouvait voir.
+
+**ZETIS n'écrit plus de LaTeX.** Il en produisait depuis qu'il répond au fond : Massimo lisait des
+dollars au milieu d'une phrase, et la voix les **prononçait**.
+
+> ✅ **Les 78 lignes ont été nettoyées** (en développement). On efface les mots, pas la trace : on
+> sait toujours qu'une dictée a eu lieu et combien de temps elle a duré. Un script rejouable
+> (`scripts/purge_chat_verbatim.py`) porte le geste, bilan d'abord, écriture sur demande.
+
 ## 0.92.0 — La fiche répond quand on la touche
 
 Trois défauts notés séparément après la relecture de l'ADR-0054. Relus dans le code, ils disaient

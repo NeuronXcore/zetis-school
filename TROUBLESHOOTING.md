@@ -7020,3 +7020,178 @@ une clôture suivante aurait lu « supprimées » et n'aurait pas recompté.
 affirmant qu'une branche existe** (ref de suivi périmée). Ici la suppression locale est réelle et
 c'est le **serveur** qui n'a pas été touché. Même commande, deux mensonges opposés : seul
 `git ls-remote` tranche, dans les deux sens.
+
+## ZETIS répond vite, ouvre la ressource exacte, et interroge (ADR-0059) — 2026-08-15
+
+Chantier `feat/zetis-repond-vite`. Neuf pièges, dont **quatre trouvés au micro** et **trois dans
+mes propres tests**.
+
+### 🔴 Un verrou VERT sur son sabotage — jsdom n'a pas d'`AudioContext`
+
+Le test du §5.1 (« le texte s'affiche avant la voix ») était **vert même en remettant l'ordre
+fautif**. Cause : `isVoicePlaybackSupported()` rend `audioContextCtor() !== null`, et jsdom n'a
+pas d'`AudioContext`. **La branche vocale n'était jamais traversée**, donc l'ordre des deux blocs
+n'avait aucun effet observable.
+
+**Parade** : mocker `../lib/voice` avec `isVoicePlaybackSupported` à **`false` par défaut**, et le
+passer à `true` dans le seul test qui teste la voix.
+
+⚠️ **Le rendre `true` globalement casse deux autres tests** pour une raison sans rapport :
+`playback.ended` résolu d'emblée termine la parole instantanément, et « la carte n'apparaît
+qu'APRÈS la parole » devient faux. Un mock trop large déplace le bug au lieu de le corriger.
+
+### 🔴 `Crc32EmbeddingProvider` est déterministe mais PAS discriminant
+
+La mémoire du projet consigne que `FakeEmbeddingProvider` n'est pas déterministe. Le remplaçant
+recommandé, `Crc32EmbeddingProvider`, l'est — **mais il rend un cosinus de 0,79 entre
+« mathématiques » et « Nombres relatifs »**, au-dessus du seuil de production (0,72).
+
+Conséquence : **un test de NON-résolution y est vert pour une mauvaise raison**, la requête
+« résolvant » vers une notion sans rapport.
+
+**Parade** : `monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 0.99)` — seule une
+correspondance quasi exacte résout alors, ce qui reproduit le vrai comportement.
+
+### 🔴 Un nom de propriété a détourné DIX tests d'un coup
+
+`FakeLLMProvider.generate` aiguille sur la **présence d'une propriété** dans `request.fmt`.
+L'`adr-0059` §7 a ajouté `answer` au schéma du tour de chat — or `answer` était déjà la clé de
+l'auto-vérification des quiz. **Tous les tours de chat sont partis dans la branche quiz** : dix
+tests rouges d'un coup, aucun ne parlant de quiz.
+
+**Parade** : tester le schéma le plus **spécifique** d'abord — le chat porte `declared_difficulty`,
+que le quiz n'a pas.
+
+### 🔴 Un correctif MORT parce que la variable qu'il testait mentait
+
+Premier placement du rattrapage « matière » : derrière `if skill_id is None`. Or `skill_id`
+retombe sur la notion déduite du **message entier**, qui accroche presque toujours quelque chose.
+**La condition ne se serait jamais déclenchée en production.**
+
+**Parade** : tester ce que le moteur a **nommé** (`notion_query`), pas ce que le serveur a déduit.
+
+### ⚠️ Patcher l'appelant est sans effet quand l'import est DANS la fonction
+
+`_resolve_chapitre` fait `from app.modules.galaxy.service import _visible_notions` **à
+l'intérieur** de la fonction. `monkeypatch.setattr(chat_actions, "_visible_notions", …)` est donc
+vert et **sans aucun effet**. Il faut greffer sur le **module source**.
+
+*(Même motif que le piège `enqueue_*` déjà consigné — « greffer sur les fabriques ».)*
+
+### ⚠️ Un résolveur qui lève casse la conversation
+
+`_visible_notions` appelle `_active_year_or_404` : sans année scolaire active — état normal sur
+une base neuve — il lève un **404**. Une simple question dans le chat renvoyait une erreur au lieu
+d'une réponse. Attrapé par un test qui ne parlait pas de chapitres.
+
+**Parade** : tout résolveur du chat est **best-effort** et rend `None` plutôt que de lever.
+
+### 🔴 `ai_jobs.duration_ms` mesurait la durée de l'AUDIO, pas du traitement
+
+`job.duration_ms = int(result.duration_seconds * 1000)` où `duration_seconds` vient d'`info.duration`
+de faster-whisper. Partout ailleurs (`ollama_provider`, `mlx_provider`, `anthropic_provider`) c'est
+un `time.monotonic()` écoulé. **Une phrase de 3 s transcrite en 6 s s'enregistrait à `3000`.**
+
+Conséquence : **toute mesure de latence STT faite sur cette colonne était fausse** — et c'était le
+seul instrument disponible.
+
+### 🔴 Le verrou de vie privée regardait le mauvais `job_type`
+
+`test_ai_jobs_of_a_turn_carry_no_message_text` filtrait `job_type == "chat_turn"`. La dictée du
+chat passait par `eli5_transcribe` : **78 lignes portant les mots de Massimo**, du 2026-07-04 au
+08-14, sans qu'aucun test ne rougisse.
+
+**Parade** : le scan est désormais **sans filtre**. Un verrou qui ne regarde qu'un `job_type` ne
+protège qu'un `job_type`.
+
+### ⚠️ Deux tables voisines qui répondent à la même question finissent par diverger
+
+`_MENU_LABEL` (serveur) disait encore « 🧠 Reconstruire la carte » quand `ACTION_UI` (front) était
+passé à « Reconstruire la mindmap » le 2026-08-12 — **invisible**, parce que `ChatPage` fait
+`ACTION_UI[kind] ?? item.label` et écrase toujours le libellé serveur.
+
+**Parade** : la table morte est supprimée. Et pour celles qui doivent coexister (les deux fabriques
+de routes), un **contrat de grammaire** écrit à la main, extérieur aux deux — 🔴 **jamais généré
+depuis l'une d'elles**, sinon il certifie le bug.
+
+### 🔴 Deux notions dans une phrase ⇒ AUCUNE notion résolue, et tout l'ancrage meurt avec
+
+`resolve_skill` vectorise le message **entier** et le compare aux noms de notions. Sur *« explique-
+moi la différence entre le narrateur et le personnage principal »*, la similarité se répartit entre
+deux notions et **aucune** ne passe le seuil de 0,72. Sans notion, pas de matière ; sans matière,
+ni contexte canonique ni repli RAG — celui-ci était indexé sur la matière de la notion résolue,
+donc **mort exactement là où il devait servir**.
+
+ZETIS a répondu *« je ne l'ai pas encore dans tes cours »* alors que **le cours sur le Narrateur
+existe, validé**. Un refus honnête retourné en affirmation fausse.
+
+**Parade**, en trois crans : sans notion, le RAG cherche **toutes matières confondues** (le
+plancher de distance devient le seul garde-fou) · `lesson_matching_text` cherche dans les **cours
+eux-mêmes**, sur ce qu'ils s'appellent, sans aucun embedding · et quand les deux se taisent, un
+refus **distinct** (`NOTE_NOTION_INCERTAINE`) qui demande de préciser au lieu d'affirmer.
+
+⚠️ **Le RAG ne pouvait pas tenir lieu du troisième cran** : il n'indexe que les sources ingérées,
+jamais les cours. Un dépôt sans ingestion aurait obtenu un refus poli à la place de la réponse.
+
+⚠️ Et le garde-fou compte plus que la recherche : **la porte d'entrée est le TITRE** (ou le nom
+d'une notion portée), jamais le contenu. « Différence » apparaît dans n'importe quel cours de
+maths ; s'y ancrer ferait répondre ZETIS à côté **avec l'aplomb d'une source validée**.
+
+### 🔴 Une classe CSS posée à moitié est invisible à `tsc`, à `vitest` et à la relecture
+
+Le bouton « On arrête » — la **seule sortie visible** d'une interrogation — portait
+`className="chat-ghost"`. Or la règle est le sélecteur **composé** `.chat-tool.chat-ghost` : une
+moitié de sélecteur ne correspond à **rien**. Résultat mesuré dans le DOM : `background:
+transparent`, `border: 0`, `padding: 0`, 68 px de texte nu.
+
+Rien ne pouvait l'attraper. TypeScript ne connaît pas les classes CSS, jsdom ne charge pas la
+feuille de style, et le JSX se relit sans rien remarquer.
+
+**Parade** : un verrou qui observe la **classe** (`toHaveClass("chat-tool", "chat-ghost")`) — il
+attrape exactement cette faute, et rien de plus. Le reste appartient à l'œil.
+
+### ⚠️ `scrollIntoView` n'existe pas dans jsdom — neuf tests rouges d'un coup
+
+Même famille que le piège `AudioContext` du 2026-08-02. Ajouter un défilement dans `ChatPage` a
+fait tomber **neuf** tests sans rapport, sur un `TypeError: … is not a function`.
+
+**Parade** : garde de typage côté code (`typeof ancre?.scrollIntoView === "function"`), et
+**remplacement explicite** dans le test qui l'observe. ⚠️ La garde rend l'effet muet en test :
+sans un verrou qui pose lui-même le mock, plus rien ne couvrirait le défilement.
+
+### ⚠️ `ai_jobs.output_json` est de type `json`, pas `jsonb` — l'opérateur `?` n'existe pas
+
+`select … where output_json ? 'transcript'` rend *« operator does not exist: json ? unknown »*.
+Toutes les colonnes JSON du dépôt sont déclarées `json`.
+
+**Parade** : caster à chaque usage — `output_json::jsonb ? 'clé'`, et
+`(output_json::jsonb - 'clé')::json` pour retirer une clé sans changer le type de la colonne.
+
+### 🔴 Le LaTeX ne se voit pas seulement, il s'ENTEND
+
+ZETIS a rendu *« pour faire $1/2 + 1/3$ »*. Deux dégâts, pas un : Massimo lit des dollars, et
+**Piper les prononce** — la réponse parlée devient « dollar un demi plus un tiers dollar ».
+Corriger côté front n'aurait réparé que la moitié visible.
+
+**Parade** : le nettoyage vit dans `_sanitize`, le seul point que **toute** réplique traverse (tour
+de chat comme tour d'interrogation). Le prompt (`RÈGLE DE VOIX`) tarit à la source — il a fait
+passer le moteur de `$3/6$` à « trois sixièmes », ce qu'aucun nettoyage n'aurait produit — mais
+**une consigne ne garantit rien** : les deux gestes sont nécessaires.
+
+⚠️ `5 $` n'est pas une formule : le délimiteur LaTeX est **collé** à son contenu, la devise en est
+séparée par une espace. Sans cette garde, deux prix dans une phrase se mangent l'un l'autre.
+
+### ⚠️ Un défaut d'affichage peut naître d'un changement de COMPORTEMENT, à distance
+
+Le menu d'une notion était rendu **788 px sous le pli** d'un écran de 812 px : présent, cliquable,
+jamais vu. `ChatPage` n'a jamais eu de logique de défilement — et ça tenait tant que ZETIS ne
+répondait qu'une ligne. C'est le §7, « ZETIS répond au fond », qui l'a cassé : le karaoké occupe
+désormais tout l'écran et pousse dehors ce qui le suit.
+
+**Parade** : une ancre en fin de rendu, amenée sous les yeux quand un bloc **apparaît** — jamais
+sur le karaoké, qui grandit mot à mot et arracherait la lecture. `block: "nearest"` ne déplace rien
+quand le bloc est déjà visible.
+
+⚠️ **Et la relecture visuelle cherchait autre chose** : un débordement horizontal du menu passé à
+six boutons. Mesure dans le DOM à 375 px : `scrollWidth == clientWidth == 301`, zéro débordement.
+Le défaut réel était perpendiculaire à celui qu'on redoutait.

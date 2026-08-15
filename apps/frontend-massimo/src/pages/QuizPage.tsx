@@ -29,7 +29,8 @@ function lessonFromTitle(title: string): string {
 export function QuizPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const deepLinkedRef = useRef(false);
+  const deepLinkedRef = useRef(false); // `?subject=`
+  const quizLinkRef = useRef(false); // `?quiz=` — garde SÉPARÉE, cf. l'effet plus bas
   const [subjects, setSubjects] = useState<QuizSubjectSummary[] | null>(null);
   const [index, setIndex] = useState<StudentQuizListItem[]>([]);
   const [selected, setSelected] = useState<QuizSubjectSummary | null>(null);
@@ -96,6 +97,57 @@ export function QuizPage() {
       setLaunching(false);
     }
   };
+
+  // Lien profond `?quiz=<id>` — **L'ADRESSE d'un quiz**, qui n'en avait aucune (ADR-0059 §A1).
+  //
+  // `/quiz/session` attend le quiz COMPLET dans `location.state` : il n'est donc adressable
+  // par personne — ni par le chat, dont l'exécuteur ne sait que `navigate(route)`, ni par un
+  // signet. Cette page, elle, sait charger un quiz par id (`launch` le fait déjà au clic) : le
+  // lien profond n'invente rien, il emprunte ce chemin.
+  //
+  // ⚠️ **Garde de consommation DISTINCTE de celle de `?subject=`.** Partager `deepLinkedRef`
+  // ferait que le premier lien consommé condamnerait l'autre — une URL portant les deux
+  // (`?subject=maths&quiz=9`, ce qu'un rétrolien produira tôt ou tard) n'en honorerait qu'un.
+  //
+  // ⚠️ `replace: true` sur la navigation : sans lui, revenir depuis la session relancerait le
+  // quiz — l'entrée d'historique porterait encore `?quiz=`. C'est ce que fait déjà `launch`
+  // côté `/revision?subject=`.
+  useEffect(() => {
+    if (quizLinkRef.current) return;
+    const brut = searchParams.get("quiz");
+    if (!brut) return;
+    const quizId = Number(brut);
+    quizLinkRef.current = true;
+    // On nettoie l'URL AVANT de tenter l'ouverture : que le quiz existe ou non, le paramètre a
+    // été consommé, et il ne doit pas survivre à un retour arrière.
+    const next = new URLSearchParams(searchParams);
+    next.delete("quiz");
+    setSearchParams(next, { replace: true });
+    if (!Number.isFinite(quizId) || quizId <= 0) return;
+    void (async () => {
+      try {
+        const quiz = await fetchQuizById(quizId);
+        const item = index.find((q) => q.quiz_id === quizId);
+        // Le libellé vient du listing léger s'il est là ; sinon du quiz lui-même. Un en-tête
+        // approximatif vaut mieux qu'une page qui refuse de s'ouvrir.
+        const label = item
+          ? `${item.subject} · ${lessonFromTitle(item.title)}`
+          : lessonFromTitle(quiz.title ?? "Quiz");
+        const from = searchParams.get(SUBJECT_BACK_PARAM);
+        const state: QuizSessionState = {
+          quiz,
+          label,
+          ...(from ? { returnTo: `/subjects/${encodeURIComponent(from)}` } : {}),
+        };
+        navigate("/quiz/session", { state, replace: true });
+      } catch {
+        // Quiz disparu, archivé, ou id inventé : **on reste sur la grille, en silence**. Pas
+        // d'écran d'erreur — le dépôt l'a déjà arbitré trois fois (`?carte=`, `?subject=`,
+        // `launch`) : « ce n'est pas la faute de Massimo », et la grille répond déjà à la
+        // question « où y a-t-il des quiz ? ».
+      }
+    })();
+  }, [index, searchParams, setSearchParams, navigate]);
 
   // ── Écran 2 : quiz de la matière, par chapitre ────────────────────────────
   if (selected) {

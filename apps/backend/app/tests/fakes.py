@@ -397,6 +397,17 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "questions" in request.fmt.get("properties", {}):
             quiz = self._quiz or _DEFAULT_QUIZ
             return LLMResponse(text=json.dumps(quiz), model="fake", duration_ms=1)
+        # 🔴 **Le chat passe AVANT l'auto-vérification de quiz, et l'ordre est porteur.**
+        # L'aiguillage se fait sur un NOM DE PROPRIÉTÉ, donc deux tâches qui en partagent un se
+        # marchent dessus. C'est arrivé le 2026-08-15 : l'`adr-0059` §7 a ajouté `answer` au
+        # schéma du tour de chat, et TOUS les tours de chat sont partis dans la branche quiz —
+        # dix tests rouges d'un coup, aucun ne parlant de quiz. Le schéma de chat porte
+        # `declared_difficulty`, que le quiz n'a pas : on teste donc le plus SPÉCIFIQUE d'abord.
+        if isinstance(request.fmt, dict) and "declared_difficulty" in request.fmt.get(
+            "properties", {}
+        ):
+            chat = self._chat or _DEFAULT_CHAT
+            return LLMResponse(text=json.dumps(chat), model="fake", duration_ms=1)
         if isinstance(request.fmt, dict) and "answer" in request.fmt.get("properties", {}):
             checks = self._quiz_selfcheck or _DEFAULT_QUIZ_SELFCHECK
             answer = next((a for tag, a in checks.items() if tag in request.prompt), None)
@@ -404,7 +415,9 @@ class FakeLLMProvider:
         if isinstance(request.fmt, dict) and "criteria" in request.fmt.get("properties", {}):
             verdict = self._quiz_judge or _DEFAULT_QUIZ_JUDGE
             return LLMResponse(text=json.dumps(verdict), model="fake", duration_ms=1)
-        # Chat ZETIS (ADR-0026) : schéma repéré par sa propriété `reply`. AVANT le fallback capsule.
+        # Chat ZETIS (ADR-0026) : repli sur la propriété `reply` — un tour de chat sans
+        # `declared_difficulty` n'existe pas, mais un futur schéma de chat pourrait n'avoir que
+        # `reply`. AVANT le fallback capsule.
         if isinstance(request.fmt, dict) and "reply" in request.fmt.get("properties", {}):
             chat = self._chat or _DEFAULT_CHAT
             return LLMResponse(text=json.dumps(chat), model="fake", duration_ms=1)

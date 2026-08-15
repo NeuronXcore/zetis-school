@@ -98,6 +98,26 @@ class FasterWhisperProvider:
         self.compute_type = compute_type
         self.language = language
 
+    def warmup(self) -> None:
+        """Charge le modèle MAINTENANT plutôt qu'à la première dictée (`adr-0059` §5.4).
+
+        `_load_model` est mémoïsé, mais **paresseux** : sans ce geste, c'est Massimo qui paie le
+        chargement du modèle `small` — plusieurs secondes — la première fois qu'il appuie sur le
+        micro après un démarrage. Le coût ne disparaît pas, il se déplace hors de l'usage.
+
+        ⚠️ **Ne lève jamais.** Un warm-up est une optimisation, pas une précondition : sans
+        `faster-whisper` installé, le serveur doit démarrer exactement comme avant et l'endpoint
+        rendre son 503 au premier appel (dégradation propre, `adr-0012`). Faire échouer le
+        démarrage rendrait TOUT ZETIS indisponible parce que la dictée l'est.
+
+        ⚠️ Chaque worker paie le sien : le cache est un dict de PROCESSUS. Sous plusieurs workers
+        uvicorn, le gain n'est acquis que si chacun exécute son démarrage.
+        """
+        try:
+            _load_model(self.model, self.device, self.compute_type)
+        except SttUnavailable:
+            pass
+
     def transcribe(self, request: SttRequest) -> SttResponse:
         if not request.audio:
             raise ValueError("Audio vide.")
@@ -111,7 +131,39 @@ class FasterWhisperProvider:
             # vad_filter=False : le VAD Silero jugeait « pas de parole » sur l'audio réel
             # (Opus micro, plus faible que la voix `say`) et jetait TOUT → transcript vide.
             # Pour une dictée courte, on transcrit tout : plus robuste qu'un pré-filtre agressif.
-            segments, info = engine.transcribe(path, language=self.language, vad_filter=False)
+            #
+            # **Décodage GLOUTON** (`adr-0059` §5.3). Jusqu'au 2026-08-15, aucun paramètre de
+            # décodage n'était passé : faster-whisper appliquait donc son défaut, **beam search à
+            # 5** — cinq hypothèses menées de front sur chaque énoncé.
+            #
+            # 🔴 **MESURE du 2026-08-15, et elle dément la prévision.** Sur cette machine, énoncé
+            # de 4,3 s, modèle `small`/int8/CPU, meilleur de 3 passes :
+            #     beam=5 (défaut) → 1,23 s     beam=1 (ici) → 1,00 s
+            # Soit **~20 %, pas « 2 à 3 fois »** comme l'annonçait le cadrage. La transcription
+            # est **identique au mot près**. Le gain est réel et gratuit, mais il est petit : le
+            # goulot de la chaîne est ailleurs (le moteur de génération, mesuré à **9,4 s** sur le
+            # même tour). Écrit ici pour que personne ne rouvre ce réglage en espérant y trouver
+            # des secondes qui n'y sont pas.
+            #
+            # ⚠️ Si la qualité se dégrade à l'oreille sur de vraies phrases de Massimo — jamais
+            # sur une voix de synthèse, qui articule trop bien pour être un test — le repli est
+            # `beam_size=2`, pas le retour à 5.
+            #
+            # `condition_on_previous_text=False` : le conditionnement sur le texte précédent n'a
+            # aucun sens sur un énoncé ISOLÉ (chaque dictée est indépendante) et il est une source
+            # connue de dérive — le modèle prolonge un contexte qui n'existe pas.
+            #
+            # `without_timestamps=True` : personne ne lit les bornes de segments ici. On ne les
+            # fait pas calculer. (Le jour où le karaoké voudra des bornes de MOTS réelles, ce sera
+            # `word_timestamps`, une autre option — et ce sera un choix, pas un défaut subi.)
+            segments, info = engine.transcribe(
+                path,
+                language=self.language,
+                vad_filter=False,
+                beam_size=1,
+                condition_on_previous_text=False,
+                without_timestamps=True,
+            )
             text = " ".join(seg.text.strip() for seg in segments).strip()
             duration = float(getattr(info, "duration", 0.0) or 0.0)
             return SttResponse(text=text, duration_seconds=duration)

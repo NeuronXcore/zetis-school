@@ -172,10 +172,42 @@ class Settings(BaseSettings):
     chat_max_turns_per_session: int = Field(
         default=40, validation_alias="CHAT_MAX_TURNS_PER_SESSION"
     )
-    # Budget de contexte injecté par tour (§6) : borné pour que la sélection d'évidence reste
-    # ciblée. Estimé en tokens (~4 caractères/token) ; le contexte composé est tronqué à ce budget.
+    # 🔴 **CHANGE DE SENS avec l'`adr-0059` §9** : ce budget ne borne plus TOUT le bloc de
+    # contexte, mais le seul **rappel** des notions récentes. Avant, il bornait la concaténation
+    # entière et coupait à 1200 caractères d'un trait — or un cours pèse plusieurs kilo-octets, et
+    # la règle d'autorité (« le cours fait foi ») que `build_canonical_sections` pose EN FIN de
+    # bloc était donc systématiquement tronquée. ZETIS recevait un cours arbitrairement coupé,
+    # sans la phrase qui lui disait quoi en faire. Le rappel est désormais la section sacrifiée
+    # en premier : c'est la moins nécessaire pour répondre.
     chat_context_token_budget: int = Field(
-        default=300, validation_alias="CHAT_CONTEXT_TOKEN_BUDGET"
+        default=150, validation_alias="CHAT_CONTEXT_TOKEN_BUDGET"
+    )
+    # Budget du COURS canonique injecté (`adr-0059` §9). Tronqué **par paragraphe**, jamais en
+    # plein mot. ⚠️ À régler en MESURANT : le moteur pèse déjà 9,4 s sur un tour (mesure du
+    # 2026-08-15), et élargir le contexte allonge la génération — les deux arcs de ce chantier
+    # tirent en sens inverse sur la latence.
+    chat_course_token_budget: int = Field(
+        default=900, validation_alias="CHAT_COURSE_TOKEN_BUDGET"
+    )
+    # Budget des extraits RAG complémentaires. On retire des chunks ENTIERS, on n'en coupe aucun :
+    # un passage tronqué se cite mal et s'ancre encore plus mal.
+    chat_rag_token_budget: int = Field(default=300, validation_alias="CHAT_RAG_TOKEN_BUDGET")
+    # Plancher de pertinence du repli RAG : au-delà de cette distance cosinus, le passage est
+    # écarté. La recherche est à l'échelle de la MATIÈRE — sans ce plancher, un chunk du chapitre
+    # « Statistiques » pourrait ancrer une réponse sur les fractions. **À calibrer sur les vraies
+    # données** ; trop laxiste il ancre à côté, trop strict il vide le repli.
+    chat_rag_max_distance: float = Field(
+        default=0.45, validation_alias="CHAT_RAG_MAX_DISTANCE"
+    )
+    # Nombre de questions d'une interrogation orale (`adr-0059` §10). **Trois**, et c'est borné
+    # par deux choses : l'attention d'un enfant de 12 ans, et le quota de tours de session — une
+    # interrogation en consomme un par réponse, dix questions videraient la session.
+    chat_recall_questions: int = Field(default=3, validation_alias="CHAT_RECALL_QUESTIONS")
+    # Sous ce nombre de caractères, la réponse dictée n'est PAS évaluée : ZETIS redit la question
+    # autrement. Une dictée ratée (« euh », un blanc) ne doit jamais produire un verdict sur
+    # Massimo — et surtout pas un négatif (`adr-0059` §11.3).
+    chat_recall_min_answer_chars: int = Field(
+        default=8, validation_alias="CHAT_RECALL_MIN_ANSWER_CHARS"
     )
     # Résolution question libre → skill_id (§6, module partagé) : seuil de confiance cosinus
     # en-deçà duquel on N'ANCRE PAS (best-effort — pas de `chat_topic`, pas de contexte ciblé,
