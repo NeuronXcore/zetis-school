@@ -32,6 +32,7 @@ from app.db.models import (
     Chapter,
     Lesson,
     LessonSkill,
+    LessonView,
     NotionRequest,
     SchoolYear,
     SchoolYearSubject,
@@ -1327,9 +1328,11 @@ def mark_lesson_seen(db: Session, student_id: int, lesson_id: int) -> None:
 
     **Pas de commit** : l'appelant commite déjà pour l'événement d'activité — les deux écritures
     doivent vivre ou tomber ensemble.
-    """
-    from app.db.models import LessonView
 
+    ⚠️ **Depuis le 2026-08-15, c'est aussi le geste qui éteint le témoin de navigation Matières**
+    (`adr-0030-addendum-temoin-matieres`, borne 5). Déplacer ou conditionner cet appel éteint le
+    badge ; `new_matieres_count` ci-dessous est son miroir en lecture.
+    """
     existing = db.scalar(
         select(LessonView).where(
             LessonView.student_id == student_id, LessonView.lesson_id == lesson_id
@@ -1343,6 +1346,98 @@ def mark_lesson_seen(db: Session, student_id: int, lesson_id: int) -> None:
                 seen_at=datetime.now(timezone.utc),
             )
         )
+
+
+def _active_year_or_none(db: Session) -> SchoolYear | None:
+    """Année active, **sans lever** — jumelle non levante de `_active_year_or_404`.
+
+    🔴 Elle existe pour `new_matieres_count`, et ce n'est pas de la coquetterie : le compteur est
+    appelé au montage du shell de Massimo, par `GET /api/student/news/summary`, qui agrège **dix**
+    témoins. S'il levait un 404 faute d'année active, il ferait tomber les neuf autres avec lui —
+    et toute la suite de tests, dont la fixture `client_db` ne crée aucune `SchoolYear`.
+
+    Patron déjà en place ailleurs : `quizzes/service.py::_active_year`, `mindmaps/service.py`.
+    """
+    return db.scalars(
+        select(SchoolYear).where(SchoolYear.status == "active").order_by(SchoolYear.id.desc())
+    ).first()
+
+
+def new_matieres_count(db: Session, student_id: int) -> int:
+    """Cours validés de l'année active JAMAIS OUVERTS — témoin de navigation.
+
+    `adr-0030 §3`, amendé par `adr-0030-addendum-temoin-matieres.md`. Le motif d'origine
+    (« Matières est un hub, un badge ici doublerait les autres ») rangeait le **cours** avec ses
+    **dérivés** : fiche, capsule, mindmap et carte SRS sont produites *à partir* d'un cours validé
+    (`adr-0011`) — le cours est l'original, et c'est le seul objet dont l'arrivée n'avait aucune
+    entrée. Ce témoin ne compte donc QUE le cours.
+
+    Il naît de la validation d'une leçon par Papa et meurt d'un **REGARD** — le premier
+    `GET /api/student/lessons/{id}/cours`, qui écrit `lesson_views` via `mark_lesson_seen`. Aucune
+    date n'entre dans cette requête : ni `created_at`, ni `validated_at`, ni échéance. Il reste
+    entièrement dans la colonne « Nouveauté » du §1 et n'a demandé **aucune dérogation** (borne B1).
+
+    🔴 `content_markdown IS NOT NULL` n'est pas un raffinement, c'est ce qui rend le témoin
+    **MORTEL** (borne B2) : `student_lesson_content` répond 404 sur une leçon validée sans cours,
+    donc `mark_lesson_seen` n'y est jamais atteint. Mesuré au cadrage sur la base de dev :
+    **50 leçons validées sur 92** sont dans ce cas — les compter donnerait un badge qu'aucun geste
+    ne peut éteindre.
+
+    ⚠️ Ce témoin est le seul des trois posés le 2026-08-15 **sans point zéro** : `lesson_views` ne
+    lui appartient pas (elle est lue par `diagnostics/fiabilite.py` et `production/journal.py`), et
+    y écrire des vues fictives fausserait un calcul pédagogique. Il démarre donc à sa valeur réelle.
+    """
+    year = _active_year_or_none(db)
+    if year is None:
+        return 0
+    seen = select(LessonView.lesson_id).where(LessonView.student_id == student_id)
+    return (
+        db.scalar(
+            select(func.count(Lesson.id))
+            .join(Chapter, Chapter.id == Lesson.chapter_id)
+            .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+            .where(
+                SchoolYearSubject.school_year_id == year.id,
+                Chapter.validation_status == "validated",
+                Lesson.status == "validated",
+                Lesson.content_markdown.is_not(None),
+                Lesson.id.not_in(seen),
+            )
+        )
+        or 0
+    )
+
+
+def eligible_notion_ids(db: Session) -> list[int]:
+    """🔴 LA définition unique des notions ELI5-éligibles — toutes matières de l'année active.
+
+    Même chaîne que `student_subject_notions` (chapitre `validated` → leçon `validated` →
+    `LessonSkill`), mais sans le filtre de matière, dédupliquée, et en UNE requête.
+
+    Extraite pour que le témoin de navigation ELI5 et la page ELI5 ne puissent pas diverger : un
+    badge qui compte plus que ce que sa page montre est un badge qu'on ne peut pas éteindre (borne
+    B2), et un badge qui en compte moins ment dans l'autre sens. Un test d'égalité les lie (N6).
+
+    ⚠️ AUCUNE date ici, et surtout pas `NOTION_NEW_WINDOW_DAYS` : cette fonction dit *ce qui est
+    explicable*, pas *ce qui est récent*. Les deux vivent côte à côte dans ce fichier et ne doivent
+    jamais fusionner — c'est exactement la distinction que l'`adr-0030 §2` protège.
+    """
+    year = _active_year_or_none(db)
+    if year is None:
+        return []
+    return list(
+        db.scalars(
+            select(distinct(LessonSkill.skill_id))
+            .join(Lesson, Lesson.id == LessonSkill.lesson_id)
+            .join(Chapter, Chapter.id == Lesson.chapter_id)
+            .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+            .where(
+                SchoolYearSubject.school_year_id == year.id,
+                Chapter.validation_status == "validated",
+                Lesson.status == "validated",
+            )
+        )
+    )
 
 
 # Fenêtre de « fraîcheur » d'une notion (badge ✨ new des decks ELI5) : une notion est

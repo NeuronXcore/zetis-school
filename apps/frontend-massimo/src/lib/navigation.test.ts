@@ -31,13 +31,21 @@ describe("sidebar Massimo — entrée de la Galaxy", () => {
 // éligible que si elle a une trace de VUE côté serveur, et les absences sont des décisions.
 describe("sidebar Massimo — témoins de nouveauté", () => {
   it("porte un témoin sur exactement ces entrées-là", () => {
-    // Le compte n'est plus dans le nom : il a bougé deux fois (six avec `mindmaps`, sept avec
-    // `diagnostic`) et un nom qui compte se périme sans rougir.
+    // Le compte n'est plus dans le nom : il a bougé quatre fois (six avec `mindmaps`, sept avec
+    // `diagnostic`, dix avec `matieres`/`eli5`/`quiz` le 2026-08-15) et un nom qui compte se périme
+    // sans rougir.
+    //
+    // Les trois derniers sont nommés par leurs addenda — `adr-0030-addendum-temoin-matieres`
+    // (qui porte aussi les bornes transverses B1–B4), `-eli5` et `-quiz` — et **aucun** n'a demandé
+    // de dérogation : ils meurent tous d'un REGARD. C'est ce qui les sépare de `diagnostic`.
     const withBadge = Object.fromEntries(
       MASSIMO_NAV.filter((item) => item.newsKey).map((item) => [item.to, item.newsKey]),
     );
     expect(withBadge).toEqual({
       "/agenda": "agenda",
+      "/matieres": "matieres",
+      "/eli5": "eli5",
+      "/quiz": "quiz",
       "/fiches": "fiches",
       "/capsules": "capsules",
       "/revision": "revision",
@@ -57,16 +65,31 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     // Sans cette assertion, la prochaine session lirait sept témoins d'apparence homogène et en
     // conclurait qu'un compteur de non-faits est recevable. Le verrou backend
     // (`test_news_doctrine.py`, dict `DEROGATIONS`) tient la même ligne côté serveur.
+    //
+    // ⚠️ Le 2026-08-15, trois entrées ont gagné un témoin. `MEURENT_DU_TRAVAIL` **n'a pas bougé** :
+    // les trois se rangent du côté LÉGAL, adossées à une trace de vue (`lesson_views`,
+    // `eli5_views`, `quiz_views`). C'est la borne B1, et c'est la preuve que cet élargissement
+    // n'est pas une porte ouverte — si l'un d'eux avait eu besoin d'une dérogation, il aurait
+    // fallu une décision du commanditaire, pas une symétrie.
     const MEURENT_DU_TRAVAIL = ["/diagnostic"];
+    const MEURENT_D_UN_REGARD = [
+      "/agenda",
+      "/matieres",
+      "/eli5",
+      "/quiz",
+      "/fiches",
+      "/capsules",
+      "/revision",
+      "/missions",
+      "/mindmaps",
+    ];
     const avecTemoin = MASSIMO_NAV.filter((item) => item.newsKey).map((item) => item.to);
 
     expect(MEURENT_DU_TRAVAIL).toEqual(["/diagnostic"]);
     for (const route of avecTemoin) {
       if (MEURENT_DU_TRAVAIL.includes(route)) continue;
       // Les autres restent adossés à une trace de vue : c'est ce qui les fait mourir d'un regard.
-      expect(["/agenda", "/fiches", "/capsules", "/revision", "/missions", "/mindmaps"]).toContain(
-        route,
-      );
+      expect(MEURENT_D_UN_REGARD).toContain(route);
     }
   });
 
@@ -75,30 +98,59 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("laisse ELI5 SANS témoin, et ce n'est pas un oubli", () => {
-    // ELI5 a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon porteuse créée dans les
-    // 7 jours), pas de vue. Il décroîtrait tout seul et allumerait une entrée fraîchement
-    // visitée — un badge qui ment sur ce qu'on a lu ne se répare pas (ADR-0030 §2).
-    // Ce test existe pour qu'une prochaine session ne « complète » pas la liste par symétrie
-    // avec les autres dérivés.
-    expect(MASSIMO_NAV.find((item) => item.to === "/eli5")?.newsKey).toBeUndefined();
+  it("donne à ELI5 un témoin ADOSSÉ À UNE VUE (adr-0030-addendum-temoin-eli5)", () => {
+    // ~~« laisse ELI5 SANS témoin, et ce n'est pas un oubli »~~ — INVERSÉ le 2026-08-15.
+    //
+    // L'ancienne raison est gardée, et elle reste VRAIE : « ELI5 a bien un `new_count`, mais c'est
+    // un critère de RÉCENCE (leçon porteuse créée dans les 7 jours), pas de vue ; il décroîtrait
+    // tout seul et allumerait une entrée fraîchement visitée » (ADR-0030 §2).
+    //
+    // Ce qui a changé n'est pas la règle, c'est sa CONSÉQUENCE : on n'a pas réutilisé ce
+    // compteur-là, on a créé la trace qui manquait (`eli5_views`). Le §2 sort renforcé — « la
+    // récence ne suffit pas » devient « alors on paie la table ».
+    //
+    // La preuve que la récence n'est pas revenue par la fenêtre est côté serveur, où elle est
+    // vérifiable : `test_news_doctrine.py::test_le_temoin_eli5_n_est_pas_le_compteur_de_RECENCE`.
+    expect(MASSIMO_NAV.find((item) => item.to === "/eli5")?.newsKey).toBe("eli5");
   });
 
-  it("laisse Quiz SANS témoin : il n'y a aucun moment « ça arrive »", () => {
-    // ⚠️ MOTIF REBASÉ (ADR-0044 §7) : la version d'avant disait « la table `quizzes` n'a pas de
-    // `validation_status` ». C'est FAUX depuis la migration `a9b0c1d2e3f4`. Le vrai motif tient au
-    // `quiz_type` : SEUL le diagnostic est gaté, un quiz de mission ou de fin de cours vaut
-    // `validated` dès sa génération. Il n'y a donc toujours aucun moment « ça arrive » — mais
-    // pour une autre raison que celle qui était écrite, et un motif faux ne verrouille plus rien.
-    expect(MASSIMO_NAV.find((item) => item.to === "/quiz")?.newsKey).toBeUndefined();
+  it("donne à Quiz un témoin qui naît d'une PRODUCTION (adr-0030-addendum-temoin-quiz)", () => {
+    // ~~« laisse Quiz SANS témoin : il n'y a aucun moment ça arrive »~~ — INVERSÉ le 2026-08-15,
+    // au troisième cran d'une chaîne de motifs qu'il faut lire en entier :
+    //
+    //   1. ~~« la table `quizzes` n'a pas de `validation_status` »~~ (ADR-0030 §3) — FAUX depuis
+    //      la migration `a9b0c1d2e3f4` ;
+    //   2. ~~« SEUL le diagnostic est gaté, un quiz de mission vaut `validated` dès sa génération,
+    //      donc aucun moment ça arrive »~~ (ADR-0044 §7) — REBASAGE du précédent, et **toujours
+    //      vrai aujourd'hui** ;
+    //   3. la décision ne contredit pas (2), elle passe par-dessus : l'ADR-0030 §1 dit « naît d'un
+    //      geste de Papa OU DU SYSTÈME (un contenu arrive) », et un quiz produit par le worker est
+    //      un contenu qui arrive.
+    //
+    // 🔴 Conséquence à ne pas perdre : ce témoin naît d'une PRODUCTION, pas d'une validation —
+    // donc **Papa n'en est pas le robinet**, seul du dispositif dans ce cas. Si le volume dérape,
+    // la réponse est de gater la production, jamais d'atténuer le badge (addendum, borne 4).
+    expect(MASSIMO_NAV.find((item) => item.to === "/quiz")?.newsKey).toBe("quiz");
   });
 
-  it("laisse sans témoin toute entrée sans contenu qui « arrive »", () => {
-    // 🔴 CETTE BOUCLE NE SE RÉTRÉCIT PAS. `/diagnostic` en est sorti parce qu'il a désormais un
-    // témoin — pas parce qu'on l'a jugé encombrant. Les cinq autres y restent, et retirer l'une
-    // d'elles pour faire passer un ajout serait affaiblir le verrou en croyant l'ajuster.
-    for (const route of ["/", "/matieres", "/quiz", "/galaxy", "/chat"]) {
+  it("partitionne la navigation : chaque entrée a un camp, et un seul", () => {
+    // 🔴 REMPLACE la boucle « laisse sans témoin toute entrée sans contenu qui arrive », dont le
+    // commentaire disait « CETTE BOUCLE NE SE RÉTRÉCIT PAS » — et à qui le chantier du 2026-08-15
+    // retirait trois de ses cinq entrées. La rétrécir aurait été affaiblir le verrou en croyant
+    // l'ajuster ; un verrou qui perd une entrée à chaque chantier finit vide.
+    //
+    // La partition est STRICTEMENT PLUS FORTE que la boucle : elle ne se contente pas de vérifier
+    // que trois routes n'ont pas de témoin, elle exige que **toute** entrée de `MASSIMO_NAV` soit
+    // rangée dans exactement un des deux camps. Conséquences (borne B4) :
+    //   - aucune entrée ne peut changer de camp en silence ;
+    //   - une 14ᵉ entrée FORCE à trancher son camp, elle ne peut pas rester dans l'entre-deux.
+    const SANS_TEMOIN = ["/", "/galaxy", "/chat"];
+    const avecTemoin = MASSIMO_NAV.filter((item) => item.newsKey).map((item) => item.to);
+
+    for (const route of SANS_TEMOIN) {
       expect(MASSIMO_NAV.find((item) => item.to === route)?.newsKey).toBeUndefined();
     }
+    expect(avecTemoin.length + SANS_TEMOIN.length).toBe(MASSIMO_NAV.length);
+    expect(new Set([...avecTemoin, ...SANS_TEMOIN]).size).toBe(MASSIMO_NAV.length);
   });
 });

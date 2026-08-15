@@ -26,15 +26,31 @@ export interface NavItem {
    *  robinet, et aucun décompte de jours, interdiction NON amendée).
    *  Ne pas en déduire qu'un compteur de non-faits est désormais recevable ailleurs.
    *
-   *  Les absences ont chacune leur raison :
-   *  - **Matières** est un hub — ce qui arrive (fiches, capsules, cartes) a déjà son entrée ;
-   *  - **Quiz** : seul le DIAGNOSTIC est gaté (ADR-0043) ; un quiz de mission ou de fin de cours
-   *    vaut `validated` dès sa génération, donc aucun moment « ça arrive ». ⚠️ Le motif d'avant
-   *    disait « la table `quizzes` n'a pas de `validation_status` » — faux depuis `a9b0c1d2e3f4` ;
-   *  - **ELI5** a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon créée dans les 7
-   *    jours) : il décroîtrait tout seul et allumerait une entrée qu'on vient de visiter ;
-   *  - Cours, Ma Galaxie, Chat et Paramètres n'ont ni trace de vue ni contenu entrant.
-   *  Un test verrouille cette liste, pour qu'elle ne se « complète » pas par symétrie apparente. */
+   *  🔴 **TROIS ABSENCES ONT ÉTÉ LEVÉES LE 2026-08-15.** Leurs motifs sont conservés **barrés et
+   *  datés**, jamais effacés : un motif effacé se réinvente, un motif barré non — c'est déjà la
+   *  méthode appliquée à `validation_status` ci-dessous, et la chaîne se lit sur trois crans.
+   *
+   *  - **Matières** — ~~« est un hub : ce qui arrive (fiches, capsules, cartes) a déjà son
+   *    entrée »~~. Le motif rangeait le **cours** avec ses **DÉRIVÉS** : fiche, capsule, mindmap et
+   *    carte sont produites *à partir* du cours (ADR-0011), le cours est l'original, et c'est le
+   *    seul objet dont l'arrivée n'avait aucune entrée. Le témoin ne compte QUE le cours, donc il
+   *    ne double rien (`adr-0030-addendum-temoin-matieres`).
+   *  - **Quiz** — ~~« la table `quizzes` n'a pas de `validation_status` »~~ (faux depuis
+   *    `a9b0c1d2e3f4`), puis ~~« seul le DIAGNOSTIC est gaté (ADR-0043), donc aucun moment ça
+   *    arrive » (ADR-0044 §7)~~. Ce second motif **reste vrai** — et la décision ne le contredit
+   *    pas, elle passe par-dessus : le §1 dit « naît d'un geste de Papa ou **DU SYSTÈME** », et un
+   *    quiz produit par le worker est un contenu qui arrive. Ce témoin naît d'une **PRODUCTION**,
+   *    pas d'une validation — donc **Papa n'en est pas le robinet**
+   *    (`adr-0030-addendum-temoin-quiz`, borne 4, écrite pour être surveillée).
+   *  - **ELI5** — ~~« a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon créée dans les
+   *    7 jours) : il décroîtrait tout seul »~~. La règle reste vraie et ce compteur-là reste
+   *    inéligible : on ne l'a pas réutilisé, **on a payé la table** (`eli5_views`). Le §2 en sort
+   *    renforcé (`adr-0030-addendum-temoin-eli5`).
+   *
+   *  Les absences qui restent : Accueil, Ma Galaxie et Chat n'ont ni trace de vue ni contenu
+   *  entrant. Elles sont désormais tenues par une **PARTITION TOTALE** dans `navigation.test.ts` —
+   *  les deux camps réunis font exactement `MASSIMO_NAV`, sans doublon — et non plus par une liste
+   *  d'exclusion qui rétrécit à chaque chantier (borne B4). Une 14ᵉ entrée devra trancher son camp. */
   newsKey?: NewsKey;
 }
 
@@ -52,7 +68,13 @@ export const MASSIMO_NAV: NavItem[] = [
   // décroîtrait que par le travail et grossirait quand Massimo ne vient pas. Les deux règles se
   // ressemblent assez pour devoir être lues côte à côte.
   { to: "/agenda", label: "Agenda", icon: "🗓️", newsKey: "agenda" },
-  { to: "/matieres", label: "Matières", icon: "📚" },
+  // Témoin = COURS validés de l'année active jamais ouverts. Pas les fiches, pas les capsules,
+  // pas les cartes : elles ont chacune leur entrée, et c'est ce que le motif « hub » protégeait à
+  // juste titre. Il meurt du premier `GET /lessons/{id}/cours` — donc d'un regard.
+  // ⚠️ Seul des trois témoins posés ce jour-là SANS point zéro : sa trace `lesson_views` est
+  // partagée avec la fiabilité du diagnostic et le Cahier de bord, y écrire des vues fictives
+  // fausserait un calcul pédagogique. Il démarre donc plein et se vide à l'usage.
+  { to: "/matieres", label: "Matières", icon: "📚", newsKey: "matieres" },
   // « Révision » après le bloc « apprendre » (Cours vit sous Matières) : j'apprends → j'ancre.
   // Icône de marque SRS-cards (comme ELI5) ; repli emoji 🗂️ si l'asset manque.
   // Témoin = cartes JAMAIS RÉVISÉES, et surtout pas les cartes dues : une carte due depuis cinq
@@ -62,7 +84,10 @@ export const MASSIMO_NAV: NavItem[] = [
   { to: "/revision", label: "Révision", icon: "🗂️", image: srsIcon, newsKey: "revision" },
   // ⚠️ Le seul témoin qui meurt du TRAVAIL — exception nommée, voir `newsKey` ci-dessus.
   { to: "/diagnostic", label: "Diagnostic", icon: "🧭", newsKey: "diagnostic" },
-  { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon },
+  // Témoin = notions ELI5-éligibles JAMAIS EXPLIQUÉES, adossé à `eli5_views` (table créée le
+  // 2026-08-15). ⚠️ Surtout PAS le `new_count` des decks, qui est un critère de récence à 7 jours :
+  // les deux coexistent, l'un en page, l'autre ici, et ils ne comptent pas la même chose.
+  { to: "/eli5", label: "ELI5", icon: "💡", image: eli5Icon, newsKey: "eli5" },
   // Icône de marque mindmaps.png (comme ELI5/SRS/Quiz) ; repli emoji 🕸️ si l'asset manque.
   // Témoin ajouté le 2026-08-01 : `POST /mindmaps/{id}/seen` existait depuis l'ADR-0016 mais ne
   // persistait rien (« placeholder Slice A »). La table `mindmap_views` solde cette dette.
@@ -72,7 +97,11 @@ export const MASSIMO_NAV: NavItem[] = [
   // Fiches de révision (résumé d'une leçon sur une page) — dérivé du cours validé.
   { to: "/fiches", label: "Fiches", icon: "🗂️", newsKey: "fiches" },
   // Icône de marque quiz.png (comme ELI5/SRS) ; repli emoji ✅ si l'asset manque.
-  { to: "/quiz", label: "Quiz", icon: "✅", image: quizIcon },
+  // Témoin = quiz jouables JAMAIS OUVERTS, adossé à `quiz_views` (table créée le 2026-08-15).
+  // 🔴 Jamais « jamais joués » : `QuizAttempt` n'entre pas dans le compteur. Ouvrir puis
+  // abandonner sans répondre éteint quand même le témoin — c'est le prix de ne pas compter du
+  // travail, et il est assumé (addendum Quiz, borne 1).
+  { to: "/quiz", label: "Quiz", icon: "✅", image: quizIcon, newsKey: "quiz" },
   // « Ma Galaxie » à la MÊME position qu'avant (addendum ADR-0024 §A) : le renommage ne doit pas
   // se transformer en 6ᵉ onglet, ce que l'ADR-0024 §1 interdit. Le nombre d'entrées ne bouge pas.
   { to: "/galaxy", label: "Ma Galaxie", icon: "🌌" },

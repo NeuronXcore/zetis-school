@@ -18,7 +18,18 @@ from app.tests.test_fiche_service import _seed_validated_lesson
 from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 
 SUMMARY = "/api/student/news/summary"
-KEYS = {"agenda", "fiches", "capsules", "revision", "missions", "mindmaps", "diagnostic"}
+KEYS = {
+    "agenda",
+    "matieres",
+    "fiches",
+    "capsules",
+    "revision",
+    "missions",
+    "mindmaps",
+    "diagnostic",
+    "eli5",
+    "quiz",
+}
 
 
 # --- helpers de seed ------------------------------------------------------------------------

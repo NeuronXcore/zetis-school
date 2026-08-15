@@ -1,11 +1,12 @@
 """Agrégateur des témoins de nouveauté (ADR-0030 §5).
 
 Module en **LECTURE PURE** : aucune requête SQL, aucune écriture, aucune table à lui. Il compose
-**sept** compteurs qui vivent chacun dans le module propriétaire de sa donnée. Le précédent d'un
+**dix** compteurs qui vivent chacun dans le module propriétaire de sa donnée. Le précédent d'un
 module agrégateur sans table est `modules/dashboard`.
 
-⚠️ Le nombre a bougé deux fois sans que ces docstrings suivent (cinq à l'écriture, six avec
-`mindmaps`, sept avec `diagnostic`) : ne pas écrire le compte en toutes lettres ailleurs qu'ici.
+⚠️ Le nombre a bougé quatre fois sans que ces docstrings suivent (cinq à l'écriture, six avec
+`mindmaps`, sept avec `diagnostic`, dix le 2026-08-15 avec `matieres`, `eli5` et `quiz`) : ne pas
+écrire le compte en toutes lettres ailleurs qu'ici.
 
 Pourquoi aucune écriture n'entre ici, alors que le geste « Massimo a regardé l'agenda » est le
 pendant naturel de ce compteur : la lecture du badge est faite au montage du layout, avant tout
@@ -18,13 +19,16 @@ from sqlalchemy.orm import Session
 
 from app.modules.agenda import service as agenda_service
 from app.modules.capsules import service as capsules_service
+from app.modules.curriculum import service as curriculum_service
 from app.modules.diagnostics import service as diagnostics_service
+from app.modules.eli5 import service as eli5_service
 from app.modules.fiches import service as fiches_service
 from app.modules.memory import service as memory_service
 from app.modules.mindmaps import service as mindmaps_service
 from app.modules.missions import service as missions_service
+from app.modules.quizzes import service as quizzes_service
 
-#: Les SEPT sources du témoin, nommées et inspectables.
+#: Les sources du témoin, nommées et inspectables.
 #:
 #: Ce registre existe **POUR ÊTRE LU PAR UN TEST** : le test-verrou de l'ADR-0030 §Suivi lit le
 #: SOURCE de ces fonctions pour vérifier qu'aucune ne consomme d'échéance. La sortie, elle,
@@ -40,8 +44,16 @@ from app.modules.missions import service as missions_service
 #: fait bouger) : ce n'est donc pas ce test qui l'a autorisé, c'est la décision. Ne pas en
 #: déduire qu'un compteur de non-faits est désormais recevable ici — `test_news_doctrine.py`
 #: porte le verrou qui l'interdit à tous les autres.
+#:
+#: ✅ **Les trois entrées ajoutées le 2026-08-15** (`matieres`, `eli5`, `quiz`) **meurent d'un
+#: REGARD et n'ont demandé AUCUNE dérogation** — `DEROGATIONS` vaut toujours `{"diagnostic"}`.
+#: C'est ce qui les distingue, et c'est la preuve que cet élargissement n'a pas ouvert la porte
+#: (borne B1 de `adr-0030-addendum-temoin-matieres.md`).
 NEWS_SOURCES = {
     "agenda": agenda_service.new_agenda_count,
+    "matieres": curriculum_service.new_matieres_count,
+    "eli5": eli5_service.new_eli5_count,
+    "quiz": quizzes_service.new_quizzes_count,
     "fiches": fiches_service.new_fiches_count,
     "capsules": capsules_service.new_capsules_count,
     "revision": memory_service.new_cards_count,

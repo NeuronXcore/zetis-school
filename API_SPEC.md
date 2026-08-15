@@ -2485,11 +2485,12 @@ l'alternative (un appel par famille) faisait autant d'allers-retours sur la page
 pour un objet décoratif.
 
 ```txt
-{ agenda, fiches, capsules, revision, missions, mindmaps, diagnostic }   # entiers bruts
+{ agenda, matieres, eli5, quiz, fiches, capsules,
+  revision, missions, mindmaps, diagnostic }        # entiers bruts
 ```
 
-> ⚠️ Le compte a bougé deux fois (six avec `mindmaps`, sept avec `diagnostic`) — ne pas l'écrire en
-> toutes lettres, il se périme sans rougir.
+> ⚠️ Le compte a bougé quatre fois (six avec `mindmaps`, sept avec `diagnostic`, dix le 2026-08-15
+> avec `matieres`/`eli5`/`quiz`) — ne pas l'écrire en toutes lettres, il se périme sans rougir.
 
 🔴 **`diagnostic` est une EXCEPTION NOMMÉE, et la seule.** Il compte les diagnostics relus que
 Massimo n'a pas passés, donc il **meurt du TRAVAIL** et non d'un regard : colonne interdite de la
@@ -2510,22 +2511,41 @@ du §1 : *une date qui passe sans que Massimo agisse change-t-elle ce nombre ?*
 
 | clé | compte | meurt de | source |
 |---|---|---|---|
-| `agenda` | items arrivés depuis le dernier regard | `POST /student/agenda/seen` | `agenda_last_seen_at` |
+| `agenda` | items arrivés depuis le dernier regard | `POST /student/agenda/seen` (ouverture de `/agenda` **seulement** depuis le 2026-08-15) | `agenda_last_seen_at` |
+| `matieres` | **cours** validés jamais ouverts (jamais les dérivés) | `GET /student/lessons/{id}/cours` | `lesson_views` |
+| `eli5` | notions éligibles jamais expliquées | `POST /ai/eli5/skills/{id}/seen` | `eli5_views` |
+| `quiz` | quiz jouables jamais **ouverts** | `POST /student/quiz/{id}/seen` | `quiz_views` |
 | `fiches` | fiches validées jamais ouvertes | `POST /student/fiches/{id}/seen` | `fiche_views` |
 | `capsules` | capsules publiées jamais vues | `POST /capsules/{id}/view` | `capsule_views` |
 | `revision` | cartes **jamais révisées** | 1er passage (`last_reviewed_at`) | `spaced_review_cards` |
 | `missions` | missions `validated` jamais démarrées | `POST /missions/{id}/start` | `started_at` |
 | `mindmaps` | mindmaps validées jamais ouvertes | `POST /student/mindmaps/{id}/seen` | `mindmap_views` |
+| `diagnostic` | ⚠️ diagnostics relus **jamais passés** | le **TRAVAIL** (passation) — exception nommée | `quiz_attempts` |
 
 ⚠️ **`revision` n'utilise PAS le `new_count` de `/reviews/summary`.** Celui-ci exige
 `due_at <= now` alors que les cartes naissent avec une échéance **future** : une carte fraîchement
 générée y entrerait 1 à 7 jours plus tard, **sans aucun geste de Massimo**. L'expression dédiée est
 `memory/service.py::new_cards_count`, sans clause d'échéance. `due_count` est le compteur interdit.
 
-**Sans témoin, et ce n'est pas un oubli** : Matières (hub — ce qui arrive a déjà son entrée), Quiz
-(pas de `validation_status` du tout, ADR-0014 §2 : aucun moment « ça arrive »), ELI5 (son
-`new_count` est un critère de **récence**, il décroîtrait tout seul), Cours, Diagnostic, Ma
-Galaxie, Chat ZETIS, Paramètres.
+⚠️ **`eli5` n'utilise PAS le `new_count` de `/notions/summary`**, qui est un critère de **récence**
+(leçon porteuse créée dans les 7 jours) et décroîtrait sans qu'aucun regard n'ait eu lieu. Celui-ci
+reste servi, en page, sur les decks — deux compteurs, deux objets. Même patron que `revision`.
+
+⚠️ **`quiz` ne regarde PAS `QuizAttempt`.** Il meurt de l'**ouverture**, pas de la passation :
+ouvrir un quiz puis l'abandonner sans répondre l'éteint quand même. Compter les quiz « pas encore
+faits » serait une **seconde** exception à la règle, et il n'y en a qu'une.
+
+**Sans témoin, et ce n'est pas un oubli** : Accueil, Ma Galaxie, Chat ZETIS — aucune trace de vue,
+aucun contenu qui « arrive ». La partition est **totale** côté client : toute entrée de
+`MASSIMO_NAV` appartient à exactement un des deux camps, et une 14ᵉ entrée devrait trancher le
+sien (borne B4).
+
+> Les trois motifs d'exclusion périmés le 2026-08-15, conservés pour que la chaîne se lise :
+> ~~Matières (hub — ce qui arrive a déjà son entrée)~~ — le motif rangeait le **cours** avec ses
+> dérivés ; ~~Quiz (pas de `validation_status` du tout, ADR-0014 §2)~~ — **faux depuis
+> `a9b0c1d2e3f4`**, puis rebasé en « aucun moment ça arrive » (ADR-0044 §7), motif qui reste vrai
+> mais que la naissance **par production** contourne ; ~~ELI5 (son `new_count` est un critère de
+> récence)~~ — vrai, et c'est pourquoi une table a été créée au lieu de le réutiliser.
 
 **Lecture pure, aucun effet de bord** : consulter le badge n'est pas le regarder. Le geste qui
 consomme une nouveauté vit sur la surface qui montre réellement le contenu.
@@ -2534,9 +2554,13 @@ consomme une nouveauté vit sur la surface qui montre réellement le contenu.
 consultation, **jamais par polling** — un compteur qui change sans que Massimo ait rien fait est
 une notification. Le plafond « 9+ » est de présentation ; le serveur sert le compte exact.
 
-**Deux test-verrous** (`app/tests/test_news_doctrine.py`) : aucune source ne lit `due_at` /
-`due_on` / `due_date` / `done_at` (vérifié sur le **source** des six fonctions, la sortie étant un
-entier qui ne trahit pas sa provenance), et aucun écoulement du temps n'augmente un compteur.
+**Test-verrous** (`app/tests/test_news_doctrine.py`) : aucune source ne lit `due_at` / `due_on` /
+`due_date` / `done_at` / `completed_at` / `taken_at` (vérifié sur le **source** de chaque fonction,
+la sortie étant un entier qui ne trahit pas sa provenance) ; **le scan suit les délégations**
+(registre `DELEGATIONS`, sinon il suffirait de descendre le jeton d'un cran) ; aucun écoulement du
+temps n'augmente un compteur ; chaque témoin meurt de son geste **et pas deux fois** ; et aucun
+témoin ne compte ce qu'aucun geste ne peut éteindre (borne B2 — une leçon validée **sans cours**
+répond 404, donc elle ne se compte pas).
 
 **Ne s'applique pas à l'interface Papa** : Papa n'a pas de contenu qui « arrive » sans qu'il l'ait
 demandé. Ce que porte sa sidebar est une **file de validation**, objet distinct.

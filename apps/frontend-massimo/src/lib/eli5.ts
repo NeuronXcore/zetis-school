@@ -1,5 +1,6 @@
 // Appels à la boucle ELI5 du backend (Étape 10).
 import { API_URL, authClient } from "./authClient";
+import { notifyNewsChanged } from "./newsEvents";
 
 export interface Skill {
   id: number;
@@ -106,7 +107,30 @@ export async function explainEli5(skillId: number): Promise<Eli5Explain> {
   if (job.status !== "succeeded" || job.output == null) {
     throw new Error("L'explication n'a pas pu être générée.");
   }
+  // Le témoin de navigation ELI5 retombe ICI, et pas plus haut : une explication qui échoue
+  // (provider indisponible) ne marque rien — elle n'a rien montré (addendum ELI5, borne 3).
+  //
+  // L'émission vit dans `lib/`, à côté de l'écriture réseau, jamais dans une page : `explainEli5`
+  // est l'entonnoir unique de « ouvrir une notion » (chip, question libre résolue, deep-link
+  // `?skill_id=`, modale de mission), donc aucun appelant présent ou futur ne peut l'oublier.
+  await markEli5SkillSeen(skillId);
   return job.output;
+}
+
+/** `POST /api/ai/eli5/skills/{id}/seen` — cette notion a été expliquée à Massimo.
+ *
+ *  Échec silencieux : rater un marquage laisse un badge de trop, ce qui est sans gravité ;
+ *  interrompre une explication réussie pour ça ne l'est pas. */
+async function markEli5SkillSeen(skillId: number): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/ai/eli5/skills/${skillId}/seen`, {
+      method: "POST",
+      headers: headers(),
+    });
+    notifyNewsChanged();
+  } catch {
+    // réseau indisponible : le témoin se corrigera au prochain regard
+  }
 }
 
 export async function fetchDueReviews(): Promise<DueReview[]> {

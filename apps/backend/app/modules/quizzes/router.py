@@ -7,7 +7,7 @@ Deux routeurs :
   clés, tentative, feedback immédiat, complétion.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -166,6 +166,18 @@ def student_quiz(quiz_id: int, db: Session = Depends(get_db)) -> dict:
     """Un quiz jouable par id (deep-link mission). Singulier `/quiz/` — pas de collision avec
     `/quizzes/{subject_slug}` (pluriel)."""
     return service.get_student_quiz(db, quiz_id)
+
+
+@student_router.post("/quiz/{quiz_id}/seen", status_code=status.HTTP_204_NO_CONTENT)
+def student_quiz_seen(quiz_id: int, db: Session = Depends(get_db)) -> Response:
+    """Massimo a OUVERT ce quiz — le témoin de navigation retombe.
+
+    🔴 Distincte de `POST /quizzes/{id}/attempts` : commencer une tentative est du TRAVAIL, ouvrir
+    est un REGARD. C'est le second qui éteint le témoin, et jamais le premier
+    (`adr-0030-addendum-temoin-quiz`, borne 1). Idempotente.
+    """
+    service.mark_quiz_seen(db, get_default_student(db).id, quiz_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @student_router.post("/quizzes/{quiz_id}/attempts", response_model=StartAttemptOut)

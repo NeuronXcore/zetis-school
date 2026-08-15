@@ -25,8 +25,13 @@ describe("capNewsBadge — plafond du témoin de navigation (ADR-0030 §5)", () 
 
 describe("EMPTY_NEWS", () => {
   it("porte toutes ses clés à zéro — l'état « aucun badge »", () => {
+    // Liste explicite et NON dérivée : c'est le contrat avec `NewsSummary` côté serveur, et il
+    // doit se mettre à jour délibérément. Elle est passée de sept à dix le 2026-08-15.
     expect(EMPTY_NEWS).toEqual({
       agenda: 0,
+      matieres: 0,
+      eli5: 0,
+      quiz: 0,
       fiches: 0,
       capsules: 0,
       revision: 0,

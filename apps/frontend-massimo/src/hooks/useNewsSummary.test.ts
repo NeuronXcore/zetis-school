@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useNewsSummary } from "./useNewsSummary";
 import { NEWS_CHANGED_EVENT } from "../lib/newsEvents";
+import { EMPTY_NEWS } from "../lib/news";
 
 const fetchNewsSummary = vi.fn();
 
@@ -10,7 +11,7 @@ vi.mock("../lib/news", async () => {
   return { ...actual, fetchNewsSummary: () => fetchNewsSummary() };
 });
 
-const SUMMARY = { agenda: 1, fiches: 2, capsules: 0, revision: 3, missions: 0, mindmaps: 5, diagnostic: 2 };
+const SUMMARY = { ...EMPTY_NEWS, agenda: 1, fiches: 2, revision: 3, mindmaps: 5, diagnostic: 2 };
 
 beforeEach(() => {
   fetchNewsSummary.mockReset();
@@ -73,14 +74,9 @@ describe("useNewsSummary (ADR-0030 §5)", () => {
     fetchNewsSummary.mockRejectedValue(new Error("réseau"));
     const { result } = renderHook(() => useNewsSummary());
     await waitFor(() => expect(fetchNewsSummary).toHaveBeenCalled());
-    expect(result.current).toEqual({
-      agenda: 0,
-      fiches: 0,
-      capsules: 0,
-      revision: 0,
-      missions: 0,
-      mindmaps: 0,
-      diagnostic: 0,
-    });
+    // `EMPTY_NEWS` plutôt qu'un objet recopié : ce que ce test vérifie est « le hook retombe sur
+    // l'état vide », pas « l'état vide a telles clés » — que `news.test.ts` verrouille déjà. Un
+    // fixture qu'il faut éditer à chaque clé ajoutée est un test qui INVITE à être modifié.
+    expect(result.current).toEqual(EMPTY_NEWS);
   });
 });

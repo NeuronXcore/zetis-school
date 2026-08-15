@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -25,6 +25,22 @@ router = APIRouter(prefix="/api/ai/eli5", tags=["ai"])
 @router.get("/skills", response_model=list[SkillOut])
 def skills(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> list[dict]:
     return service.list_skills(db)
+
+
+@router.post("/skills/{skill_id}/seen", status_code=status.HTTP_204_NO_CONTENT)
+def skill_seen(
+    skill_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+) -> Response:
+    """Massimo a ouvert cette notion en ELI5 — le témoin de navigation retombe.
+
+    Route explicite plutôt qu'un marquage caché dans `POST /explain` : elle est visible au contrat
+    d'API et testable seule. L'alternative (le précédent de `mark_lesson_seen` dans
+    `GET /lessons/{id}/cours`) est consignée comme écartée dans l'addendum.
+
+    Idempotente : rejouer le geste ne change rien.
+    """
+    service.mark_skill_seen(db, service.get_default_student(db).id, skill_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/explain", response_model=ELI5ExplainJobResponse)

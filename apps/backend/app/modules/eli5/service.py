@@ -2,13 +2,22 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import AIJob, LearningEvent, Skill, SkillMastery, StudentProfile, Subject
+from app.db.models import (
+    AIJob,
+    Eli5View,
+    LearningEvent,
+    Skill,
+    SkillMastery,
+    StudentProfile,
+    Subject,
+)
 from app.modules.activity.events import EVENT_ELI5_REQUESTED, log_learning_event
 from app.modules.ai.canonical_context import build_canonical_sections, resolve_canonical_context
 from app.modules.ai.provider import EmbeddingProvider, LLMProvider, LLMRequest
+from app.modules.curriculum import service as curriculum_service
 from app.modules.eli5.schemas import ELI5ExplainRequest, ELI5ReverseRequest
 from app.modules.stt.provider import SttProvider
 from app.modules.stt.service import transcribe_upload
@@ -58,6 +67,64 @@ def _skill_and_subject(db: Session, skill_id: int) -> tuple[Skill, Subject]:
     subject = db.get(Subject, skill.subject_id)
     assert subject is not None
     return skill, subject
+
+
+def mark_skill_seen(db: Session, student_id: int, skill_id: int) -> None:
+    """Marque la notion ouverte en ELI5 (idempotent). 404 si la notion n'existe pas.
+
+    Idempotent **par la ligne**, pas par un compteur : « vu » = la ligne existe. Patron
+    `mindmaps.service.mark_seen`, à la lettre — combien de fois Massimo a redemandé une explication
+    n'est pas une information de navigation.
+
+    C'est le geste qui éteint le témoin de l'entrée ELI5 (`adr-0030-addendum-temoin-eli5`).
+    """
+    _skill_and_subject(db, skill_id)  # 404 réutilisé, jamais réécrit
+    existing = db.scalar(
+        select(Eli5View).where(
+            Eli5View.student_id == student_id, Eli5View.skill_id == skill_id
+        )
+    )
+    if existing is None:
+        db.add(
+            Eli5View(
+                student_id=student_id,
+                skill_id=skill_id,
+                seen_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+
+def new_eli5_count(db: Session, student_id: int) -> int:
+    """Notions ELI5-éligibles que ZETIS n'a JAMAIS expliquées — témoin de navigation.
+
+    `adr-0030 §2`, dont la RÈGLE reste vraie et dont seule la CONSÉQUENCE est amendée par
+    `adr-0030-addendum-temoin-eli5.md` : on n'a pas réutilisé le compteur de récence, on a créé la
+    trace de vue qui manquait. Le §2 en sort renforcé — « la récence ne suffit pas » devient « alors
+    on paie la table ».
+
+    🔴 **Ce compteur n'a RIEN à voir avec `student_notions_summary()["new_count"]`**, qui est un
+    critère de RÉCENCE (leçon porteuse créée dans les `NOTION_NEW_WINDOW_DAYS` derniers jours) et
+    décroît donc tout seul, sans qu'aucun regard n'ait eu lieu. Les deux coexistent dans le dépôt,
+    exactement comme `new_cards_count` coexiste avec `get_reviews_summary` (`adr-0030 §3`). Un test
+    le vérifie sur ce source ET sur les nombres (N5).
+
+    La population vient de `curriculum.eligible_notion_ids` — LA définition, celle que la page
+    montre. Un badge qui compterait plus que sa page serait inextinguible (borne B2).
+
+    ⚠️ Le point zéro posé à la migration `f8a9b0c1d2e3` fait démarrer ce témoin à **0** : il ne
+    compte que les notions devenues explicables APRÈS la pose. Le passé n'est pas de la nouveauté.
+    """
+    eligibles = curriculum_service.eligible_notion_ids(db)
+    if not eligibles:
+        return 0
+    vues = select(Eli5View.skill_id).where(Eli5View.student_id == student_id)
+    return (
+        db.scalar(
+            select(func.count(Skill.id)).where(Skill.id.in_(eligibles), Skill.id.not_in(vues))
+        )
+        or 0
+    )
 
 
 def list_skills(db: Session) -> list[dict]:
