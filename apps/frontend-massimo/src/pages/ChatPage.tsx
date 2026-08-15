@@ -98,6 +98,7 @@ export function ChatPage() {
   });
   const avatarStateRef = useRef(avatarState);
   avatarStateRef.current = avatarState;
+  const finDesOffresRef = useRef<HTMLDivElement | null>(null); // ancre de défilement (voir bas du rendu)
   const recRef = useRef<Recording | null>(null);
   const voiceRef = useRef<VoicePlayback | null>(null); // audio en cours → pilote la bouche
   const voiceGoneRef = useRef(false); // le serveur n'a pas de TTS : on cesse d'essayer
@@ -517,6 +518,20 @@ export function ChatPage() {
   const speaking = avatarState === "speaking";
   const showMic = micSupported && !sttGone;
 
+  // Voir le commentaire au point d'ancrage, en bas du rendu. On ne suit PAS `words` : le karaoké
+  // grandit mot à mot, et défiler à chaque tic arracherait la lecture. On suit ce qui APPARAÎT.
+  useEffect(() => {
+    if (speaking) return; // les blocs ne sont pas encore rendus — rien à montrer
+    if (!action && !interro && !announceText && !tool && !requestedNotion && !error) return;
+    const ancre = finDesOffresRef.current;
+    // ⚠️ `scrollIntoView` n'existe pas dans jsdom — même famille que le piège `AudioContext` du
+    // 2026-08-02. Le test le remplace pour observer l'appel ; la garde protège les navigateurs
+    // qui ne l'auraient pas, et évite de faire tomber un tour de chat pour un défilement.
+    if (typeof ancre?.scrollIntoView === "function") {
+      ancre.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [speaking, action, interro, announceText, tool, requestedNotion, error]);
+
   return (
     <div className="chat-page">
       <div className="chat-toolbar">
@@ -706,6 +721,16 @@ export function ChatPage() {
           </button>
         </div>
       )}
+
+      {/* 🔴 Ce qu'on propose doit être VU (défaut trouvé au navigateur le 2026-08-15).
+          Le menu d'une notion — six boutons — était rendu **788 px sous le pli** d'un écran de
+          812 px : présent dans le DOM, cliquable, invisible. La page n'a jamais eu la moindre
+          logique de défilement, et ça tenait tant que ZETIS ne répondait qu'une ligne. Le §7 lui
+          a appris à répondre au FOND : le karaoké occupe désormais tout l'écran et pousse dehors
+          ce qui le suit. Une porte ouverte sur du vide, cette fois par le bas.
+          `block: "nearest"` ne fait RIEN quand le bloc est déjà visible — pas de saut de page
+          parasite, et le regard n'est déplacé que lorsqu'il le faut. */}
+      <div ref={finDesOffresRef} aria-hidden="true" />
 
       <div className="chat-actions">
         {quota ? (

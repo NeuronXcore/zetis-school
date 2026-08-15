@@ -525,6 +525,30 @@ titre, aucun `content_markdown` n'est chargé.
 *Ce qu'on ne prétend pas régler* : une question qui n'emprunte aucun mot au titre du cours reste
 sans ancrage, et ZETIS demande de préciser. C'est le comportement voulu — le §7 tient.
 
+### §20 — Addendum du 2026-08-15 (relecture visuelle) : ce qu'on propose doit être VU
+
+La relecture visuelle attendait un **débordement horizontal** du menu passé à six boutons — le
+panneau voisin déborde déjà de 94 px en 390 px. Mesuré dans le DOM à 375 px : `scrollWidth ==
+clientWidth == 301`. **Zéro débordement** ; les boutons s'empilent en colonne, la crainte était
+sans objet.
+
+Le vrai défaut était perpendiculaire, et personne ne le cherchait : le menu était rendu **788 px
+sous le pli** d'un écran de 812 px. Présent dans le DOM, cliquable, tracé côté serveur —
+**jamais vu**. `ChatPage` n'a jamais eu la moindre logique de défilement, et ça tenait tant que
+ZETIS ne répondait qu'une ligne. **C'est le §7 qui l'a cassé** : lui apprendre à répondre au fond
+a fait grandir le karaoké jusqu'à occuper tout l'écran et pousser dehors ce qui le suit. Une
+porte ouverte sur du vide, cette fois par le bas — et le seul défaut de ce chantier qu'aucun test
+ne pouvait voir, parce que jsdom ne mesure rien.
+
+Une ancre en fin de rendu, amenée sous les yeux quand un bloc **apparaît** — jamais sur `words`,
+qui grandit mot à mot et arracherait la lecture. `block: "nearest"` ne déplace rien quand le bloc
+est déjà visible : un tour qui n'a rien à proposer ne fait pas sauter la page.
+
+⚠️ **Ce que le test ne prouve pas, et le dit** : jsdom ne mesure aucune géométrie, donc le verrou
+observe qu'on *demande* le défilement, pas que le bloc devienne visible. La visibilité réelle a
+été vue à l'écran, en 375 px. C'est la cinquième fois dans ce dépôt qu'un défaut n'existe que
+pour l'œil.
+
 ## Alternatives considérées
 
 - **Router une question de fond vers ELI5** (garder « aiguilleur »). Écartée par le
@@ -675,6 +699,10 @@ Tests-verrous, avec le **sabotage** qui doit les faire rougir — joué pour de 
     utile : sans lui, ZETIS répond à côté avec l'aplomb d'une source validée.
 20. **§19 — le périmètre du chat est celui de `lessons_by_skill`, plus `validated` et cours
     rédigé** — sabotage : accepter un brouillon (le gate de Papa serait contourné par le chat).
+21. **§20 — un bloc qui apparaît est amené sous les yeux** — sabotage : retirer le `useEffect`,
+    ou le brancher sur `words` (il défilerait à chaque mot du karaoké).
+22. **§20 — un tour sans rien à proposer ne déplace pas le regard** — sabotage : défiler
+    inconditionnellement.
 
 ⚠️ Tout test de résolution ou de **non**-résolution utilise l'embedder **crc32**, jamais
 `FakeEmbeddingProvider` — non déterministe, vert une fois sur deux.

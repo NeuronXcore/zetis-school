@@ -532,6 +532,62 @@ describe("ChatPage", () => {
     });
   });
 
+  it("🔴 ce qu'on propose est AMENÉ SOUS LES YEUX — le menu ne reste pas sous le pli", async () => {
+    // Défaut trouvé au navigateur le 2026-08-15, invisible de toute la suite : le menu d'une
+    // notion était rendu **788 px sous le pli** d'un écran de 812 px. Présent dans le DOM,
+    // cliquable, jamais vu. La page n'avait aucune logique de défilement — ça tenait tant que
+    // ZETIS ne répondait qu'une ligne, et l'ADR-0059 §7 lui a appris à répondre au FOND.
+    //
+    // ⚠️ jsdom ne mesure rien : ce test ne prouve pas que le bloc devient visible, il prouve
+    // qu'on le DEMANDE. C'est tout ce qu'il peut honnêtement prouver ici — la visibilité réelle
+    // a été vue à l'écran, en 375 px, et c'est écrit dans l'ADR.
+    //
+    // Sabotage : retirer le `useEffect` de défilement, ou le brancher sur `words` (il défilerait
+    // à chaque mot du karaoké, ce qui arracherait la lecture).
+    const scroll = vi.fn();
+    const proto = window.HTMLElement.prototype as unknown as { scrollIntoView?: unknown };
+    proto.scrollIntoView = scroll;
+    try {
+      mockSend.mockResolvedValue({
+        ...REPLY,
+        tool_suggestion: null,
+        action: {
+          kind: "notion_menu",
+          label: "Sur « Les fractions », tu peux :",
+          name: "Les fractions",
+          confirm: true,
+          items: [{ kind: "eli5", route: "/eli5?skill_id=1", label: "💡 Fais-moi comprendre" }],
+        },
+      });
+      renderPage();
+      ask("addition et soustraction de fractions");
+      await screen.findByRole("button", { name: /Fais-moi comprendre/ });
+      await waitFor(() => expect(scroll).toHaveBeenCalled());
+      // `block: "nearest"` — il ne bouge RIEN quand le bloc est déjà visible. Un `"end"` ou un
+      // `"center"` sauterait la page à chaque tour, y compris quand il n'y avait rien à montrer.
+      expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
+    } finally {
+      delete proto.scrollIntoView;
+    }
+  });
+
+  it("un tour SANS rien à proposer ne déplace pas le regard", async () => {
+    // Symétrie du test précédent : sans bloc, pas de défilement. Sinon chaque « salut ! » ferait
+    // sauter la page sous les yeux de Massimo.
+    const scroll = vi.fn();
+    const proto = window.HTMLElement.prototype as unknown as { scrollIntoView?: unknown };
+    proto.scrollIntoView = scroll;
+    try {
+      mockSend.mockResolvedValue({ ...REPLY, tool_suggestion: null, action: null });
+      renderPage();
+      ask("coucou");
+      await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("idle"));
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      delete proto.scrollIntoView;
+    }
+  });
+
   // --- Retour de demande à l'ouverture (addendum ADR-0026) ---------------------------------
 
   it("ferme la boucle : ce que Massimo avait demandé est annoncé dès l'ouverture", async () => {
