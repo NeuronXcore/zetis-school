@@ -23,7 +23,7 @@ student_router = APIRouter(
 
 @student_router.get("/summary", response_model=NewsSummary)
 def news_summary(db: Session = Depends(get_db)) -> dict:
-    """Les cinq témoins de nouveauté de la navigation Massimo.
+    """Les témoins de nouveauté de la navigation Massimo — le compte vit dans `service.py`.
 
     Lecture seule et sans effet de bord : consulter le badge n'est pas le regarder. Le geste qui
     consomme une nouveauté est ailleurs, sur la surface qui montre réellement le contenu.

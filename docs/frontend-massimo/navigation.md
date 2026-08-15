@@ -77,7 +77,7 @@ Sur iPhone : la sidebar disparaît au profit de la **bottom-nav** (les 5 verbes 
 > |---|---|
 > | **Agenda**, en position 2 | **ADR-0025** — « contre-intuitif et assumé » |
 > | **Ma Galaxie**, à position constante | **addendum ADR-0024 §A**, qui *interdit* d'en faire un 6ᵉ onglet |
-> | six entrées à témoin | **ADR-0030**, avec un test qui verrouille la liste |
+> | dix entrées à témoin sur treize | **ADR-0030** + ses trois addenda du 2026-08-15, avec une **partition totale** qui verrouille les deux camps |
 >
 > Appliquer la lettre de ce document **masquerait 8 sections sur mobile**, dont l'Agenda que
 > l'ADR-0025 a délibérément mis en avant. Le tiroir répare la largeur **sans rien retirer**.

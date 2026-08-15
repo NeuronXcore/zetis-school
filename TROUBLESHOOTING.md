@@ -7195,3 +7195,87 @@ quand le bloc est déjà visible.
 ⚠️ **Et la relecture visuelle cherchait autre chose** : un débordement horizontal du menu passé à
 six boutons. Mesure dans le DOM à 375 px : `scrollWidth == clientWidth == 301`, zéro débordement.
 Le défaut réel était perpendiculaire à celui qu'on redoutait.
+
+## Trois témoins de plus — Matières, ELI5, Quiz (addenda ADR-0025 et ADR-0030) — 2026-08-15
+
+Chantier `feat/trois-temoins-de-plus`. Six pièges, dont **deux dans mes propres sabotages** et un
+qui a cassé un build entier sans qu'aucun test ne puisse le voir.
+
+### 🔴 `late` est une sous-chaîne de `correlate` — un verrou de jetons rougit à tort
+
+`test_news_doctrine.py` interdit un vocabulaire d'arriéré (`due_at`, `done_at`, `late`…) en
+scannant le **source** des compteurs par un simple `token in body`. Un `servable_quiz_ids`
+parfaitement conforme est sorti **rouge** parce qu'il appelle `.correlate(Quiz)`.
+
+**Cause** : le scan est une recherche de sous-chaîne, sans borne de mot.
+
+**Parade** — et c'est le point : **ne pas retirer le jeton, et ne pas mettre `\b` non plus.**
+`\b` aurait laissé passer `_late` et `late_`, donc aurait **affaibli** le verrou pour corriger un
+faux positif. Le scan utilise désormais `(?<![a-z])<jeton>(?![a-z])` : il refuse `correlate` et
+continue d'attraper `_due_at`, `q.completed_at`, `overdue_count`. Helper `_lit_un_jeton_interdit`.
+
+> Règle générale : quand un verrou rougit à tort, la correction se juge à ce qu'elle laisse
+> **passer** en plus, pas seulement à ce qu'elle cesse d'attraper.
+
+### 🔴 `**/` dans un commentaire JSDoc ferme le bloc — tout le module disparaît
+
+Écrire `« naît d'un geste de Papa **/ DU SYSTÈME** »` dans le commentaire de `NavItem.newsKey`
+a produit `ERROR: Unexpected "**"` au transform esbuild de `navigation.ts` — donc
+`navigation.test.ts` **et** `MassimoSidebar.test.tsx` en « 0 test », pas en échec.
+
+**Cause** : `*/` termine un commentaire de bloc où qu'il soit, y compris au milieu d'une phrase en
+gras Markdown. Le dépôt écrit beaucoup de doctrine en Markdown **dans** des JSDoc — le risque est
+structurel, pas accidentel.
+
+**Parade** : ne jamais accoler `**` et `/`. Écrire « ou **DU SYSTÈME** ». **Symptôme à
+reconnaître** : un fichier de test qui rapporte `(0 test)` au lieu d'échouer — c'est un problème de
+transform, jamais d'assertion.
+
+### 🔴 `_active_year_or_404` LÈVE — un compteur qui l'appelle fait tomber toute la navigation
+
+`GET /api/student/news/summary` agrège dix témoins et est monté au shell de Massimo. La pente
+naturelle, pour « l'année active », est `curriculum.service._active_year_or_404` — qui **lève une
+`HTTPException`**. Un seul compteur qui l'appelle fait passer la route de 200 à 404, éteint les
+neuf autres badges, et fait rougir toute la suite : la fixture `client_db` ne crée **aucune**
+`SchoolYear`.
+
+**Parade** : `_active_year_or_none`, jumelle non levante (le patron existait déjà dans
+`quizzes/service.py::_active_year` et `mindmaps/service.py`). Verrou dédié :
+`test_le_summary_repond_200_sans_annee_active`.
+
+### 🔴 Une leçon `validated` SANS cours rendrait le badge immortel
+
+`student_lesson_content` répond **404** si `content_markdown is None` — donc `mark_lesson_seen`
+n'y est jamais atteint. Un témoin « leçons validées jamais vues » compterait des unités
+qu'**aucun geste ne peut éteindre**.
+
+Ce n'est pas théorique : **50 des 92** leçons validées de la base de dev sont dans ce cas, soit la
+majorité. Le badge aurait affiché `9+` à vie.
+
+**Parade** : `content_markdown.is_not(None)` dans le compteur, et un verrou qui l'exige pour tous
+(`test_aucun_temoin_ne_compte_ce_qu_aucun_geste_ne_peut_eteindre`). **Règle générale** : avant de
+compter une population, vérifier qu'un geste peut atteindre **chacun** de ses éléments.
+
+### ⚠️ Un décor à UN seul objet rend un test d'égalité vert sur une divergence réelle
+
+Sabotage : retirer `Quiz.quiz_type == QUIZ_TYPE_MISSION` de `servable_quiz_ids`. Le test d'égalité
+contre `list_student_quiz_index` est resté **vert**. Cause : le décor ne semait qu'**un** quiz, et
+il était de type mission — les deux ensembles restaient identiques quoi qu'on retire.
+
+**Parade** : semer un quiz de **diagnostic** sur la même leçon. C'est la forme déjà rencontrée sur
+l'ADR-0045 (« un sabotage vert parce que le décor ne peut pas atteindre la branche verrouillée »),
+appliquée cette fois à un test d'ensembles : **un filtre ne se teste qu'avec un objet que ce filtre
+doit exclure.**
+
+### ⚠️ Un sabotage qui contourne le mock est vert sans rien prouver
+
+Sabotage : « le bandeau d'Accueil remarque l'agenda vu ». Écrit
+`(globalThis as …).markAgendaSeen?.()`, il est resté **vert** — le test remplace le module
+`../../lib/agenda` par `vi.mock`, et un appel qui ne passe pas par l'import ne traverse pas le
+mock.
+
+**Parade** : un sabotage doit rétablir le chemin **réel** (ici : l'import **et** l'appel, deux
+éditions liées). Rejoué ainsi → rouge.
+
+> C'est la troisième occurrence documentée du motif « contre-épreuve mal visée » : un sabotage vert
+> ne prouve rien tant qu'on n'a pas vérifié qu'il emprunte le chemin que le test observe.

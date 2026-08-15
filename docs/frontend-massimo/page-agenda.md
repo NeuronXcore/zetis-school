@@ -77,7 +77,13 @@ reste ouvert et lié à la réconciliation de `navigation.md`, restée au BACKLO
   série.** Registre de libellés aligné sur ADR-0024 §5 : celui de l'enfant, jamais l'échec.
 - **Aucun XP à la coche**, aucune célébration sonore ou animée à la coche : le geste est
   déclaratif, il ne se récompense pas (l'XP reste réservé aux activités prouvées serveur).
-- Aucune notification, aucun rappel, aucun badge de compteur sur l'entrée de sidebar.
+- Aucune notification, aucun rappel, et **aucun compteur d'items NON FAITS** sur l'entrée de
+  sidebar — sous aucune forme (§12.4, non révoqué). ⚠️ En revanche l'entrée porte bien un **témoin
+  de nouveauté** (ce qui est ARRIVÉ depuis le dernier regard), autorisé par l'addendum §12. Les
+  deux se ressemblent assez pour devoir être lus côte à côte. Depuis
+  `adr-0025-addendum-le-regard-vit-a-l-agenda` (2026-08-15), il ne s'éteint qu'à l'**ouverture de
+  `/agenda`** : le bandeau d'Accueil ne le marque plus vu, parce qu'il le faisait au montage et
+  que Massimo atterrit sur l'Accueil — le témoin n'a jamais été visible avant cette correction.
 - Trois appareils, pas un (ADR-0024 §6) : iPhone, iPad, MacBook. La saisie doit être
   confortable au doigt **et** au clavier ; la bande lisible de 380 px à desktop.
 - `prefers-reduced-motion` respecté sur toute animation (non négociable).

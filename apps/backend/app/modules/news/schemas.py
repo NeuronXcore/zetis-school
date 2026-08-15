@@ -26,6 +26,14 @@ class NewsSummary(BaseModel):
     """
 
     agenda: int
+    #: Cours validés jamais ouverts. `adr-0030-addendum-temoin-matieres` — meurt d'un REGARD.
+    matieres: int
+    #: Notions jamais expliquées en ELI5. `adr-0030-addendum-temoin-eli5` — meurt d'un REGARD.
+    #: ⚠️ Sans rapport avec le `new_count` de récence de `student_notions_summary`.
+    eli5: int
+    #: Quiz jouables jamais OUVERTS. `adr-0030-addendum-temoin-quiz` — meurt d'un REGARD.
+    #: ⚠️ Jamais « jamais joués » : `QuizAttempt` n'entre pas dans ce compteur.
+    quiz: int
     fiches: int
     capsules: int
     revision: int

@@ -1,4 +1,4 @@
-// Témoins de nouveauté de la navigation (ADR-0030). UN seul appel pour les cinq entrées.
+// Témoins de nouveauté de la navigation (ADR-0030). UN seul appel pour toutes les entrées.
 //
 // Contrats : @zetis/types (`packages/types/src/news.ts`) — rien n'est redéclaré ici.
 import { type NewsSummary } from "@zetis/types";
@@ -20,6 +20,9 @@ async function asJson<T>(res: Response): Promise<T> {
  *  Zéro partout = aucun badge rendu : un badge absent est un état correct, pas une erreur. */
 export const EMPTY_NEWS: NewsSummary = {
   agenda: 0,
+  matieres: 0,
+  eli5: 0,
+  quiz: 0,
   fiches: 0,
   capsules: 0,
   revision: 0,

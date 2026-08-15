@@ -6,10 +6,23 @@
 
 /** Entrées de navigation portant un témoin. Une entrée n'est éligible que si elle a une trace de
  *  VUE côté serveur : un compteur de récence décroîtrait tout seul et allumerait une entrée
- *  fraîchement visitée. C'est pourquoi ELI5 n'est pas dans cette liste — son `new_count` est un
- *  critère de récence à 7 jours, pas de vue. */
+ *  fraîchement visitée.
+ *
+ *  ~~« C'est pourquoi ELI5 n'est pas dans cette liste — son `new_count` est un critère de récence
+ *  à 7 jours, pas de vue. »~~ — la RÈGLE reste vraie, sa conséquence a changé le 2026-08-15
+ *  (`adr-0030-addendum-temoin-eli5`) : on n'a pas réutilisé le compteur de récence, **on a créé la
+ *  trace qui manquait** (`eli5_views`). La règle sort renforcée, pas assouplie. */
 export type NewsKey =
   | "agenda"
+  /** Cours validés de l'année active jamais ouverts — `adr-0030-addendum-temoin-matieres`. */
+  | "matieres"
+  /** Notions ELI5-éligibles jamais expliquées — adossé à `eli5_views`, JAMAIS au `new_count` de
+   *  récence, qui reste en page et n'a jamais été éligible. */
+  | "eli5"
+  /** Quiz jouables jamais OUVERTS — jamais « jamais joués » : ce témoin meurt du regard, pas du
+   *  travail. Il naît d'une PRODUCTION et non d'une validation, donc Papa n'en est pas le
+   *  robinet — seul du dispositif dans ce cas (`adr-0030-addendum-temoin-quiz`, borne 4). */
+  | "quiz"
   | "fiches"
   | "capsules"
   | "revision"

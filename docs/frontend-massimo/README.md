@@ -32,9 +32,13 @@ aux pictogrammes de matières.
 
 ### Badges de nouveauté (ADR-0030)
 
-Cinq entrées portent un compteur : **Agenda · Fiches · Capsules IA · Révision · Missions**.
-Mindmaps est différé — son `POST /seen` est un **no-op en V1** (ADR-0016), c'est donc la seule
-famille de dérivés sans témoin de nouveauté ; l'asymétrie est nommée, pas oubliée.
+**Dix** entrées portent un compteur : **Agenda · Matières · ELI5 · Quiz · Fiches · Capsules IA ·
+Révision · Mindmaps · Missions · Diagnostic**.
+
+> ⚠️ Ce paragraphe a annoncé « cinq entrées » et « Mindmaps est différé, son `POST /seen` est un
+> no-op » pendant deux semaines après que les deux étaient faux (Mindmaps a été livré le jour même
+> de l'ADR, Diagnostic le 2026-08-08, les trois derniers le 2026-08-15). **Le compte fait autorité
+> dans `news/service.py`, pas ici.**
 
 > **Un badge compte ce qui est NOUVEAU, jamais ce qui est DÛ.**
 > Test : *une date qui passe sans que Massimo agisse change-t-elle le compteur ?* — **non** pour
@@ -42,17 +46,29 @@ famille de dérivés sans témoin de nouveauté ; l'asymétrie est nommée, pas 
 > (il ne meurt que par le **travail**, et grossit quand Massimo ne vient pas). La seconde colonne
 > est la définition d'une relance : interdite.
 
-Deux conséquences qui se lisent mal sans la règle :
+Quatre conséquences qui se lisent mal sans la règle :
 
 - **Révision** consomme `new_count` (cartes **jamais révisées**), **jamais `due_count`** — servi
   par le même endpoint, à portée de main, et précisément le compteur interdit. Une carte due
   depuis cinq jours est « à revoir », jamais « en retard » (ADR-0013).
-- **ELI5 n'a pas de badge** : son `new_count` est un critère de **récence** (leçon porteuse créée
-  dans les 7 jours), pas de vue. Il s'allumerait sur une entrée fraîchement visitée et
-  s'éteindrait sans avoir été lu. Il reste sur ses decks, en page.
+- **ELI5** a bien un badge depuis le 2026-08-15, mais **pas** celui qu'on croit : son `new_count`
+  de **récence** (leçon porteuse créée dans les 7 jours) reste inéligible et reste sur ses decks,
+  en page. Le témoin de navigation est adossé à `eli5_views`, une table créée pour ça. La règle du
+  §2 n'a pas été assouplie — elle a été payée (`adr-0030-addendum-temoin-eli5`).
+- **Quiz** compte les quiz **jamais ouverts**, jamais les quiz « pas encore faits ». Ouvrir puis
+  abandonner sans répondre éteint le témoin : c'est le prix de ne pas compter du travail.
+- **Matières** compte les **cours** validés jamais ouverts, et rien d'autre — pas les fiches,
+  capsules ou cartes, qui ont chacune leur entrée. Le cours est l'original dont elles dérivent.
+  ⚠️ C'est le seul témoin **sans point zéro** : sa trace `lesson_views` est partagée avec la
+  fiabilité du diagnostic et le Cahier de bord.
 
-Sans badge, et ce n'est pas un oubli : Matières, Cours, Quiz, Diagnostic, Ma Galaxie, Chat ZETIS,
-Paramètres — aucune trace de vue, aucun contenu qui « arrive ».
+Sans badge, et ce n'est pas un oubli : **Accueil, Ma Galaxie, Chat ZETIS** — aucune trace de vue,
+aucun contenu qui « arrive ». La partition est totale et verrouillée : toute entrée de la sidebar
+appartient à exactement un des deux camps, et une 14ᵉ entrée devrait trancher le sien.
+
+**Un seul témoin meurt du TRAVAIL** : celui du Diagnostic. C'est une exception nommée, bornée, et
+la seule — `DEROGATIONS` vaut `{"diagnostic"}` et n'a pas bougé quand trois témoins ont été
+ajoutés.
 
 Source unique : `GET /api/student/news/summary`, monté **une fois** dans `MassimoLayout`, invalidé
 par `NEWS_CHANGED_EVENT` (patron `CONTENT_REQUESTS_CHANGED_EVENT`). **Aucun polling, aucune

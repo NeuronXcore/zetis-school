@@ -335,6 +335,58 @@ class MindmapView(Base):
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class Eli5View(Base):
+    """Notion ouverte en ELI5 par un élève (`adr-0030-addendum-temoin-eli5`, 2026-08-15).
+
+    Sixième table du patron `*_views`, calquée sur `MindmapView` : unicité (élève, notion), un
+    horodatage, **aucun compteur d'ouvertures** — combien de fois Massimo a redemandé la même
+    explication n'est pas une information de navigation, et un compteur qu'on n'affiche nulle part
+    finit par être affiché quelque part.
+
+    🔴 **Distincte du `new_count` de RÉCENCE de `student_notions_summary`, et c'est tout le sujet.**
+    Celui-ci décroît par le TEMPS (fenêtre `NOTION_NEW_WINDOW_DAYS` sur `Lesson.created_at`),
+    celle-ci par le REGARD. C'est exactement pourquoi l'`adr-0030 §2` refusait un badge à ELI5 : la
+    règle n'a pas été contournée, la table est le prix payé pour lui en donner un.
+
+    ⚠️ Le geste qui écrit ici est l'**explication demandée et réussie**. Ni l'affichage d'une chip,
+    ni l'ouverture d'un deck, ni ELI5 **reverse** — reformuler est du travail, pas un regard.
+    """
+
+    __tablename__ = "eli5_views"
+    __table_args__ = (
+        UniqueConstraint("student_id", "skill_id", name="uq_eli5_views_student_skill"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"), index=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class QuizView(Base):
+    """Quiz ouvert par un élève (`adr-0030-addendum-temoin-quiz`, 2026-08-15). Septième table du
+    patron `*_views`, calquée sur `MindmapView`.
+
+    🔴 **« Ouvert », jamais « passé ».** Le témoin de navigation qui en vit meurt de l'OUVERTURE ;
+    `QuizAttempt` ne l'approche pas. Compter les quiz non passés ferait un compteur qui grossit
+    quand Massimo ne vient pas — la colonne interdite de l'`adr-0030 §1`, dont l'unique exception
+    (`diagnostic`) est nommée et ne s'étend pas.
+
+    Conséquence assumée (borne 1 de l'addendum) : ouvrir un quiz puis l'abandonner sans répondre
+    éteint le témoin. C'est le prix de ne pas compter du travail.
+    """
+
+    __tablename__ = "quiz_views"
+    __table_args__ = (
+        UniqueConstraint("student_id", "quiz_id", name="uq_quiz_views_student_quiz"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
+    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"), index=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SpacedReviewCard(Base):
     __tablename__ = "spaced_review_cards"
     # 🔴 **La clé logique est à TROIS colonnes** (addendum ADR-0015 §13) : une notion porte

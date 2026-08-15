@@ -6,240 +6,176 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — ZETIS répond vite, ouvre la ressource exacte, et interroge (ADR-0059)
+### 🟡 CHANTIER COMPLET, NON POUSSÉ — Trois témoins de plus (addenda ADR-0025 et ADR-0030)
 
-**Mergé dans `main` le 2026-08-15 — PR
-[#134](https://github.com/NeuronXcore/zetis-school/pull/134), squash `22f2c1b`.**
-Branche `feat/zetis-repond-vite` **supprimée** (locale et distante), base `a0f39c8`.
-`main` est à jour avec `origin` : **rien à pousser**.
+**Branche `feat/trois-temoins-de-plus`, base `4dffacf`.** Le code est **commité sur la branche**.
+Commits : `git log --oneline main..HEAD`.
 
-⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
+🔴 **DEUX choses ne sont PAS faites, et l'ordre compte :**
 
-> ✅ **LES VÉRIFICATIONS DUES ONT ÉTÉ FAITES AVANT LE MERGE** — relecture visuelle en 375 px et
-> interrogation orale jouée en vrai. C'est le **premier chantier d'interface du dépôt à ne pas
-> partir en aveugle** ; les cinq précédents l'ont tous regretté. Elles ont produit **trois défauts
-> de plus**, tous corrigés avant le merge (§19–§21 de l'ADR).
+1. **La relecture visuelle des badges à l'écran n'a pas eu lieu.** Je n'ai pas pu me connecter
+   (règle : ne jamais saisir de mot de passe). **Ne pas merger sans.** Le chantier précédent est le
+   **premier du dépôt** à l'avoir faite avant le merge, et elle y avait produit trois défauts de
+   plus ; les cinq d'avant l'ont tous regretté. Ce serait la 6ᵉ occasion manquée.
+2. **Rien n'est poussé — et `main` non plus.** `main` porte le commit de cadrage `4dffacf` qui
+   **n'est pas sur `origin`** (`origin/main` = `3f1c468`). Il part **en premier**, seul, avant la
+   branche.
+
+#### Ce qui a motivé le chantier
+
+Le constat était : « il manque les badges pour agenda, matières, ELI5, quiz ». Le read-before-code
+a coupé ce constat en deux, et **les deux moitiés étaient fausses différemment** :
+
+- **l'Agenda avait déjà son badge**, correct côté serveur, et **personne ne l'avait jamais vu** ;
+- **Matières, ELI5 et Quiz n'étaient pas des oublis** mais trois exclusions argumentées, tenues par
+  deux test-verrous — d'où quatre addenda **avant** la moindre ligne de code.
 
 #### ✅ FAIT
 
-| Livré | Détail |
+| Lot | Détail |
 |---|---|
-| **Slice 0 — réactivité** | texte affiché avant Piper · transcription de Massimo affichée · Whisper glouton · modèle préchargé |
-| **Slice 0 — fuite** | `/chat/transcribe` dédiée ; le transcript n'entre plus dans `ai_jobs` pour **aucun** appelant |
-| **Arc A** | 6 activités adressables par id ; `?quiz=` et `?capsule=` créés ; `_MENU_LABEL` supprimée |
-| **Arc A** | contrat de parité `packages/types/src/notionRouteContract.json` — oracle écrit **à la main** |
-| **Arc B** | repli `cours` révoqué ; le déclencheur « notion vide » **promu** (la porte s'ajoute) |
-| **Arc C** | RAG avec provenance + distance · réponse ancrée · `grounding` calculé serveur · source affichée |
-| **Arc C** | interrogation orale : 3 questions, état en 2ᵉ clé Redis, 4 garde-fous déterministes |
-| **Après essais micro** | matière exacte > notion floue · galaxie câblée · chapitre résolu · aveu démenti remplacé |
-| **Complément** | index globaux (9 pages) · atelier de fiche (par **leçon**) |
-| **§19 — ancrage sans notion** | RAG toutes matières · `lesson_matching_text` cherche dans les **cours** · refus distinct « je ne suis pas sûr de la notion » |
-| **§20 — ce qu'on propose est VU** | ancre de défilement · le bouton de sortie a enfin la forme d'un bouton |
-| **§21 — le LaTeX** | nettoyé dans `_sanitize` (les deux surfaces) + `RÈGLE DE VOIX` dans les deux prompts |
-| **§18 — l'existant soldé** | `scripts/purge_chat_verbatim.py` ; **78 lignes de dev nettoyées** |
+| **Cadrage (sur `main`, `4dffacf`)** | 4 addenda + 4 entrées `DECISIONS.md`. **Non poussé.** |
+| **Agenda** | le bandeau d'Accueil cesse de marquer vu ; son test **inversé** ; `useAgenda.test.ts` créé |
+| **Matières** | `new_matieres_count` + `_active_year_or_none` — **zéro migration**, réutilise `lesson_views` |
+| **ELI5** | modèle `Eli5View`, migration `f8a9b0c1d2e3`, `POST /api/ai/eli5/skills/{id}/seen` |
+| **Quiz** | modèle `QuizView`, migration `f9a0b1c2d3e4`, `servable_quiz_ids`, `POST /api/student/quiz/{id}/seen` |
+| **Front** | 3 `newsKey`, 3 émissions dans `lib/`, `NewsKey`/`EMPTY_NEWS` élargis |
+| **Verrous** | décor `_seed_programme` + N1/N2/N3/N4/N5/N6/N7/N8/N10 + partition totale |
+| **Docs** | `API_SPEC.md`, `docs/frontend-massimo/{README,navigation,page-agenda,page-eli5}.md` |
 
-**Zéro migration.** Aucune entrée neuve dans `App.tsx` — uniquement des paramètres sur des routes
-existantes.
-
-#### 🔬 CE QUE LA VÉRIFICATION A DONNÉ
-
-**Onze sabotages joués, onze rouges.** Dont : contrat de parité faussé → **les deux suites
-rougissent ensemble**, front et serveur.
-
-🔴 **MESURES (machine du commanditaire, Ollama et Piper réels) — elles DÉMENTENT le cadrage :**
-
-| Maillon | Avant | Après | Part |
-|---|---|---|---|
-| STT Whisper | 1,23 s | **1,00 s** | 9 % |
-| **Moteur** `qwen3.6:35b-a3b` | **9,41 s** | 9,41 s | **83 %** |
-| TTS Piper | 0,70 s | *hors chemin critique* | 6 % |
-| **Premier signe pour Massimo** | ≈ 11,3 s | **≈ 1,0 s** | |
-
-1. Le décodage glouton rapporte **~20 %**, pas « 2 à 3 fois ». Transcription **identique au mot
-   près** (sur voix de synthèse — cf. dettes).
-2. 🔴 **Le STT n'a JAMAIS été le goulot.** La vraie latence se traite sur le moteur : réponse plus
-   courte, streaming, ou modèle plus petit pour le tour conversationnel. **Nommé et chiffré dans
-   l'ADR §6, hors de ce chantier.**
-
-🔴 **FUITE MESURÉE, REFERMÉE, ET SOLDÉE : 78 lignes `ai_jobs`** portaient les mots dictés par
-Massimo (2026-07-04 → 08-14). ✅ **Nettoyées en DEV le 2026-08-15**, vérifiées à zéro sur toutes
-les colonnes JSON et tous les `job_types`. Arbitrage de Papa : on **efface la clé `transcript`, pas
-la ligne** — la trace d'exécution (`job_type`, durée, taille de l'audio) survit, ce que l'ADR
-demande et rien de plus. ⚠️ **La PRODUCTION reste à traiter** (voir DETTES).
-
-🔴 **Défauts trouvés UNIQUEMENT à l'usage réel, jamais par un test** — c'est le fait marquant du
-chantier :
-
-| Où | Combien | Nature |
-|---|---|---|
-| Six essais **au micro** | 4 | routage, aveu contredit, galaxie, chapitre |
-| Première **interrogation orale** réelle | 4 | « je ne sais pas » consommait une question · clôture qui félicite à vide · **zéro trace `ai_jobs`** · ZETIS créditant Massimo de mots jamais dits |
-| Deuxième essai au micro | 1 | 🔴 refus **FAUX** sur un cours qui existe (→ §19) |
-| **Relecture visuelle** | 2 | menu 788 px sous le pli · bouton de sortie sans forme (→ §20) |
-| Lecture d'une réponse | 1 | LaTeX brut, lu **et prononcé** (→ §21) |
-
-Détail : `TROUBLESHOOTING.md` §ADR-0059 (**15 sous-sections**).
-
-⚠️ **Le débordement horizontal redouté n'existait pas.** La relecture visuelle cherchait un menu
-qui déborde en 390 px ; mesure dans le DOM à 375 px : `scrollWidth == clientWidth == 301`. Le
-défaut réel était **perpendiculaire** à celui qu'on attendait. *Chercher au bon endroit n'est pas
-la même chose que regarder.*
+**Migrations chaînées, tête unique `f9a0b1c2d3e4`. Appliquées en DEV seulement.**
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **La révocation de l'`adr-0027` §3 est PARTIELLE.** Il portait **trois** affirmations lues
-   comme une seule ; deux tiennent intégralement (« router uniquement vers du validé », « l'enfant
-   ne déclenche aucune génération »). Seule « jamais générer », appliquée à la **parole**, tombe.
-2. 🔴 **La frontière parole / contenu durable est un TEST OPÉRATIONNEL** : *survit à
-   `close_session` ? a une URL ? entre en base comme texte ?* Trois « non » = parole.
-3. 🔴 **Le serveur ne croit jamais le moteur** — ni sur sa source (`used_source`), ni sur ce qu'il
-   possède (aveu démenti par une action), ni sur le moment d'arrêter d'interroger. *Une consigne de
-   prompt ne garantit rien, un ancrage garantit toujours.*
-4. 🔴 **Un nom EXACT bat une résolution floue.** Précédence : matière exacte → chapitre exact →
-   notion (embeddings) → matière approchée → chapitre par inclusion. L'inclusion vient en dernier :
-   « Nombres relatifs » contient le chapitre « Nombres ».
-5. **`revision` reste au grain matière/chapitre** — le grain le plus fin du SRS est le chapitre
-   (`adr-0049`). Six activités adressables par id, pas sept.
-6. **L'interrogation ne compte pas** : zéro XP, zéro `SkillMastery`, aucun `event_type` neuf. Un
-   seul `chat_tool_response{tool_type:"interro_orale"}` à l'ouverture — un **acte**, pas une mesure.
-7. **Le doute profite à l'enfant PAR CONSTRUCTION** : vocabulaire de verdict sans valeur binaire,
-   l'inconnu retombe sur `a_reformuler`.
-8. **Le contrat de parité s'écrit à la main**, jamais généré depuis une implémentation — sinon il
-   certifie le bug.
-9. **`/diagnostic` reste hors routage** (`adr-0027` §3, jamais anxiogène). **Une mission précise
-   n'est pas adressable** : l'ouvrir signifie la **démarrer**.
-10. **Le quiz garde son `mode:"quiz"` asynchrone côté front** — exception NOMMÉE dans le contrat :
-    `?from=` ne transporte qu'un slug, il perdrait le `returnTo` vers `/galaxy`.
-11. 🔴 **Sans notion résolue, la porte d'entrée d'un cours est son TITRE** (ou le nom d'une notion
-    qu'il porte), **jamais son contenu** — celui-ci ne fait que départager. « Différence » est dans
-    tous les cours de maths ; s'y ancrer ferait répondre à côté avec l'aplomb d'une source validée.
-    *Se taire vaut mieux que s'ancrer au hasard.* (§19)
-12. **Le verbatim s'efface par la CLÉ, pas par la LIGNE.** La règle est « aucun `ai_jobs` ne porte
-    un TEXTE de Massimo », pas « aucune dictée n'a eu lieu » : la trace d'exécution qu'exige
-    `CLAUDE.md` survit. (§18, arbitré par Papa le 2026-08-15)
-13. **Ce que ZETIS dit est LU À VOIX HAUTE** : ni LaTeX ni Markdown. Deux gestes qui ne se
-    remplacent pas — le prompt tarit à la source, `_sanitize` garantit. (§21)
+1. 🔴 **`DEROGATIONS` n'a pas bougé** : il vaut toujours `{"diagnostic"}`. Les trois nouveaux
+   témoins meurent d'un **REGARD** et n'ont demandé aucune exception. *C'est le dossier du
+   chantier* : l'élargissement n'a pas ouvert la porte. Le critère à opposer au prochain candidat
+   est **« ce témoin a-t-il besoin d'une dérogation ? »**.
+2. 🔴 **Une trace de vue n'appartient PAS au badge qui la consomme.** `lesson_views` est lue par
+   `diagnostics/fiabilite.py` (« le cours a été lu ») et `production/journal.py` — c'est pourquoi
+   **Matières n'a aucun point zéro** et démarre à 32. ELI5 et Quiz, dont les tables sont neuves,
+   démarrent à 0. **Avant tout backfill d'une table de vue : chercher qui d'autre la lit.**
+3. **Le point zéro n'amende pas l'« aucun backfill » de l'ADR-0030 §4.** Celui-ci refusait de
+   prétendre que le passé avait été lu ; ici on pose l'**origine du témoin**. Le passé n'est pas de
+   la nouveauté, c'est de l'arriéré. Conséquence assumée : Massimo ne verra jamais de badge sur les
+   267 notions et 37 quiz déjà en base.
+4. 🔴 **Le témoin Quiz meurt de l'OUVERTURE, jamais de la passation.** Ouvrir puis abandonner sans
+   répondre l'éteint quand même — prix assumé de ne pas compter du travail.
+5. 🔴 **Ce témoin naît d'une PRODUCTION, pas d'une validation : Papa n'en est pas le robinet.**
+   Seul du dispositif dans ce cas. Si le volume dérape, on **gate la production**, jamais le badge.
+6. **Le §2 de l'ADR-0030 n'est pas assoupli, il est PAYÉ** : le `new_count` de récence d'ELI5 reste
+   inéligible et reste **en page** ; le témoin vit sur `eli5_views`.
+7. **Matières compte le COURS, et rien d'autre.** La partie juste du motif « hub » est conservée :
+   fiches, capsules et cartes ont chacune leur entrée.
+8. **`content_markdown IS NOT NULL` rend le témoin MORTEL** (borne B2), ce n'est pas un
+   raffinement : 50 des 92 leçons validées de la base de dev rendent 404 sur `/cours`.
+9. **La partition des entrées est TOTALE** — les deux camps réunis font exactement `MASSIMO_NAV`.
+   Une 14ᵉ entrée devra trancher son camp. `MASSIMO_NAV` garde **13** entrées, `/galaxy` à l'index
+   10 (ADR-0024 §1 : ajouter des témoins n'est pas ajouter des onglets).
+10. **Le regard de l'agenda vit à `/agenda` seul.** §12.1, §12.2, §12.4 et §12.5 de l'addendum
+    ADR-0025 **ne sont pas rouverts**, et la granularité par élève ne bouge pas.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ✅ **~~LE VERBATIM EST TOUJOURS EN PRODUCTION~~ — DETTE FERMÉE le 2026-08-15.** Le bilan est passé
-  sur la prod : **rien à effacer**, `eli5_transcribe` n'y a jamais tourné. Cette dette a vécu une
-  journée et n'a jamais été vraie : elle est née d'une **prod injoignable**, pas d'une prod sale —
-  « non vérifié » avait été écrit en 🔴 comme s'il valait « fuite avérée ». ⚠️ Le piège reste
-  entier pour la suite : `DATABASE_URL` est ignorée **en silence** par l'app, seule
-  **`ZETIS_DATABASE_URL`** compte, et le discriminant est la 1ʳᵉ ligne de sortie (`postgres:5432`
-  et non `localhost:5432`). Procédure, codes de sortie et état par base : `scripts/README.md`.
-- 🔴 **La qualité du décodage glouton n'a jamais été JUGÉE sur une vraie voix.** Elle n'a été
-  mesurée que sur une voix de synthèse, qui articule trop bien. **Un seul point réel observé** :
-  « alternes-internes » transcrit « alternatifs interne » — rattrapé par ZETIS, mais c'est une
-  observation, pas une mesure. Repli si dégradation : `beam_size=2`, **pas** le retour à 5.
-- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré** sur de vraies données. **Son rôle a
-  GRANDI avec le §19** : sans notion résolue, la recherche porte sur **toutes les matières** et ce
-  seuil devient le seul garde-fou. À surveiller en premier si ZETIS s'ancre à côté.
-- ⚠️ **Les budgets de contexte n'ont pas été mesurés après élargissement** — de ~1200 à ~5000
-  caractères injectés, sur une base à 9,4 s.
-- ⚠️ **Le filtre RAG par NIVEAU est exposé mais désactivé** (`level` nullable : l'activer viderait
-  le RAG en silence). Condition d'activation écrite dans l'ADR §9.
-- ⚠️ **`_AVEUX_IGNORANCE` est une liste de formules** — elle n'attrape pas tout, et un moteur peut
-  la contourner avec d'autres mots. C'est un filet, pas une garantie.
-- ⚠️ **Les exposants LaTeX (`x^2`) ne sont pas traités** (§21) : ils se lisent, ils se disent mal.
-  À rouvrir si Massimo travaille les puissances.
-- ⚠️ **`lesson_matching_text` compare des mots EXACTS** : une faute de dictée ne mord pas. Sans
-  conséquence connue — le résolveur par embeddings, lui, encaisse très bien les fautes, et les deux
-  faiblesses sont indépendantes. À reconsidérer seulement si le cas composé se présente.
-- ⚠️ **Trois verrous ne prouvent que la moitié de ce qu'ils gardent**, et le disent : jsdom ne
-  mesure aucune géométrie (le défilement du §20) et ne charge pas la feuille de style (la classe du
-  bouton de sortie). La visibilité réelle a été vue à l'écran, pas testée.
-- ⚠️ **La sortie « stop » d'une interrogation n'a pas été jouée en vrai**, ni la clôture après
-  trois questions. Ouverture et question 2 sur 3 : vues. Le reste tient sur les tests.
+- 🔴 **La relecture visuelle n'a pas eu lieu** (voir en tête). Ce qu'il faut voir : Matières à `9+`,
+  ELI5 et Quiz **sans pastille**, et le badge Agenda qui **reste** sur l'Accueil.
+- ⚠️ **Les deux migrations sont en DEV seulement.** Leur point zéro lit l'état de la base **au
+  moment où elles tournent** : en prod elles marqueront vu ce qui existera ce jour-là. C'est
+  l'intention, mais les deux bases ne porteront pas les mêmes lignes. Procédure prod :
+  `scripts/README.md` (⚠️ `ZETIS_DATABASE_URL`, jamais `DATABASE_URL`).
+- ⚠️ **`servable_quiz_ids` est une SECONDE formulation** du filtre de `_servable_quizzes_of_subject`,
+  assumée pour ne pas faire une requête par quiz dans `news/summary`. Tenue par un test d'égalité
+  (N4) — si l'une évolue, l'autre doit suivre.
+- ⚠️ **Les deux migrations portent un miroir SQL** de `eligible_notion_ids` et `servable_quiz_ids`.
+  Joué une seule fois à la pose, jamais re-synchronisé — c'est écrit dans les migrations.
+- ⚠️ **Le badge Matières démarre à 32 et n'a pas de mécanisme de dégonflage** autre que l'usage.
+  Signal de sortie écrit dans la borne B3 : **encore `9+` dans deux mois** → retirer le témoin ou
+  restreindre sa population, **jamais** monter le plafond.
+- ⚠️ **`_seed_programme` ne sème qu'UN quiz de mission et UN diagnostic.** Suffisant pour les
+  verrous actuels ; un futur compteur qui distinguerait plusieurs matières y serait à vide.
 
-**Remontées de l'ADR-0058 (élagué ce jour, PR #133, squash `0cd0a9a`) :**
+**Remontées de l'ADR-0059 (élagué ce jour — les quatre contrôles passent : ADR ✅,
+`TROUBLESHOOTING.md` §ADR-0059 ✅, `CHANGELOG.md` 0.93.0 ✅) :**
 
-- ⚠️ **Deux messages de panne COEXISTENT** à l'écran (pont + porte) — correct, décrit nulle part.
-- ⚠️ **Le style des messages d'échec n'est encadré par AUCUNE règle** — `voix-de-zetis.test.ts`
-  n'interdit qu'un mot, « papa ».
+- 🔴 **La qualité du décodage glouton n'a jamais été JUGÉE sur une vraie voix** — seulement sur une
+  voix de synthèse, qui articule trop bien. Repli si dégradation : `beam_size=2`, **pas** 5.
+  *C'était le « premier pas ouvert » de la clôture précédente ; il l'est toujours.*
+- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré**, et **son rôle a grandi avec le §19** :
+  sans notion résolue la recherche porte sur toutes les matières, ce seuil devient le seul
+  garde-fou. À surveiller en premier si ZETIS s'ancre à côté.
+- ⚠️ Budgets de contexte non mesurés après élargissement (~1200 → ~5000 caractères, base 9,4 s) ·
+  filtre RAG par **niveau** exposé mais désactivé · `_AVEUX_IGNORANCE` est un filet, pas une
+  garantie · exposants LaTeX (`x^2`) non traités · `lesson_matching_text` compare des mots
+  **exacts** · trois verrous ne prouvent que la moitié de ce qu'ils gardent (jsdom ne mesure
+  aucune géométrie) · la sortie « stop » d'une interrogation et la clôture après trois questions
+  **n'ont pas été jouées en vrai**.
+- ⚠️ Remontées de l'ADR-0058 : deux messages de panne **coexistent** à l'écran (correct, décrit
+  nulle part) · le style des messages d'échec n'est encadré par **aucune** règle.
 
 **Remontées plus anciennes, toujours ouvertes :**
 
-- 🔴 **LA DETTE DATÉE A EXPIRÉ** : la vérification du masquage SRS devait se faire le 2026-08-15.
+- 🔴 **DETTE DATÉE EXPIRÉE** : la vérification du masquage SRS devait se faire le 2026-08-15.
   **Plus jouable sous cette forme** — à reformuler sur d'autres cartes, ou à clore en disant ce
   qu'on ne saura pas.
-- 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche.**
-- 🔴 **Deux dettes à une ligne** : la copie de `groupCapsules.ts` chez **Papa** (un import) ·
-  `showSubjectHeader` sur **`/quiz`** (une prop — seule page du motif à ne pas l'avoir).
-- 🔴 **L'enrichissement des fiches par lot** (addendum `adr-0015` §11) : **trois points à
-  trancher**, demande un `/cadrage`.
-- ⚠️ **« Sans chapitre » vaut 19 % en Maths** (4 sur 21) — signal n° 1 de l'addendum missions.
-- ⚠️ Le repli `subject: ""` du champion · deux missions en double en base (dev) · tri par TYPE
-  écarté, à reconsidérer en filtre secondaire.
-- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision`.
-- ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse).
-- ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`.**
-- ⚠️ Le **quota du mélange du jour** n'est pas arbitré (`adr-0056` §5) · le **trou d'un jour** du
-  masquage · le **doute** sur le brouillon 51.
-- ⚠️ Le **corrigé de ZETIS** reporté · `FicheSidePanel` sans porte · **brouillon 54** porte 3
-  points-clés de démonstration.
-- ⚠️ **L'`adr-0054` garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
-  compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours**
-  impossible dès qu'une fiche personnelle existe · **aucun linter Python**.
-- **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
+- 🔴 Le **prompt v2 des fiches** n'a jamais généré une fiche · **deux dettes à une ligne** (copie de
+  `groupCapsules.ts` chez Papa · `showSubjectHeader` sur `/quiz`) · **l'enrichissement des fiches
+  par lot** (addendum `adr-0015` §11) demande un `/cadrage`.
+- ⚠️ « Sans chapitre » vaut 19 % en Maths · repli `subject: ""` du champion · deux missions en
+  double (dev) · tuiles de chapitre à icône unique sur `/revision` ·
+  `chapter_servable_counts` n'est pas un vrai lot · titre de page figé pendant une recherche sur
+  `/fiches` · quota du mélange du jour non arbitré · trou d'un jour du masquage · brouillons 51 et
+  54 · l'`adr-0054` garde deux comptes faux · pied de fiche à 5 lignes en 375 px · `review_load`
+  compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours
+  impossible dès qu'une fiche personnelle existe** · **aucun linter Python** · `page-quiz.md`
+  (spec absente).
 
-**Observation de clôture, non traitée :** `MEMORY.md` porte **~1370 lignes de sections
-« ⬆️ REMONTÉ »** accumulées par les élagages précédents, pour ~150 lignes d'actif. C'est
-exactement le motif que `/cloture` §1bis décrit (*« cimetière à dettes »*), déplacé d'un cran :
-ce ne sont plus les sections de chantier qui s'empilent, ce sont leurs résidus. **Non élagué ici**
-— ce serait une suppression massive hors du périmètre de cette clôture.
+**Observation de clôture, reconduite et NON traitée** : `MEMORY.md` porte toujours ~1200 lignes de
+sections « ⬆️ REMONTÉ » pour ~200 lignes d'actif. Le motif que `/cloture` §1bis décrit
+(*« cimetière à dettes »*) s'est déplacé d'un cran : ce ne sont plus les sections de chantier qui
+s'empilent, ce sont leurs résidus. **Deuxième clôture consécutive à le constater sans le traiter** —
+ce serait une suppression massive hors périmètre, et elle mérite sa propre session.
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée.** Paire `backend` (:8000) + `massimo` (:5173) vivante, ⚠️ elle **meurt
-avec la session**.
+**Infra Docker allumée** (postgres/redis/minio). Paire `backend-dev` (:8001) + `massimo-dev`
+(:5176) lancée pour la vérification, ⚠️ elle **meurt avec la session**.
 
-⚠️ **Ce chantier n'a RIEN écrit en base** — sauf ce que les essais ont produit naturellement :
-quelques `content_requests` et `ai_jobs` (`chat_transcribe` aveugles au contenu, `chat_turn`,
-`chat_recall`). Aucune migration, aucune donnée de test injectée. **Une ligne sonde** posée pour
-exercer le script de purge a été **retirée** — vérifié : 78 `eli5_transcribe`, comme avant.
+**Ce que le chantier a écrit en base de dev**, et qui y reste :
+
+| Table | Lignes | Origine |
+|---|---|---|
+| `eli5_views` | **267** | point zéro de `f8a9b0c1d2e3` |
+| `quiz_views` | **37** | point zéro de `f9a0b1c2d3e4` |
+| `lesson_views` | 10 | **inchangé** — aucun point zéro, c'est la décision |
+
+⚠️ **Les mutations de la preuve live ont TOUTES été rendues** : la leçon marquée vue a été
+dé-marquée, les vues supprimées ont été reposées, la tentative de quiz et l'item d'agenda `[verif]`
+ont été supprimés. Vérifié après coup : 267 / 37 / 10, identique à l'après-migration. ⚠️ Le
+watermark `agenda_last_seen_at` a en revanche **avancé** — sans conséquence, c'est son métier.
 
 **Suites lancées APRÈS la dernière modification de code :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1370** ✅ |
-| Massimo `vitest` | **798** ✅ |
-| `tsc -b` Massimo | ✅ |
-| Papa `vitest` · `tsc -b` | ⚠️ **NON RELANCÉS** depuis les correctifs §19–§21 — aucun fichier Papa touché de tout le chantier |
+| backend `pytest` | **1381** ✅ |
+| Massimo `vitest` | **807** ✅ |
+| `tsc -b` Massimo et Papa | ✅ |
+| Papa `vitest` | **814** ✅ — lancé plus tôt dans la session ; **aucun fichier Papa n'a été touché** de tout le chantier |
 
-⚠️ Les docs de clôture (MEMORY, TROUBLESHOOTING, PROJECT_STRUCTURE) sont écrites **après** ce run ;
-elles ne touchent aucun code.
+**Dix sabotages joués, dix rouges** — mais **deux sont sortis verts au premier essai**, et ils ne
+disaient pas la même chose : l'un était **mal visé** (il passait par `globalThis`, hors du mock),
+l'autre a révélé un **décor dégénéré** (un seul quiz en base). Détail : `TROUBLESHOOTING.md`.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus.
-
-1. ✅ **La purge de production est SOLDÉE — 2026-08-15, rien à effacer.** Ce point était le seul
-   🔴 du chantier ; il est clos, et **aucun `--apply` n'a été nécessaire**. La prod est propre pour
-   une raison vérifiée : **`eli5_transcribe` n'existe pas dans ses `ai_jobs`** — la dictée n'a
-   jamais été exercée contre cette pile, donc la fuite de l'ADR-0059 §18 n'y a jamais eu lieu.
-   ⚠️ **Le vert a été corroboré, pas cru sur parole** : la table compte 113 lignes (dont 103 avec
-   `output_json`, 10 `job_type`), donc « rien à effacer » n'est pas « table vide » — la confusion
-   des deux est le motif de faux-vert le plus fréquent de ce dépôt.
-   Bénéfice second : la commande de prod de `scripts/README.md`, jusque-là **seulement dérivée** du
-   compose et du Dockerfile, est désormais **vérifiée à l'usage**. Détail et pièges là-bas ; deux
-   à retenir — monter **`postgres` seul** (lever la pile ferait `alembic upgrade head` sur la prod),
-   et ne rien accoler à la commande (une queue `; echo $?` casse le préfixe de permission et fait
-   refuser le classifieur).
-   📄 Consigné en décision : `docs/decisions/adr-0059-addendum-la-production-etait-deja-propre.md`
-   (clôt la réserve du §18 sans rien révoquer), **indexé dans `DECISIONS.md`** ✅.
-2. **Juger la qualité du décodage glouton sur une vraie voix** — **désormais le premier pas ouvert**,
-   et seule dette du chantier qui touche la **justesse** de ce que ZETIS comprend. Repli :
-   `beam_size=2`, jamais le retour à 5.
-3. Puis **`/ouverture`** sur le chantier suivant. Le reste des dettes est nommé ci-dessus.
-   ⚠️ Au 2026-08-15, **aucun ADR cadré et non livré** n'existe dans `docs/decisions/` : le dernier
-   (ADR-0059) est celui du chantier mergé. Le chantier suivant se choisit au `BACKLOG.md`, et s'il
-   n'a pas d'ADR, la prochaine session est une session de **cadrage** sur `main` — pas un
-   `/ouverture`.
+1. 🔴 **Relecture visuelle des badges** — `backend-dev` :8001 + `massimo-dev` :5176, se connecter,
+   regarder. **Avant la PR, pas après.**
+2. `git push origin main` — le commit de cadrage `4dffacf` part **seul et en premier**.
+3. `git push -u origin feat/trois-temoins-de-plus`, puis PR.
+4. Après le merge : **étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR, branche supprimée, et
+   **appliquer les deux migrations en production** (dette ci-dessus).
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.

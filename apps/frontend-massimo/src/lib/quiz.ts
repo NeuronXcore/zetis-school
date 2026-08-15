@@ -11,6 +11,7 @@ import {
   type StudentQuizListItem,
 } from "@zetis/types";
 import { API_URL, authClient } from "./authClient";
+import { notifyNewsChanged } from "./newsEvents";
 
 function headers(withBody = false): HeadersInit {
   const token = authClient.getToken();
@@ -52,9 +53,37 @@ export async function fetchSubjectQuizzes(subjectSlug: string): Promise<StudentQ
   );
 }
 
-/** `GET /api/student/quiz/{id}` — un quiz jouable par id (deep-link mission ; questions sans clé). */
+/** `GET /api/student/quiz/{id}` — un quiz jouable par id (deep-link mission ; questions sans clé).
+ *
+ *  🔴 **C'est ICI que le témoin de navigation Quiz retombe, et pas à `startQuizAttempt`.** Ouvrir
+ *  est un REGARD ; commencer une tentative est du TRAVAIL, et un témoin qui meurt du travail
+ *  grossit quand Massimo ne vient pas (`adr-0030 §1`, borne 1 de l'addendum Quiz). Déplacer ce
+ *  marquage d'une ligne plus bas retournerait le témoin dans la colonne interdite.
+ *
+ *  Entonnoir unique : cette fonction couvre les quatre ouvertures réelles (page `/quiz`, deep-link
+ *  `?quiz=`, ouverture depuis une notion, modale de mission). L'émission vit donc dans `lib/`. */
 export async function fetchQuizById(quizId: number): Promise<StudentQuiz> {
-  return asJson(await fetch(`${API_URL}/api/student/quiz/${quizId}`, { headers: headers() }));
+  const quiz = await asJson<StudentQuiz>(
+    await fetch(`${API_URL}/api/student/quiz/${quizId}`, { headers: headers() }),
+  );
+  await markQuizSeen(quizId);
+  return quiz;
+}
+
+/** `POST /api/student/quiz/{id}/seen` — ce quiz a été ouvert.
+ *
+ *  Échec silencieux : un marquage raté laisse un badge de trop, sans gravité ; empêcher Massimo
+ *  d'ouvrir son quiz pour ça le serait. */
+async function markQuizSeen(quizId: number): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/student/quiz/${quizId}/seen`, {
+      method: "POST",
+      headers: headers(),
+    });
+    notifyNewsChanged();
+  } catch {
+    // réseau indisponible : le témoin se corrigera au prochain regard
+  }
 }
 
 /** `POST /api/student/quizzes/{id}/attempts` — démarre une tentative. */

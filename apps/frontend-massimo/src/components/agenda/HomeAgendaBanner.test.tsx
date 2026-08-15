@@ -78,10 +78,20 @@ describe("HomeAgendaBanner — « À préparer »", () => {
     expect(screen.queryByText(/ajoute/i)).toBeNull();
   });
 
-  it("marque l'agenda vu — le rendu du bandeau EST un regard (addendum §12.3)", async () => {
+  it("ne marque PAS l'agenda vu — le regard vit à /agenda seul (adr-0025-addendum-le-regard-vit-a-l-agenda)", async () => {
+    // ~~« marque l'agenda vu — le rendu du bandeau EST un regard (addendum §12.3) »~~ — INVERSÉ le
+    // 2026-08-15. L'ancienne raison est gardée barrée, pas effacée : le §12.3 argumentait ses deux
+    // surfaces (« n'en retenir qu'une ferait mentir le badge sur ce qu'il a déjà lu »), et un test
+    // inversé qui ne dit pas pourquoi est un test perdu.
+    //
+    // Ce que le §12.3 n'avait pas mesuré : l'Accueil est la page d'atterrissage, donc le témoin
+    // était éteint avant d'avoir été vu — il n'a jamais existé pour personne. Et le bandeau ne
+    // montre qu'un EXTRAIT (aujourd'hui/demain + à-venir tronqué), pas ce qui est arrivé : il
+    // marquait donc vu ce que Massimo n'avait pas pu lire.
     fetchAgendaUpcoming.mockResolvedValue([upcomingItem()]);
     renderBanner();
-    await waitFor(() => expect(markAgendaSeen).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText("Contrôle de maths")).toBeInTheDocument());
+    expect(markAgendaSeen).not.toHaveBeenCalled();
   });
 
   it("reste affiché si « ce qui arrive » échoue", async () => {

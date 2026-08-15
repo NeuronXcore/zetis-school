@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -23,6 +23,7 @@ from app.db.models import (
     QuizAnswer,
     QuizAttempt,
     QuizQuestion,
+    QuizView,
     SchoolYear,
     SchoolYearSubject,
     Skill,
@@ -849,6 +850,89 @@ def _servable_quizzes_of_subject(db: Session, subject_id: int) -> list[tuple[Qui
             continue
         out.append((quiz, questions))
     return out
+
+
+def servable_quiz_ids(db: Session) -> list[int]:
+    """Ids des quiz jouables, TOUTES matières, en UNE requête ensembliste.
+
+    🔴 **Seconde formulation du filtre de `_servable_quizzes_of_subject`, et c'est assumé.** La
+    docstring d'à côté prévient que « deux formulations d'un même filtre finissent toujours par
+    diverger » ; elle a raison, et c'est pourquoi les deux sont liées par un **test d'égalité**
+    contre `list_student_quiz_index` (patron `new_fiches_count` / `fiches_summary`).
+
+    Le motif de la duplication : la fonction d'à côté fait une requête **par quiz** pour ses
+    questions (37 quiz en base de dev). C'est acceptable sur `/quiz`, pas dans
+    `GET /api/student/news/summary`, qui est monté au shell de la page la plus visitée et qu'un
+    ADR entier existe pour maintenir à UN aller-retour.
+    """
+    year = _active_year(db)
+    if year is None:
+        return []
+    return list(
+        db.scalars(
+            select(Quiz.id)
+            .join(Lesson, Lesson.id == Quiz.lesson_id)
+            .join(Chapter, Chapter.id == Lesson.chapter_id)
+            .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+            .where(
+                SchoolYearSubject.school_year_id == year.id,
+                Chapter.validation_status == "validated",
+                Lesson.status == "validated",
+                Quiz.quiz_type == QUIZ_TYPE_MISSION,
+                Quiz.status != "archived",
+                exists()
+                .where(QuizQuestion.quiz_id == Quiz.id, QuizQuestion.status == "active")
+                .correlate(Quiz),
+            )
+        )
+    )
+
+
+def mark_quiz_seen(db: Session, student_id: int, quiz_id: int) -> None:
+    """Marque le quiz ouvert (idempotent). 404 si le quiz n'est pas jouable.
+
+    Idempotent par la ligne, patron `mindmaps.service.mark_seen`. C'est le geste qui éteint le
+    témoin de navigation Quiz (`adr-0030-addendum-temoin-quiz`).
+    """
+    if quiz_id not in servable_quiz_ids(db):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Quiz introuvable.")
+    existing = db.scalar(
+        select(QuizView).where(QuizView.student_id == student_id, QuizView.quiz_id == quiz_id)
+    )
+    if existing is None:
+        db.add(
+            QuizView(
+                student_id=student_id,
+                quiz_id=quiz_id,
+                seen_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+
+def new_quizzes_count(db: Session, student_id: int) -> int:
+    """Quiz jouables JAMAIS OUVERTS — témoin de navigation.
+
+    `adr-0030 §3`, amendé par `adr-0030-addendum-temoin-quiz.md`.
+
+    🔴 **`QuizAttempt` N'APPARAÎT PAS ICI, et c'est la borne 1 de l'addendum.** Compter les quiz
+    « pas encore passés » ferait un compteur qui meurt du TRAVAIL et grossit quand Massimo ne vient
+    pas : la colonne interdite de l'`adr-0030 §1`. Le dispositif compte **une** exception
+    (`diagnostic`), elle est nommée, et celle-ci n'en est pas — ce témoin meurt de l'OUVERTURE.
+    Conséquence assumée : ouvrir un quiz puis l'abandonner sans répondre l'éteint quand même.
+
+    ⚠️ **Le gate de naissance n'est pas une validation de Papa.** Un quiz de mission vaut
+    `validated` dès sa génération (`adr-0044 §7`) : ce témoin naît d'une **PRODUCTION**. Papa n'en
+    est donc pas le robinet, à la différence de tous les autres — écrit dans l'addendum (borne 4)
+    pour être surveillé. Si le volume dérape, on gate la production, jamais le badge.
+
+    Le point zéro posé à la migration `f9a0b1c2d3e4` fait démarrer ce témoin à **0**.
+    """
+    ids = servable_quiz_ids(db)
+    if not ids:
+        return 0
+    vus = select(QuizView.quiz_id).where(QuizView.student_id == student_id)
+    return db.scalar(select(func.count(Quiz.id)).where(Quiz.id.in_(ids), Quiz.id.not_in(vus))) or 0
 
 
 def list_student_quizzes(db: Session, subject_slug: str) -> list[dict]:
