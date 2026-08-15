@@ -14,7 +14,7 @@
 | Fait | Vérifié les 2026-08-14 et 15 |
 |---|---|
 | 🔴 **Deux boutons, une seule destination** | « C'est fini, je la garde » **et** « J'ai fini pour aujourd'hui » font tous deux `retourAuDeck()` (`AtelierPage.tsx:740` et `:748`) |
-| 🔴 **Le défaut 4 est RÉALISÉ en base** | brouillons **id=54** (v3, leçon 1) et **id=59** (v4, leçon 7), **vides**, derrière des fiches finies |
+| 🔴 **Le défaut 4 est RÉALISÉ en base — UNE fois** | **id=59** (v4, leçon 7) est vide derrière trois fiches finies. ⚠️ **id=54** (leçon 1) porte des **`points_cles`** : c'est **du travail**, à ne PAS toucher |
 | 🔴 **La porte « sûre » rend le vide** | `rework` fait `if en_cours is not None: return` (`atelier.py:330`) — et `en_cours`, c'est le fantôme |
 | 🔴 **55 tests backend sur l'atelier, ZÉRO sur « ouvrir après avoir fini »** | il y a `ouvrir_deux_fois`, `retravailler_cree_une_version`… et pas celui-là |
 | Le patron `busy` existe **à trois lignes** du pont | `porte={{ …, busy: porteEnCours }}` (`FicheSubjectPage.tsx`) |
@@ -36,13 +36,25 @@ fiche **finie** existe, **délègue à `rework`**. Ce qu'il faut tenir en le fai
    au milieu de ces mécanismes. Si tu te retrouves à en déplacer un, arrête-toi.
 3. 🔴 **Le §5 est une SECONDE règle, pas la même** : un brouillon **qui existe déjà** et qui est
    **vide**, sur une leçon portant une fiche finie, se **repeuple** depuis la dernière finie. Sans
-   elle, les deux fantômes survivent au chantier — ils sont des brouillons, donc la branche du §4
-   ne les voit même pas.
+   elle, le fantôme survit au chantier — c'est un brouillon, donc la branche du §4 ne le voit même
+   pas.
 
-⚠️ **« Vide » se lit sur les SIX sections** (`essentiel`, `definitions`, `pieges`, `exemple`,
-`methode`, `mnemonique`) — **jamais** sur le décor (titre, matière, niveau, chapitre), pré-rempli
-par construction. Se tromper ici, c'est repeupler un brouillon **rempli** : le pire résultat
-possible du chantier, et son **signal d'erreur n° 3**.
+### 🔴 « VIDE » SE DÉRIVE DU SCHÉMA — et cette phrase a déjà sauvé du travail
+
+```python
+DECOR = {"title", "subject", "level", "chapter"}
+TRAVAIL = tuple(k for k in FicheDraft.model_fields if k not in DECOR)
+# → essentiel · definitions · points_cles · erreurs_a_eviter · mini_exemple · mnemonique
+```
+
+🔴 **N'écris JAMAIS cette liste à la main.** L'ADR et la spec ont porté pendant une journée trois
+champs qui **n'existent pas** (`pieges`, `exemple`, `methode` — les libellés des **étapes à
+l'écran**). Un prédicat écrit sur eux aurait lu trois champs absents, déclaré **vide** le brouillon
+**id=54** — qui porte des `points_cles` — et **écrasé le travail de Massimo**. C'est le **signal
+d'erreur n° 3** de l'ADR, qui était écrit **dans l'ADR lui-même**.
+
+⚠️ Dériver du schéma survit en plus à l'ajout d'une septième section ; une liste en dur
+redeviendrait fausse **en silence**.
 
 ---
 
@@ -78,17 +90,27 @@ devrait pas bouger*, et s'il bouge, dis pourquoi.
    cessé de marcher.
 3. 🔴 **Un brouillon REMPLI n'est JAMAIS repeuplé** — le signal d'erreur n° 3, en verrou.
    ⚠️ **Décor : une seule section remplie**, et une seule, pour prouver que le seuil est « au moins
-   une » et non « toutes ».
+   une » et non « toutes ». 🔴 **Et que ce soit `points_cles`** — le champ exact que le prédicat
+   faux ne voyait pas, et celui que porte le vrai brouillon id=54.
 4. ⚠️ **Le décor doit distinguer sections et décor** : un brouillon dont **seul** le titre/la
    matière est rempli est **vide**. Sans ce cas, la règle du §5 pourrait tester le décor sans que
    rien ne rougisse.
+4bis. 🔴 **Un verrou sur la LISTE elle-même** : que les champs de travail soient bien
+   `FicheDraft.model_fields` **moins** le décor. *Sabotage : écrire la liste en dur et y remettre
+   `pieges` → rouge.* C'est le seul test qui empêche l'erreur de revenir par copier-coller.
 5. **`finish` réussi → la fiche ; `finish` en 422 → on reste.** *Sabotage : naviguer aussi sur le
    422 → rouge.*
 6. **Le pont dit qu'il travaille, et dit qu'il a échoué.** *Sabotage : rétablir le `catch {}` vide
    → rouge.*
 7. **Les 55 + 28 + 26 tests existants passent SANS être touchés.** Rends les deux chiffres.
-8. 🔴 **RECETTE SUR LES DEUX CAS RÉELS** — après le chantier, ouvrir l'atelier sur la **leçon 1**
-   doit rendre le travail de la v2, et sur la **leçon 7** celui de la v3. En base, pas en test.
+8. 🔴 **RECETTE SUR LES DEUX CAS RÉELS — et ils ne demandent PAS la même chose.**
+   - **leçon 7** (fantôme id=59) : ouvrir l'atelier doit rendre le **travail de la v3**. C'est la
+     réparation.
+   - **leçon 1** (brouillon id=54, qui porte des `points_cles`) : ouvrir l'atelier doit rendre
+     **ses `points_cles` INCHANGÉS**. C'est la **non-régression**, et c'est le cas qui compte le
+     plus : s'il échoue, on a détruit du travail.
+
+   En base, pas en test. ⚠️ **Vérifie l'état AVANT**, pour pouvoir comparer.
 
 ---
 
@@ -98,7 +120,13 @@ devrait pas bouger*, et s'il bouge, dis pourquoi.
    annonçait **0 cas** là où il y en a deux. Toute requête que tu écris sur les brouillons doit
    utiliser `draft_of_student` ou `STATUS_DRAFT`, jamais une chaîne écrite à la main.
 2. 🔴 **Repeupler un brouillon rempli détruit du travail** — c'est le seul risque irréversible de
-   ce chantier. Le verrou 3 existe pour ça.
+   ce chantier, et **il a failli se produire depuis le texte de l'ADR**. Les verrous 3 et 4bis
+   existent pour ça.
+2bis. 🔴 **La spec s'est contredite d'une section à l'autre** : elle nommait `pieges`/`exemple`/
+   `methode` au §7, et donnait les **vrais** noms quatre-vingts lignes plus haut (§4d : *« le reste
+   du `FicheSpec` est nommé en français — `points_cles`, `erreurs_a_eviter`, `mini_exemple` »*).
+   **La bonne réponse était dans le fichier qu'on éditait.** Quand deux passages d'un même document
+   divergent, c'est **le code** qui tranche.
 3. ⚠️ **`rework` rend le brouillon en cours quand il existe** : c'est pour ça que les deux portes
    désamorcées ne protègent plus rien aujourd'hui. Ne « corrige » pas ce comportement — c'est
    `open_or_get_draft` qui doit ne plus créer le vide, et le §5 qui répare l'existant.

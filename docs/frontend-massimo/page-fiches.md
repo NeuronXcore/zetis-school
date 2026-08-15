@@ -291,9 +291,18 @@ fiche, que l'entrée soit la tuile, le cours, une URL collée, un retour arrièr
 > quelque chose existe** (`adr-0058` §4).
 >
 > 🔴 **Un brouillon VIDE sur une leçon qui porte une fiche finie se repeuple depuis la dernière
-> finie.** « Vide » se lit sur les **six sections** (`essentiel`, `definitions`, `pieges`,
-> `exemple`, `methode`, `mnemonique`), **jamais** sur le décor — titre, matière, niveau, chapitre
-> sont pré-remplis par construction et ne disent rien du travail de Massimo.
+> finie.** ⚠️ **« Vide » se DÉRIVE du schéma**, jamais d'une liste recopiée :
+> `FicheDraft.model_fields` **moins le décor** (`title`, `subject`, `level`, `chapter`) — pré-rempli
+> par construction, il ne dit rien du travail de Massimo. Les champs de travail sont donc
+> `essentiel`, `definitions`, `points_cles`, `erreurs_a_eviter`, `mini_exemple`, `mnemonique`.
+>
+> 🔴 **Ce paragraphe a porté trois noms FAUX pendant une journée** — `pieges`, `exemple`, `methode`,
+> qui sont les libellés des **étapes à l'écran** et non les champs du schéma. Un prédicat écrit sur
+> eux aurait lu trois champs absents, déclaré vide un brouillon qui ne l'est pas, et **écrasé du
+> travail**. ⚠️ **La bonne réponse était déjà dans ce fichier**, quatre-vingts lignes plus haut
+> (§4d : *« le reste du `FicheSpec` est nommé en français — `points_cles`, `erreurs_a_eviter`,
+> `mini_exemple` »*). *Une spec qui se contredit d'une section à l'autre est plus dangereuse qu'une
+> spec muette* — c'est pour ça que la règle dérive maintenant du code, pas du texte.
 
 Note de trajectoire sous la fiche, jamais un score : « **3 phrases recopiées → 0** ». C'est le
 seul endroit du produit qui montre « sait-il ce qui compte » plutôt que « sait-il répondre ».
