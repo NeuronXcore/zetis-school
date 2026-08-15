@@ -6,21 +6,19 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 🚧 CHANTIER COMPLET — ZETIS répond vite, ouvre la ressource exacte, et interroge (ADR-0059)
+### ✅ CHANTIER MERGÉ — ZETIS répond vite, ouvre la ressource exacte, et interroge (ADR-0059)
 
-**Branche `feat/zetis-repond-vite`, base `a0f39c8`. PR
-[#134](https://github.com/NeuronXcore/zetis-school/pull/134) OUVERTE — pas encore mergée.**
-Commits du chantier : `git log --oneline main..HEAD`.
+**Mergé dans `main` le 2026-08-15 — PR
+[#134](https://github.com/NeuronXcore/zetis-school/pull/134), squash `22f2c1b`.**
+Branche `feat/zetis-repond-vite` **supprimée** (locale et distante), base `a0f39c8`.
+`main` est à jour avec `origin` : **rien à pousser**.
 
-> ✅ **`main` est POUSSÉ** (`a0f39c8` identique en local et sur `origin`), et la branche aussi.
-> ⚠️ **La PR affiche 9 commits et 48 fichiers, alors que le delta réel vs `main` est de 8 commits
-> et 47 fichiers.** Ce n'est pas une anomalie : GitHub a enregistré la base de la PR *avant* le
-> push de `main`, et continue d'afficher le diff contre cette base figée (`026929f`). Le fichier
-> en trop est `DECISIONS.md`, déjà sur `main` à l'identique. Le squash n'en sera pas affecté.
+⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
 
-> ✅ **LES VÉRIFICATIONS DUES SONT FAITES** — relecture visuelle en 375 px et interrogation orale
-> jouée en vrai. C'est le premier chantier d'interface du dépôt à ne PAS partir en aveugle.
-> Elles ont produit **trois défauts de plus**, tous corrigés (§19–§21 de l'ADR).
+> ✅ **LES VÉRIFICATIONS DUES ONT ÉTÉ FAITES AVANT LE MERGE** — relecture visuelle en 375 px et
+> interrogation orale jouée en vrai. C'est le **premier chantier d'interface du dépôt à ne pas
+> partir en aveugle** ; les cinq précédents l'ont tous regretté. Elles ont produit **trois défauts
+> de plus**, tous corrigés avant le merge (§19–§21 de l'ADR).
 
 #### ✅ FAIT
 
@@ -217,16 +215,16 @@ elles ne touchent aucun code.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **complet, poussé, et vérifié à l'écran**. Les deux blocages du merge sont levés.
+Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus.
 
-1. **MERGER la PR #134** (squash). Rien ne l'attend plus : `main` est poussé, la relecture visuelle
-   est faite, l'interrogation orale a été jouée.
-2. **Étape 4bis** immédiatement après (`WORKFLOW.md §5`) : remettre `MEMORY.md` au réel — squash,
-   branche supprimée, « rien à pousser ». **Ce paragraphe-ci sera faux dès le merge.**
-3. 🔴 **Passer `purge_chat_verbatim.py --apply` sur la PRODUCTION.** C'est le seul travail
-   réellement ouvert de ce chantier, et il porte sur la vie privée de Massimo.
-4. Le reste des dettes est nommé ci-dessus ; **la seule qui touche la justesse** est la qualité du
-   décodage glouton, jamais jugée sur une vraie voix.
+1. 🔴 **Passer `purge_chat_verbatim.py --apply` sur la PRODUCTION.** Seul travail réellement ouvert
+   de ce chantier, et il porte sur la **vie privée de Massimo** — donc prioritaire sur toute
+   nouvelle fonctionnalité. Le dev est fait ; la prod n'était pas joignable depuis la session.
+   ⚠️ **`ZETIS_DATABASE_URL`**, jamais `DATABASE_URL` (ignorée en silence par l'app). Bilan sans
+   `--apply` d'abord — sans risque. Procédure : `scripts/README.md`.
+2. **Juger la qualité du décodage glouton sur une vraie voix** — seule dette du chantier qui touche
+   la **justesse** de ce que ZETIS comprend. Repli : `beam_size=2`, jamais le retour à 5.
+3. Puis **`/ouverture`** sur le chantier suivant. Le reste des dettes est nommé ci-dessus.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
