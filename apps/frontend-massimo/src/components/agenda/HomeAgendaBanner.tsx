@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { type AgendaItemStudent, type AgendaUpcomingItem } from "@zetis/types";
-import { fetchAgendaItems, fetchAgendaUpcoming, markAgendaSeen } from "../../lib/agenda";
+import { fetchAgendaItems, fetchAgendaUpcoming } from "../../lib/agenda";
 import {
   addDays,
   bannerItems,
@@ -50,16 +50,22 @@ export function HomeAgendaBanner() {
         .then((rows) => setUpcoming(bannerUpcoming(rows)))
         .catch(() => setUpcoming([])),
     ])
-      .finally(() => {
-        setLoaded(true);
-        // Rendre ce bandeau EST un regard (addendum ADR-0025 §12.3) : le témoin de l'entrée
-        // Agenda retombe. Conséquence assumée, pas un défaut — Massimo arrive sur l'Accueil par
-        // défaut, donc le badge Agenda n'y vit que quelques centaines de millisecondes. Ne
-        // marquer qu'à l'ouverture de `/agenda` ferait mentir le témoin sur ce qui a déjà été
-        // lu ici même ; l'utilité du badge est le cas où Papa saisit pendant que Massimo est
-        // déjà dans l'app.
-        void markAgendaSeen();
-      });
+      // 🔴 CE BANDEAU NE MARQUE PLUS L'AGENDA VU — `adr-0025-addendum-le-regard-vit-a-l-agenda`
+      // (2026-08-15), qui RÉVOQUE le second point d'écriture du §12.3.
+      //
+      // Il le faisait ici, dans ce `finally`. Massimo atterrissant sur l'Accueil, le témoin de
+      // l'entrée Agenda était éteint avant d'avoir fini de s'afficher — le commentaire d'origine
+      // l'écrivait lui-même (« il n'y vit que quelques centaines de millisecondes ») et l'assumait.
+      // Ce qu'il n'avait pas mesuré : cela ne laissait au témoin AUCUN cas d'usage réel.
+      //
+      // Le motif du §12.3 (« les deux surfaces où Massimo lit ce qui est arrivé ») est faux pour
+      // celle-ci : ce bandeau montre un EXTRAIT choisi sur un autre critère (aujourd'hui/demain +
+      // à-venir tronqué), quand le témoin compte ce qui est ARRIVÉ, sans considération d'échéance.
+      // Un devoir saisi ce matin pour dans trois semaines est nouveau ET absent d'ici.
+      //
+      // Le regard vit désormais à `useAgenda`, à l'ouverture de `/agenda` — la seule surface qui
+      // montre TOUT ce qui est arrivé. Ne pas le rétablir ici sans amender ce document.
+      .finally(() => setLoaded(true));
   }, []);
 
   if (!loaded) return null;
