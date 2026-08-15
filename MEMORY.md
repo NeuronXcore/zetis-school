@@ -6,109 +6,106 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — `/missions` se range par chapitre (ADR-0057 addendum, **la 5ᵉ et DERNIÈRE**)
+### ✅ CHANTIER COMPLET — la fiche répond quand on la touche (ADR-0058)
 
-**MERGÉ dans `main` le 2026-08-14 — PR [#132](https://github.com/NeuronXcore/zetis-school/pull/132),
-squash `ff3d843`.** Branche `feat/une-seule-facon-de-trouver-missions` **supprimée** (locale et
-distante), base d'origine `94d32df`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
+Branche **`feat/la-fiche-repond-quand-on-la-touche`**, base `70e9b7d`.
+**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
+committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Le motif « une seule façon de trouver » est **COMPLET** — Capsules
-> (étalon), Quiz, Fiches, Mindmaps, Révision, Missions — plus la galaxie qui l'avait déjà.
-> **L'ADR-0057 n'a plus aucun arbitrage en suspens.**
-> ✅ **Écran VU** : Maths rangée en 4 groupes, recherche traversante, écran 1 intact.
+> 🔴 **Trois défauts de l'ADR-0054 fermés d'un coup**, parce qu'ils n'en faisaient qu'un :
+> *un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute.*
 
 #### ✅ FAIT
 
 | Livré | Détail |
 |---|---|
-| `chapters_of_missions` (`missions/service.py`) | dérive le chapitre d'une **notion**, en lot |
-| 3 champs sur `MissionStudentOut` | `chapter`, `chapter_id`, **`subject_slug`** (qui manquait) |
-| Écran 2 de `/missions` | étagères par chapitre + recherche traversante |
-| 🔴 **6 tests de rendu, les PREMIERS de cette page** | ses 2 tests d'origine ne montaient pas le composant |
-| 7 verrous serveur | dont **le critère qui borne** : `Mission` ne gagne aucune colonne |
+| **§2** `finish` mène à la FICHE | `?fiche=<id>` ; le 422 **ne navigue pas** |
+| **§3** le pont s'occupe et se plaint | état `⏳ On y va…` + message ; le `catch {}` vide est tombé |
+| **§4** 🔴 **LA CAUSE** | `open_or_get_draft` **délègue à `rework`** quand une fiche finie existe |
+| **§5** le fantôme réparé | un brouillon **vide** derrière une fiche finie se **repeuple** |
+| `finished_of_student` | prédicat SQL, pendant de `draft_of_student` |
+| `champs_de_travail()` | 🔴 **dérivé de `FicheDraft.model_fields`**, jamais recopié |
+| 5 verrous backend + 5 tests front | dont **3 sur un bouton qui n'en avait aucun** |
 
-**Zéro migration** — et c'est vérifié mécaniquement par
-`test_aucune_migration_pour_ce_chantier`.
+**Zéro migration, zéro endpoint neuf, zéro appel LLM** — le critère du §6 a tenu.
 
 #### 🔬 CE QUE LA VÉRIFICATION A DONNÉ
 
 **Huit sabotages joués, huit rouges** (4 backend, 4 front).
 
-Le plus utile **rejoue l'erreur du cadrage** : retirer le gate `validated` fait passer les
-brouillons, exactement comme la première mesure — et deux verrous rougissent.
+🔴 **Le sabotage 3 est le décisif** : réécrire la liste des sections à la main, avec les noms de
+l'ADR, fait rougir *« un brouillon rempli n'est jamais repeuplé »*. Le bug qui aurait détruit le
+travail de Massimo est désormais attrapé par un test.
 
-🔴 **Un défaut corrigé la VEILLE, réintroduit le lendemain sur une autre page** :
-`showSubjectHeader={… && groupes.length > 1}` effaçait la provenance d'un résultat de recherche
-venu d'ailleurs. **Le premier test de rendu de la page l'a démenti dans la minute.** *Une
-correction dans un fichier ne se propage pas aux fichiers voisins.*
+✅ **RECETTE JOUÉE SUR LES DEUX CAS RÉELS, en base et à l'écran** — et ils demandaient l'inverse
+l'un de l'autre :
+- **leçon 7** (fantôme `id=59`) : **réparé** — « 4 étapes sur 6 ont quelque chose » à l'écran ;
+- **leçon 1** (`id=54`) : ses **3 `points_cles` INTACTS**, vus à l'écran (« 1 étape sur 5 »).
 
-✅ **Écran VU, sur les vraies données** : Maths passe de 21 missions à la file à **Nombres relatifs
-10 · Fractions 6 · Sans chapitre 4 · Géométrie 1** · « Sans chapitre » **en dernier**, et **pas le
-plus gros groupe** (signal n° 1 non déclenché) · « participe » depuis les Maths ramène 3 missions
-de Français sous l'en-tête qui les nomme · **écran 1 intact** (🎯 Mission du jour, 🏆 « Plusieurs
-matières », aucun champ de recherche).
+✅ **Les trois moments du pont vus en vrai**, mesurés en cinq points : `⏳ On y va…` + inerte →
+message → bouton rejouable. **Et la porte aussi** — son message existait depuis l'ADR-0054 sans
+avoir **jamais** été affiché. ⚠️ Panne simulée en interceptant `fetch` : **324 cartes avant, 324
+après**, rien écrit.
 
-Détail : `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-missions` (**7 sous-sections**).
+Détail : `TROUBLESHOOTING.md` §`feat/la-fiche-repond-quand-on-la-touche` (**4 sous-sections**).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **Le chapitre se DÉRIVE, il ne se persiste jamais** (§4). `Mission` n'a aucune colonne de
-   chapitre : une notion change de chapitres dès qu'une leçon est validée.
-2. 🔴 **Zéro ou plusieurs chapitres → « Sans chapitre »**. On n'en choisit **jamais** un parmi
-   plusieurs — ce serait afficher du faux sous une apparence de certitude.
-3. **Le gate `validated` est à la charge de l'appelant** : `lessons_by_skill` rend les brouillons
-   **volontairement**, son contrat le dit.
-4. **Une `champion` dérive de ses ÉTAPES** (`MissionStep.skill_id`), n'ayant aucune notion propre ;
-   et elle garde son deck 🏆, hors de toute matière.
-5. **`showSubjectHeader={Boolean(cherche)}`** — la provenance s'affiche dès qu'on cherche, même
-   pour un résultat unique.
-6. Les décisions de l'ADR-0057 : recherche **cliente** sur le titre · portée « toute la page »
-   bornée par « emmener » · brique partagée, **aucune variante locale**.
+1. 🔴 **« Vide » se DÉRIVE du schéma**, jamais d'une liste recopiée. L'ADR en avait écrit une avec
+   **trois champs inexistants** (`pieges`, `exemple`, `methode` — les libellés des ÉTAPES).
+2. 🔴 **La règle vit dans le SERVICE, pas dans les portes** — on en avait déjà rapiécé deux.
+3. **`rework` n'est pas modifié** : son asymétrie est l'`adr-0054` §7. On lui délègue.
+4. **Le 422 ne navigue pas** : il dit ce qui manque, on reste dans l'atelier.
+5. **Les messages d'échec sont au style DOUX** — *« Tes cartes n'ont pas voulu se fabriquer »* —
+   arbitré le 2026-08-15, aligné sur `MatieresPage`, et appliqué **aux deux** pannes de l'écran.
+6. **Aucune migration, aucun endpoint neuf, aucun appel LLM** (§6).
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **« Sans chapitre » vaut 4 sur 21 en Maths (19 %)**, plus que les 10 % globaux — les Maths
-  concentrent les notions qui traversent le programme. Loin du signal d'alarme, mais **à
+- ⚠️ **Les deux messages de panne COEXISTENT** à l'écran (pont + porte) — vu à la vérification.
+  Correct, mais **décrit nulle part** : personne n'a décidé s'ils devaient s'effacer l'un l'autre.
+- ⚠️ **Le style des messages d'échec n'est encadré par AUCUNE règle** — `voix-de-zetis.test.ts`
+  balaie tout le code mais n'interdit qu'un mot, « papa ». Les trois messages sont alignés
+  aujourd'hui ; rien n'empêche le quatrième de diverger.
+- ⚠️ **Un test à moi a été modifié** — l'assertion sur le message du pont, écrite une heure plus
+  tôt dans cette même slice, suivie après l'arbitrage de vocabulaire. Aucun test **préexistant**
+  touché.
+
+**Remontées de la slice Missions (mergée, PR #132, squash `ff3d843`) — élaguée ce jour :**
+
+- ⚠️ **« Sans chapitre » vaut 4 sur 21 en Maths (19 %)**, plus que les 10 % globaux — **à
   surveiller** : le signal n° 1 de l'addendum est *« ça devient le plus gros groupe »*.
-- ⚠️ **Le repli `subject: ""` du champion** (`missions/service.py`) reste — signalé par l'addendum
-  §5, invisible tant que le deck 🏆 ne le lit pas. **Non traité.**
-- ⚠️ **Deux missions en double en base** (« Addition de fractions » ids 19/16, « Dénominateur
-  commun » ids 18/15) — **données de dev**, pas un bug. Papa a créé la même mission deux fois.
-- ⚠️ Le tri par **TYPE** de mission (Renforcer / Réviser / Découvrir / Sur mesure) reste écarté
-  comme premier niveau, **à reconsidérer en filtre secondaire** si « Sans chapitre » grossit.
-
-**Remontées de la slice Révision (mergée, PR #131, squash `7deaa6f`) — élaguée ce jour :**
-
-- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision` — celle de leur
-  matière, sous un en-tête qui la porte déjà. Y remédier demande d'inventer un visuel par
-  chapitre : **arbitrage non tranché**.
+- ⚠️ **Le repli `subject: ""` du champion** (`missions/service.py`) — signalé, non traité.
+- ⚠️ **Deux missions en double en base** (ids 19/16 et 18/15) — données de dev, pas un bug.
+- ⚠️ Le tri par **TYPE** de mission reste écarté comme premier niveau, **à reconsidérer en filtre
+  secondaire** si « Sans chapitre » grossit.
+- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision` — arbitrage non tranché.
 - ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse, corps = boucle).
-- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** — trou
-  **pré-existant**.
+- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** (pré-existant).
 - ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`.**
 
-**Les DETTES À UNE LIGNE, qui n'ont plus besoin d'un chantier :**
+**Les DETTES À UNE LIGNE :**
 
 - 🔴 **La copie de `groupCapsules.ts` chez PAPA** (`apps/frontend-papa/src/lib/`) — un import.
-- 🔴 **`showSubjectHeader` sur `/quiz`** — une prop. ⚠️ **Et maintenant `/quiz` est la SEULE page
-  du motif à ne pas l'avoir**, les quatre autres l'ont.
+- 🔴 **`showSubjectHeader` sur `/quiz`** — une prop. C'est la **seule page du motif** à ne pas l'avoir.
 
-**Un arbitrage qui attend :** `page-quiz.md` (spec absente, question posée le 2026-08-14, jamais
-tranchée).
+**Un arbitrage qui attend :** `page-quiz.md` (spec absente).
 
 **Remontées des ADR-0054, 0055 et 0056 :**
 
+- 🔴 **LA DETTE DATÉE A EXPIRÉ** : la vérification du masquage SRS devait se faire **le
+  2026-08-15**, motif — passé ce jour, les cartes 322→328 ne sont plus dues. **Elle n'est plus
+  jouable sous cette forme** : à reformuler sur d'autres cartes, ou à clore en disant ce qu'on ne
+  saura pas.
 - ⚠️ Le **quota du mélange du jour** n'est pas arbitré (ADR-0056 §5).
 - 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche.**
-- 🔴 **Défauts 2 et 3** : `finish` renvoie à la LISTE · le bouton du pont SRS est **muet**.
-  Chantier « la fiche répond quand on la touche », **pas cadré**.
-- 🔴 **Défaut 4** : revenir dans l'atelier après `finish` crée une v2 vide.
+- ✅ ~~Défauts 2, 3 et cause du 4 de l'ADR-0054~~ — **fermés par ce chantier**.
 - 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51.
 - 🔴 **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) : **trois points à trancher**.
 - ⚠️ Le **corrigé de ZETIS** reporté · `FicheSidePanel` sans porte · **brouillon 54** porte 3
-  points-clés de démonstration.
+  points-clés de démonstration *(ce sont eux que le chantier a protégés)*.
 - ⚠️ **L'ADR-0054 garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
   compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours**
   impossible dès qu'une fiche personnelle existe · **aucun linter Python** · **la dictée n'a jamais
@@ -116,56 +113,54 @@ tranchée).
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée** (`pnpm infra:down` pour l'éteindre) — sans elle, `test_auth.py` rougit
-deux fois pour rien. **Paire `backend` (:8000) + `massimo` (:5173)** vivante pour la vérification
-d'écran, ⚠️ elle **meurt avec la session**. Token de Massimo posé à la main dans `localStorage`
-(`zetis_massimo_token`).
+**Infra Docker allumée** (`pnpm infra:down`). **Paire `backend` (:8000) + `massimo` (:5173)**
+vivante, ⚠️ elle **meurt avec la session**. Token de Massimo dans `localStorage`.
 
-**Rien n'a été écrit en base** par ce chantier — aucune mission démarrée, aucune étape complétée.
+🔴 **CE CHANTIER A ÉCRIT EN BASE, et c'était le but** : la recette a réparé le brouillon **id=59**
+(leçon 7), qui porte désormais le travail de la v3. **id=54** (leçon 1) est **inchangé**. Aucune
+carte SRS créée (**324** avant et après).
 
-**Suites lancées APRÈS la dernière modification de code :**
+**Suites lancées APRÈS la dernière modification de code** (l'arbitrage de vocabulaire) :
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1302** ✅ (1295 + 7) |
-| Massimo `vitest` | **765** ✅ (759 + 6) |
+| backend `pytest` | **1307** ✅ (1302 + 5) |
+| Massimo `vitest` | **770** ✅ (765 + 5) |
 | Papa `vitest` | **814** ✅ (inchangé) |
 | `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-⚠️ **Les docs ont été écrites après ce dernier run** ; elles ne touchent aucun code.
-**Aucun test existant n'a été modifié.**
+⚠️ Les docs (TROUBLESHOOTING, DATA_MODEL, MEMORY) ont été écrites après ce run ; elles ne touchent
+aucun code.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé**, et le motif entier avec lui : il n'y a rien à y reprendre.
-**Un seul chantier à la fois** :
-
-1. 🔴 **Deux dettes à une ligne**, sans chantier : l'import de `groupCapsules.ts` chez **Papa** ·
-   `showSubjectHeader` sur **`/quiz`** (désormais la seule page du motif à ne pas l'avoir).
-2. ✅ **« La fiche répond quand on la touche » est CADRÉ** (2026-08-14) —
-   `adr-0058-la-fiche-repond-quand-on-la-touche.md`. Prochain pas :
-   **`/ouverture ADR-0058`**, après le commit du lot Décision.
-
-   🔴 **Le cadrage a trouvé pire que la dette annoncée.** Les défauts 2/3/4 disent la même chose
-   (*un geste sans réponse*), et le **défaut 4 s'est RÉALISÉ en base** : le brouillon **id=59**
-   (v4, leçon 7) est **vide** derrière trois fiches finies, et **`rework` le rend**
-   (`atelier.py:330`) — donc « La retravailler », le chemin réputé sûr, **rend aujourd'hui la page
-   blanche** sur cette leçon.
-
-   🔴 **La mesure a été fausse DEUX fois avant d'être juste — 0, puis 2, puis 1** (ADR corrigé sur
-   `main` le 2026-08-15, **avant la première ligne de code**) : (a) statut `draft` au lieu de
-   `personal_draft` ; (b) **six sections nommées d'après les ÉTAPES À L'ÉCRAN** (`pieges`,
-   `exemple`, `methode` **n'existent pas** dans `FicheDraft`). 🔴 **Le brouillon id=54 (leçon 1)
-   porte des `points_cles` — c'est du TRAVAIL de Massimo, à ne pas toucher** ; le prédicat faux
-   l'aurait écrasé, ce qui est **le signal d'erreur n° 3 de l'ADR, écrit dans l'ADR lui-même**.
-   **Parade figée** : « vide » se dérive de `FicheDraft.model_fields`, jamais d'une liste recopiée.
-3. **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
-4. **Deux arbitrages d'écran** nés des slices Révision et Missions : les icônes de chapitre
-   identiques · « Sans chapitre » à 19 % en Maths.
-5. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
+1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
+   (`docs/WORKFLOW.md §5`).
+2. 🔴 **LA DETTE DATÉE EXPIRÉE** — décider quoi faire du masquage SRS : la reformuler, ou la clore
+   en nommant ce qu'on ne saura pas. **Ne pas la laisser dormir comme « à faire ».**
+3. 🔴 **Deux dettes à une ligne** : l'import chez **Papa** · `showSubjectHeader` sur **`/quiz`**.
+4. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
+5. **Trois arbitrages d'écran** : `page-quiz.md` · les icônes de chapitre · « Sans chapitre » à 19 %.
+6. **L'enrichissement des fiches par lot** — trois points à trancher, demande un `/cadrage`.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+
+---
+
+## ⬆️ REMONTÉ de l'élagage de la slice Missions (PR #132, squash `ff3d843`)
+
+> Le récit est retiré : **les quatre contrôles passent.** `adr-0057-addendum-missions.md` ✅ ·
+> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-missions` (**7 sous-sections**) ✅ ·
+> `CHANGELOG.md` **0.91.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
+> Détail par `git log -p MEMORY.md`.
+>
+> Ce qui ne survit qu'ici : **la raison écrite d'un report peut être fausse.** Missions avait été
+> mise de côté parce que « les croisées sont multi-matières » — vrai pour **1 mission sur 58**, et
+> le code la traitait **déjà**. La vraie différence, que personne n'avait nommée, est que les
+> autres pages rangent des **leçons** (un chapitre chacune) quand Missions range des **notions**
+> (aucun chapitre propre). *Quand un report dure, relire sa raison sur le code plutôt que sur le
+> texte qui l'a écrite.*
 
 ---
 

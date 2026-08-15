@@ -420,10 +420,16 @@ export function AtelierPage() {
     if (!detail) return;
     await persister();
     try {
-      await finishDraft(detail.id);
-      retourAuDeck();
+      const fiche = await finishDraft(detail.id);
+      // 🔴 **La FICHE, pas le deck** (ADR-0058 §2). Ce bouton et « J'ai fini pour aujourd'hui »
+      // atterrissaient au MÊME endroit — deux gestes opposés, une seule destination, alors que
+      // l'un crée une fiche et l'autre laisse un brouillon. *La réponse à « c'est fini », c'est
+      // la fiche finie*, pas une liste où il faut la retrouver. L'adresse existait déjà
+      // (`?fiche=`, adr-0054 §1) ; elle n'était simplement pas utilisée ici.
+      navigate(`/fiches/${slug}?fiche=${fiche.id}`);
     } catch (e) {
-      // Le 422 dit ce qui manque. Il n'est PAS un échec : c'est une étape encore à faire.
+      // ⚠️ Le 422 ne navigue PAS : il dit ce qui manque, et on RESTE dans l'atelier. Il n'est PAS
+      // un échec : c'est une étape encore à faire.
       setError(e instanceof Error ? e.message : "Il manque encore quelque chose.");
     }
   }

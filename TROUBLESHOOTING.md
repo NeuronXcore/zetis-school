@@ -4,6 +4,73 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `feat/la-fiche-repond-quand-on-la-touche` — 2026-08-15
+
+### 🔴 L'ADR nommait des champs qui n'existent pas — et son propre signal d'alarme le disait
+
+L'`adr-0058` §5 et la spec nommaient six sections de fiche : `essentiel`, `definitions`,
+**`pieges`**, **`exemple`**, **`methode`**, `mnemonique`. Les trois en gras sont les **libellés des
+étapes à l'écran** ; les champs de `FicheDraft` sont `essentiel`, `definitions`, `points_cles`,
+`erreurs_a_eviter`, `mini_exemple`, `mnemonique`.
+
+Un prédicat « ce brouillon est-il vide ? » écrit sur ces noms aurait lu **trois champs absents**,
+déclaré vide le brouillon `id=54` — qui porte trois `points_cles` choisis par Massimo — et
+**écrasé son travail**. C'est **mot pour mot le signal d'erreur n° 3 de l'ADR**, écrit dans l'ADR
+lui-même.
+
+**Parade** : la liste se **dérive du schéma**, jamais recopiée —
+`tuple(k for k in FicheDraft.model_fields if k not in DECOR)`. Un test la verrouille
+(`test_les_champs_de_travail_sont_DERIVES_du_schema`), et le sabotage « réécrire la liste à la
+main avec `pieges` » fait rougir le test qui protège le travail de Massimo.
+
+⚠️ **La bonne réponse était DÉJÀ dans le fichier qu'on éditait** : `page-fiches.md` §4d dit
+*« le reste du `FicheSpec` est nommé en français — `points_cles`, `erreurs_a_eviter`,
+`mini_exemple` »*, quatre-vingts lignes au-dessus de l'endroit où les faux noms ont été écrits.
+*Une spec qui se contredit d'une section à l'autre est plus dangereuse qu'une spec muette.* Quand
+deux passages d'un même document divergent, **c'est le code qui tranche**.
+
+### ⚠️ Une mesure fausse DEUX fois avant d'être juste — 0, puis 2, puis 1
+
+Le même comptage, trois valeurs : (a) filtre `validation_status == "draft"` alors que la constante
+est **`personal_draft`** → **0 cas** ; (b) six noms de champs faux → **2 cas** ; (c) schéma lu à la
+source → **1 cas**.
+
+**À retenir** : *une mesure qui n'a pas été refaite au moins une fois n'a probablement pas encore
+été confrontée.* Les deux erreurs étaient du même genre — un nom recopié au lieu d'être lu.
+
+### 🔴 Pour voir un état TRANSITOIRE dans une SPA : trois conditions, toutes payées
+
+Vérifier que le pont SRS « dit qu'il travaille » a demandé quatre tentatives. Aucune n'a échoué à
+cause du code :
+
+1. ⚠️ **Mesurer entre deux appels d'outil ne marche pas** — ils sont espacés de secondes, l'état
+   intermédiaire est passé depuis longtemps. Il faut `setTimeout` **dans le même bloc**, stocker
+   dans `window`, puis relire.
+2. ⚠️ **Vérifier qu'on regarde le bon objet** : mes premiers échantillons visaient le bouton d'une
+   fiche **de ZETIS**, où le pont est inerte **par conception**. Ils mesuraient un bouton mort.
+   Contrôle : la présence de « ✏️ La retravailler » distingue sa fiche de celle de ZETIS.
+3. 🔴 **Mesurer dans le MÊME tick que le clic lit l'état d'AVANT** — React n'a pas re-rendu.
+   L'échantillon « juste après le clic » montrait le bouton inchangé. **Sans échantillons
+   différés, on conclut que la fonctionnalité ne marche pas alors qu'elle marche.**
+
+⚠️ Le lien `?fiche=<id>` est consommé **une seule fois par montage** : après une renavigation SPA,
+il n'ouvre plus rien. Utiliser `location.replace(...)` pour forcer un montage frais.
+
+### ✅ Provoquer une panne réseau SANS rien écrire en base
+
+Le pont crée des cartes SRS quand il réussit. Pour voir son échec **sans écrire**, on intercepte
+`fetch` dans la page pour que la route échoue **avant d'atteindre le serveur** :
+
+```js
+window.__vrai = window.fetch;
+window.fetch = (u, o) => /\/cards|\/rework/.test(String(u))
+  ? new Promise((_, rej) => setTimeout(() => rej(new TypeError("panne")), 2000))
+  : window.__vrai(u, o);
+```
+
+Vérifié : **324 cartes avant, 324 après**. ⚠️ **Rendre `fetch`** après la mesure, sinon la page
+reste cassée pour la suite de la session.
+
 ## Chantier `feat/une-seule-facon-de-trouver-missions` — 2026-08-14
 
 ### 🔴 Une fonction dont le contrat dit « c'est à toi de filtrer » — et on ne le lit pas

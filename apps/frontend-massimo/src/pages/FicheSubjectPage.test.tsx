@@ -463,3 +463,35 @@ describe("FicheSubjectPage — les tuiles se rangent, et la recherche traverse",
     expect(screen.getByText(/Aucune leçon ne correspond à « zzzz »/)).toBeInTheDocument();
   });
 });
+
+// ── ADR-0058 : le pont SRS répond aux TROIS moments ───────────────────────────
+
+describe("Le pont SRS s'occupe et se plaint (ADR-0058 §3)", () => {
+  it("🔒 pendant l'appel, le bouton dit qu'il travaille", async () => {
+    let debloquer: (v: unknown) => void = () => {};
+    pont.cardsFromFiche.mockReturnValue(new Promise((r) => (debloquer = r)));
+    ouvrirSaFiche([{ terme: "Narrateur", definition: "Celui qui raconte." }]);
+    fireEvent.click(await screen.findByText("Le récit"));
+
+    fireEvent.click(await screen.findByText(/Ajouter à mes cartes/));
+    // 🔴 Le geste doit être ENTENDU avant d'être satisfait : il ne l'était pas, alors que la
+    // porte juste au-dessus a son état d'occupation depuis toujours.
+    expect((await screen.findByText(/On y va/)).closest("button")).toBeDisabled();
+
+    debloquer({ cartes: 2, termes_sans_notion: [] });
+    expect(await screen.findByText(/2 cartes ajoutées/)).toBeInTheDocument();
+  });
+
+  it("🔒 en cas d'échec, il le DIT — et à côté du bouton, pas en pleine page", async () => {
+    // ⚠️ L'argument d'origine tient (*« l'échec ne doit pas transformer une fiche en écran
+    // d'erreur »*) : c'est le SILENCE TOTAL qui ne tenait pas. Le `catch {}` était vide.
+    pont.cardsFromFiche.mockRejectedValue(new Error("réseau"));
+    ouvrirSaFiche([{ terme: "Narrateur", definition: "Celui qui raconte." }]);
+    fireEvent.click(await screen.findByText("Le récit"));
+
+    fireEvent.click(await screen.findByText(/Ajouter à mes cartes/));
+    expect(await screen.findByText(/Tes cartes n'ont pas voulu se fabriquer/)).toBeInTheDocument();
+    // La fiche est toujours là : pas d'écran d'erreur.
+    expect(screen.getByText(/Ajouter à mes cartes/).closest("button")).toBeEnabled();
+  });
+});

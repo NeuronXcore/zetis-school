@@ -30,6 +30,13 @@ const dictee = vi.hoisted(() => ({
 vi.mock("../lib/dictation", () => dictee);
 
 import { AtelierPage } from "./AtelierPage";
+import { useSearchParams } from "react-router-dom";
+
+/** Sonde : rend l'URL d'arrivée, pour distinguer « la fiche » de « la liste ». */
+function AdresseVue() {
+  const [params] = useSearchParams();
+  return <output data-testid="adresse">{params.toString() || "sans-parametre"}</output>;
+}
 
 const DRAFT: FicheDraftDetail = {
   id: 42,
@@ -562,5 +569,53 @@ describe("AtelierPage — le compteur ne sous-compte pas", () => {
     });
     monter();
     expect(await screen.findByText(/4 étapes sur 5/)).toBeInTheDocument();
+  });
+});
+
+// ── ADR-0058 §2 : « C'est fini, je la garde » mène à la FICHE ─────────────────
+//
+// 🔴 **Ce bouton n'avait AUCUN test.** Il et « J'ai fini pour aujourd'hui » atterrissaient au même
+// endroit — deux gestes opposés, une seule destination, alors que l'un crée une fiche et l'autre
+// laisse un brouillon. Vingt-huit tests sur cette page, et pas un sur le geste qui fait exister la
+// fiche.
+
+describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
+  function sondeDeLURL() {
+    return render(
+      <MemoryRouter initialEntries={["/fiches/svt/7/atelier"]}>
+        <Routes>
+          <Route path="/fiches/:slug/:lessonId/atelier" element={<AtelierPage />} />
+          <Route path="/fiches/:slug" element={<AdresseVue />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("🔒 un finish RÉUSSI ouvre la fiche, pas la liste", async () => {
+    api.finishDraft.mockResolvedValue({ ...DRAFT, id: 4242 });
+    sondeDeLURL();
+    fireEvent.click(await screen.findByText("C'est fini, je la garde"));
+
+    // 🔴 L'adresse existait déjà (`?fiche=`, adr-0054 §1) — elle n'était pas utilisée ici.
+    expect(await screen.findByTestId("adresse")).toHaveTextContent("fiche=4242");
+  });
+
+  it("🔒 un finish en 422 NE navigue PAS — on reste dans l'atelier", async () => {
+    // Le 422 n'est pas un échec : il dit ce qui manque, et c'est déjà juste. Naviguer dessus
+    // ferait sortir Massimo de son travail au moment précis où il lui manque une étape.
+    api.finishDraft.mockRejectedValue(new Error("Il manque encore quelque chose pour ta fiche."));
+    sondeDeLURL();
+    fireEvent.click(await screen.findByText("C'est fini, je la garde"));
+
+    expect(await screen.findByText(/Il manque encore quelque chose/)).toBeInTheDocument();
+    expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
+  });
+
+  it("🔒 « J'ai fini pour aujourd'hui » va TOUJOURS au deck — il n'a rien produit à montrer", async () => {
+    sondeDeLURL();
+    fireEvent.click(await screen.findByText("J'ai fini pour aujourd'hui"));
+
+    expect(await screen.findByTestId("adresse")).toHaveTextContent("sans-parametre");
+    expect(api.finishDraft).not.toHaveBeenCalled();
   });
 });

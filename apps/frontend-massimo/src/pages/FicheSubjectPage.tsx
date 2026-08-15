@@ -48,6 +48,9 @@ export function FicheSubjectPage() {
   // Le pont vers les cartes (addendum ADR-0015 §13) — deux nombres, jamais un seul : une carte
   // a besoin d'une NOTION, et les termes tirés du gras du cours n'en ont pas.
   const [bilanPont, setBilanPont] = useState<FicheCartes | null>(null);
+  // Le pont a désormais ses TROIS moments, comme la porte : pendant · réussite · échec (adr-0058).
+  const [pontEnCours, setPontEnCours] = useState(false);
+  const [pontPanne, setPontPanne] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   // Cours source affiché À CÔTÉ de la fiche (colonne droite, même page — pas de superposition).
   const [coursOpen, setCoursOpen] = useState(false);
@@ -123,14 +126,31 @@ export function FicheSubjectPage() {
 
   const iconUrl = subjectIconFor(slug);
   const pontVersLesCartes = useCallback(async () => {
-    if (!detail) return;
+    if (!detail || pontEnCours) return;
+    // 🔴 **Le geste doit être ENTENDU avant d'être satisfait** (ADR-0058 §3). Il ne l'était pas :
+    // rien entre le tap et la réponse, alors que la porte trois lignes plus bas a son `busy`
+    // depuis toujours.
+    setPontEnCours(true);
+    setPontPanne(null);
     try {
       setBilanPont(await cardsFromFiche(detail.id));
     } catch {
-      // Silencieux : l'échec ne doit pas transformer une fiche en écran d'erreur. Le geste
-      // est rejouable — le serveur met à jour au lieu de dupliquer.
+      // ⚠️ **Le style est celui de `MatieresPage`** — *« Tes matières n'ont pas voulu
+      // s'afficher »* : l'objet est SUJET, et il n'y a pas d'« impossible » posé devant un
+      // enfant. L'app portait deux styles pour la même situation ; arbitré le 2026-08-15 en
+      // faveur du plus doux, et appliqué aux DEUX pannes de cet écran — deux pannes du même
+      // écran ne doivent pas parler deux langues.
+      //
+      // ⚠️ L'argument d'origine tient — *« l'échec ne doit pas transformer une fiche en écran
+      // d'erreur »* — et il est RESPECTÉ : le message vit à côté du bouton, comme `portePanne`,
+      // jamais en pleine page. C'est le SILENCE TOTAL qui ne tenait pas : Massimo tapait, et rien
+      // ne se passait, ni pendant ni après. Le geste reste rejouable — le serveur met à jour au
+      // lieu de dupliquer.
+      setPontPanne("Tes cartes n'ont pas voulu se fabriquer. Réessaie dans un moment.");
+    } finally {
+      setPontEnCours(false);
     }
-  }, [detail]);
+  }, [detail, pontEnCours]);
 
   /**
    * La porte du §1 — un seul geste, deux chemins, et l'écart entre les deux est TOUT.
@@ -158,7 +178,7 @@ export function FicheSubjectPage() {
     } catch {
       // On ne navigue PAS en cas d'échec : l'atelier créerait alors la v2 vide qu'on vient
       // d'éviter. Mieux vaut ne rien faire et le dire que faire la mauvaise chose en silence.
-      setPortePanne("Impossible d'ouvrir ta fiche pour l'instant. Réessaie dans un moment.");
+      setPortePanne("Ta fiche n'a pas voulu s'ouvrir. Réessaie dans un moment.");
       setPorteEnCours(false);
     }
   }, [detail, navigate, porteEnCours, slug]);
@@ -265,6 +285,7 @@ export function FicheSubjectPage() {
                       ? pontVersLesCartes
                       : undefined
                   }
+                  cartesEnCours={pontEnCours}
                   dateISO={detail.updated_at}
                   porte={{
                     // Sa fiche → on la retravaille ; celle de ZETIS → il fabrique la sienne à côté.
@@ -276,6 +297,11 @@ export function FicheSubjectPage() {
                 {portePanne && (
                   <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
                     {portePanne}
+                  </p>
+                )}
+                {pontPanne && (
+                  <p className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    {pontPanne}
                   </p>
                 )}
                 {bilanPont && (
