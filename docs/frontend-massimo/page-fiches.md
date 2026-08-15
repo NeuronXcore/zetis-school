@@ -132,8 +132,22 @@ fiche existe** — une fiche à deux étapes est une fiche.
 
 - **« ZETIS, regarde ma fiche »** — actif **dès qu'une seule étape a quelque chose**. Pas besoin
   d'avoir tout rempli : c'est le corollaire direct de « aucune étape n'est obligatoire ».
+- **« C'est fini, je la garde »** `[0058]` — `finish`, puis **la fiche s'ouvre**
+  (`/fiches/{slug}?fiche={id}`, l'adresse de l'`adr-0054` §1). **Jamais le deck.**
+
+  > 🔴 **Ce paragraphe manquait, et le défaut vivait dans ce silence.** Jusqu'au 2026-08-15, ce
+  > bouton et le suivant atterrissaient **au même endroit** — deux gestes opposés, une seule
+  > destination. Or le produit les distingue radicalement : l'un **crée une fiche**, l'autre laisse
+  > un brouillon. *Un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute*
+  > (`adr-0058` §1) — et la réponse à « c'est fini », c'est **la fiche finie**, pas une liste où il
+  > faut la retrouver.
+  >
+  > ⚠️ Le **422** ne change pas : quand il manque l'obligatoire, on **reste dans l'atelier** et
+  > l'écran dit ce qui manque. On ne navigue que sur un `finish` réussi.
+
 - **« J'ai fini pour aujourd'hui »** — retour au deck, sans confirmation. La fiche reste
-  *commencée*.
+  *commencée*. ⚠️ **C'est le seul des trois qui va au deck**, et c'est juste : il n'a rien produit
+  à montrer.
 - Mention permanente : « **tout est gardé au fur et à mesure — tu peux fermer et revenir
   demain** ». C'est ce que promet `PATCH /draft/{id}`, il faut que l'écran le dise.
 
@@ -265,6 +279,21 @@ correspondante ; la fiche affiche `✍️ v2` dans son bandeau et son pied.
 - **Rouvrir un brouillon** → reprise **en place**, aucune version créée ;
 - **Rouvrir une fiche finie** → bouton **« ✏️ La retravailler »** → **nouvelle version**.
   L'ancienne reste lisible.
+
+🔴 **Et cette règle vaut par QUELLE QUE SOIT LA PORTE** `[0058]`. Elle est tenue par le **service**,
+pas par les boutons : ouvrir l'atelier sur une leçon dont la fiche est **finie** repart de cette
+fiche, que l'entrée soit la tuile, le cours, une URL collée, un retour arrière ou un rechargement.
+
+> ⚠️ **Ce n'était pas le cas.** `open_or_get_draft` ne cherchait que des **brouillons** : après un
+> `finish`, il n'en trouvait aucun et fabriquait un brouillon **VIDE** en version N+1 — Massimo
+> cliquait « retravailler » et retrouvait **une page blanche** à la place de son travail. Deux
+> portes avaient été désamorcées une par une ; la cause, non. **On ne repart jamais de rien quand
+> quelque chose existe** (`adr-0058` §4).
+>
+> 🔴 **Un brouillon VIDE sur une leçon qui porte une fiche finie se repeuple depuis la dernière
+> finie.** « Vide » se lit sur les **six sections** (`essentiel`, `definitions`, `pieges`,
+> `exemple`, `methode`, `mnemonique`), **jamais** sur le décor — titre, matière, niveau, chapitre
+> sont pré-remplis par construction et ne disent rien du travail de Massimo.
 
 Note de trajectoire sous la fiche, jamais un score : « **3 phrases recopiées → 0** ». C'est le
 seul endroit du produit qui montre « sait-il ce qui compte » plutôt que « sait-il répondre ».
@@ -433,6 +462,19 @@ Pied de fiche : **« 🃏 En faire des cartes »**.
 - Depuis une **fiche de Massimo** : **actif** — c'est le point d'entrée ouvert par l'addendum.
   Les définitions passent telles quelles : **recto** le terme de ZETIS, **verso** la phrase de
   Massimo. C'est *sa* formulation qu'il révisera.
+
+**Le bouton répond aux trois moments** `[0058]` :
+
+| Moment | Ce que l'écran fait |
+|---|---|
+| **pendant** | état **occupé** — même patron que la porte « La retravailler », trois lignes au-dessus |
+| **réussite** | le bilan : *« N cartes ajoutées à tes révisions. C'est TA phrase que tu reverras. »* (+ les mots sans notion derrière) |
+| **échec** | un **message doux à côté du bouton**, et le geste reste rejouable |
+
+> 🔴 **L'échec était SILENCIEUX** — un `catch {}` vide, sur un argument juste : *« l'échec ne doit
+> pas transformer une fiche en écran d'erreur »*. L'argument tient et il est **respecté** : le
+> message vit à côté du bouton, comme celui de la porte, jamais en pleine page. C'est le **silence
+> total** qui ne tenait pas — Massimo tapait, et rien ne se passait, ni pendant ni après.
 
 ## Wireframes
 
