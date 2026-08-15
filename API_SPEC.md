@@ -2807,3 +2807,44 @@ travail (`input_json.skill_id`). Un travail sans notion identifiable est écart�
 ⚠️ **Les TRACES n'entrent jamais** (`created_by != "file"`) : ce sont les appels LLM *à l'intérieur*
 d'un travail, et elles sont beaucoup plus nombreuses — 143 pour une poignée de gestes, mesuré en
 base. Voir `DATA_MODEL.md`, règle de lecture de `created_by`.
+
+## Chat ZETIS — routes élève (ADR-0026, ADR-0027, ADR-0059)
+
+⚠️ **Section ajoutée le 2026-08-15.** Les quatre premières routes existaient depuis le 2026-07-29
+sans être documentées ici ; la cinquième naît avec l'`adr-0059`. Un contrat non écrit est un
+contrat qu'on redécouvre en lisant le code.
+
+Toutes sous `require_child` — **aucune route parent** (`adr-0026` §5, test-verrou
+`test_no_chat_route_outside_student_scope`). Papa voit l'activité par les `learning_events`,
+jamais un verbatim.
+
+| Route | Rend |
+|---|---|
+| `POST /api/student/chat/sessions` | `{session_id, transparency, announcement?}` |
+| `POST /api/student/chat/sessions/{id}/messages` | `ChatMessageOut` — **INLINE** |
+| `POST /api/student/chat/tts` | WAV (Piper local, jamais persisté) — 503 si absent |
+| `POST /api/student/chat/transcribe` | `{transcript, duration_seconds}` — 503 si absent |
+| `POST /api/student/chat/sessions/{id}/close` | 204, purge Redis |
+
+🔴 **La réponse est INLINE, et ce n'est pas un raccourci.** Le patron `{job_id}` + polling
+`GET /ai/jobs/{id}` d'ELI5 **ne peut pas** s'appliquer ici : faire transiter le verbatim par
+`ai_jobs` violerait l'`adr-0026` §1c, qui veut ce pipeline aveugle au contenu.
+
+🔴 **`/chat/transcribe` a sa PROPRE route**, et pas celle d'ELI5, pour deux raisons mesurées :
+la route ELI5 **écrivait le transcript dans `ai_jobs`** (78 lignes en base au 2026-08-15), et son
+`job_type` partagé rendait impossible de distinguer la dictée du chat de celle de l'atelier.
+Le module `stt` ne persiste plus aucun transcript, pour **aucun** appelant.
+
+### `ChatMessageOut`
+
+`{session_id, turn_index, reply, skill_id?, tool_suggestion?, difficulty_declared, action?,
+grounding?, recall?}`
+
+- **`action`** — destination **ancrée serveur**, jamais une route venue du moteur :
+  `navigate` · `show_data` · `notion_menu` · `request_notion`, ou `null`. Une cible non ancrable
+  rend `null`, **et ZETIS le dit** dans son `reply`.
+- **`grounding`** — `{kind: cours|extraits|aucune, lesson_title?, sources_used}`. **Calculé
+  serveur** : la déclaration du moteur n'est jamais recopiée, elle sert à détecter le mensonge.
+  `null` quand le tour n'était pas une question de fond.
+- **`recall`** — `{asked, total, skill_name, finished}` pendant une interrogation orale, sinon
+  `null`. ⚠️ **Un repère, jamais un score** : aucun compteur d'erreurs n'est servi.

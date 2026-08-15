@@ -6,143 +6,182 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — la fiche répond quand on la touche (ADR-0058)
+### 🚧 CHANTIER COMPLET — ZETIS répond vite, ouvre la ressource exacte, et interroge (ADR-0059)
 
-**MERGÉ dans `main` le 2026-08-15 — PR [#133](https://github.com/NeuronXcore/zetis-school/pull/133),
-squash `0cd0a9a`.** Branche `feat/la-fiche-repond-quand-on-la-touche` **supprimée** (locale et
-distante), base d'origine `70e9b7d`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
+**Branche `feat/zetis-repond-vite`, base `a0f39c8`. PR
+[#134](https://github.com/NeuronXcore/zetis-school/pull/134) OUVERTE — pas encore mergée.**
+Commits du chantier : `git log --oneline main..HEAD`.
 
-> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Trois défauts de l'ADR-0054 fermés d'un coup, parce qu'ils n'en
-> faisaient qu'un : *un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute.*
-> ✅ **Tout a été vu à l'écran**, sur les vraies données — y compris les deux pannes simulées.
+> 🔴 **`main` LOCAL a un commit NON POUSSÉ** : `a0f39c8`, l'ADR-0059. C'est pourquoi la PR #134
+> porte **deux** commits au lieu d'un. Pousser `main` la réduira au seul commit de code — geste
+> habituel du dépôt (`WORKFLOW.md §2bis` : les décisions sur `main`, le travail sur la branche).
+
+> 🔴 **NE PAS MERGER SANS LES DEUX VÉRIFICATIONS DUES** (voir PROCHAIN PAS). Ce serait la
+> **sixième** fois qu'un chantier d'interface part sans relecture visuelle.
 
 #### ✅ FAIT
 
 | Livré | Détail |
 |---|---|
-| **§2** `finish` mène à la FICHE | `?fiche=<id>` ; le 422 **ne navigue pas** |
-| **§3** le pont s'occupe et se plaint | état `⏳ On y va…` + message ; le `catch {}` vide est tombé |
-| **§4** 🔴 **LA CAUSE** | `open_or_get_draft` **délègue à `rework`** quand une fiche finie existe |
-| **§5** le fantôme réparé | un brouillon **vide** derrière une fiche finie se **repeuple** |
-| `finished_of_student` | prédicat SQL, pendant de `draft_of_student` |
-| `champs_de_travail()` | 🔴 **dérivé de `FicheDraft.model_fields`**, jamais recopié |
-| 5 verrous backend + 5 tests front | dont **3 sur un bouton qui n'en avait aucun** |
+| **Slice 0 — réactivité** | texte affiché avant Piper · transcription de Massimo affichée · Whisper glouton · modèle préchargé |
+| **Slice 0 — fuite** | `/chat/transcribe` dédiée ; le transcript n'entre plus dans `ai_jobs` pour **aucun** appelant |
+| **Arc A** | 6 activités adressables par id ; `?quiz=` et `?capsule=` créés ; `_MENU_LABEL` supprimée |
+| **Arc A** | contrat de parité `packages/types/src/notionRouteContract.json` — oracle écrit **à la main** |
+| **Arc B** | repli `cours` révoqué ; le déclencheur « notion vide » **promu** (la porte s'ajoute) |
+| **Arc C** | RAG avec provenance + distance · réponse ancrée · `grounding` calculé serveur · source affichée |
+| **Arc C** | interrogation orale : 3 questions, état en 2ᵉ clé Redis, 4 garde-fous déterministes |
+| **Après essais micro** | matière exacte > notion floue · galaxie câblée · chapitre résolu · aveu démenti remplacé |
+| **Complément** | index globaux (9 pages) · atelier de fiche (par **leçon**) |
 
-**Zéro migration, zéro endpoint neuf, zéro appel LLM** — le critère du §6 a tenu.
+**Zéro migration.** Aucune entrée neuve dans `App.tsx` — uniquement des paramètres sur des routes
+existantes.
 
 #### 🔬 CE QUE LA VÉRIFICATION A DONNÉ
 
-**Huit sabotages joués, huit rouges** (4 backend, 4 front).
+**Onze sabotages joués, onze rouges.** Dont : contrat de parité faussé → **les deux suites
+rougissent ensemble**, front et serveur.
 
-🔴 **Le sabotage 3 est le décisif** : réécrire la liste des sections à la main, avec les noms de
-l'ADR, fait rougir *« un brouillon rempli n'est jamais repeuplé »*. Le bug qui aurait détruit le
-travail de Massimo est désormais attrapé par un test.
+🔴 **MESURES (machine du commanditaire, Ollama et Piper réels) — elles DÉMENTENT le cadrage :**
 
-✅ **RECETTE JOUÉE SUR LES DEUX CAS RÉELS, en base et à l'écran** — et ils demandaient l'inverse
-l'un de l'autre :
-- **leçon 7** (fantôme `id=59`) : **réparé** — « 4 étapes sur 6 ont quelque chose » à l'écran ;
-- **leçon 1** (`id=54`) : ses **3 `points_cles` INTACTS**, vus à l'écran (« 1 étape sur 5 »).
+| Maillon | Avant | Après | Part |
+|---|---|---|---|
+| STT Whisper | 1,23 s | **1,00 s** | 9 % |
+| **Moteur** `qwen3.6:35b-a3b` | **9,41 s** | 9,41 s | **83 %** |
+| TTS Piper | 0,70 s | *hors chemin critique* | 6 % |
+| **Premier signe pour Massimo** | ≈ 11,3 s | **≈ 1,0 s** | |
 
-✅ **Les trois moments du pont vus en vrai**, mesurés en cinq points : `⏳ On y va…` + inerte →
-message → bouton rejouable. **Et la porte aussi** — son message existait depuis l'ADR-0054 sans
-avoir **jamais** été affiché. ⚠️ Panne simulée en interceptant `fetch` : **324 cartes avant, 324
-après**, rien écrit.
+1. Le décodage glouton rapporte **~20 %**, pas « 2 à 3 fois ». Transcription **identique au mot
+   près** (sur voix de synthèse — cf. dettes).
+2. 🔴 **Le STT n'a JAMAIS été le goulot.** La vraie latence se traite sur le moteur : réponse plus
+   courte, streaming, ou modèle plus petit pour le tour conversationnel. **Nommé et chiffré dans
+   l'ADR §6, hors de ce chantier.**
 
-Détail : `TROUBLESHOOTING.md` §`feat/la-fiche-repond-quand-on-la-touche` (**4 sous-sections**).
+🔴 **FUITE MESURÉE ET REFERMÉE : 78 lignes `ai_jobs`** portaient les mots dictés par Massimo
+(2026-07-04 → 08-14, 33 phrases réelles ; longueurs seulement, contenu non lu). ⚠️ **Les 78 lignes
+sont TOUJOURS EN BASE** — leur sort est une décision de Papa, pas du chantier.
+
+🔴 **Quatre défauts sur six essais AU MICRO n'étaient visibles que là.** Détail :
+`TROUBLESHOOTING.md` §ADR-0059 (**9 sous-sections**).
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **« Vide » se DÉRIVE du schéma**, jamais d'une liste recopiée. L'ADR en avait écrit une avec
-   **trois champs inexistants** (`pieges`, `exemple`, `methode` — les libellés des ÉTAPES).
-2. 🔴 **La règle vit dans le SERVICE, pas dans les portes** — on en avait déjà rapiécé deux.
-3. **`rework` n'est pas modifié** : son asymétrie est l'`adr-0054` §7. On lui délègue.
-4. **Le 422 ne navigue pas** : il dit ce qui manque, on reste dans l'atelier.
-5. **Les messages d'échec sont au style DOUX** — *« Tes cartes n'ont pas voulu se fabriquer »* —
-   arbitré le 2026-08-15, aligné sur `MatieresPage`, et appliqué **aux deux** pannes de l'écran.
-6. **Aucune migration, aucun endpoint neuf, aucun appel LLM** (§6).
+1. 🔴 **La révocation de l'`adr-0027` §3 est PARTIELLE.** Il portait **trois** affirmations lues
+   comme une seule ; deux tiennent intégralement (« router uniquement vers du validé », « l'enfant
+   ne déclenche aucune génération »). Seule « jamais générer », appliquée à la **parole**, tombe.
+2. 🔴 **La frontière parole / contenu durable est un TEST OPÉRATIONNEL** : *survit à
+   `close_session` ? a une URL ? entre en base comme texte ?* Trois « non » = parole.
+3. 🔴 **Le serveur ne croit jamais le moteur** — ni sur sa source (`used_source`), ni sur ce qu'il
+   possède (aveu démenti par une action), ni sur le moment d'arrêter d'interroger. *Une consigne de
+   prompt ne garantit rien, un ancrage garantit toujours.*
+4. 🔴 **Un nom EXACT bat une résolution floue.** Précédence : matière exacte → chapitre exact →
+   notion (embeddings) → matière approchée → chapitre par inclusion. L'inclusion vient en dernier :
+   « Nombres relatifs » contient le chapitre « Nombres ».
+5. **`revision` reste au grain matière/chapitre** — le grain le plus fin du SRS est le chapitre
+   (`adr-0049`). Six activités adressables par id, pas sept.
+6. **L'interrogation ne compte pas** : zéro XP, zéro `SkillMastery`, aucun `event_type` neuf. Un
+   seul `chat_tool_response{tool_type:"interro_orale"}` à l'ouverture — un **acte**, pas une mesure.
+7. **Le doute profite à l'enfant PAR CONSTRUCTION** : vocabulaire de verdict sans valeur binaire,
+   l'inconnu retombe sur `a_reformuler`.
+8. **Le contrat de parité s'écrit à la main**, jamais généré depuis une implémentation — sinon il
+   certifie le bug.
+9. **`/diagnostic` reste hors routage** (`adr-0027` §3, jamais anxiogène). **Une mission précise
+   n'est pas adressable** : l'ouvrir signifie la **démarrer**.
+10. **Le quiz garde son `mode:"quiz"` asynchrone côté front** — exception NOMMÉE dans le contrat :
+    `?from=` ne transporte qu'un slug, il perdrait le `returnTo` vers `/galaxy`.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **Les deux messages de panne COEXISTENT** à l'écran (pont + porte) — vu à la vérification.
-  Correct, mais **décrit nulle part** : personne n'a décidé s'ils devaient s'effacer l'un l'autre.
+- 🔴 **La qualité du décodage glouton n'a été mesurée que sur une VOIX DE SYNTHÈSE**, qui articule
+  trop bien pour être un test. La dictée a bien été exercée au vrai micro (elle comprend), mais
+  **personne n'a jugé si la transcription s'est dégradée**. Repli si oui : `beam_size=2`, **pas** le
+  retour à 5.
+- 🔴 **Le menu du chat peut passer de 5 à 7 boutons** dans `chat-offer-row` — **jamais vu à
+  l'écran**, et le panneau voisin déborde déjà de 94 px en 390 px.
+- 🔴 **Les 78 lignes `ai_jobs` portant du verbatim sont toujours en base.**
+- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré** sur de vraies données : seul garde-fou
+  contre un ancrage sur un chapitre voisin (la recherche est à l'échelle de la matière).
+- ⚠️ **Les budgets de contexte n'ont pas été mesurés après élargissement** — on passe de ~1200 à
+  ~5000 caractères injectés, sur une base à 9,4 s.
+- ⚠️ **Le filtre RAG par NIVEAU est exposé mais désactivé** (`level` nullable : l'activer viderait
+  le RAG en silence). Condition d'activation écrite dans l'ADR §9.
+- ⚠️ **L'interrogation orale n'a jamais été jouée en vrai** — ni son état Redis, ni la clôture, ni
+  la sortie « stop ».
+- ⚠️ **Le repère « Question 2 sur 3 » n'a pas été vu à l'écran.**
+- ⚠️ **`_AVEUX_IGNORANCE` est une liste de formules** — elle n'attrape pas tout, et un moteur peut
+  la contourner avec d'autres mots. C'est un filet, pas une garantie.
+
+**Remontées de l'ADR-0058 (élagué ce jour, PR #133, squash `0cd0a9a`) :**
+
+- ⚠️ **Deux messages de panne COEXISTENT** à l'écran (pont + porte) — correct, décrit nulle part.
 - ⚠️ **Le style des messages d'échec n'est encadré par AUCUNE règle** — `voix-de-zetis.test.ts`
-  balaie tout le code mais n'interdit qu'un mot, « papa ». Les trois messages sont alignés
-  aujourd'hui ; rien n'empêche le quatrième de diverger.
-- ⚠️ **Un test à moi a été modifié** — l'assertion sur le message du pont, écrite une heure plus
-  tôt dans cette même slice, suivie après l'arbitrage de vocabulaire. Aucun test **préexistant**
-  touché.
+  n'interdit qu'un mot, « papa ».
 
-**Remontées de la slice Missions (mergée, PR #132, squash `ff3d843`) — élaguée ce jour :**
+**Remontées plus anciennes, toujours ouvertes :**
 
-- ⚠️ **« Sans chapitre » vaut 4 sur 21 en Maths (19 %)**, plus que les 10 % globaux — **à
-  surveiller** : le signal n° 1 de l'addendum est *« ça devient le plus gros groupe »*.
-- ⚠️ **Le repli `subject: ""` du champion** (`missions/service.py`) — signalé, non traité.
-- ⚠️ **Deux missions en double en base** (ids 19/16 et 18/15) — données de dev, pas un bug.
-- ⚠️ Le tri par **TYPE** de mission reste écarté comme premier niveau, **à reconsidérer en filtre
-  secondaire** si « Sans chapitre » grossit.
-- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision` — arbitrage non tranché.
-- ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse, corps = boucle).
-- ⚠️ **Le flux ÉLÈVE des mindmaps n'est documenté qu'en partie dans `API_SPEC`** (pré-existant).
-- ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`.**
-
-**Les DETTES À UNE LIGNE :**
-
-- 🔴 **La copie de `groupCapsules.ts` chez PAPA** (`apps/frontend-papa/src/lib/`) — un import.
-- 🔴 **`showSubjectHeader` sur `/quiz`** — une prop. C'est la **seule page du motif** à ne pas l'avoir.
-
-**Un arbitrage qui attend :** `page-quiz.md` (spec absente).
-
-**Remontées des ADR-0054, 0055 et 0056 :**
-
-- 🔴 **LA DETTE DATÉE A EXPIRÉ** : la vérification du masquage SRS devait se faire **le
-  2026-08-15**, motif — passé ce jour, les cartes 322→328 ne sont plus dues. **Elle n'est plus
-  jouable sous cette forme** : à reformuler sur d'autres cartes, ou à clore en disant ce qu'on ne
-  saura pas.
-- ⚠️ Le **quota du mélange du jour** n'est pas arbitré (ADR-0056 §5).
+- 🔴 **LA DETTE DATÉE A EXPIRÉ** : la vérification du masquage SRS devait se faire le 2026-08-15.
+  **Plus jouable sous cette forme** — à reformuler sur d'autres cartes, ou à clore en disant ce
+  qu'on ne saura pas.
 - 🔴 **Le prompt v2 des fiches n'a JAMAIS généré une fiche.**
-- ✅ ~~Défauts 2, 3 et cause du 4 de l'ADR-0054~~ — **fermés par ce chantier**.
-- 🔴 Le **trou d'un jour** du masquage · le **doute** sur le brouillon 51.
-- 🔴 **L'enrichissement des fiches par lot** (addendum ADR-0015 §11) : **trois points à trancher**.
+- 🔴 **Deux dettes à une ligne** : la copie de `groupCapsules.ts` chez **Papa** (un import) ·
+  `showSubjectHeader` sur **`/quiz`** (une prop — seule page du motif à ne pas l'avoir).
+- 🔴 **L'enrichissement des fiches par lot** (addendum `adr-0015` §11) : **trois points à
+  trancher**, demande un `/cadrage`.
+- ⚠️ **« Sans chapitre » vaut 19 % en Maths** (4 sur 21) — signal n° 1 de l'addendum missions.
+- ⚠️ Le repli `subject: ""` du champion · deux missions en double en base (dev) · tri par TYPE
+  écarté, à reconsidérer en filtre secondaire.
+- ⚠️ **Les tuiles de chapitre portent toutes la MÊME icône** sur `/revision`.
+- ⚠️ **`chapter_servable_counts` n'est pas un vrai lot** (docstring menteuse).
+- ⚠️ **Le titre de page dit encore « Français » pendant une recherche sur `/fiches`.**
+- ⚠️ Le **quota du mélange du jour** n'est pas arbitré (`adr-0056` §5) · le **trou d'un jour** du
+  masquage · le **doute** sur le brouillon 51.
 - ⚠️ Le **corrigé de ZETIS** reporté · `FicheSidePanel` sans porte · **brouillon 54** porte 3
-  points-clés de démonstration *(ce sont eux que le chantier a protégés)*.
-- ⚠️ **L'ADR-0054 garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
+  points-clés de démonstration.
+- ⚠️ **L'`adr-0054` garde deux comptes faux** · pied de fiche à 5 lignes en 375 px · `review_load`
   compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours**
-  impossible dès qu'une fiche personnelle existe · **aucun linter Python** · **la dictée n'a jamais
-  été exercée avec un vrai micro**.
+  impossible dès qu'une fiche personnelle existe · **aucun linter Python**.
+- **Un arbitrage qui attend** : `page-quiz.md` (spec absente).
+
+**Observation de clôture, non traitée :** `MEMORY.md` porte **~1370 lignes de sections
+« ⬆️ REMONTÉ »** accumulées par les élagages précédents, pour ~150 lignes d'actif. C'est
+exactement le motif que `/cloture` §1bis décrit (*« cimetière à dettes »*), déplacé d'un cran :
+ce ne sont plus les sections de chantier qui s'empilent, ce sont leurs résidus. **Non élagué ici**
+— ce serait une suppression massive hors du périmètre de cette clôture.
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée** (`pnpm infra:down`). **Paire `backend` (:8000) + `massimo` (:5173)**
-vivante, ⚠️ elle **meurt avec la session**. Token de Massimo dans `localStorage`.
+**Infra Docker allumée.** Paire `backend` (:8000) + `massimo` (:5173) vivante, ⚠️ elle **meurt
+avec la session**.
 
-🔴 **CE CHANTIER A ÉCRIT EN BASE, et c'était le but** : la recette a réparé le brouillon **id=59**
-(leçon 7), qui porte désormais le travail de la v3. **id=54** (leçon 1) est **inchangé**. Aucune
-carte SRS créée (**324** avant et après).
+⚠️ **Ce chantier n'a RIEN écrit en base** — sauf ce que les essais au micro ont produit
+naturellement : quelques `content_requests` et `ai_jobs` de type `chat_transcribe` (aveugles au
+contenu) et `chat_turn`. Aucune migration, aucune donnée de test injectée.
 
-**Suites lancées APRÈS la dernière modification de code** (l'arbitrage de vocabulaire) :
+**Suites lancées APRÈS la dernière modification de code :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1307** ✅ (1302 + 5) |
-| Massimo `vitest` | **770** ✅ (765 + 5) |
+| backend `pytest` | **1353** ✅ |
+| Massimo `vitest` | **796** ✅ |
 | Papa `vitest` | **814** ✅ (inchangé) |
 | `tsc -b` Massimo · Papa | ✅ · ✅ |
 
-⚠️ Les docs (TROUBLESHOOTING, DATA_MODEL, MEMORY) ont été écrites après ce run ; elles ne touchent
-aucun code.
+⚠️ Les docs de clôture (CHANGELOG, TROUBLESHOOTING, API_SPEC, .env.example, MEMORY) ont été
+écrites **après** ce run ; elles ne touchent aucun code.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
+Le chantier est **complet et poussé**, la PR #134 est **ouverte**. Dans l'ordre :
 
-1. 🔴 **LA DETTE DATÉE EXPIRÉE** — décider quoi faire du masquage SRS : la reformuler, ou la clore
-   en nommant ce qu'on ne saura pas. **Ne pas la laisser dormir comme « à faire ».**
-2. 🔴 **Deux dettes à une ligne** : l'import chez **Papa** · `showSubjectHeader` sur **`/quiz`**.
-3. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
-4. **Trois arbitrages d'écran** : `page-quiz.md` · les icônes de chapitre · « Sans chapitre » à 19 %.
-5. **L'enrichissement des fiches par lot** — trois points à trancher, demande un `/cadrage`.
+1. 🔴 **RELECTURE VISUELLE** — le menu du chat à 7 boutons en 390 px, la puce de source, l'écho de
+   dictée, le repère d'interrogation. **Cinq merges du dépôt s'en sont passés, tous regrettés.**
+2. 🔴 **ESSAI AU MICRO de la QUALITÉ** — le décodage glouton n'a été jugé que sur une voix de
+   synthèse. C'est le seul compromis du chantier qui touche la justesse.
+3. **Jouer une interrogation orale complète en vrai** (jamais faite) : ouverture, trois questions,
+   « stop », clôture.
+4. **Pousser `main`** (commit `a0f39c8`) pour que la PR ne porte que le code.
+5. Puis **merge → étape 4bis** : remettre `MEMORY.md` au réel (squash, PR, branche supprimée).
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
