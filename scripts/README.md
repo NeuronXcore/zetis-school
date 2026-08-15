@@ -9,6 +9,7 @@ Scripts utilitaires (setup, seed DB, backups).
 | `bench_llm.py` | compare vitesse et qualité des moteurs sur les vrais prompts (ADR-0008) |
 | `reorder_decisions.py` | remet `DECISIONS.md` en ordre |
 | `purge_chat_verbatim.py` | efface les mots dictés restés dans `ai_jobs` (ADR-0059 §18) |
+| `check_migration_drift.py` | mesure l'écart entre la révision d'une base et la tête du dépôt |
 
 ## `purge_chat_verbatim.py` — à passer sur chaque base
 
@@ -126,14 +127,14 @@ migrations.
 
 🔴 **Compter les migrations en attente AVANT d'écrire, et ne pas croire le décompte du chantier
 en cours.** Le 2026-08-15, le chantier apportait deux migrations ; il y en avait **cinq** en
-attente. Trois venaient de chantiers mergés et jamais appliqués — **la prod dérive silencieusement
-du dépôt**, rien ne mesure cet écart, et les migrations étant chaînées on ne peut pas poser les
-siennes sans poser les autres.
+attente. Trois venaient de chantiers mergés et jamais appliqués — **la prod dérivait du dépôt et
+rien ne le mesurait**, les migrations étant chaînées on ne peut pas poser les siennes sans poser
+les autres.
+
+**C'est ce que `check_migration_drift.py` mesure désormais** (voir la section suivante) :
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm --no-deps \
-  -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
-  --entrypoint alembic backend history -r <revision-courante>:head
+python scripts/check_migration_drift.py
 ```
 
 ⚠️ **Lire chaque migration héritée avant de la laisser passer.** Deux des trois de ce jour
@@ -173,3 +174,54 @@ docker compose -f docker-compose.prod.yml run --rm --no-deps \
 
 Les deux bases ne portent pas les mêmes lignes, et c'est l'intention : un point zéro marque vu ce
 qui existe **au moment où il tourne**.
+
+## `check_migration_drift.py` — mesurer l'écart entre une base et le dépôt
+
+**Ce qu'il ferme** : jusqu'au 2026-08-15, **la production dérivait du dépôt sans que rien ne le
+mesure**. Trois migrations mergées y attendaient depuis des jours ; il a fallu le demander à
+`alembic history`, et il a fallu *penser* à le demander. Ce script rend la question posable en une
+commande, avec un code de sortie exploitable.
+
+```bash
+python scripts/check_migration_drift.py                    # la base que lit l'app (dev)
+python scripts/check_migration_drift.py --database-url …   # une base explicite
+```
+
+Sur la production — joignable seulement depuis le réseau du compose, où `ZETIS_DATABASE_URL` est
+déjà posée :
+
+```bash
+docker compose -f docker-compose.prod.yml up -d postgres
+
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
+  -v "$PWD/scripts:/scripts:ro" \
+  --entrypoint python backend /scripts/check_migration_drift.py
+```
+
+| Sortie | Cas | Ce que ça veut dire |
+|---|---|---|
+| `0` | aligné | la base est à la tête du dépôt |
+| `1` | **en retard** | des migrations mergées ne sont pas posées — la dérive ordinaire, celle du 2026-08-15 |
+| `2` | 🔴 **révision inconnue** | la base porte une révision absente du dépôt : une branche non mergée y a été posée. Au prochain redémarrage l'entrypoint échouera sur *« Can't locate revision »* et **le backend ne remontera pas** |
+| `3` | 🔴 **deux têtes** | défaut structurel du dépôt, sans rapport avec la base — vérifié **avant** toute connexion |
+
+🔴 **`--tete-attendue <revision>` est le garde-fou contre l'image périmée.** Sans montage de
+`alembic/`, le script comparerait la base à une tête figée au jour du build et annoncerait
+« aligné » sur une base en retard — le faux-vert le plus coûteux du lot. Passer la tête qu'on
+attend le fait s'arrêter au lieu de mentir.
+
+⚠️ **Ce script ne remplace pas l'entrypoint**, qui fait déjà `alembic upgrade head` au démarrage.
+La fenêtre de dérive est *entre le merge et le redémarrage suivant* — et aucun contrôle **au**
+démarrage ne peut la voir, puisqu'à ce moment-là il est déjà trop tard pour la constater. D'où un
+contrôle **hors** du démarrage. À passer à la clôture d'un chantier qui touche au schéma.
+
+**Le pendant sans base** : `apps/backend/app/tests/test_migrations_graph.py` verrouille ce qui ne
+demande aucune connexion — une seule tête, et autant de révisions dans la chaîne que de fichiers
+dans `alembic/versions/`. Il tourne dans la suite ordinaire, donc à chaque `pytest`. Les deux sont
+**complémentaires** : un graphe parfait ne dit rien sur ce qui est posé en prod, et une prod à jour
+ne dit rien sur une seconde tête qui vient d'arriver sur `main`.
+
+> ⚠️ Il n'y a **aucune CI dans ce dépôt** (`.github/workflows/` n'existe pas). « Mettre ça en CI »
+> n'était pas une option : le verrou vit donc dans la suite de tests, que l'humain lance, et le
+> script se lance à la main. Le jour où une CI existera, les deux s'y branchent tels quels.

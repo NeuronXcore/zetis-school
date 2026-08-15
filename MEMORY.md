@@ -194,6 +194,34 @@ watermark `agenda_last_seen_at` a en revanche **avancé** — sans conséquence,
 disaient pas la même chose : l'un était **mal visé** (il passait par `globalThis`, hors du mock),
 l'autre a révélé un **décor dégénéré** (un seul quiz en base). Détail : `TROUBLESHOOTING.md`.
 
+#### 🧰 CE QUE LA MIGRATION DE PROD A FAIT AJOUTER (2026-08-15, après le merge)
+
+**La dérive de la prod se mesure désormais.** Elle ne se mesurait pas : trois migrations mergées y
+attendaient depuis des jours, et il a fallu *penser* à demander `alembic history`.
+
+- `scripts/check_migration_drift.py` — compare la révision d'une base à la tête du dépôt. Quatre
+  codes de sortie : aligné `0`, **en retard** `1`, **révision inconnue du dépôt** `2` (une branche
+  non mergée posée en base — le backend ne remontera pas au redémarrage), **deux têtes** `3`.
+  `--tete-attendue` est le garde-fou contre l'image périmée, qui annoncerait « aligné » sur une base
+  en retard.
+- `apps/backend/app/tests/test_migrations_graph.py` — le pendant **sans base**, dans la suite
+  ordinaire : une seule tête, autant de révisions que de fichiers, et un **témoin de la tête
+  courante** fait pour être mis à jour à chaque migration (une ligne de diff qu'on relit).
+- `apps/backend/alembic.ini` — `version_path_separator` (déprécié) → `path_separator`. Le dépôt
+  traite les warnings en erreurs, et la dépréciation faisait rougir le test qui construit un
+  `Config`. Corrigé à la source plutôt que masqué.
+
+⚠️ **Il n'y a AUCUNE CI dans ce dépôt** (`.github/workflows/` n'existe pas) : « mettre ça en CI »
+n'était pas une option. Le verrou vit dans la suite de tests, le script se lance à la main. À passer
+à la clôture d'un chantier qui touche au schéma.
+
+⚠️ **Aucun contrôle AU DÉMARRAGE ne peut voir cette dérive** : l'entrypoint fait déjà
+`alembic upgrade head`, donc à ce moment-là il est trop tard pour la constater. La fenêtre est
+*entre le merge et le redémarrage suivant*, et elle ne se voit que de l'extérieur.
+
+**3 sabotages joués, 3 rouges** (seconde tête · fichier ignoré par alembic · tête qui bouge sans le
+témoin) et les 4 codes de sortie éprouvés contre une vraie base.
+
 #### ▶ PROCHAIN PAS
 
 Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étape 4bis **faite** le
