@@ -42,6 +42,20 @@ la bonne page *en disant qu'il ne connaissait pas le sujet*.
 > toujours pas, il demande de préciser au lieu d'affirmer qu'il ne l'a pas : *« je n'ai pas
 > compris de quoi tu parles »* et *« je n'ai pas ce cours »* ne sont pas la même phrase.
 
+**La relecture visuelle a été faite, pour la première fois dans ce dépôt sur un chantier
+d'interface** — et elle a trouvé deux défauts de plus. Le menu d'une notion était rendu **sous le
+pli**, présent et cliquable mais jamais visible : apprendre à ZETIS à répondre au fond avait fait
+grandir sa réponse jusqu'à pousser dehors ce qui la suivait. Et « On arrête » — la seule sortie
+d'une interrogation — n'avait pas la forme d'un bouton, une classe CSS posée à moitié qu'aucun
+outil ne pouvait voir.
+
+**ZETIS n'écrit plus de LaTeX.** Il en produisait depuis qu'il répond au fond : Massimo lisait des
+dollars au milieu d'une phrase, et la voix les **prononçait**.
+
+> ✅ **Les 78 lignes ont été nettoyées** (en développement). On efface les mots, pas la trace : on
+> sait toujours qu'une dictée a eu lieu et combien de temps elle a duré. Un script rejouable
+> (`scripts/purge_chat_verbatim.py`) porte le geste, bilan d'abord, écriture sur demande.
+
 ## 0.92.0 — La fiche répond quand on la touche
 
 Trois défauts notés séparément après la relecture de l'ADR-0054. Relus dans le code, ils disaient

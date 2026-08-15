@@ -7113,3 +7113,85 @@ passé à « Reconstruire la mindmap » le 2026-08-12 — **invisible**, parce q
 **Parade** : la table morte est supprimée. Et pour celles qui doivent coexister (les deux fabriques
 de routes), un **contrat de grammaire** écrit à la main, extérieur aux deux — 🔴 **jamais généré
 depuis l'une d'elles**, sinon il certifie le bug.
+
+### 🔴 Deux notions dans une phrase ⇒ AUCUNE notion résolue, et tout l'ancrage meurt avec
+
+`resolve_skill` vectorise le message **entier** et le compare aux noms de notions. Sur *« explique-
+moi la différence entre le narrateur et le personnage principal »*, la similarité se répartit entre
+deux notions et **aucune** ne passe le seuil de 0,72. Sans notion, pas de matière ; sans matière,
+ni contexte canonique ni repli RAG — celui-ci était indexé sur la matière de la notion résolue,
+donc **mort exactement là où il devait servir**.
+
+ZETIS a répondu *« je ne l'ai pas encore dans tes cours »* alors que **le cours sur le Narrateur
+existe, validé**. Un refus honnête retourné en affirmation fausse.
+
+**Parade**, en trois crans : sans notion, le RAG cherche **toutes matières confondues** (le
+plancher de distance devient le seul garde-fou) · `lesson_matching_text` cherche dans les **cours
+eux-mêmes**, sur ce qu'ils s'appellent, sans aucun embedding · et quand les deux se taisent, un
+refus **distinct** (`NOTE_NOTION_INCERTAINE`) qui demande de préciser au lieu d'affirmer.
+
+⚠️ **Le RAG ne pouvait pas tenir lieu du troisième cran** : il n'indexe que les sources ingérées,
+jamais les cours. Un dépôt sans ingestion aurait obtenu un refus poli à la place de la réponse.
+
+⚠️ Et le garde-fou compte plus que la recherche : **la porte d'entrée est le TITRE** (ou le nom
+d'une notion portée), jamais le contenu. « Différence » apparaît dans n'importe quel cours de
+maths ; s'y ancrer ferait répondre ZETIS à côté **avec l'aplomb d'une source validée**.
+
+### 🔴 Une classe CSS posée à moitié est invisible à `tsc`, à `vitest` et à la relecture
+
+Le bouton « On arrête » — la **seule sortie visible** d'une interrogation — portait
+`className="chat-ghost"`. Or la règle est le sélecteur **composé** `.chat-tool.chat-ghost` : une
+moitié de sélecteur ne correspond à **rien**. Résultat mesuré dans le DOM : `background:
+transparent`, `border: 0`, `padding: 0`, 68 px de texte nu.
+
+Rien ne pouvait l'attraper. TypeScript ne connaît pas les classes CSS, jsdom ne charge pas la
+feuille de style, et le JSX se relit sans rien remarquer.
+
+**Parade** : un verrou qui observe la **classe** (`toHaveClass("chat-tool", "chat-ghost")`) — il
+attrape exactement cette faute, et rien de plus. Le reste appartient à l'œil.
+
+### ⚠️ `scrollIntoView` n'existe pas dans jsdom — neuf tests rouges d'un coup
+
+Même famille que le piège `AudioContext` du 2026-08-02. Ajouter un défilement dans `ChatPage` a
+fait tomber **neuf** tests sans rapport, sur un `TypeError: … is not a function`.
+
+**Parade** : garde de typage côté code (`typeof ancre?.scrollIntoView === "function"`), et
+**remplacement explicite** dans le test qui l'observe. ⚠️ La garde rend l'effet muet en test :
+sans un verrou qui pose lui-même le mock, plus rien ne couvrirait le défilement.
+
+### ⚠️ `ai_jobs.output_json` est de type `json`, pas `jsonb` — l'opérateur `?` n'existe pas
+
+`select … where output_json ? 'transcript'` rend *« operator does not exist: json ? unknown »*.
+Toutes les colonnes JSON du dépôt sont déclarées `json`.
+
+**Parade** : caster à chaque usage — `output_json::jsonb ? 'clé'`, et
+`(output_json::jsonb - 'clé')::json` pour retirer une clé sans changer le type de la colonne.
+
+### 🔴 Le LaTeX ne se voit pas seulement, il s'ENTEND
+
+ZETIS a rendu *« pour faire $1/2 + 1/3$ »*. Deux dégâts, pas un : Massimo lit des dollars, et
+**Piper les prononce** — la réponse parlée devient « dollar un demi plus un tiers dollar ».
+Corriger côté front n'aurait réparé que la moitié visible.
+
+**Parade** : le nettoyage vit dans `_sanitize`, le seul point que **toute** réplique traverse (tour
+de chat comme tour d'interrogation). Le prompt (`RÈGLE DE VOIX`) tarit à la source — il a fait
+passer le moteur de `$3/6$` à « trois sixièmes », ce qu'aucun nettoyage n'aurait produit — mais
+**une consigne ne garantit rien** : les deux gestes sont nécessaires.
+
+⚠️ `5 $` n'est pas une formule : le délimiteur LaTeX est **collé** à son contenu, la devise en est
+séparée par une espace. Sans cette garde, deux prix dans une phrase se mangent l'un l'autre.
+
+### ⚠️ Un défaut d'affichage peut naître d'un changement de COMPORTEMENT, à distance
+
+Le menu d'une notion était rendu **788 px sous le pli** d'un écran de 812 px : présent, cliquable,
+jamais vu. `ChatPage` n'a jamais eu de logique de défilement — et ça tenait tant que ZETIS ne
+répondait qu'une ligne. C'est le §7, « ZETIS répond au fond », qui l'a cassé : le karaoké occupe
+désormais tout l'écran et pousse dehors ce qui le suit.
+
+**Parade** : une ancre en fin de rendu, amenée sous les yeux quand un bloc **apparaît** — jamais
+sur le karaoké, qui grandit mot à mot et arracherait la lecture. `block: "nearest"` ne déplace rien
+quand le bloc est déjà visible.
+
+⚠️ **Et la relecture visuelle cherchait autre chose** : un débordement horizontal du menu passé à
+six boutons. Mesure dans le DOM à 375 px : `scrollWidth == clientWidth == 301`, zéro débordement.
+Le défaut réel était perpendiculaire à celui qu'on redoutait.

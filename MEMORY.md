@@ -12,12 +12,15 @@
 [#134](https://github.com/NeuronXcore/zetis-school/pull/134) OUVERTE — pas encore mergée.**
 Commits du chantier : `git log --oneline main..HEAD`.
 
-> 🔴 **`main` LOCAL a un commit NON POUSSÉ** : `a0f39c8`, l'ADR-0059. C'est pourquoi la PR #134
-> porte **deux** commits au lieu d'un. Pousser `main` la réduira au seul commit de code — geste
-> habituel du dépôt (`WORKFLOW.md §2bis` : les décisions sur `main`, le travail sur la branche).
+> ✅ **`main` est POUSSÉ** (`a0f39c8` identique en local et sur `origin`), et la branche aussi.
+> ⚠️ **La PR affiche 9 commits et 48 fichiers, alors que le delta réel vs `main` est de 8 commits
+> et 47 fichiers.** Ce n'est pas une anomalie : GitHub a enregistré la base de la PR *avant* le
+> push de `main`, et continue d'afficher le diff contre cette base figée (`026929f`). Le fichier
+> en trop est `DECISIONS.md`, déjà sur `main` à l'identique. Le squash n'en sera pas affecté.
 
-> 🔴 **NE PAS MERGER SANS LES DEUX VÉRIFICATIONS DUES** (voir PROCHAIN PAS). Ce serait la
-> **sixième** fois qu'un chantier d'interface part sans relecture visuelle.
+> ✅ **LES VÉRIFICATIONS DUES SONT FAITES** — relecture visuelle en 375 px et interrogation orale
+> jouée en vrai. C'est le premier chantier d'interface du dépôt à ne PAS partir en aveugle.
+> Elles ont produit **trois défauts de plus**, tous corrigés (§19–§21 de l'ADR).
 
 #### ✅ FAIT
 
@@ -32,6 +35,10 @@ Commits du chantier : `git log --oneline main..HEAD`.
 | **Arc C** | interrogation orale : 3 questions, état en 2ᵉ clé Redis, 4 garde-fous déterministes |
 | **Après essais micro** | matière exacte > notion floue · galaxie câblée · chapitre résolu · aveu démenti remplacé |
 | **Complément** | index globaux (9 pages) · atelier de fiche (par **leçon**) |
+| **§19 — ancrage sans notion** | RAG toutes matières · `lesson_matching_text` cherche dans les **cours** · refus distinct « je ne suis pas sûr de la notion » |
+| **§20 — ce qu'on propose est VU** | ancre de défilement · le bouton de sortie a enfin la forme d'un bouton |
+| **§21 — le LaTeX** | nettoyé dans `_sanitize` (les deux surfaces) + `RÈGLE DE VOIX` dans les deux prompts |
+| **§18 — l'existant soldé** | `scripts/purge_chat_verbatim.py` ; **78 lignes de dev nettoyées** |
 
 **Zéro migration.** Aucune entrée neuve dans `App.tsx` — uniquement des paramètres sur des routes
 existantes.
@@ -56,12 +63,29 @@ rougissent ensemble**, front et serveur.
    courte, streaming, ou modèle plus petit pour le tour conversationnel. **Nommé et chiffré dans
    l'ADR §6, hors de ce chantier.**
 
-🔴 **FUITE MESURÉE ET REFERMÉE : 78 lignes `ai_jobs`** portaient les mots dictés par Massimo
-(2026-07-04 → 08-14, 33 phrases réelles ; longueurs seulement, contenu non lu). ⚠️ **Les 78 lignes
-sont TOUJOURS EN BASE** — leur sort est une décision de Papa, pas du chantier.
+🔴 **FUITE MESURÉE, REFERMÉE, ET SOLDÉE : 78 lignes `ai_jobs`** portaient les mots dictés par
+Massimo (2026-07-04 → 08-14). ✅ **Nettoyées en DEV le 2026-08-15**, vérifiées à zéro sur toutes
+les colonnes JSON et tous les `job_types`. Arbitrage de Papa : on **efface la clé `transcript`, pas
+la ligne** — la trace d'exécution (`job_type`, durée, taille de l'audio) survit, ce que l'ADR
+demande et rien de plus. ⚠️ **La PRODUCTION reste à traiter** (voir DETTES).
 
-🔴 **Quatre défauts sur six essais AU MICRO n'étaient visibles que là.** Détail :
-`TROUBLESHOOTING.md` §ADR-0059 (**9 sous-sections**).
+🔴 **Défauts trouvés UNIQUEMENT à l'usage réel, jamais par un test** — c'est le fait marquant du
+chantier :
+
+| Où | Combien | Nature |
+|---|---|---|
+| Six essais **au micro** | 4 | routage, aveu contredit, galaxie, chapitre |
+| Première **interrogation orale** réelle | 4 | « je ne sais pas » consommait une question · clôture qui félicite à vide · **zéro trace `ai_jobs`** · ZETIS créditant Massimo de mots jamais dits |
+| Deuxième essai au micro | 1 | 🔴 refus **FAUX** sur un cours qui existe (→ §19) |
+| **Relecture visuelle** | 2 | menu 788 px sous le pli · bouton de sortie sans forme (→ §20) |
+| Lecture d'une réponse | 1 | LaTeX brut, lu **et prononcé** (→ §21) |
+
+Détail : `TROUBLESHOOTING.md` §ADR-0059 (**15 sous-sections**).
+
+⚠️ **Le débordement horizontal redouté n'existait pas.** La relecture visuelle cherchait un menu
+qui déborde en 390 px ; mesure dans le DOM à 375 px : `scrollWidth == clientWidth == 301`. Le
+défaut réel était **perpendiculaire** à celui qu'on attendait. *Chercher au bon endroit n'est pas
+la même chose que regarder.*
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
@@ -88,29 +112,49 @@ sont TOUJOURS EN BASE** — leur sort est une décision de Papa, pas du chantier
    n'est pas adressable** : l'ouvrir signifie la **démarrer**.
 10. **Le quiz garde son `mode:"quiz"` asynchrone côté front** — exception NOMMÉE dans le contrat :
     `?from=` ne transporte qu'un slug, il perdrait le `returnTo` vers `/galaxy`.
+11. 🔴 **Sans notion résolue, la porte d'entrée d'un cours est son TITRE** (ou le nom d'une notion
+    qu'il porte), **jamais son contenu** — celui-ci ne fait que départager. « Différence » est dans
+    tous les cours de maths ; s'y ancrer ferait répondre à côté avec l'aplomb d'une source validée.
+    *Se taire vaut mieux que s'ancrer au hasard.* (§19)
+12. **Le verbatim s'efface par la CLÉ, pas par la LIGNE.** La règle est « aucun `ai_jobs` ne porte
+    un TEXTE de Massimo », pas « aucune dictée n'a eu lieu » : la trace d'exécution qu'exige
+    `CLAUDE.md` survit. (§18, arbitré par Papa le 2026-08-15)
+13. **Ce que ZETIS dit est LU À VOIX HAUTE** : ni LaTeX ni Markdown. Deux gestes qui ne se
+    remplacent pas — le prompt tarit à la source, `_sanitize` garantit. (§21)
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- 🔴 **La qualité du décodage glouton n'a été mesurée que sur une VOIX DE SYNTHÈSE**, qui articule
-  trop bien pour être un test. La dictée a bien été exercée au vrai micro (elle comprend), mais
-  **personne n'a jugé si la transcription s'est dégradée**. Repli si oui : `beam_size=2`, **pas** le
-  retour à 5.
-- 🔴 **Le menu du chat peut passer de 5 à 7 boutons** dans `chat-offer-row` — **jamais vu à
-  l'écran**, et le panneau voisin déborde déjà de 94 px en 390 px.
-- 🔴 **Les 78 lignes `ai_jobs` portant du verbatim sont toujours en base.**
-- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré** sur de vraies données : seul garde-fou
-  contre un ancrage sur un chapitre voisin (la recherche est à l'échelle de la matière).
-- ⚠️ **Les budgets de contexte n'ont pas été mesurés après élargissement** — on passe de ~1200 à
-  ~5000 caractères injectés, sur une base à 9,4 s.
+- 🔴 **LE VERBATIM EST TOUJOURS EN PRODUCTION.** Le dev est nettoyé, pas la prod — aucune pile de
+  production n'était joignable depuis la session. Le geste :
+  `python scripts/purge_chat_verbatim.py --apply`, avec **`ZETIS_DATABASE_URL`** pointant sur la
+  bonne base. ⚠️ `DATABASE_URL` est ignorée **en silence** par l'app ; le script refuse de tourner
+  (code 2) s'il voit l'une sans l'autre. Bilan sans `--apply`, sans risque. Procédure et codes de
+  sortie : `scripts/README.md`.
+- 🔴 **La qualité du décodage glouton n'a jamais été JUGÉE sur une vraie voix.** Elle n'a été
+  mesurée que sur une voix de synthèse, qui articule trop bien. **Un seul point réel observé** :
+  « alternes-internes » transcrit « alternatifs interne » — rattrapé par ZETIS, mais c'est une
+  observation, pas une mesure. Repli si dégradation : `beam_size=2`, **pas** le retour à 5.
+- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré** sur de vraies données. **Son rôle a
+  GRANDI avec le §19** : sans notion résolue, la recherche porte sur **toutes les matières** et ce
+  seuil devient le seul garde-fou. À surveiller en premier si ZETIS s'ancre à côté.
+- ⚠️ **Les budgets de contexte n'ont pas été mesurés après élargissement** — de ~1200 à ~5000
+  caractères injectés, sur une base à 9,4 s.
 - ⚠️ **Le filtre RAG par NIVEAU est exposé mais désactivé** (`level` nullable : l'activer viderait
   le RAG en silence). Condition d'activation écrite dans l'ADR §9.
-- ⚠️ **L'interrogation orale n'a jamais été jouée en vrai** — ni son état Redis, ni la clôture, ni
-  la sortie « stop ».
-- ⚠️ **Le repère « Question 2 sur 3 » n'a pas été vu à l'écran.**
 - ⚠️ **`_AVEUX_IGNORANCE` est une liste de formules** — elle n'attrape pas tout, et un moteur peut
   la contourner avec d'autres mots. C'est un filet, pas une garantie.
+- ⚠️ **Les exposants LaTeX (`x^2`) ne sont pas traités** (§21) : ils se lisent, ils se disent mal.
+  À rouvrir si Massimo travaille les puissances.
+- ⚠️ **`lesson_matching_text` compare des mots EXACTS** : une faute de dictée ne mord pas. Sans
+  conséquence connue — le résolveur par embeddings, lui, encaisse très bien les fautes, et les deux
+  faiblesses sont indépendantes. À reconsidérer seulement si le cas composé se présente.
+- ⚠️ **Trois verrous ne prouvent que la moitié de ce qu'ils gardent**, et le disent : jsdom ne
+  mesure aucune géométrie (le défilement du §20) et ne charge pas la feuille de style (la classe du
+  bouton de sortie). La visibilité réelle a été vue à l'écran, pas testée.
+- ⚠️ **La sortie « stop » d'une interrogation n'a pas été jouée en vrai**, ni la clôture après
+  trois questions. Ouverture et question 2 sur 3 : vues. Le reste tient sur les tests.
 
 **Remontées de l'ADR-0058 (élagué ce jour, PR #133, squash `0cd0a9a`) :**
 
@@ -154,34 +198,35 @@ ce ne sont plus les sections de chantier qui s'empilent, ce sont leurs résidus.
 **Infra Docker allumée.** Paire `backend` (:8000) + `massimo` (:5173) vivante, ⚠️ elle **meurt
 avec la session**.
 
-⚠️ **Ce chantier n'a RIEN écrit en base** — sauf ce que les essais au micro ont produit
-naturellement : quelques `content_requests` et `ai_jobs` de type `chat_transcribe` (aveugles au
-contenu) et `chat_turn`. Aucune migration, aucune donnée de test injectée.
+⚠️ **Ce chantier n'a RIEN écrit en base** — sauf ce que les essais ont produit naturellement :
+quelques `content_requests` et `ai_jobs` (`chat_transcribe` aveugles au contenu, `chat_turn`,
+`chat_recall`). Aucune migration, aucune donnée de test injectée. **Une ligne sonde** posée pour
+exercer le script de purge a été **retirée** — vérifié : 78 `eli5_transcribe`, comme avant.
 
 **Suites lancées APRÈS la dernière modification de code :**
 
 | Suite | Résultat |
 |---|---|
-| backend `pytest` | **1353** ✅ |
-| Massimo `vitest` | **796** ✅ |
-| Papa `vitest` | **814** ✅ (inchangé) |
-| `tsc -b` Massimo · Papa | ✅ · ✅ |
+| backend `pytest` | **1370** ✅ |
+| Massimo `vitest` | **798** ✅ |
+| `tsc -b` Massimo | ✅ |
+| Papa `vitest` · `tsc -b` | ⚠️ **NON RELANCÉS** depuis les correctifs §19–§21 — aucun fichier Papa touché de tout le chantier |
 
-⚠️ Les docs de clôture (CHANGELOG, TROUBLESHOOTING, API_SPEC, .env.example, MEMORY) ont été
-écrites **après** ce run ; elles ne touchent aucun code.
+⚠️ Les docs de clôture (MEMORY, TROUBLESHOOTING, PROJECT_STRUCTURE) sont écrites **après** ce run ;
+elles ne touchent aucun code.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **complet et poussé**, la PR #134 est **ouverte**. Dans l'ordre :
+Le chantier est **complet, poussé, et vérifié à l'écran**. Les deux blocages du merge sont levés.
 
-1. 🔴 **RELECTURE VISUELLE** — le menu du chat à 7 boutons en 390 px, la puce de source, l'écho de
-   dictée, le repère d'interrogation. **Cinq merges du dépôt s'en sont passés, tous regrettés.**
-2. 🔴 **ESSAI AU MICRO de la QUALITÉ** — le décodage glouton n'a été jugé que sur une voix de
-   synthèse. C'est le seul compromis du chantier qui touche la justesse.
-3. **Jouer une interrogation orale complète en vrai** (jamais faite) : ouverture, trois questions,
-   « stop », clôture.
-4. **Pousser `main`** (commit `a0f39c8`) pour que la PR ne porte que le code.
-5. Puis **merge → étape 4bis** : remettre `MEMORY.md` au réel (squash, PR, branche supprimée).
+1. **MERGER la PR #134** (squash). Rien ne l'attend plus : `main` est poussé, la relecture visuelle
+   est faite, l'interrogation orale a été jouée.
+2. **Étape 4bis** immédiatement après (`WORKFLOW.md §5`) : remettre `MEMORY.md` au réel — squash,
+   branche supprimée, « rien à pousser ». **Ce paragraphe-ci sera faux dès le merge.**
+3. 🔴 **Passer `purge_chat_verbatim.py --apply` sur la PRODUCTION.** C'est le seul travail
+   réellement ouvert de ce chantier, et il porte sur la vie privée de Massimo.
+4. Le reste des dettes est nommé ci-dessus ; **la seule qui touche la justesse** est la qualité du
+   décodage glouton, jamais jugée sur une vraie voix.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
