@@ -97,6 +97,13 @@ class ChatMessageOut(BaseModel):
     tool_suggestion: str | None = None
     difficulty_declared: bool = False
     action: ChatAction | None = None
+    #: Sur quoi la réponse s'appuie (`adr-0059` §7). `None` quand le tour n'était pas une question
+    #: de fond — la puce de source ne s'affiche alors pas du tout. Référence différée (le schéma
+    #: est défini plus bas, avec les autres objets d'orchestration) et résolue en fin de fichier,
+    #: exactement comme `ChatSessionOut` → `ChatAnnouncement`.
+    grounding: "ChatGrounding | None" = None
+    #: Interrogation orale en cours (`adr-0059` §10), ou `None`.
+    recall: "ChatRecall | None" = None
 
 
 class ChatAnnouncement(BaseModel):
@@ -115,6 +122,61 @@ class ChatAnnouncement(BaseModel):
     actions: list[ChatAction] = []
 
 
+class ChatRecall(BaseModel):
+    """Où en est l'interrogation orale (`adr-0059` §10). `None` = aucune en cours.
+
+    ⚠️ **Un repère de progression, jamais un score.** `asked` / `total` dit « question 2 sur 3 » ;
+    il n'y a ni compteur d'erreurs, ni pourcentage, ni bilan — les règles de gamification du
+    projet interdisent le décompte anxiogène, et un enfant qui voit « 1/2 » arrête de répondre
+    pour protéger son chiffre.
+    """
+
+    asked: int
+    total: int
+    skill_name: str
+    #: `True` sur le dernier tour : l'interrogation est close, l'état a été effacé côté serveur.
+    finished: bool = False
+
+
+class ChatGrounding(BaseModel):
+    """Sur quoi la réponse de ZETIS s'appuie — **calculé SERVEUR** (`adr-0059` §7).
+
+    Le moteur déclare sa source dans `answer.used_source` ; cette déclaration n'est jamais
+    recopiée ici. Le serveur sait ce qu'il a injecté (une leçon ? des extraits ? rien ?) et c'est
+    lui qui tranche — patron d'`eli5/service.py`, qui dérive `lesson_id`/`sources_used` de `ctx`
+    et jamais de la sortie du modèle.
+
+    `kind` :
+    - `cours` — la réponse s'appuie sur le cours canonique validé de la notion ;
+    - `extraits` — sur des passages du RAG au-dessus du plancher de pertinence ;
+    - `aucune` — **rien n'ancrait la question**. ZETIS le dit et le note pour Papa ; il ne
+      répond pas de mémoire.
+    """
+
+    kind: str  # cours|extraits|aucune
+    #: Titre de la leçon quand `kind == "cours"` — c'est ce que la puce affiche à Massimo
+    #: (« 📖 D'après ta leçon « … » »). ⚠️ **§16 : c'est une DONNÉE, pas du code.** Un titre saisi
+    #: par l'adulte pourrait contenir le mot « papa » ; on ne censure pas ses données, mais
+    #: l'angle mort est nommé ici plutôt que découvert à l'écran.
+    lesson_title: str | None = None
+    #: Nombre de passages RAG réellement injectés (0 quand `kind != "extraits"`).
+    sources_used: int = 0
+
+
+class ChatTranscribeOut(BaseModel):
+    """Ce que rend la dictée du chat (`adr-0059` §18).
+
+    `transcript` est **rendu, jamais écrit** : il traverse la réponse HTTP et n'entre dans aucune
+    table. `duration_seconds` est la durée de l'AUDIO — pas le temps de transcription, qui vit
+    dans `ai_jobs.duration_ms` et n'a aucune raison d'être servi à l'enfant.
+    """
+
+    transcript: str
+    duration_seconds: float
+
+
 # `ChatSessionOut` référence `ChatAnnouncement` avant sa définition (l'ouverture de session est le
 # premier schéma du fichier, la carte d'action le dernier) : la référence différée se résout ici.
+# Idem pour `ChatMessageOut` → `ChatGrounding` depuis l'`adr-0059` §7.
 ChatSessionOut.model_rebuild()
+ChatMessageOut.model_rebuild()

@@ -68,6 +68,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     Le canal est annoncé au démarrage : sans SMTP configuré, ZETIS ne se tait pas — il dit qu'il
     est muet. Un canal inerte qu'on croit armé est pire qu'un canal absent.
+
+    S'y ajoute depuis l'`adr-0059` §5.4 le **préchargement du moteur de dictée**, en tâche de
+    fond : sans lui, c'est Massimo qui paie le chargement du modèle Whisper la première fois
+    qu'il appuie sur le micro.
     """
     logger = logging.getLogger("app.watchdog")
     if mailer.canal_configure():
@@ -81,10 +85,42 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             "L'absence de worker restera visible dans le bandeau Papa, et nulle part ailleurs."
         )
     tache = asyncio.create_task(watchdog.boucle())
+    prechauffe = asyncio.create_task(_prechauffer_stt())
     try:
         yield
     finally:
         tache.cancel()
+        prechauffe.cancel()
+
+
+async def _prechauffer_stt() -> None:
+    """Charge le moteur de dictée hors du chemin de Massimo (`adr-0059` §5.4).
+
+    ⚠️ **En tâche de fond, jamais dans le démarrage lui-même.** Charger un modèle Whisper prend
+    plusieurs secondes de CPU : le faire en ligne retarderait l'ouverture du port, donc le
+    healthcheck, donc le déploiement — on aurait déplacé l'attente de Massimo vers l'infra.
+    `asyncio.to_thread` la sort aussi de la boucle d'événements, qui doit rester libre de servir
+    les requêtes pendant ce temps.
+
+    ⚠️ **Aucune erreur ne remonte** (`warmup` ne lève pas, et on filet ici par sécurité) : sans
+    `faster-whisper` installé, le backend doit démarrer exactement comme avant. Un ZETIS
+    entièrement indisponible parce que la dictée l'est serait une panne bien pire que celle qu'on
+    évite.
+    """
+    logger = logging.getLogger("app.stt")
+    try:
+        from app.modules.stt import get_stt
+
+        moteur = get_stt()
+        chauffe = getattr(moteur, "warmup", None)
+        if chauffe is None:
+            return
+        await asyncio.to_thread(chauffe)
+        logger.info("moteur de dictée préchargé")
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — un warm-up raté n'est jamais fatal
+        logger.warning("préchargement de la dictée impossible (%s) — micro en 503 le cas échéant", exc)
 
 
 app = FastAPI(title="ZETIS Backend", version=settings.version, lifespan=lifespan)

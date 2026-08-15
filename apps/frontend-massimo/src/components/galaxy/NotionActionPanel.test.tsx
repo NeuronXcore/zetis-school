@@ -116,15 +116,30 @@ describe("NotionActionPanel — destinations", () => {
   // matière, donc les seules incapables de savoir d'où Massimo vient. Les cinq autres
   // destinations sont identiques au caractère près.
   const CAS: Array<[string, GalaxyNotion["actions"][number], string, RegExp]> = [
-    ["cours", { kind: "cours", available: true, lesson_id: 3 }, "/subjects/svt/cours", /Voir le cours/],
+    // ⚠️ TROIS destinations se sont PRÉCISÉES le 2026-08-15 (ADR-0059 §A2) : `cours`, `fiche` et
+    // `capsule` portaient les ids sans les utiliser, et ouvraient le paquet de la matière. Ce
+    // que ce tableau verrouille — « chaque activité ouvre sa surface RÉELLE, en pleine page » —
+    // est inchangé ; c'est la finesse de la cible qui a bougé.
+    [
+      "cours",
+      { kind: "cours", available: true, lesson_id: 3 },
+      "/subjects/svt/cours?lesson=3",
+      /Voir le cours/,
+    ],
     [
       "eli5",
       { kind: "eli5", available: true },
       "/eli5?skill_id=12&name=Mitose&from=svt",
       /Fais-moi comprendre/,
     ],
-    ["fiche", { kind: "fiche", available: true, fiche_id: 5 }, "/fiches/svt", /Lire la fiche/],
-    ["capsule", { kind: "capsule", available: true, capsule_id: 7 }, "/capsules", /Regarder la capsule/],
+    ["fiche", { kind: "fiche", available: true, fiche_id: 5 }, "/fiches/svt?fiche=5", /Lire la fiche/],
+    [
+      "capsule",
+      { kind: "capsule", available: true, capsule_id: 7 },
+      // Le libellé « Regarder la capsule » ne sur-promet plus : il ouvre bien LA capsule.
+      "/capsules?capsule=7",
+      /Regarder la capsule/,
+    ],
     [
       "mindmap",
       { kind: "mindmap", available: true, mindmap_id: 44 },

@@ -58,7 +58,15 @@ export function notionRouteFor(action: GalaxyAction, ctx: NotionRouteContext): N
 
   switch (action.kind) {
     case "cours":
-      return { mode: "navigate", to: `/subjects/${encodeURIComponent(ctx.subjectSlug)}/cours` };
+      // `?lesson=` **cadre et déplie** le cours dans son chapitre — il n'ouvre pas le volet de
+      // lecture (`agendaCourseRoute` partage ce paramètre, et le changer changerait l'agenda).
+      // « Voici ton cours, dans son chapitre » EST la ressource exacte (ADR-0059 §A2).
+      return {
+        mode: "navigate",
+        to:
+          `/subjects/${encodeURIComponent(ctx.subjectSlug)}/cours` +
+          (action.lesson_id ? `?lesson=${action.lesson_id}` : ""),
+      };
     case "eli5":
       // Seule surface réellement adressable PAR NOTION en URL aujourd'hui. `from` s'y ajoute
       // parce que `/eli5` ne garde aucune trace de la matière : ni son URL (nettoyée dès le
@@ -72,16 +80,22 @@ export function notionRouteFor(action: GalaxyAction, ctx: NotionRouteContext): N
     case "fiche":
       // Le `state` porte le NOM (l'URL n'a qu'un slug, et « Svt » serait laid). Ce n'est pas
       // de l'état de NAVIGATION : la page a un repli si on arrive par un lien partagé.
+      // `?fiche=` ouvre LA fiche — adresse de l'`adr-0054` §1, enfin consommée (ADR-0059 §A2).
       return {
         mode: "navigate",
-        to: `/fiches/${encodeURIComponent(ctx.subjectSlug)}`,
+        to:
+          `/fiches/${encodeURIComponent(ctx.subjectSlug)}` +
+          (action.fiche_id ? `?fiche=${action.fiche_id}` : ""),
         state: { name: ctx.subjectName },
       };
     case "capsule":
-      // ⚠️ Dette connue, pas introduite ici : `action.capsule_id` est IGNORÉ, on ouvre la liste
-      // à plat. Le libellé « Regarder la capsule » sur-promet donc déjà. À corriger quand
-      // `/capsules/:id` existera — hors périmètre de ce chantier.
-      return { mode: "navigate", to: "/capsules" };
+      // ⚠️ **Dette SOLDÉE par l'ADR-0059 §A1.** `action.capsule_id` était IGNORÉ, on ouvrait la
+      // liste à plat, et le libellé « Regarder la capsule » sur-promettait donc déjà. `?capsule=`
+      // existe désormais. Sans id (cas théorique : `available` sans cible), on ne navigue pas —
+      // une porte qu'on ouvre sur du vide est pire que pas de porte.
+      return action.capsule_id
+        ? { mode: "navigate", to: `/capsules?capsule=${action.capsule_id}` }
+        : { mode: "none" };
     case "mindmap":
       return action.mindmap_id
         ? { mode: "navigate", to: `/mindmaps/reconstruire/${action.mindmap_id}` }
@@ -96,6 +110,17 @@ export function notionRouteFor(action: GalaxyAction, ctx: NotionRouteContext): N
           `&${backParam(ctx.subjectSlug)}`,
       };
     case "quiz":
+      // 🔴 **SEULE EXCEPTION au contrat de parité, et elle est délibérée** (ADR-0059 §A4).
+      // `/quiz?quiz=<id>` existe depuis le §A1 — le chat l'utilise, et c'est ce qui lui permet
+      // enfin d'ouvrir un quiz. Ici on garde pourtant le chargement asynchrone, pour une raison
+      // que l'URL ne sait pas porter : **`returnTo`**. Depuis la constellation, le retour de
+      // session doit ramener à `/galaxy` ; `?from=` ne transporte qu'un slug de MATIÈRE, et le
+      // dépôt ne met jamais de route arbitraire dans un paramètre. Unifier ferait donc
+      // silencieusement atterrir Massimo ailleurs qu'où il était.
+      //
+      // Le contrat de parité marque cette ligne « équivalent asynchrone » plutôt que de comparer
+      // deux chaînes qui ne peuvent pas être égales : une exception NOMMÉE vaut mieux qu'un trou
+      // silencieux dans le verrou.
       return action.quiz_id
         ? {
             mode: "quiz",

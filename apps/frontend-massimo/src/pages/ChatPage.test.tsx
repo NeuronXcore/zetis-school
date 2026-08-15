@@ -26,6 +26,10 @@ vi.mock("../lib/chat", async (orig) => {
     sendChatMessage: vi.fn(),
     closeChatSession: vi.fn(),
     synthesizeChatSpeech: vi.fn(),
+    // La dictée du chat a sa propre route depuis l'ADR-0059 §18 (celle d'ELI5 écrivait les mots
+    // de Massimo en base). Seule la DÉPENDANCE change ici — les assertions de dictée sont
+    // inchangées : elles vérifient toujours « appui, relâche, ZETIS reçoit le texte ».
+    transcribeChat: vi.fn(),
   };
 });
 
@@ -34,9 +38,35 @@ vi.mock("../lib/dictation", () => ({
   startRecording: vi.fn(),
 }));
 
+// 🔴 **La voix doit être SUPPORTÉE dans les tests, sinon la branche de synthèse n'est jamais
+// traversée.** jsdom n'a pas d'`AudioContext`, donc `isVoicePlaybackSupported()` rend `false` et
+// `speakReply` saute tout le bloc `synthesizeChatSpeech` + `playSpeech`. Un test qui prétend
+// vérifier « le texte s'affiche AVANT la voix » y était donc VERT même en remettant l'ordre
+// fautif — constaté en jouant le sabotage le 2026-08-15, et c'est la seule raison pour laquelle
+// ce mock existe. Sans lui, le verrou de l'ADR-0059 §5.1 ne verrouille rien.
+// ⚠️ **`false` par défaut = le comportement exact de jsdom avant ce mock.** Le rendre `true`
+// globalement ferait passer les 21 autres tests par la branche voix, où `playback.ended` résolu
+// d'emblée termine la parole instantanément — un test qui vérifie « la carte n'apparaît
+// qu'APRÈS la parole » devient alors faux pour une raison qui n'a rien à voir avec lui. Seul le
+// test du §5.1 le passe à `true`.
+vi.mock("../lib/voice", async (orig) => {
+  const actual = await orig<typeof import("../lib/voice")>();
+  return {
+    ...actual,
+    isVoicePlaybackSupported: vi.fn(() => false),
+    primeAudio: vi.fn(),
+    playSpeech: vi.fn(async () => ({
+      duration: 1,
+      ended: Promise.resolve(),
+      getArticulation: () => null,
+      stop: vi.fn(),
+    })),
+  };
+});
+
 vi.mock("../lib/eli5", async (orig) => {
   const actual = await orig<typeof import("../lib/eli5")>();
-  return { ...actual, transcribeEli5: vi.fn(), requestNotion: vi.fn() };
+  return { ...actual, requestNotion: vi.fn() };
 });
 
 // `useNavigate` mocké pour observer les navigations d'action (voix directe, carte tapée).
@@ -60,17 +90,19 @@ import {
   createChatSession,
   sendChatMessage,
   synthesizeChatSpeech,
+  transcribeChat,
   type ChatReply,
 } from "../lib/chat";
 import { isDictationSupported, startRecording } from "../lib/dictation";
-import { requestNotion, transcribeEli5 } from "../lib/eli5";
+import { isVoicePlaybackSupported } from "../lib/voice";
+import { requestNotion } from "../lib/eli5";
 
 const mockCreate = vi.mocked(createChatSession);
 const mockSend = vi.mocked(sendChatMessage);
 const mockSynthesize = vi.mocked(synthesizeChatSpeech);
 const mockSupported = vi.mocked(isDictationSupported);
 const mockRecord = vi.mocked(startRecording);
-const mockTranscribe = vi.mocked(transcribeEli5);
+const mockTranscribe = vi.mocked(transcribeChat);
 
 const REPLY: ChatReply = {
   session_id: "s1",
@@ -290,6 +322,178 @@ describe("ChatPage", () => {
       expect(screen.getByRole("button", { name: /T'expliquer les fractions/ })).toBeInTheDocument(),
     );
     expect(mockNavigate).not.toHaveBeenCalled(); // offre → carte, pas de téléportation vocale
+  });
+
+  it("🔴 le texte de ZETIS s'affiche SANS attendre la synthèse vocale (ADR-0059 §5.1)", async () => {
+    // Le plus gros gain de réactivité du chantier. Jusqu'au 2026-08-15, `setWords` venait APRÈS
+    // `await synthesizeChatSpeech` : Piper devait finir toute la réponse avant le premier mot.
+    // On tient ici la synthèse EN SUSPENS et on exige que le texte soit déjà là.
+    //
+    // 🔴 Sans cette ligne, le test est VERT sur le sabotage : jsdom n'a pas d'`AudioContext`,
+    // donc la branche voix n'est jamais traversée et l'ordre des deux blocs n'a aucun effet
+    // observable. Vérifié en jouant le sabotage le 2026-08-15.
+    vi.mocked(isVoicePlaybackSupported).mockReturnValue(true);
+    let libere: (buf: ArrayBuffer) => void = () => {};
+    mockSynthesize.mockReturnValue(
+      new Promise<ArrayBuffer>((resolve) => {
+        libere = resolve;
+      }),
+    );
+    mockSend.mockResolvedValue({ ...REPLY, reply: "Les fractions, c'est des parts.", action: null });
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "c'est quoi les fractions" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    // La synthèse n'a PAS rendu — et le texte est pourtant déjà à l'écran.
+    // (Le karaoké éclate la réponse en un `<span>` par mot : on lit le conteneur, pas un nœud
+    // de texte unique.)
+    await waitFor(() =>
+      expect(document.querySelector(".chat-transcript")?.textContent).toContain("parts"),
+    );
+    expect(screen.getByTestId("avatar").dataset.state).toBe("speaking");
+
+    libere(new ArrayBuffer(8)); // on libère la voix : le tour se termine normalement
+  });
+
+  it("🔴 la dictée s'affiche à Massimo avant que ZETIS réponde (ADR-0059 §5.2)", async () => {
+    // Sa transcription partait directement dans `send()` sans jamais s'afficher : il parlait, et
+    // n'avait aucune confirmation d'avoir été entendu avant la réponse complète.
+    mockSupported.mockReturnValue(true);
+    mockRecord.mockResolvedValue({
+      stop: () => Promise.resolve(new Blob(["x"], { type: "audio/webm" })),
+      cancel: () => {},
+      analyser: null,
+    });
+    mockTranscribe.mockResolvedValue({ transcript: "explique les fractions", duration_seconds: 1 });
+    let repond: (r: ChatReply) => void = () => {};
+    mockSend.mockReturnValue(
+      new Promise<ChatReply>((resolve) => {
+        repond = resolve;
+      }),
+    );
+    renderPage();
+    const mic = screen.getByRole("button", { name: /Appuie pour parler/ });
+    fireEvent.pointerDown(mic);
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("listening"));
+    fireEvent.pointerUp(mic);
+
+    // ZETIS n'a pas encore répondu, et Massimo voit déjà ses propres mots.
+    await waitFor(() => expect(screen.getByText(/explique les fractions/)).toBeInTheDocument());
+
+    repond({ ...REPLY, reply: "Voilà.", action: null });
+  });
+
+  it("le texte tapé ne se répète PAS à l'écran (il est déjà sous les yeux de Massimo)", async () => {
+    // Garde-fou de l'asymétrie voix/clavier : l'écho répond au doute « m'a-t-il entendu ? », qui
+    // n'existe qu'à la voix. Au clavier, le répéter serait du bruit.
+    let repond: (r: ChatReply) => void = () => {};
+    mockSend.mockReturnValue(
+      new Promise<ChatReply>((resolve) => {
+        repond = resolve;
+      }),
+    );
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "coucou zetis" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByTestId("avatar").dataset.state).toBe("thinking"));
+    expect(screen.queryByText("coucou zetis")).not.toBeInTheDocument();
+
+    repond({ ...REPLY, reply: "Salut !", action: null });
+  });
+
+  it("🔴 la source s'AFFICHE et ne se PARLE jamais (ADR-0059 §7)", async () => {
+    // Une incise administrative dans chaque réponse parlée (« d'après ta leçon Les fractions »)
+    // casserait le rythme d'une conversation d'enfant — même discipline que l'annonce
+    // d'ouverture. Sabotage : concaténer la source au `reply` avant `synthesizeChatSpeech`.
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      reply: "Les parts doivent être égales.",
+      action: null,
+      grounding: { kind: "cours", lesson_title: "Les fractions", sources_used: 0 },
+    });
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "pourquoi le même dénominateur" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByText(/D'après ta leçon « Les fractions »/)).toBeInTheDocument(),
+    );
+    // Ce qui part à la synthèse ne contient QUE la réponse.
+    for (const appel of mockSynthesize.mock.calls) {
+      expect(appel[0]).not.toMatch(/D'après/);
+    }
+  });
+
+  it("sans source ancrée, aucune puce ne s'affiche", async () => {
+    // ZETIS l'a déjà dit dans sa réponse même (« je ne l'ai pas encore — je le note ») : une puce
+    // « d'après rien » serait un doublon, et un aveu de plus à lire pour Massimo.
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      reply: "Ça, je ne l'ai pas encore dans tes cours — je le note.",
+      action: null,
+      grounding: { kind: "aucune", lesson_title: null, sources_used: 0 },
+    });
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "explique-moi les statistiques" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    await waitFor(() =>
+      expect(document.querySelector(".chat-transcript")?.textContent).toContain("note"),
+    );
+    expect(document.querySelector(".chat-source")).toBeNull();
+  });
+
+  it("l'interrogation montre un REPÈRE et une SORTIE — jamais un score (ADR-0059 §10)", async () => {
+    // Les règles de gamification interdisent le décompte anxiogène : ni compteur d'erreurs, ni
+    // pourcentage, ni bilan. Un enfant qui voit « 1/2 » cesse de répondre pour protéger son
+    // chiffre. Sabotage : afficher les verdicts.
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      reply: "Que vaut -3 + 5 ?",
+      action: null,
+      recall: { asked: 2, total: 3, skill_name: "Nombres relatifs", finished: false },
+    });
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "interroge-moi" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Question 2 sur 3/)).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /On arrête/ })).toBeInTheDocument();
+    expect(screen.queryByText(/score|bonne réponse|erreur/i)).not.toBeInTheDocument();
+  });
+
+  it("une interrogation CLOSE disparaît de l'écran", async () => {
+    // Le repère ne doit pas survivre à ce qu'il mesure.
+    mockSend.mockResolvedValue({
+      ...REPLY,
+      reply: "Voilà, c'est tout pour cette fois — tu as bien travaillé !",
+      action: null,
+      recall: { asked: 3, total: 3, skill_name: "Nombres relatifs", finished: true },
+    });
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText(/Écris à ZETIS/i), {
+      target: { value: "la réponse" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /Envoyer/i }).closest("form")!);
+
+    await waitFor(() =>
+      expect(document.querySelector(".chat-transcript")?.textContent).toContain("travaillé"),
+    );
+    expect(screen.queryByText(/Question .* sur/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /On arrête/ })).not.toBeInTheDocument();
   });
 
   it("action show_data → carte de données inline (le front récupère l'agenda)", async () => {

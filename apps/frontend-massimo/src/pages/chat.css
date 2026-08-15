@@ -59,6 +59,33 @@
   text-shadow: 0 0 18px rgba(255, 207, 71, 0.85), 0 0 40px rgba(255, 157, 46, 0.4);
 }
 
+/* Ce que Massimo vient de dire (ADR-0059 §5.2) — l'accusé de réception de sa voix.
+   Occupe la MÊME hauteur que le karaoké (`min-height: 108px`) : sans ça, l'apparition de la
+   réponse de ZETIS ferait sauter toute la page d'un cran. Volontairement plus discret que la
+   parole de ZETIS — c'est un écho, pas un message : plus petit, en retrait, en italique. */
+.chat-said-by-me {
+  min-height: 108px;
+  margin-top: 6px;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-style: italic;
+  text-align: center;
+  text-wrap: balance;
+  color: rgba(238, 240, 255, 0.45);
+}
+
+/* D'où vient la réponse (ADR-0059 §7). Une GARANTIE, pas un message : discrète, sous le karaoké,
+   jamais dans le flux parlé. Même registre visuel que la transparence en bas de page — Massimo
+   doit pouvoir l'ignorer sans effort, et la trouver s'il la cherche. */
+.chat-source {
+  margin-top: 2px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(125, 211, 252, 0.62);
+}
+
 /* carte d'outil proposé — APRÈS la parole seulement */
 .chat-offer {
   margin-top: 8px;
@@ -276,4 +303,16 @@
   color: var(--zetis-text, #e8ebff);
   margin-bottom: 12px;
   text-wrap: pretty;
+}
+
+/* Repère de progression d'une interrogation orale (ADR-0059 §10). Sobre : c'est un repère, pas
+   un tableau de bord. Aucun score, aucun compteur d'erreurs — un enfant qui voit son résultat en
+   direct cesse de répondre pour protéger son chiffre. */
+.chat-recall-step {
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(238, 240, 255, 0.72);
 }

@@ -252,6 +252,38 @@ elle est une métadonnée légitime.
 Sans cela, « ZETIS est plus réactif » resterait une impression. Les chiffres avant/après se
 consignent dans `MEMORY.md`.
 
+#### 🔴 Les mesures, faites le 2026-08-15 — et elles déplacent le diagnostic
+
+Machine du commanditaire, Ollama et Piper réels, énoncé de 4,3 s, meilleur de 3 passes :
+
+| Maillon | Avant | Après | Part |
+|---|---|---|---|
+| STT (Whisper `small`, int8, CPU) | 1,23 s | **1,00 s** | 9 % |
+| 🔴 **Moteur** (`qwen3.6:35b-a3b`, un tour, JSON forcé) | **9,41 s** | 9,41 s | **83 %** |
+| TTS (Piper) | 0,70 s | *sort du chemin critique* | 6 % |
+| **Temps au premier mot** | **≈ 11,3 s** | **≈ 10,4 s** | |
+| **Temps au premier signe pour Massimo** | **≈ 11,3 s** | **≈ 1,0 s** | |
+
+**Trois enseignements, dont deux corrigent ce cadrage :**
+
+1. 🔴 **Le décodage glouton rapporte ~20 %, pas « 2 à 3 fois »** comme l'annonçait le §5.3. La
+   transcription reste **identique au mot près**. Le gain est réel et gratuit, mais petit.
+2. 🔴 **Le STT n'a jamais été le goulot. Le moteur l'est, à lui seul 83 % de l'attente.** La
+   question posée — *« comment rendre ZETIS plus réactif ? »* — trouve donc sa vraie réponse
+   ailleurs que là où le chantier la cherchait. C'est précisément ce que le §6 existait pour
+   découvrir, et il l'a découvert **avant** qu'on optimise au jugé.
+3. **Le gain qui compte n'est pas dans le débit, il est dans la perception.** Massimo passe
+   d'aucun signe pendant 11 s à sa propre phrase affichée en 1 s. Le chiffre à retenir n'est pas
+   le total, c'est celui-là.
+
+**Conséquence pour la suite** : la vraie latence de ZETIS se traite sur le maillon moteur —
+réponse plus courte (§7 le prévoit déjà), streaming du texte, ou modèle plus petit pour le tour
+conversationnel. Aucun de ces trois n'est dans ce chantier ; ils sont désormais **nommés et
+chiffrés** pour le prochain.
+
+⚠️ **Et cela renforce le risque du §9** : élargir le contexte injecté part d'une base à 9,4 s,
+pas d'une base neutre. Le budget du cours devra être choisi en le mesurant, jamais en l'estimant.
+
 ### §7 — ZETIS répond : le serveur ancre, il ne croit jamais le modèle
 
 **Une seule passe LLM par tour.** Le contexte canonique est déjà pré-injecté par `resolve_skill`

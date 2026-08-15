@@ -1,0 +1,118 @@
+{
+  "$comment": [
+    "LA GRAMMAIRE DES DESTINATIONS D'UNE ACTIVITÉ DE NOTION (ADR-0059 §A4).",
+    "",
+    "Deux implémentations répondent à la MÊME question — « où mène l'activité X de la notion N ? » :",
+    "  · serveur : apps/backend/app/modules/chat/actions.py::_notion_route",
+    "  · front   : apps/frontend-massimo/src/lib/notionRoutes.ts::notionRouteFor / subjectRouteFor",
+    "Elles ne peuvent ni fusionner (le serveur n'importe pas de TypeScript ; le front ne fera pas un",
+    "aller-retour réseau par clic sur /galaxy), ni rendre des chaînes identiques (le front décore",
+    "d'un rétrolien `&from=`, le chat ne le doit pas — il vient de /chat, pas d'une matière).",
+    "Elles ont DÉJÀ divergé deux fois : le grain (le front ciblait mindmap et quiz, le serveur non),",
+    "et `_MENU_LABEL`, qui disait encore « Reconstruire la carte » quand ACTION_UI était passé à",
+    "« Reconstruire la mindmap » — sans que personne le voie, le renderer écrasant le libellé.",
+    "",
+    "CE FICHIER N'EST PAS UNE TROISIÈME COPIE : rien ne le lit en production. C'est un ORACLE DE",
+    "TEST, extérieur aux deux implémentations. Le dépôt interdit une RÈGLE écrite à deux endroits",
+    "(addendum ADR-0024) ; il ne s'interdit pas une ATTENTE écrite hors des deux.",
+    "",
+    "🔴 IL S'ÉCRIT À LA MAIN. Dérivé de l'une des deux tables « pour gagner du temps », il",
+    "certifierait le bug : les deux suites passeraient à jamais, sabotage compris.",
+    "",
+    "LIGNE DE PARTAGE : le contrat porte le CIBLAGE, chaque surface porte sa DÉCORATION.",
+    "Le `&from=` du front n'est pas ici ; chaque test le compose explicitement."
+  ],
+
+  "fixture": {
+    "slug": "svt",
+    "subjectName": "SVT",
+    "skillId": 12,
+    "name": "Mitose",
+    "lessonId": 3,
+    "ficheId": 7,
+    "mindmapId": 5,
+    "quizId": 9,
+    "capsuleId": 4
+  },
+
+  "$comment_byId": [
+    "Activité DISPONIBLE, id présent → la route la plus ciblée que l'ancrage permet.",
+    "`revision` n'a AUCUN id par notion et ce n'est pas un manque : le grain le plus fin du SRS est",
+    "le CHAPITRE (ADR-0049), et le deck chapitre sert des cartes NON DUES — sémantique différente de",
+    "`revision.available`. Six activités sont adressables par id, pas sept."
+  ],
+  "byId": {
+    "cours": "/subjects/svt/cours?lesson=3",
+    "eli5": "/eli5?skill_id=12&name=Mitose",
+    "fiche": "/fiches/svt?fiche=7",
+    "mindmap": "/mindmaps/reconstruire/5",
+    "quiz": "/quiz?quiz=9",
+    "capsule": "/capsules?capsule=4",
+    "revision": "/revision?subject=svt"
+  },
+
+  "$comment_bySubject": [
+    "Aucun id (l'appelant part d'une MATIÈRE, pas d'une notion) → la route de matière, ou `null`.",
+    "`capsule` est `null` : /capsules est une liste GLOBALE, il n'existe pas de page capsules par",
+    "matière — y envoyer Massimo depuis « les capsules de maths » serait une petite trahison.",
+    "`eli5` est `null` : il ne s'adresse que par notion."
+  ],
+  "bySubject": {
+    "cours": "/subjects/svt/cours",
+    "eli5": null,
+    "fiche": "/fiches/svt",
+    "mindmap": "/mindmaps/svt",
+    "quiz": "/quiz?subject=svt",
+    "capsule": null,
+    "revision": "/revision?subject=svt"
+  },
+
+  "$comment_subjectOnly": [
+    "Destinations de MATIÈRE qui ne sont PAS des activités de la panoplie — `resolve_panoply` n'en",
+    "sert aucun id, et `notionRouteFor` ne les connaît pas. Elles n'existent donc que côté serveur,",
+    "et le test de parité front ne les regarde pas.",
+    "`galaxy` a été câblée le 2026-08-15 après un essai au micro : « montre-moi ma galaxie",
+    "d'histoire-géo » ouvrait les FICHES d'histoire-géo, faute d'outil pour la progression. La",
+    "route était déjà écrite dans l'ADR-0027 (note du 2026-07-31) — on l'a appliquée, pas inventée."
+  ],
+  "subjectOnly": { "galaxy": "/galaxy?subject=svt" },
+
+  "$comment_frontAsync": [
+    "EXCEPTION NOMMÉE, et une seule. Côté front, `notionRouteFor` rend `{mode:\"quiz\"}` au lieu",
+    "d'une URL : le retour de session doit ramener à /galaxy quand on part de la constellation, et",
+    "`?from=` ne transporte qu'un slug de matière. Le contrat le déclare plutôt que de comparer deux",
+    "chaînes qui ne peuvent pas être égales — une exception nommée vaut mieux qu'un trou silencieux.",
+    "Le SERVEUR, lui, doit bel et bien rendre `byId.quiz` : depuis le chat il n'y a pas de retour",
+    "de matière à préserver."
+  ],
+  "frontAsync": ["quiz"],
+
+  "$comment_requestKind": [
+    "Seconde table jumelle du dépôt (ADR-0059 §16) : l'activité demandée → le type de contenu",
+    "réclamé à Papa. Sept activités, six types. `eli5` se demande comme `cours` (pas d'ELI5 sans",
+    "cours validé) et `revision` comme `card`.",
+    "  · serveur : chat/actions.py::_TOOL_TO_CONTENT_KIND",
+    "  · front   : notionRoutes.ts::REQUESTABLE_KIND",
+    "Le chat a été le SEUL menteur du dépôt jusqu'au 2026-08-15 : son repli `.get(tool, \"cours\")`",
+    "enregistrait « cours » pour toute demande de quiz ou de capsule."
+  ],
+  "requestKind": {
+    "cours": "cours",
+    "eli5": "cours",
+    "fiche": "fiche",
+    "mindmap": "mindmap",
+    "quiz": "quiz",
+    "capsule": "capsule",
+    "revision": "card"
+  },
+
+  "$comment_horsPanoplie": [
+    "Outils du chat qui ne sont PAS des activités de la panoplie — `resolve_panoply` ne les sert",
+    "pas, `notionRouteFor` ne les connaît pas, et `REQUESTABLE_KIND` n'a pas à les porter.",
+    "  · `atelier` — la fiche que Massimo écrit LUI-MÊME (addendum ADR-0015). Elle ne se `demande`",
+    "    pas à Papa : ce qui peut manquer, c'est le COURS à résumer, et c'est cela qu'on réclame.",
+    "    S'adresse par LEÇON, pas par fiche.",
+    "  · `galaxy` — une vue d'ensemble de matière (cf. `subjectOnly`)."
+  ],
+  "horsPanoplie": { "atelier": "cours" }
+}

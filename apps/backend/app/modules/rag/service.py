@@ -4,6 +4,8 @@ La récupération distingue les sources (CLAUDE.md) : seuls les chunks `validate
 ou `official` sont renvoyés. La couture `retrieve_for_skill` court-circuite sans
 appeler l'embedder quand aucune source n'existe (tests hors-ligne, zéro ollama)."""
 
+from dataclasses import dataclass
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -139,6 +141,80 @@ def search(
     return [(chunk, float(dist)) for chunk, dist in db.execute(stmt).all()]
 
 
+@dataclass(frozen=True)
+class RagHit:
+    """Un passage retrouvé, AVEC ce qui permet d'en juger et de le citer (ADR-0059 §9).
+
+    `distance` est la distance cosinus (0 = identique, plus c'est haut moins c'est proche).
+    Elle était calculée par `search` puis **jetée** : un passage faible était indiscernable d'un
+    passage fort côté appelant, et aucun refus honnête ne pouvait se fonder sur la confiance.
+    """
+
+    content: str
+    document_title: str | None
+    source_type: str
+    level: str | None
+    chapter: str | None
+    distance: float
+
+
+def retrieve_with_provenance(
+    db: Session,
+    embedder: EmbeddingProvider,
+    *,
+    skill_id: int,
+    query: str,
+    k: int = 3,
+    max_distance: float | None = None,
+    level: str | None = None,
+) -> list[RagHit]:
+    """LE prédicat de récupération du dépôt : top-k passages d'une notion, avec leur provenance.
+
+    ⚠️ **`retrieve_for_skill` délègue ici** — il n'y a qu'une seule façon de retrouver un
+    passage, comme il n'y a qu'un seul `resolve_panoply` pour la disponibilité. Deux chemins de
+    récupération finiraient par filtrer différemment, et l'un des deux servirait un jour un
+    contenu non validé.
+
+    `max_distance` — plancher de pertinence, `None` = aucun (comportement d'origine, préservé
+    pour les six appelants existants). Au-delà du seuil, le passage est écarté : **ZETIS ne
+    répond jamais sur du RAG faible**, mieux vaut « je ne l'ai pas encore » qu'une réponse ancrée
+    sur un chapitre voisin. La recherche est à l'échelle de la MATIÈRE : c'est le seul garde-fou.
+
+    `level` — filtre par niveau scolaire, `None` = désactivé. ⚠️ **Exposé mais volontairement
+    inutilisé en v1** (`adr-0059` §9) : `RagChunk.level` est *nullable* et rempli à l'ingestion.
+    L'activer viderait silencieusement le RAG de tous les chunks sans niveau — la faute
+    silencieuse que l'`adr-0037` documente. Condition d'activation : un audit montrant que la
+    quasi-totalité des chunks en portent un.
+    """
+    skill = db.get(Skill, skill_id)
+    subject_id = skill.subject_id if skill is not None else None
+    if not has_retrievable_chunks(db, subject_id=subject_id):
+        return []
+    # Sans question précise, on cherche sur le nom de la notion plutôt que sur une chaîne vide.
+    effective_query = query.strip() or (skill.name if skill is not None else "")
+    if not effective_query:
+        return []
+
+    hits: list[RagHit] = []
+    for chunk, distance in search(db, embedder, query=effective_query, subject_id=subject_id, k=k):
+        if max_distance is not None and distance > max_distance:
+            continue
+        if level is not None and chunk.level != level:
+            continue
+        document = db.get(RagDocument, chunk.document_id)
+        hits.append(
+            RagHit(
+                content=chunk.content,
+                document_title=document.title if document is not None else None,
+                source_type=chunk.source_type,
+                level=chunk.level,
+                chapter=chunk.chapter,
+                distance=distance,
+            )
+        )
+    return hits
+
+
 def retrieve_for_skill(
     db: Session,
     embedder: EmbeddingProvider,
@@ -149,14 +225,15 @@ def retrieve_for_skill(
 ) -> list[str]:
     """Contexte RAG pour une notion : contenu des top-k chunks de sa matière.
 
-    Renvoie [] sans toucher l'embedder si aucune source n'existe (couture explain)."""
-    skill = db.get(Skill, skill_id)
-    subject_id = skill.subject_id if skill is not None else None
-    if not has_retrievable_chunks(db, subject_id=subject_id):
-        return []
-    # Sans question précise, on cherche sur le nom de la notion plutôt que sur une chaîne vide.
-    effective_query = query.strip() or (skill.name if skill is not None else "")
-    if not effective_query:
-        return []
-    hits = search(db, embedder, query=effective_query, subject_id=subject_id, k=k)
-    return [chunk.content for chunk, _ in hits]
+    Renvoie [] sans toucher l'embedder si aucune source n'existe (couture explain).
+
+    ⚠️ **Délègue à `retrieve_with_provenance` sans rien filtrer** : ses six appelants (ELI5,
+    fiches, mindmaps, quiz, mémoire, contexte canonique) doivent voir exactement ce qu'ils
+    voyaient avant l'`adr-0059`. Poser un `max_distance` par défaut ici changerait le
+    comportement de tout le dépôt au nom d'un besoin propre au chat."""
+    return [
+        hit.content
+        for hit in retrieve_with_provenance(
+            db, embedder, skill_id=skill_id, query=query, k=k
+        )
+    ]

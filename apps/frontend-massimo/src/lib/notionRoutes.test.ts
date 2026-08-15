@@ -42,8 +42,19 @@ describe("notionRouteFor — disponibilité", () => {
 });
 
 describe("notionRouteFor — destinations", () => {
-  it("le cours ouvre la page de cours de la MATIÈRE", () => {
+  it("le cours ouvre LA leçon, cadrée dans son chapitre", () => {
+    // ⚠️ Attendait `/subjects/svt/cours` (la matière entière) jusqu'au 2026-08-15 : le
+    // `lesson_id` était reçu puis jeté, ici comme côté serveur (ADR-0059 §A2). `?lesson=`
+    // **cadre et déplie**, il n'ouvre pas le volet de lecture — comportement partagé avec
+    // l'agenda, et c'est pourquoi on ne le change pas.
     expect(notionRouteFor({ kind: "cours", available: true, lesson_id: 3 }, CTX)).toEqual({
+      mode: "navigate",
+      to: "/subjects/svt/cours?lesson=3",
+    });
+  });
+
+  it("sans `lesson_id`, le cours retombe sur la matière — jamais sur `?lesson=undefined`", () => {
+    expect(notionRouteFor({ kind: "cours", available: true }, CTX)).toEqual({
       mode: "navigate",
       to: "/subjects/svt/cours",
     });
@@ -57,10 +68,14 @@ describe("notionRouteFor — destinations", () => {
     });
   });
 
-  it("la fiche transporte le NOM de la matière (l'URL n'a qu'un slug)", () => {
+  it("la fiche ouvre LA fiche, et transporte le NOM de la matière", () => {
+    // ⚠️ Attendait `/fiches/svt` — les douze fiches de la matière — jusqu'au 2026-08-15, alors
+    // que l'adresse `?fiche=` existait depuis l'ADR-0054 §1 et n'était consommée par AUCUNE des
+    // deux tables de routes du dépôt. Le `state` reste : il porte le nom de la MATIÈRE pour le
+    // bandeau, ce que l'URL (un slug) ne sait pas faire.
     expect(notionRouteFor({ kind: "fiche", available: true, fiche_id: 5 }, CTX)).toEqual({
       mode: "navigate",
-      to: "/fiches/svt",
+      to: "/fiches/svt?fiche=5",
       state: { name: "SVT" },
     });
   });
@@ -198,5 +213,83 @@ describe("le paramètre de rétrolien", () => {
     // pour un lien de retour transformerait une navigation en effet de bord.
     expect(SUBJECT_BACK_PARAM).toBe("from");
     expect(SUBJECT_BACK_PARAM).not.toBe("subject");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Parité front ↔ contrat de grammaire (ADR-0059 §A4)
+//
+// Le pendant exact de `test_chat_routes_contract.py`. Le contrat est un ORACLE écrit à la main,
+// extérieur aux deux implémentations : ni le serveur ni ce fichier ne le génèrent. C'est ce qui
+// lui permet d'attraper une divergence — dérivé de l'un des deux, il certifierait le bug.
+//
+// 🔴 **La décoration est écrite EN CLAIR ici**, jamais normalisée en douce. Le front ajoute un
+// rétrolien `&from=<slug>` que le chat ne doit pas émettre : c'est une différence assumée, pas un
+// écart. La masquer par une comparaison « à la décoration près » rendrait le verrou aveugle à une
+// vraie régression sur le rétrolien.
+import CONTRAT from "../../../../packages/types/src/notionRouteContract.json";
+
+const RETROLIEN = `&${SUBJECT_BACK_PARAM}=svt`;
+
+/** Décoration ajoutée par le front, activité par activité. Vide = aucune. */
+const DECORATION: Partial<Record<GalaxyAction["kind"], string>> = {
+  eli5: RETROLIEN,
+  revision: RETROLIEN,
+};
+
+const AVEC_ID: Record<string, Partial<GalaxyAction>> = {
+  cours: { lesson_id: CONTRAT.fixture.lessonId },
+  fiche: { fiche_id: CONTRAT.fixture.ficheId },
+  mindmap: { mindmap_id: CONTRAT.fixture.mindmapId },
+  quiz: { quiz_id: CONTRAT.fixture.quizId },
+  capsule: { capsule_id: CONTRAT.fixture.capsuleId },
+  eli5: {},
+  revision: {},
+};
+
+describe("parité avec le contrat de grammaire", () => {
+  it.each(TOUTES.filter((k) => !CONTRAT.frontAsync.includes(k)))(
+    "« %s » ouvre la ressource exacte du contrat",
+    (kind) => {
+      const action = { kind, available: true, ...AVEC_ID[kind] } as GalaxyAction;
+      const route = notionRouteFor(action, CTX);
+      expect(route.mode).toBe("navigate");
+      const attendu =
+        CONTRAT.byId[kind as keyof typeof CONTRAT.byId] + (DECORATION[kind] ?? "");
+      expect(route.mode === "navigate" && route.to).toBe(attendu);
+    },
+  );
+
+  it("le quiz est l'EXCEPTION nommée : chargement asynchrone, pas une URL", () => {
+    // Il a pourtant une adresse (`/quiz?quiz=`, que le chat utilise). Ici on garde le mode
+    // asynchrone parce que `returnTo` doit ramener à /galaxy depuis la constellation, et que
+    // `?from=` ne transporte qu'un slug de matière. Exception NOMMÉE dans le contrat plutôt que
+    // trou silencieux dans le verrou.
+    expect(CONTRAT.frontAsync).toEqual(["quiz"]);
+    const route = notionRouteFor(
+      { kind: "quiz", available: true, quiz_id: CONTRAT.fixture.quizId } as GalaxyAction,
+      CTX,
+    );
+    expect(route.mode).toBe("quiz");
+  });
+
+  it.each(TOUTES)("« %s » : la route de MATIÈRE est celle du contrat", (kind) => {
+    const attendu = CONTRAT.bySubject[kind as keyof typeof CONTRAT.bySubject];
+    const obtenu = subjectRouteFor(kind, "svt");
+    // `subjectRouteFor` décore aussi (revision, quiz) : on compose, on ne normalise pas.
+    const attenduDecore =
+      attendu === null ? null : attendu + (kind === "revision" || kind === "quiz" ? RETROLIEN : "");
+    expect(obtenu).toBe(attenduDecore);
+  });
+
+  it("le type demandé à Papa est celui du contrat (seconde table jumelle)", () => {
+    // Le chat a été le SEUL menteur du dépôt jusqu'au 2026-08-15 : son repli enregistrait
+    // « cours » pour toute demande de quiz. `REQUESTABLE_KIND` était déjà juste.
+    expect(REQUESTABLE_KIND).toEqual(CONTRAT.requestKind);
+  });
+
+  it("le contrat couvre EXACTEMENT la panoplie — une 8ᵉ activité casserait ici", () => {
+    expect(Object.keys(CONTRAT.byId).sort()).toEqual([...TOUTES].sort());
+    expect(Object.keys(CONTRAT.bySubject).sort()).toEqual([...TOUTES].sort());
   });
 });

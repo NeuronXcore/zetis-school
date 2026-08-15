@@ -109,17 +109,66 @@ def resolve_canonical_context(
     return CanonicalContext(lesson=lesson, chunks=chunks)
 
 
-def build_canonical_sections(ctx: CanonicalContext) -> str:
+def _tronquer_par_paragraphe(texte: str, max_chars: int) -> str:
+    """Coupe à la frontière de paragraphe la plus proche sous `max_chars`.
+
+    Un cours coupé en plein mot — ou pire, au milieu d'une formule — n'est pas un cours plus
+    court : c'est un cours faux. On préfère perdre un paragraphe entier.
+    """
+    if max_chars <= 0 or len(texte) <= max_chars:
+        return texte
+    coupe = texte[:max_chars]
+    frontiere = coupe.rfind("\n\n")
+    # Pas de frontière exploitable (un seul long paragraphe) → on retombe sur la fin de ligne,
+    # puis sur la coupe brute. Mieux vaut un paragraphe amputé qu'un budget non tenu.
+    if frontiere <= 0:
+        frontiere = coupe.rfind("\n")
+    return (coupe[:frontiere] if frontiere > 0 else coupe).rstrip()
+
+
+def build_canonical_sections(
+    ctx: CanonicalContext,
+    *,
+    max_lesson_chars: int | None = None,
+    max_chunk_chars: int | None = None,
+) -> str:
     """Compose le BLOC de contexte (pas le prompt entier) à insérer dans un prompt dérivé.
 
     Deux sections + une règle d'autorité. La ligne « le cours fait foi » est la garantie de
     cohérence inter-dérivés : même cours → mêmes notations/vocabulaire partout (ADR-0011 §2).
+
+    ⚠️ **Les deux bornes sont OPTIONNELLES et à défaut NEUTRE** (`adr-0059` §12). L'ADR-0011 est
+    un contrat gelé, et il l'reste : le gel porte sur *ce qui est composé et dans quel ordre*, pas
+    sur l'absence de bornes. Aucun appelant existant ne change de comportement — seul le chat, qui
+    doit tenir dans un budget de tour, les renseigne.
+
+    🔴 **La règle d'autorité est posée APRÈS la troncature, donc jamais coupée.** C'est tout
+    l'intérêt : jusqu'au 2026-08-15, le chat tronquait le bloc COMPOSÉ à 1200 caractères, et la
+    règle — écrite en dernier — disparaissait systématiquement. ZETIS recevait un cours arbitraire-
+    ment coupé sans la phrase qui lui disait quoi en faire. Tronquer côté appelant recréerait une
+    seconde définition de « comment couper un cours » ; c'est exactement ce que ce contrat évite.
     """
     parts: list[str] = []
     if ctx.lesson is not None:
-        parts.append(f"## COURS VALIDÉ (source canonique)\n{ctx.lesson.content_markdown}")
+        contenu = ctx.lesson.content_markdown or ""
+        if max_lesson_chars is not None:
+            contenu = _tronquer_par_paragraphe(contenu, max_lesson_chars)
+        parts.append(f"## COURS VALIDÉ (source canonique)\n{contenu}")
     if ctx.chunks:
-        parts.append("## EXTRAITS COMPLÉMENTAIRES\n" + "\n\n".join(ctx.chunks))
+        extraits = list(ctx.chunks)
+        if max_chunk_chars is not None:
+            # On retire des passages ENTIERS, on n'en coupe aucun : un extrait tronqué se cite mal
+            # et s'ancre encore plus mal.
+            gardes: list[str] = []
+            budget = max_chunk_chars
+            for extrait in extraits:
+                if len(extrait) > budget:
+                    break
+                gardes.append(extrait)
+                budget -= len(extrait)
+            extraits = gardes
+        if extraits:
+            parts.append("## EXTRAITS COMPLÉMENTAIRES\n" + "\n\n".join(extraits))
     parts.append(
         "Règle : appuie-toi d'abord sur le COURS VALIDÉ. Si tes connaissances ou les "
         "extraits le contredisent, le cours fait foi (vocabulaire, notations, méthode)."

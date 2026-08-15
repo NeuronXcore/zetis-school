@@ -25,6 +25,12 @@ export function MindmapSubjectPage() {
   const navigate = useNavigate();
   // Deep-link mission (ADR-0019) : entrée par id → on ouvre la carte directement en Reconstruire.
   const reconstruire = mindmapId != null;
+  // 🔴 **D'où vient Massimo**, ce que le CHEMIN ne dit pas (ADR-0059 §A5). `/mindmaps/reconstruire/:id`
+  // est atteint depuis la mission, mais aussi depuis la Galaxie, la page matière, et le chat. Seule
+  // la mission pose ce drapeau ; toute autre provenance obtient un « ← Retour » qui ne ment pas.
+  const depuisMission = Boolean(
+    (location.state as { fromMission?: boolean } | null)?.fromMission,
+  );
 
   // 🔴 **UNE SEULE SOURCE** (ADR-0057) : l'index de toutes les matières, dont l'écran dérive
   // celle qui est ouverte. Deux chargements auraient pu raconter deux choses du même objet.
@@ -156,13 +162,29 @@ export function MindmapSubjectPage() {
           <div className="mb-4 flex items-center justify-between">
             {/* En mission, « ← Retour à ma mission » reste PRIORITAIRE : une action principale
                 par écran, et la mission est le fil que Massimo est en train de suivre. Hors
-                mission, le retour referme la carte (on reste sur la page). */}
+                mission, le retour referme la carte (on reste sur la page).
+
+                🔴 **La sortie se dérive de la PROVENANCE, plus de la forme du chemin**
+                (ADR-0059 §A5). `reconstruire` ne dit que « on est sur /mindmaps/reconstruire/:id »
+                — or on y arrive aussi depuis la Galaxie, la page matière, et depuis le CHAT
+                depuis ce chantier. La sortie annonçait donc « ← Retour à ma mission » et
+                déposait Massimo sur `/missions`, un endroit d'où il ne venait pas. Un bouton de
+                sortie qui ment est pire qu'un écran sans sortie : il déplace l'enfant en lui
+                faisant croire qu'il revient. */}
             <button
               type="button"
-              onClick={() => (reconstruire ? navigate("/missions") : setOpenId(null))}
+              onClick={() => {
+                if (depuisMission) return navigate("/missions");
+                // Arrivé par l'ADRESSE de la carte (Galaxie, page matière, chat) : `setOpenId`
+                // ne suffit pas — c'est `mindmapId` qui pilote cet écran, et Massimo resterait
+                // sur place. On le ramène au deck de SA matière, la page qu'il aurait ouverte
+                // pour trouver cette carte.
+                if (reconstruire) return navigate(`/mindmaps/${encodeURIComponent(effSlug)}`);
+                setOpenId(null);
+              }}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:border-cyan-400/40"
             >
-              {reconstruire ? "← Retour à ma mission" : "← Retour"}
+              {depuisMission ? "← Retour à ma mission" : "← Retour"}
             </button>
             {heading}
           </div>

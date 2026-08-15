@@ -219,6 +219,35 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
 plus fin du SRS est le **chapitre** (ADR-0049), et le deck chapitre sert des cartes *non dues*,
 sémantique différente de `revision.available`. **Six activités sont adressables par id, pas sept.**
 
+### Les trois autres étages (complément du 2026-08-15, né d'essais au micro)
+
+| Intention | Route | Granularité |
+|---|---|---|
+| « fais-moi réviser **l'orthographe** » | `/revision?chapitre=<id>` | **chapitre** ✅ |
+| « mon cours sur **l'orthographe** » | `/subjects/<slug>/cours?chapter=<id>` | **chapitre** ✅ |
+| un chapitre nommé, autre outil | `/subjects/<slug>?onglet=chapitres&chapitre=<id>` | **chapitre** ✅ |
+| « ma **galaxie** d'histoire-géo » | `/galaxy?subject=<slug>` | **matière** ✅ |
+| « j'écris **ma** fiche sur X » | `/fiches/<slug>/<lessonId>/atelier` | **leçon** ✅ |
+| « montre-moi **mes fiches** » (sans préciser) | `/fiches`, `/matieres`, `/mindmaps`, `/quiz`, `/capsules`, `/revision`, `/missions`, `/agenda`, `/galaxy` | **index** ✅ |
+
+🔴 **Le CHAPITRE était l'étage manquant**, et c'est celui dont un enfant parle le plus
+naturellement. Le chat ne connaissait que les deux extrémités — matière et notion — donc
+« réviser l'orthographe » proposait d'**ajouter « orthographe » au programme** alors que c'est un
+chapitre de Français déjà validé.
+
+⚠️ **Précédence, et elle est délibérée** : matière exacte → chapitre exact → notion (résolution
+floue par embeddings) → matière approchée → chapitre par inclusion. Un nom **exact** bat une
+similarité, parce que l'exact ne peut pas se tromper. Et l'inclusion vient en dernier : « Nombres
+relatifs » contient le chapitre « Nombres », l'appliquer trop tôt détournerait une notion vers son
+propre dossier.
+
+⚠️ **`/diagnostic` reste hors routage** (ADR-0027 §3, `navigation.md` §9) : *jamais routé de façon
+anxiogène*. Une décision, pas un manque — un test-verrou l'exclut nommément de l'index.
+
+⚠️ **Une mission précise n'est pas adressable, et ne le sera pas ainsi** : l'ouvrir signifie la
+**démarrer** (`POST /{id}/start`), un effet de bord qu'une navigation ne doit pas produire.
+« Mes missions » ouvre la page ; le geste de commencer reste celui de Massimo.
+
 ⚠️ **La règle, en une phrase** : *id présent ⇒ route ciblée ; id absent ⇒ route de matière ; ni
 l'un ni l'autre ⇒ pas d'action.* Et **le chat n'émet jamais `&from=`** — il vient de `/chat`, pas
 d'une matière ; un rétrolien y serait un dépaysement. C'est la seule différence assumée avec
@@ -270,6 +299,37 @@ ne déclenche **aucune génération**.
   Trois questions tranchent tout cas limite — *survit à la clôture de session ? a une URL ? entre
   en base comme texte ?* Trois « non » = parole, aucune relecture requise, parce qu'il n'y a rien à
   relire : l'objet n'existe plus demain.
+
+### ZETIS interroge à l'oral (ADR-0059 §10-§12)
+
+« Interroge-moi sur les fractions » ouvre une interrogation : **trois questions**, à la voix, avec
+la dictée déjà en place.
+
+- **Pas de cours validé → pas d'interrogation.** Sans source, ZETIS inventerait les questions *et*
+  les corrections. Le gate est celui de la panoplie, emprunté, jamais redérivé. Refus honnête +
+  demande de cours à Papa.
+- **C'est le serveur qui arrête**, au bout de trois questions. Un modèle à qui l'on demande s'il
+  veut cesser d'interroger ne cesse pas.
+- **Trois sorties**, dont deux existaient déjà : « stop » à la voix (testé **avant** tout appel au
+  moteur), le bouton « On arrête », la clôture de session. **ZETIS n'insiste jamais.**
+- **L'état vit dans une seconde clé Redis**, même TTL glissant, même purge. Il ne porte que des
+  étiquettes ; les réponses de Massimo transitent et ne sont jamais accumulées.
+- **Ne jamais dire « faux » à tort** — quatre garde-fous déterministes et un dans le prompt : un
+  vocabulaire de verdict à quatre valeurs **dont aucune n'est binaire** (une valeur inconnue
+  retombe sur « redis-moi autrement » : *le doute profite à l'enfant par construction*) · une
+  clause de doute de dictée (homophones et mots tronqués sont des artefacts, jamais des erreurs de
+  Massimo) · un plancher de longueur **sans LLM** (une dictée ratée ne produit aucun verdict) · la
+  correction tirée du cours · le filtre de vocabulaire partagé.
+- 🔴 **« À revoir » redonne toujours la bonne réponse**, tirée du cours. Dire « pas tout à fait »
+  sans la donner est une évaluation, pas un apprentissage.
+- **Aucune action pendant l'interrogation** : rien à auto-naviguer, donc aucun risque d'arracher
+  Massimo à mi-question. La politique voix/clavier devient sans objet, et le front n'a pas à le
+  savoir — la règle vit côté serveur.
+- **Un repère, jamais un score** : « Question 2 sur 3 ». Ni compteur d'erreurs, ni pourcentage, ni
+  bilan.
+- **Ça ne compte pas** : zéro XP, zéro maîtrise, aucun `event_type` neuf — un seul
+  `chat_tool_response` à l'ouverture, un **acte** et non une mesure. *Ce qu'on perd : Papa voit
+  « il a accepté d'être interrogé sur les fractions », jamais « deux sur trois ».*
 
 ## Le retour de demande — la boucle se ferme ici (addendum ADR-0026)
 

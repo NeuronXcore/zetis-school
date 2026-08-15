@@ -59,6 +59,10 @@ export interface ChatReply {
   tool_suggestion: ChatToolType | null;
   difficulty_declared: boolean;
   action?: ChatAction | null;
+  /** `null` quand le tour n'était pas une question de fond : la puce ne s'affiche pas. */
+  grounding?: ChatGrounding | null;
+  /** Interrogation orale en cours (ADR-0059 §10), ou `null`. */
+  recall?: ChatRecall | null;
 }
 
 export interface ChatToolResponse {
@@ -90,6 +94,34 @@ export class ChatVoiceUnavailable extends Error {
   constructor() {
     super("Voix indisponible");
     this.name = "ChatVoiceUnavailable";
+  }
+}
+
+/** Sur quoi la réponse de ZETIS s'appuie (ADR-0059 §7). **Calculé serveur** : le front l'affiche,
+ *  il ne le déduit jamais — la déclaration du moteur n'arrive même pas jusqu'ici. */
+export interface ChatGrounding {
+  kind: "cours" | "extraits" | "aucune";
+  lesson_title?: string | null;
+  sources_used?: number;
+}
+
+/** Où en est l'interrogation orale (ADR-0059 §10). `null` = aucune en cours.
+ *
+ *  ⚠️ **Un repère de progression, jamais un score.** Il n'y a ni compteur d'erreurs ni bilan :
+ *  les règles de gamification du projet interdisent le décompte anxiogène, et un enfant qui voit
+ *  « 1/2 » cesse de répondre pour protéger son chiffre. */
+export interface ChatRecall {
+  asked: number;
+  total: number;
+  skill_name: string;
+  finished: boolean;
+}
+
+/** Levée sur 503 : moteur STT absent → l'UI masque le micro (dégradation propre, ADR-0012). */
+export class ChatDictationUnavailable extends Error {
+  constructor() {
+    super("Dictée indisponible");
+    this.name = "ChatDictationUnavailable";
   }
 }
 
@@ -138,6 +170,28 @@ export async function synthesizeChatSpeech(text: string): Promise<ArrayBuffer> {
   if (res.status === 503) throw new ChatVoiceUnavailable();
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
   return res.arrayBuffer();
+}
+
+/** Dictée du chat → texte. Whisper LOCAL, sa PROPRE route (ADR-0059 §18).
+ *
+ *  ⚠️ Ce n'est pas `transcribeEli5` déguisé : jusqu'au 2026-08-15, `ChatPage` appelait
+ *  `/api/ai/eli5/transcribe`, dont la trace serveur ÉCRIVAIT les phrases de Massimo en base
+ *  (78 lignes mesurées). La route du chat ne trace que des métadonnées, et son `job_type` dit
+ *  enfin de quelle surface vient la dictée — ce que le partage rendait indistinguable.
+ */
+export async function transcribeChat(audio: Blob): Promise<{ transcript: string }> {
+  // Multipart : on n'impose PAS de Content-Type (le navigateur pose la boundary).
+  const token = authClient.getToken();
+  const form = new FormData();
+  form.append("file", audio, "dictee.webm");
+  const res = await fetch(`${API_URL}/api/student/chat/transcribe`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (res.status === 503) throw new ChatDictationUnavailable();
+  if (!res.ok) throw new Error(`Erreur ${res.status}`);
+  return (await res.json()) as { transcript: string };
 }
 
 export async function closeChatSession(sessionId: string): Promise<void> {

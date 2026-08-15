@@ -38,9 +38,10 @@ export function RevisionPage() {
   const [cherche, setCherche] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const deepLinkedRef = useRef(false);
+  const deepLinkedRef = useRef(false); // `?subject=`
+  const chapLinkRef = useRef(false); // `?chapitre=` — garde SÉPARÉE (cf. l'effet plus bas)
 
   useEffect(() => {
     let alive = true;
@@ -105,6 +106,34 @@ export function RevisionPage() {
       true,
     );
   }, [summary, searchParams, launch]);
+
+  // Lien profond CHAPITRE `?chapitre=<id>` — **l'adresse du deck de chapitre**, qui n'en avait
+  // aucune (ADR-0049 : le deck existait, il ne se lançait que par `location.state`, comme le quiz
+  // avant ce chantier). Né d'un essai au micro le 2026-08-15 : « fais-moi réviser l'orthographe »
+  // proposait d'ajouter « orthographe » au programme, faute de pouvoir viser un chapitre.
+  //
+  // ⚠️ Garde de consommation DISTINCTE de celle de `?subject=` : une URL portant les deux
+  // n'en honorerait qu'un seul si elles la partageaient.
+  useEffect(() => {
+    if (chapLinkRef.current) return;
+    const brut = searchParams.get("chapitre");
+    if (!brut) return;
+    const id = Number(brut);
+    if (chapitres.length === 0) return; // on attend le listing avant de conclure à l'absence
+    chapLinkRef.current = true;
+    const cible = chapitres.find((c) => c.chapter_id === id);
+    // Chapitre inconnu, ou sans carte à réviser : on reste sur les decks, sans message d'échec —
+    // même arbitrage que `?subject=`, `?carte=` et `?quiz=`.
+    if (cible) {
+      launch(
+        { deck: { chapter: cible.chapter_id }, label: cible.name, subjectSlug: cible.subject_slug },
+        true,
+      );
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("chapitre");
+    setSearchParams(next, { replace: true });
+  }, [chapitres, searchParams, setSearchParams, launch]);
 
   // 🔴 Les DEUX ordres du serveur, relayés tels quels — `Chapter.sort_order` pour les chapitres,
   // `Subject.sort_order` pour les matières. La brique trie par NOM par défaut : sur les chapitres

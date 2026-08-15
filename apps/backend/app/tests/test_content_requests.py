@@ -189,7 +189,14 @@ def _panel(skill_id: int, acts: list[dict]) -> dict:
 
 
 def test_chat_emits_request_when_asked_tool_is_missing(client_db, monkeypatch) -> None:
-    """Déclencheur (a) : Massimo demande une fiche absente → 1 demande `fiche` en attente."""
+    """Déclencheur (a) : Massimo demande une fiche absente → une demande `fiche` en attente.
+
+    ⚠️ **Ce panneau ne porte AUCUN contenu durable** — la notion est donc « vide » au sens du
+    déclencheur (b), et depuis l'`adr-0059` §16 la porte `cours` **s'ajoute** à la demande. Le
+    test attendait une seule ligne jusqu'au 2026-08-15 : ce n'est pas (a) qui a changé, c'est (b)
+    qui ne se laisse plus masquer par le repli. Ce que (a) verrouille — *le type demandé est
+    enregistré tel quel, en `pending`, sur la bonne notion* — est inchangé.
+    """
     client, Session = client_db
     skill_id = _skill_id(Session)
     monkeypatch.setattr(
@@ -201,9 +208,11 @@ def test_chat_emits_request_when_asked_tool_is_missing(client_db, monkeypatch) -
 
     db = Session()
     rows = db.query(m.ContentRequest).all()
-    assert len(rows) == 1
-    assert rows[0].content_kind == "fiche" and rows[0].skill_id == skill_id
-    assert rows[0].status == "pending"
+    fiche = [r for r in rows if r.content_kind == "fiche"]
+    assert len(fiche) == 1
+    assert fiche[0].skill_id == skill_id and fiche[0].status == "pending"
+    # La porte des dérivés accompagne la demande, elle ne la remplace pas.
+    assert sorted(r.content_kind for r in rows) == ["cours", "fiche"]
     db.close()
 
 
@@ -306,9 +315,18 @@ def test_chat_eli5_offered_when_cours_exists(client_db, monkeypatch) -> None:
 
 
 def test_chat_never_promises_papa_without_recording(client_db, monkeypatch) -> None:
-    """Anti-régression (review) : un outil HORS mapping (`quiz`/`capsule`, que `notion_panel` expose
-    bel et bien, ou une valeur hallucinée) promettait « je le note » SANS rien enregistrer.
-    La promesse doit toujours être tenue → repli sur `cours`."""
+    """🔴 Test RETOURNÉ le 2026-08-15 (`adr-0059` §16) — il verrouillait le repli, pas la règle.
+
+    Il vérifiait qu'un outil hors mapping (`quiz`, `capsule`) enregistrait une demande de
+    **cours**, au nom de « la promesse doit être tenue ». La promesse l'était — mais avec le
+    mauvais objet : Papa lisait « on me demande un cours » quand son fils avait demandé un quiz.
+    Et la page matière, elle, émettait déjà `quiz` sans repli : le chat était le seul menteur.
+
+    Ce que ce test verrouille désormais est la MÊME règle, appliquée sans traduction : **ZETIS ne
+    promet que ce qu'il enregistre, et il enregistre ce qu'on lui a demandé.**
+
+    Sabotage : remettre `_TOOL_TO_CONTENT_KIND.get(tool, "cours")`.
+    """
     client, Session = client_db
     skill_id = _skill_id(Session)
     monkeypatch.setattr(
@@ -329,7 +347,75 @@ def test_chat_never_promises_papa_without_recording(client_db, monkeypatch) -> N
     assert "je le note" in body["reply"]  # la promesse est faite…
     db = Session()
     rows = db.query(m.ContentRequest).all()
-    assert len(rows) == 1 and rows[0].content_kind == "cours"  # … et elle est TENUE
+    # … et elle est TENUE, sur le VRAI type. La notion porte du durable (cours + fiche) : la
+    # porte « cours » ne s'ajoute donc pas — une seule ligne, celle qu'il a demandée.
+    assert len(rows) == 1 and rows[0].content_kind == "quiz"
+    db.close()
+
+
+def test_la_porte_cours_s_ajoute_sur_une_notion_vide_sans_remplacer_la_demande(
+    client_db, monkeypatch
+) -> None:
+    """`adr-0059` §16 — le déclencheur « notion vide » est PROMU, il ne remplace plus.
+
+    Le repli faisait ce travail par accident, un cas sur deux : sur une notion vide comme sur une
+    notion pleine, demander un quiz enregistrait un cours. Désormais Papa reçoit **les deux**
+    lignes quand la notion est vide — ce que son fils a demandé, ET ce qu'il faut produire
+    d'abord pour que ce soit possible.
+
+    Sabotage : ne poser que le premier signal, ou ne pas étendre le déclencheur à cette branche.
+    """
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(
+        actions,
+        "notion_panel",
+        lambda db, sid: _panel(
+            skill_id,
+            [  # AUCUN contenu durable : ni cours, ni fiche, ni carte, ni révision.
+                {"kind": "cours", "available": False},
+                {"kind": "quiz", "available": False},
+            ],
+        ),
+    )
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "quiz"}))
+    sid = _open(client)
+    _say(client, sid, text=RESOLVING)
+    db = Session()
+    kinds = sorted(r.content_kind for r in db.query(m.ContentRequest).all())
+    assert kinds == ["cours", "quiz"], "la porte s'ajoute, elle ne remplace pas"
+    db.close()
+
+
+def test_un_outil_hallucine_ne_promet_RIEN(client_db, monkeypatch) -> None:
+    """🔴 `adr-0059` §16 — sans repli, une valeur inventée par le moteur ne doit RIEN promettre.
+
+    C'est la contrepartie exacte de la révocation : le repli existait pour que « je le note » ne
+    soit jamais un mensonge. Il tenait la promesse en la déviant. Ici, ZETIS ne promet pas — il
+    reste honnête **et** silencieux, au lieu d'honnête et menteur.
+
+    Sabotage : garder « — je le note » dans la note alors qu'aucune demande n'est émise (le
+    mensonge inverse), ou rétablir le repli.
+    """
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(
+        actions,
+        "notion_panel",
+        lambda db, sid: _panel(
+            skill_id,
+            [
+                {"kind": "cours", "available": True, "lesson_id": 3},
+                {"kind": "fiche", "available": True, "fiche_id": 9},
+            ],
+        ),
+    )
+    _use_chat_llm(_chat_intent({"kind": "open_notion", "tool": "podcast"}))
+    sid = _open(client)
+    body = _say(client, sid, text=RESOLVING).json()
+    assert "je le note" not in body["reply"], "aucune promesse quand rien ne sera enregistré"
+    db = Session()
+    assert db.query(m.ContentRequest).count() == 0
     db.close()
 
 

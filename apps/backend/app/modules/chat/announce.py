@@ -42,13 +42,22 @@ from app.modules.chat.schemas import ChatAction, ChatAnnouncement
 from app.modules.galaxy.service import is_notion_visible, notion_panel
 
 # `content_kind` (file de Papa) → outil de la panoplie (`resolve_panoply` / `_notion_route`).
-# `quiz` et `capsule` sont ABSENTS **volontairement** : `_notion_route` n'a pas leur branche
-# (« hors v1 »). Les ajouter ici sans l'y ajouter là-bas fabriquerait une annonce sans destination.
+#
+# 🔴 **`quiz` et `capsule` y sont entrés le 2026-08-15** (`adr-0059` §A6). Ils en étaient absents
+# pour UNE raison, écrite dans l'addendum `adr-0026` §2 : *« Pas de route ⇒ pas de carte ⇒ pas
+# d'annonce ⇒ pas de tampon »* — `_notion_route` n'avait pas leurs branches. Le §A2 les lui a
+# données (`?quiz=`, `?capsule=`) : **la cause est tombée, la conséquence aussi.** Ce n'est donc
+# pas une décision nouvelle, c'est l'application de la même règle à un fait nouveau.
+#
+# ⚠️ La règle, elle, ne bouge PAS : ajouter ici un `content_kind` dont `_notion_route` ne sait
+# rien fabriquerait une annonce sans destination.
 _CONTENT_KIND_TO_TOOL = {
     "cours": "cours",
     "fiche": "fiche",
     "mindmap": "mindmap",
     "card": "revision",
+    "quiz": "quiz",
+    "capsule": "capsule",
 }
 
 # Ce que ZETIS dit du contenu, à la deuxième personne et sans auteur (§2 du cadrage).
@@ -57,6 +66,8 @@ _KIND_PHRASE = {
     "fiche": "ta fiche sur {name}",
     "mindmap": "ta carte sur {name}",
     "revision": "tes cartes de révision sur {name}",
+    "quiz": "ton quiz sur {name}",
+    "capsule": "ta capsule sur {name}",
 }
 
 # Règle « ≤ 2 propositions » (ADR-0027). Ce qui dépasse est tamponné SANS être nommé — jamais

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { SoundToggle, useCelebrate } from "@zetis/ui";
 import { PageHeader } from "../components/PageHeader";
 import {
@@ -59,6 +60,8 @@ export function CapsulesIAPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const celebrate = useCelebrate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lienConsomme = useRef(false); // `?capsule=` ne s'ouvre qu'une fois
 
   useEffect(() => {
     Promise.all([fetchCapsuleLibrary(), fetchCapsuleStats().catch(() => null)])
@@ -80,6 +83,32 @@ export function CapsulesIAPage() {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement échoué"))
       .finally(() => setLoading(false));
   }, [celebrate]);
+
+  // Lien profond `?capsule=<id>` — **L'ADRESSE d'une capsule**, qui n'en avait aucune
+  // (ADR-0059 §A1). C'était une dette écrite noir sur blanc dans `notionRoutes.ts` : le
+  // `capsule_id` de la panoplie était **ignoré**, on ouvrait la liste à plat, et le libellé
+  // « Regarder la capsule » sur-promettait donc déjà.
+  //
+  // Aucun endpoint neuf : la page charge DÉJÀ toute la bibliothèque, et cette bibliothèque est
+  // servie sous le gate (`validation_status == validated` ET `video_url` présente). Un `find`
+  // suffit — et il hérite du gate gratuitement, sans le redériver.
+  //
+  // ⚠️ **Effet SÉPARÉ de celui du chargement.** Le mettre dans le `.then` ci-dessus le ferait
+  // dépendre de `celebrate`, et rejouerait la célébration des nouvelles capsules à chaque
+  // passage. Ici, il ne réagit qu'à l'arrivée de `items`.
+  useEffect(() => {
+    if (lienConsomme.current || items.length === 0) return;
+    const brut = searchParams.get("capsule");
+    if (!brut) return;
+    lienConsomme.current = true;
+    const cible = items.find((c) => c.id === Number(brut));
+    // Capsule inconnue, non validée, ou pas encore rendue : **on reste sur la liste, en
+    // silence**. Même arbitrage que `?carte=` et `?quiz=`.
+    if (cible) setPlaying(cible);
+    const next = new URLSearchParams(searchParams);
+    next.delete("capsule");
+    setSearchParams(next, { replace: true });
+  }, [items, searchParams, setSearchParams]);
 
   // À la FIN de la vidéo (regardée jusqu'au bout) : enregistre la vue + MAJ optimiste.
   // Chaque visionnage complet incrémente `view_count` (répétitions incluses) ; « vue distincte »

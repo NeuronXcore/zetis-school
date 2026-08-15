@@ -8,8 +8,9 @@ import {
 } from "@zetis/ui/avatar";
 import { splitKaraoke, type KaraokeWord } from "../lib/karaoke";
 import { isDictationSupported, startRecording, type Recording } from "../lib/dictation";
-import { Eli5SttUnavailable, requestNotion, transcribeEli5 } from "../lib/eli5";
+import { requestNotion } from "../lib/eli5";
 import {
+  ChatDictationUnavailable,
   ChatQuotaReached,
   ChatSessionExpired,
   ChatVoiceUnavailable,
@@ -17,7 +18,10 @@ import {
   createChatSession,
   sendChatMessage,
   synthesizeChatSpeech,
+  transcribeChat,
   type ChatAction,
+  type ChatGrounding,
+  type ChatRecall,
   type ChatMenuItem,
   type ChatToolType,
 } from "../lib/chat";
@@ -55,6 +59,12 @@ export function ChatPage() {
   const [input, setInput] = useState("");
   const [words, setWords] = useState<KaraokeWord[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
+  /** Ce que Massimo vient de dire, affiché le temps que ZETIS réponde (ADR-0059 §5.2). */
+  const [dit, setDit] = useState<string | null>(null);
+  /** Sur quoi la réponse s'appuie (ADR-0059 §7) — AFFICHÉ sous le karaoké, jamais parlé. */
+  const [source, setSource] = useState<ChatGrounding | null>(null);
+  /** Interrogation orale en cours (ADR-0059 §10) : un repère, jamais un score. */
+  const [interro, setInterro] = useState<ChatRecall | null>(null);
   const [tool, setTool] = useState<ChatToolType | null>(null);
   const [action, setAction] = useState<ChatAction | null>(null);
   // Annonce d'ouverture (addendum ADR-0026) — état SÉPARÉ d'`action` : elle précède la
@@ -242,6 +252,24 @@ export function ChatPage() {
       clearTimers();
       stopVoice();
 
+      // 🔴 **Le texte s'affiche AVANT la voix** (ADR-0059 §5.1) — le plus gros gain de
+      // réactivité du chantier, et il ne coûte rien au backend.
+      //
+      // Jusqu'au 2026-08-15, ces quatre lignes venaient APRÈS `await synthesizeChatSpeech` :
+      // Piper devait synthétiser la réponse ENTIÈRE avant que le premier mot n'apparaisse. Sur
+      // une chaîne déjà série (STT → moteur → synthèse), c'était un maillon entier de silence
+      // noir, pendant lequel Massimo ne voyait qu'un avatar qui tourne.
+      //
+      // ⚠️ **Effet de bord vertueux, et il vaut d'être écrit** : l'affichage ne dépend plus de
+      // la promesse de `playSpeech`, qui fait `await ctx.resume()` et reste PENDANTE POUR
+      // TOUJOURS sans geste utilisateur préalable. C'est le bug réel du 2026-08-02 (addendum
+      // ADR-0026 §8), où un `speakReply` au montage se bloquait avant `setWords` et l'annonce
+      // n'apparaissait jamais. Il ne peut plus se produire : au pire, le texte s'affiche muet.
+      setWords(w);
+      setWordIdx(-1);
+      setTool(null);
+      setAvatarState("speaking");
+
       let playback: VoicePlayback | null = null;
       if (!voiceGoneRef.current && isVoicePlaybackSupported()) {
         try {
@@ -253,10 +281,15 @@ export function ChatPage() {
         }
       }
 
-      setWords(w);
-      setWordIdx(-1);
-      setTool(null);
-      setAvatarState("speaking");
+      // ⚠️ **Le tour a-t-il été abandonné pendant la synthèse ?** Le barge-in (`cut`) et un
+      // nouveau message peuvent tomber pendant l'`await` ci-dessus — ce qui ne pouvait pas
+      // arriver quand l'affichage suivait la synthèse, puisque rien n'était encore affiché ni
+      // coupable. Si `speechRef` ne porte plus CE tour, on ne démarre ni audio ni karaoké : sans
+      // ce garde, une voix coupée se remettrait à parler par-dessus la suivante.
+      if (speechRef.current.words !== w) {
+        playback?.stop();
+        return;
+      }
 
       if (playback) {
         voiceRef.current = playback;
@@ -340,9 +373,15 @@ export function ChatPage() {
       stopVoice();
       setWords([]);
       setWordIdx(-1);
+      // Écho de ce que Massimo vient de dire (ADR-0059 §5.2), le temps que ZETIS réponde.
+      // ⚠️ **À la voix SEULEMENT.** Au clavier, il a sous les yeux ce qu'il a tapé pendant qu'il
+      // le tape ; le lui répéter serait du bruit. À la voix, il n'a jamais rien vu — et c'est
+      // précisément là que le doute « est-ce qu'il m'a entendu ? » s'installait.
+      setDit(origin === "voice" ? msg : null);
       // Massimo passe à autre chose : l'annonce a été lue, elle s'efface.
       setAnnounceText(null);
       setAnnounceActions([]);
+      setSource(null); // la source du tour précédent ne survit pas au tour suivant
       setBusy(true);
       setAvatarState("thinking"); // la giration absorbe la latence (moteur + synthèse voix)
       try {
@@ -353,6 +392,15 @@ export function ChatPage() {
         }
         const reply = await sendChatMessage(sessionRef.current, { text: msg });
         setSkillId(reply.skill_id);
+        // ⚠️ La source est posée AVANT `speakReply`, mais elle n'entre JAMAIS dans le texte
+        // synthétisé : `speakReply` ne reçoit que `reply.reply`. Une incise administrative
+        // (« d'après ta leçon Les fractions ») dans chaque réponse parlée casserait le rythme
+        // d'une conversation d'enfant — même discipline que l'annonce d'ouverture, qui s'affiche
+        // et ne se parle pas.
+        setSource(reply.grounding ?? null);
+        // L'interrogation disparaît de l'écran dès qu'elle est close côté serveur — le repère de
+        // progression ne doit pas survivre à ce qu'il mesure.
+        setInterro(reply.recall && !reply.recall.finished ? reply.recall : null);
         await speakReply(reply.reply, reply.tool_suggestion, reply.action ?? null, origin);
       } catch (e) {
         if (e instanceof ChatQuotaReached) {
@@ -403,12 +451,15 @@ export function ChatPage() {
       return;
     }
     try {
-      const { transcript } = await transcribeEli5(blob);
-      if (transcript.trim()) await send(transcript, "voice"); // voix → navigation directe
+      // Route DÉDIÉE au chat (ADR-0059 §18) : celle d'ELI5 écrivait les phrases de Massimo en
+      // base — 78 lignes mesurées le 2026-08-15.
+      const { transcript } = await transcribeChat(blob);
+      const propre = transcript.trim();
+      if (propre) await send(propre, "voice"); // voix → navigation directe
       else setAvatarState("idle");
     } catch (e) {
       setAvatarState("idle");
-      if (e instanceof Eli5SttUnavailable) {
+      if (e instanceof ChatDictationUnavailable) {
         setSttGone(true);
         setError("La dictée n'est pas dispo pour l'instant. Écris-moi !");
       } else {
@@ -493,6 +544,18 @@ export function ChatPage() {
         />
       </div>
 
+      {/* Ce que Massimo vient de dire (ADR-0059 §5.2). Il partait jusqu'ici directement dans
+          `send()` sans jamais s'afficher : Massimo parlait, et n'avait AUCUNE confirmation
+          d'avoir été entendu avant que ZETIS réponde — c'est-à-dire après le STT, le moteur ET
+          la synthèse vocale. L'afficher coupe l'attente perçue en deux, et transforme un silence
+          inquiétant en accusé de réception. Il s'efface dès que ZETIS parle : deux textes à
+          l'écran en même temps se disputeraient le regard. */}
+      {dit && words.length === 0 && (
+        <p className="chat-said-by-me" aria-live="polite">
+          {dit}
+        </p>
+      )}
+
       {words.length > 0 && (
         <div className="chat-transcript" aria-live="polite">
           {words.map((w, i) => {
@@ -504,6 +567,38 @@ export function ChatPage() {
               </span>
             );
           })}
+        </div>
+      )}
+
+      {/* D'où vient la réponse (ADR-0059 §7) — AFFICHÉE, jamais parlée. Discrète : c'est une
+          garantie, pas un message. Rien ne s'affiche quand ZETIS n'a pas répondu au fond, ni
+          quand il n'avait pas de source (il l'a alors dit dans sa réponse même).
+          ⚠️ §16 — le titre de leçon est une DONNÉE saisie par l'adulte : si un jour l'un d'eux
+          contient le mot « papa », il s'affichera. On ne censure pas les données de Papa ;
+          l'angle mort est nommé dans l'ADR plutôt que découvert à l'écran. */}
+      {source && source.kind !== "aucune" && words.length > 0 && (
+        <p className="chat-source">
+          {source.kind === "cours" && source.lesson_title
+            ? `📖 D'après ta leçon « ${source.lesson_title} »`
+            : "📄 D'après tes documents"}
+        </p>
+      )}
+
+      {/* Interrogation en cours (ADR-0059 §10) : un REPÈRE, et une SORTIE.
+          ⚠️ « Question 2 sur 3 » — jamais un score, jamais un compteur d'erreurs : les règles de
+          gamification interdisent le décompte anxiogène, et un enfant qui voit son résultat en
+          direct cesse de répondre pour protéger son chiffre.
+          La sortie est la « sortie » de la règle « ≤ 2 propositions + une sortie » (ADR-0027). */}
+      {interro && !speaking && (
+        <div className="chat-offer" role="group" aria-label="Interrogation en cours">
+          <p className="chat-recall-step">
+            Question {interro.asked} sur {interro.total} · {interro.skill_name}
+          </p>
+          <div className="chat-offer-row">
+            <button type="button" className="chat-ghost" onClick={() => void send("stop", "text")}>
+              On arrête
+            </button>
+          </div>
         </div>
       )}
 
