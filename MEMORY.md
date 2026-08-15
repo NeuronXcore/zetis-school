@@ -6,20 +6,35 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 🟡 CHANTIER COMPLET, NON POUSSÉ — Trois témoins de plus (addenda ADR-0025 et ADR-0030)
+### ✅ CHANTIER MERGÉ — Trois témoins de plus (addenda ADR-0025 et ADR-0030)
 
-**Branche `feat/trois-temoins-de-plus`, base `4dffacf`.** Le code est **commité sur la branche**.
-Commits : `git log --oneline main..HEAD`.
+**Mergé dans `main` le 2026-08-15 — PR
+[#135](https://github.com/NeuronXcore/zetis-school/pull/135), squash `8f5400d`.**
+Base `4dffacf` (le commit de cadrage, parti seul et en premier). `main` est à jour avec `origin` :
+**rien à pousser**.
 
-🔴 **DEUX choses ne sont PAS faites, et l'ordre compte :**
+⚠️ **La branche `feat/trois-temoins-de-plus` N'A PAS été supprimée** — ni en local, ni sur
+`origin`. Ce n'est pas un oubli constaté après coup : la suppression n'a pas été demandée, et elle
+est irréversible côté distant. À supprimer quand vous le voudrez.
 
-1. **La relecture visuelle des badges à l'écran n'a pas eu lieu.** Je n'ai pas pu me connecter
-   (règle : ne jamais saisir de mot de passe). **Ne pas merger sans.** Le chantier précédent est le
-   **premier du dépôt** à l'avoir faite avant le merge, et elle y avait produit trois défauts de
-   plus ; les cinq d'avant l'ont tous regretté. Ce serait la 6ᵉ occasion manquée.
-2. **Rien n'est poussé — et `main` non plus.** `main` porte le commit de cadrage `4dffacf` qui
-   **n'est pas sur `origin`** (`origin/main` = `3f1c468`). Il part **en premier**, seul, avant la
-   branche.
+⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
+
+> 🔴 **LA RELECTURE VISUELLE N'A PAS EU LIEU, ET LE CHANTIER EST MERGÉ QUAND MÊME — 6ᵉ occurrence.**
+> Elle n'a pas été sautée par distraction : l'agent ne peut pas se connecter à l'app (règle
+> permanente — ne jamais saisir de mot de passe), et le merge a été fait par le commanditaire en
+> connaissance de cause, l'objection lui ayant été exposée trois fois, dont en tête du corps de la
+> PR. **Ce n'est donc pas une dette de rigueur, c'est une contrainte structurelle** : *aucun
+> chantier d'interface de ce dépôt ne peut être relu visuellement par l'agent seul.*
+> Le chantier précédent (ADR-0059) est le seul à l'avoir eue avant son merge — parce qu'un humain
+> l'a faite — et elle y avait produit **trois défauts que rien d'autre n'avait vus**.
+>
+> **Ce qu'il reste à regarder, maintenant que c'est en production de dev** — c'est devenu une
+> vérification *post-merge*, pas un gate :
+> 1. **Matières** doit afficher `9+` ;
+> 2. **ELI5** et **Quiz** ne doivent afficher **aucune pastille** (point zéro) ;
+> 3. le badge **Agenda** doit **RESTER** allumé sur l'Accueil au lieu de s'éteindre sous les yeux —
+>    c'est tout l'objet de la révocation, et c'est le seul des quatre dont la correction n'est
+>    prouvée que par un test.
 
 #### Ce qui a motivé le chantier
 
@@ -79,12 +94,18 @@ a coupé ce constat en deux, et **les deux moitiés étaient fausses différemme
 
 **Nées de ce chantier :**
 
-- 🔴 **La relecture visuelle n'a pas eu lieu** (voir en tête). Ce qu'il faut voir : Matières à `9+`,
-  ELI5 et Quiz **sans pastille**, et le badge Agenda qui **reste** sur l'Accueil.
-- ⚠️ **Les deux migrations sont en DEV seulement.** Leur point zéro lit l'état de la base **au
-  moment où elles tournent** : en prod elles marqueront vu ce qui existera ce jour-là. C'est
-  l'intention, mais les deux bases ne porteront pas les mêmes lignes. Procédure prod :
-  `scripts/README.md` (⚠️ `ZETIS_DATABASE_URL`, jamais `DATABASE_URL`).
+- 🔴 **La relecture visuelle n'a pas eu lieu, et le chantier est mergé** (détail en tête). Devenue
+  une vérification **post-merge** : Matières à `9+`, ELI5 et Quiz **sans pastille**, et le badge
+  Agenda qui **reste** sur l'Accueil.
+- 🔴 **LES DEUX MIGRATIONS NE SONT PAS EN PRODUCTION** — et c'est désormais la dette la plus
+  urgente, puisque le code qui les attend est sur `main`. `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`,
+  **chaînées** (les poser en parallèle donnerait deux têtes Alembic, silencieusement, et
+  l'entrypoint de prod fait `upgrade head` au démarrage). ⚠️ Leur point zéro lit l'état de la base
+  **au moment où elles tournent** : en prod elles marqueront vu ce qui existera ce jour-là, donc
+  les deux bases ne porteront pas les mêmes lignes — c'est l'intention, pas une dérive. Procédure :
+  `scripts/README.md` (⚠️ `ZETIS_DATABASE_URL`, jamais `DATABASE_URL`, ignorée **en silence**).
+  Sans elles, `GET /api/student/news/summary` tombera en prod : les compteurs lisent `eli5_views`
+  et `quiz_views`.
 - ⚠️ **`servable_quiz_ids` est une SECONDE formulation** du filtre de `_servable_quizzes_of_subject`,
   assumée pour ne pas faire une requête par quiz dans `news/summary`. Tenue par un test d'égalité
   (N4) — si l'une évolue, l'autre doit suivre.
@@ -139,10 +160,12 @@ ce serait une suppression massive hors périmètre, et elle mérite sa propre se
 
 #### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
 
-**Infra Docker allumée** (postgres/redis/minio). Paire `backend-dev` (:8001) + `massimo-dev`
-(:5176) lancée pour la vérification, ⚠️ elle **meurt avec la session**.
+**Infra Docker allumée** (postgres/redis/minio). La paire `backend-dev` (:8001) + `massimo-dev`
+(:5176) a été lancée pour la vérification et **est morte avec la session** — à relancer pour
+regarder les badges.
 
-**Ce que le chantier a écrit en base de dev**, et qui y reste :
+**Ce que le chantier a écrit en base de DEV**, et qui y reste — ⚠️ **la production n'a rien de tout
+ça, les migrations n'y sont pas encore passées** :
 
 | Table | Lignes | Origine |
 |---|---|---|
@@ -170,12 +193,28 @@ l'autre a révélé un **décor dégénéré** (un seul quiz en base). Détail :
 
 #### ▶ PROCHAIN PAS
 
-1. 🔴 **Relecture visuelle des badges** — `backend-dev` :8001 + `massimo-dev` :5176, se connecter,
-   regarder. **Avant la PR, pas après.**
-2. `git push origin main` — le commit de cadrage `4dffacf` part **seul et en premier**.
-3. `git push -u origin feat/trois-temoins-de-plus`, puis PR.
-4. Après le merge : **étape 4bis** (`WORKFLOW.md §5`) — squash, n° de PR, branche supprimée, et
-   **appliquer les deux migrations en production** (dette ci-dessus).
+Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étape 4bis **faite** le
+2026-08-15 (c'est cette rédaction-ci).
+
+1. 🔴 **APPLIQUER LES DEUX MIGRATIONS EN PRODUCTION** — le premier pas, et le seul qui soit
+   bloquant. Le code est sur `main` et lit `eli5_views` / `quiz_views` ; sans les tables,
+   `GET /api/student/news/summary` tombe et **les dix badges de Massimo tombent avec**.
+   Chaînées : `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`. Procédure et pièges : `scripts/README.md`.
+2. **Regarder les badges à l'écran** — la vérification qui n'a pas pu se faire avant le merge (voir
+   en tête). Trois choses précises à voir, listées là-haut.
+3. **Juger la qualité du décodage glouton sur une vraie voix** — dette héritée de l'ADR-0059, qui
+   était déjà « le premier pas ouvert » à sa clôture et l'est resté.
+4. Puis **`/ouverture`** ou une session de **cadrage** sur `main`, selon que le chantier suivant a
+   déjà un ADR. ⚠️ Au 2026-08-15, les derniers ADR de `docs/decisions/` sont ceux de ce chantier,
+   tous **livrés** : le suivant se choisit au `BACKLOG.md`, et s'il n'a pas d'ADR, la prochaine
+   session est un **cadrage**, pas un `/ouverture`.
+
+**Résidus de cette clôture**, qui ne vivent nulle part ailleurs :
+
+- la branche `feat/trois-temoins-de-plus` **existe toujours**, locale et distante ;
+- les serveurs `backend-dev` :8001 et `massimo-dev` :5176 sont morts avec la session ;
+- la base de **dev** porte les points zéro (267 / 37) et le watermark d'agenda avancé ;
+- la permission `Bash(gh pr merge:*)` a été ajoutée à `.claude/settings.local.json` (gitignoré).
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
