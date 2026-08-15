@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.94.0 — Trois témoins de plus, et un regard qui change de place
+
+Quatre entrées de la barre de Massimo n'annonçaient rien quand quelque chose arrivait pour lui.
+
+- **L'Agenda avait déjà sa pastille, et personne ne l'avait jamais vue.** Elle s'éteignait au
+  chargement de l'Accueil — donc avant d'avoir fini de s'afficher, puisque c'est la page où
+  Massimo arrive. Elle attend désormais qu'il ouvre vraiment son agenda.
+- **Matières** annonce les **cours** qu'il n'a pas encore ouverts. Pas les fiches ni les capsules :
+  celles-ci ont leur propre entrée, et c'est le cours dont elles sont tirées qui n'en avait aucune.
+- **ELI5** annonce les notions que ZETIS ne lui a jamais expliquées.
+- **Quiz** annonce les quiz qu'il n'a pas encore ouverts — **jamais ceux qu'il n'a pas faits**.
+
+> 🔴 **La règle du dépôt n'a pas été assouplie pour autant, et c'est le point.** Une pastille
+> compte ce qui **arrive** et s'éteint quand l'enfant **regarde** ; elle ne compte jamais ce qui
+> reste à faire, parce qu'un nombre qui grossit pendant une absence fait revenir par culpabilité.
+> Les trois nouvelles s'éteignent toutes d'un regard. La seule exception du dispositif — le
+> Diagnostic — reste la seule, et le registre qui l'enregistre n'a pas bougé d'une ligne.
+
+**Ouvrir un quiz suffit à éteindre sa pastille, même en repartant aussitôt.** C'est le prix assumé
+de ne pas compter du travail : l'inverse aurait fait grandir un chiffre chaque jour où Massimo ne
+vient pas.
+
+**ELI5 et Quiz démarrent à zéro.** Ce qui existait déjà en base au moment de la pose est considéré
+comme vu : le passé n'est pas de la nouveauté. Matières, lui, démarre plein — sa trace de lecture
+sert aussi à mesurer la fiabilité des diagnostics et à alimenter le cahier de bord, et la remplir
+de fausses lectures aurait fait croire à ZETIS que Massimo a lu des cours qu'il n'a jamais ouverts.
+
+> ⚠️ **Une leçon annoncée mais dont le cours n'est pas écrit ne compte pas.** Elle n'est pas
+> ouvrable — la compter aurait donné une pastille que rien ne peut éteindre. Sur la base de
+> travail, la moitié des leçons validées étaient dans ce cas.
+
 ## 0.93.0 — ZETIS répond vite, ouvre la ressource exacte, et interroge
 
 Massimo demandait « ma fiche sur les fractions » et ZETIS ouvrait **les douze fiches de Maths** ;

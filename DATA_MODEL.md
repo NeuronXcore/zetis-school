@@ -1365,6 +1365,66 @@ la carte). Mindmaps était de ce fait la seule famille de dérivés sans témoin
 Aucun backfill : les vues passées n'ont jamais été enregistrées, donc toutes les cartes validées
 comptent comme nouvelles au premier chargement.
 
+### Eli5View (addendum ADR-0030 — témoin ELI5)
+
+Notion ouverte en ELI5 par un élève. **Sixième table du patron `*_views`**, calque de
+`MindmapView`.
+
+```txt
+id
+student_id         # FK student_profiles, index
+skill_id           # FK skills, index
+seen_at            # premier (et seul) regard
+                   # unique(student_id, skill_id)
+```
+
+🔴 **Règle de lecture — à ne pas confondre avec le `new_count` de `student_notions_summary`.**
+Celui-ci est un critère de **RÉCENCE** (fenêtre `NOTION_NEW_WINDOW_DAYS` sur `Lesson.created_at`)
+et décroît par le temps ; cette table fait mourir un compteur par le **REGARD**. C'est exactement
+pourquoi l'ADR-0030 §2 refusait un badge de navigation à ELI5 : la règle n'a pas été assouplie,
+cette table est le prix payé pour lui en donner un. Les deux coexistent — le compteur de récence
+reste servi, en page, sur les decks.
+
+⚠️ Le geste qui écrit ici est l'**explication demandée et réussie**. Ni l'affichage d'une chip, ni
+l'ouverture d'un deck, ni ELI5 **reverse** (reformuler est du travail, pas un regard).
+
+**Créée le 2026-08-15** (migration `f8a9b0c1d2e3`), **avec point zéro** : toutes les notions
+éligibles au jour de la pose sont insérées, le témoin démarre donc à 0 et ne compte que ce qui
+arrive ensuite. Ceci n'amende pas l'« aucun backfill » de l'ADR-0030 §4 — celui-ci refusait de
+prétendre que le passé avait été lu ; ici on pose l'**origine du témoin**, et le passé n'est pas
+de la nouveauté.
+
+### QuizView (addendum ADR-0030 — témoin Quiz)
+
+Quiz **ouvert** par un élève. Septième table du patron `*_views`, calque de `MindmapView`.
+
+```txt
+id
+student_id         # FK student_profiles, index
+quiz_id            # FK quizzes, index
+seen_at            # premier (et seul) regard
+                   # unique(student_id, quiz_id)
+```
+
+🔴 **Règle de lecture — « ouvert », jamais « passé ».** Le témoin qui en vit ne regarde **jamais**
+`QuizAttempt` : compter les quiz non passés donnerait un compteur qui meurt du TRAVAIL et grossit
+quand Massimo ne vient pas, colonne interdite de l'ADR-0030 §1 dont l'unique exception
+(`diagnostic`) est nommée et ne s'étend pas. Conséquence assumée : ouvrir un quiz puis l'abandonner
+sans répondre éteint quand même le témoin.
+
+Un quiz de **diagnostic** n'entre jamais dans cette lecture (`quiz_type == "mission"` seulement),
+sinon il doublerait le témoin `diagnostic`, avec deux règles de mort opposées.
+
+**Créée le 2026-08-15** (migration `f9a0b1c2d3e4`, chaînée sur `f8a9b0c1d2e3`), **avec point
+zéro** sur l'**existence** du quiz — jamais sur `completed_at`, qui ferait entrer la notion de
+travail dans la table par la porte de la migration.
+
+> ⚠️ **`lesson_views` n'a PAS reçu de point zéro**, et c'est une contrainte, pas une omission :
+> elle est lue par `diagnostics/fiabilite.py` (« le cours a été lu » est un critère de fiabilité)
+> et par `production/journal.py` (Cahier de bord). Y écrire des vues fictives ferait croire à
+> ZETIS que Massimo a lu des cours qu'il n'a jamais ouverts. **Une trace de vue n'appartient pas
+> au badge qui la consomme** — avant tout backfill, chercher qui d'autre la lit.
+
 ### CouncilReport (ADR-0020)
 
 Rapport « Conseil de classe IA » **figé**, Papa-only. Narration LLM locale posée sur le service
