@@ -140,13 +140,24 @@ en est le repli de référence et son contrat d'entrée doit survivre à la migr
   fiche à générer) : il **oriente vers l'existant** uniquement.
 - iOS : aucun autoplay, aucun son en Lot 1 de toute façon.
 
-## Données API (slice A — ne rien inventer, lire le code)
+## Données API (ne rien inventer, lire le code)
 
-- `POST /api/student/chat/sessions` → session
-- `POST /api/student/chat/sessions/{id}/messages` → `{ job_id }` puis polling
-  `GET /ai/jobs/{job_id}` (patron ELI5 existant)
+- `POST /api/student/chat/sessions` → `{ session_id, transparency, announcement }`
+- `POST /api/student/chat/sessions/{id}/messages` → **réponse INLINE** `ChatMessageOut`
+- `POST /api/student/chat/tts` → WAV (Piper local, jamais persisté)
+- `POST /api/student/chat/transcribe` → `{ transcript }` (Whisper local, ADR-0059 §18)
 - `POST /api/student/chat/sessions/{id}/close`
 - Aucune donnée de conversation stockée côté front au-delà de l'état React de la session.
+
+🔴 **La réponse est INLINE, et ce n'est pas un raccourci d'implémentation.** Cette section a décrit
+jusqu'au 2026-08-15 un patron `{ job_id }` + polling `GET /ai/jobs/{job_id}` emprunté à ELI5 : il
+n'a jamais été celui du chat, et il ne peut pas l'être — **faire transiter le verbatim par
+`ai_jobs` violerait l'ADR-0026 §1c**, qui veut ce pipeline aveugle au contenu. Le polling reste
+juste pour ELI5, dont la sortie est un objet destiné à être relu.
+
+⚠️ **La dictée du chat a sa PROPRE route** (`/chat/transcribe`), et ne passe plus par celle
+d'ELI5. Motif mesuré (ADR-0059) : la route ELI5 écrit le transcript dans `ai_jobs` — **78 lignes
+en base au 2026-08-15**. La route du chat ne trace que la durée.
 
 ## Reporté (tracé, non planifié dans ce lot)
 
@@ -195,13 +206,31 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
 |---|---|---|
 | « Explique-moi X » | `/eli5?skill_id=<id>&name=<nom>` | **notion** ✅ |
 | « Reconstruis la carte C » | `/mindmaps/reconstruire/<mindmapId>` | **carte** ✅ |
-| « Mes fiches / cours / mindmaps / révision / progression de M » | `/fiches/<slug>`, `/subjects/<slug>/cours`, `/mindmaps/<slug>`, `/revision?subject=<slug>`, `/galaxy?subject=<slug>` | **matière** (fiche exacte non ciblable — l'UI le dit sans mentir) |
+| « **Ma fiche** sur X » | `/fiches/<slug>?fiche=<ficheId>` | **fiche** ✅ (ADR-0059 §A2) |
+| « **Mon cours** sur X » | `/subjects/<slug>/cours?lesson=<lessonId>` | **leçon** ✅ (cadre et déplie ; n'ouvre pas le volet de lecture) |
+| « **Le quiz** sur X » | `/quiz?quiz=<quizId>` | **quiz** ✅ (ADR-0059 §A1) |
+| « **La capsule** sur X » | `/capsules?capsule=<capsuleId>` | **capsule** ✅ (ADR-0059 §A1) |
+| « Mes fiches / cours / mindmaps / quiz / révision / progression de M » | `/fiches/<slug>`, `/subjects/<slug>/cours`, `/mindmaps/<slug>`, `/quiz?subject=<slug>`, `/revision?subject=<slug>`, `/galaxy?subject=<slug>` | **matière** — le repli quand l'id manque, et la réponse juste quand la demande elle-même est de niveau matière |
 | « Mon agenda / mes devoirs » | carte inline (`/agenda/week`+`splitSections`) + bouton `/agenda` | **données** |
 | « Qu'est-ce que je dois réviser » | carte inline (`/reviews/summary`) + bouton `/revision` | **données** |
 | « Mes missions » | carte inline (`/missions/today`) + bouton `/missions` | **données** |
 
-**Hors v1** (tracé, non inventé) : quiz par notion, révision-session, mission précise (cibles
-`location.state`, pas d'URL) ; Diagnostic (jamais routé de façon anxiogène).
+🔴 **`revision` n'a AUCUN id par notion, et ce n'est pas un manque** (ADR-0059 §14) : le grain le
+plus fin du SRS est le **chapitre** (ADR-0049), et le deck chapitre sert des cartes *non dues*,
+sémantique différente de `revision.available`. **Six activités sont adressables par id, pas sept.**
+
+⚠️ **La règle, en une phrase** : *id présent ⇒ route ciblée ; id absent ⇒ route de matière ; ni
+l'un ni l'autre ⇒ pas d'action.* Et **le chat n'émet jamais `&from=`** — il vient de `/chat`, pas
+d'une matière ; un rétrolien y serait un dépaysement. C'est la seule différence assumée avec
+`notionRoutes.ts`, et le contrat de parité la traite comme une **décoration**, pas comme un écart.
+
+**Hors v1** (tracé, non inventé) : révision-session et mission précise (cibles `location.state`,
+pas d'URL) ; Diagnostic (jamais routé de façon anxiogène).
+
+> **Historique** — jusqu'au 2026-08-15, cette table plafonnait à la matière pour la fiche, le
+> cours, le quiz et la capsule, et disait « fiche exacte non ciblable ». C'était **faux depuis
+> l'ADR-0054** : l'adresse `?fiche=` existait et n'était utilisée par aucune des deux tables de
+> routes. Corrigé par l'ADR-0059.
 
 ### Garde-fous (repris de l'ADR)
 
@@ -216,6 +245,31 @@ l'existant validé, et renvoie une **action** concrète (`ChatMessageOut.action`
   une cible non ancrable → `action = null`.
 - **Aucun nouvel événement** : le geste sur une action réutilise `chat_tool_response` (zéro XP,
   non probant). **Rappel ≠ relance** : aucune action poussée entre deux sessions.
+- 🔴 **Le type demandé à Papa est le type demandé** (ADR-0059 §16) : réclamer un quiz absent
+  enregistre une demande de **quiz**, pas de cours. Le repli sur `cours` est révoqué ; le
+  déclencheur qu'il masquait est promu — sur une notion **vide**, la demande de dérivé s'accompagne
+  d'une demande de `cours` (la porte des dérivés), donc **deux lignes**. Sur une notion pleine, une
+  seule. Et un outil que le moteur aurait halluciné **ne promet rien** : la note perd son « je le
+  note » plutôt que d'enregistrer une demande que personne n'a formulée.
+
+### ZETIS répond sur le fond (ADR-0059 §1, §7)
+
+La règle « aiguilleur » est **révoquée pour la seule PAROLE de ZETIS**. Les deux autres garde-fous
+de l'ADR-0027 §3 tiennent intégralement : il ne route toujours que vers du **validé**, et l'enfant
+ne déclenche **aucune génération**.
+
+- **Ancrage obligatoire** : le cours canonique de la notion d'abord, des extraits RAG en repli.
+  Sans ancrage, ZETIS **ne répond pas** — il le dit et enregistre une demande de cours. Un refus
+  honnête vaut mieux qu'une réponse inventée avec aplomb.
+- **Le serveur ne croit pas le moteur** : c'est lui qui sait ce qu'il a injecté, et lui qui décide
+  de la source affichée. Une déclaration de source contredite par le contexte est tracée comme un
+  mensonge, pas rendue à l'écran.
+- **La source s'AFFICHE, elle ne se parle pas** — même discipline que l'annonce d'ouverture. Une
+  incise administrative dans chaque réponse casserait le rythme d'une conversation d'enfant.
+- **La frontière** : ZETIS peut **dire** le fond ; il ne peut pas **écrire** de contenu durable.
+  Trois questions tranchent tout cas limite — *survit à la clôture de session ? a une URL ? entre
+  en base comme texte ?* Trois « non » = parole, aucune relecture requise, parce qu'il n'y a rien à
+  relire : l'objet n'existe plus demain.
 
 ## Le retour de demande — la boucle se ferme ici (addendum ADR-0026)
 
