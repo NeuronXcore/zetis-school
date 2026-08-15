@@ -596,6 +596,36 @@
     du dépliage un compteur (« 8 à reprendre ») — nommée ici pour être reconnue quand elle
     reviendra. **Observation attendue** : si le dépliage n'est jamais ouvert, le plafond de filtrage
     avait raison — Accepté (2026-08-10)
+  - `docs/decisions/adr-0025-addendum-le-regard-vit-a-l-agenda.md` — **Addendum ADR-0025 — le regard
+    vit à `/agenda`, et nulle part ailleurs** : 🔴 **RÉVOQUE la Décision validée n°2 de
+    l'`adr-0025-addendum-temoin-nouveaute-agenda` sur ses DEUX POINTS D'ÉCRITURE** (§12.3, premier
+    tiret) — décision commanditaire vieille de quatorze jours, révoquée après diagnostic du défaut à
+    l'écran. **Le témoin de l'agenda était livré, correct côté serveur, et n'avait jamais été vu par
+    personne** : Massimo atterrit sur l'Accueil, `HomeAgendaBanner` appelle `markAgendaSeen()` dans
+    son `finally` de montage, et le `notifyNewsChanged()` qui suit recalcule le badge à zéro dans les
+    400 ms. ⚠️ **Le composant l'écrivait lui-même en commentaire à la livraison** (*« conséquence
+    assumée, pas un défaut — le badge Agenda n'y vit que quelques centaines de millisecondes »*) :
+    la conséquence était **prévue et acceptée**, ce que le §12.3 n'avait pas mesuré c'est qu'elle ne
+    laisse au témoin **aucun cas d'usage réel** — l'utilité résiduelle envisagée (« Papa saisit
+    pendant que Massimo est déjà dans l'app ») suppose qu'il ne repasse pas par l'Accueil, ce qui est
+    un cas de bord sur une app dont l'Accueil est le point de retour. **Le motif qui renverse le
+    §12.3** : *« les deux surfaces où Massimo lit ce qui est arrivé »* est faux — le bandeau montre
+    **un extrait choisi sur un AUTRE critère** (Aujourd'hui/Demain + à-venir tronqué par
+    `agenda_upcoming_horizon_days` et `agenda_upcoming_max`) quand le témoin compte ce qui est
+    **arrivé**, sans considération d'échéance ; un devoir saisi ce matin pour dans trois semaines est
+    nouveau **et absent du bandeau**. Il ment donc dans les deux sens, et on corrige celui qui rend
+    le témoin inutile. **Contre-motif maintenu au dossier** : lire le bandeau EST un regard partiel,
+    donc Massimo pourra voir ses échéances du jour et garder un badge allumé — prix assumé, **moindre
+    des deux** (un badge allumé de trop invite à ouvrir une page ; un badge éteint avant d'exister
+    n'invite à rien). **Quatre bornes** : un seul point d'écriture (`useAgenda`), avec un test qui
+    compte les appelants côté client · **§12.1, §12.2, §12.4, §12.5 NON rouverts** · **la granularité
+    ne bouge pas** — `agenda_last_seen_at` reste par élève, le §12.3 est amendé sur *qui écrit*, pas
+    sur *quoi* · **aucune surface ne devient un regard sans amender ce document**, la règle devenant
+    « marque vu la surface qui montre TOUT ce qui est arrivé », et il n'y en a qu'une. **Le signal
+    qui dirait qu'on s'est trompé** : le badge reste allumé en permanence parce que Massimo lit tout
+    sur l'Accueil (regarder alors si le bandeau ne rend pas la page inutile — défaut de composition,
+    §12.5) · le badge affiche durablement `9+` (ce serait de l'arriéré, et le robinet est chez Papa)
+    — ⚠️ aucun des deux n'est mesuré — Accepté (2026-08-15)
 - `docs/decisions/adr-0026-chat-zetis-memoire.md` — **Chat ZETIS : mémoire éphémère,
   traçabilité typée, signal déclaratif** : le verbatim de conversation est **éphémère par
   construction** — M1 en Redis (TTL `CHAT_SESSION_TTL_MINUTES=120`, purge à la clôture),
@@ -967,6 +997,108 @@
   668 tests back + 319 Massimo, E2E live vérifié (badges, retombée sans rechargement, aucun appel
   périodique, 14 → 13 mindmaps après un regard) — Accepté (2026-08-01)
   - `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` — **Addendum ADR-0030 — le témoin du Diagnostic, et l'exception assumée à « NOUVEAU jamais DÛ »** : 🔴 **AMENDE la Décision 1 en y créant une EXCEPTION NOMMÉE, et RÉVOQUE l'`adr-0044` Décision 7** acceptée le matin même. **Décision du commanditaire, prise après que l'objection lui a été exposée en toutes lettres et RÉAFFIRMÉE.** L'entrée « 🧭 Diagnostic » de la sidebar de Massimo porte un **témoin NUMÉRIQUE** qui compte les diagnostics **relus par Papa et non encore passés**, et qui **s'éteint par le TRAVAIL** — quand Massimo a passé le diagnostic et envoyé ses réponses — **et non par le regard**. ⚠️ **Ce n'est pas une clarification, c'est une exception** : le témoin tombe **intégralement dans la colonne « Arriéré »** du test opérationnel de l'`adr-0030` (naît d'un geste de Papa ✅, meurt du travail ❌, **grossit si Massimo ne vient pas** ❌), colonne dont l'ADR dit qu'elle est *« la définition d'une relance »* et qu'elle est *« interdite en navigation, sur les deux interfaces »*. Elle est écrite parce qu'**une règle qu'on enfreint sans le dire cesse d'être une règle pour tout le monde**. **Le contre-motif est MAINTENU AU DOSSIER** (patron `adr-0032`) : `CLAUDE.md` §gamification interdit tout **capital qu'on peut perdre**, motif exact du retrait du streak le 2026-07-27 (*« un capital qu'on peut perdre fait venir par peur de perdre, ce n'est pas de l'auto-motivation »*), et l'`adr-0044` Décision 1 avait répondu autrement au même besoin — la carte « commence par là » **est** le signal d'arrivée et ne montre qu'**un** diagnostic à la fois, donc rien ne s'accumule pendant une absence. 🔴 **Ce qui n'a PAS motivé la décision : le coût, et il fallait le dire parce que l'inverse serait un argument confortable et faux** — la forme **interdite est GRATUITE** (`taken_at` existe depuis la Session A de l'`adr-0044` : le compte se fait **sans aucune migration**, un champ de plus dans `news/summary`) quand la forme **légale coûterait une table** de traces de vue sur le modèle de `mindmap_views` ; **l'arbitrage est de valeurs, pas de coût**. **Cinq bornes** : une seule entrée (la règle reste intacte pour les six autres, leur test-verrou non touché) · le compteur **ne compte que du RELU**, Papa restant le robinet et **seule régulation de volume** · **aucun décompte de jours**, interdiction **non amendée** · aucune couleur d'alerte, aucune notification (`adr-0030 §6`) · rien chez Papa. **Le signal qui dirait qu'on s'est trompé** : Massimo **évite** la page pendant que le compteur monte (le retirer, pas l'atténuer) · il passe des diagnostics **pour éteindre la pastille** (visible à des passations rapides et creuses, sur le plus court plutôt que sur celui que la page propose) · le compteur dépasse durablement 3 ou 4 — ⚠️ **aucun des trois n'est mesuré : ils se regardent, ils ne s'alertent pas**. Mise en œuvre en **Session C** de l'`adr-0044` : `navigation.ts` reçoit un `newsKey`, et son commentaire comme son test-verrou doivent être **réécrits pour DIRE l'exception**, jamais simplement élargis — sans quoi la prochaine session complétera la liste « par symétrie apparente », ce que ce test existe précisément pour empêcher — Accepté (2026-08-08)
+  - `docs/decisions/adr-0030-addendum-temoin-matieres.md` — **Addendum ADR-0030 — le témoin de
+    Matières, et les bornes des trois nouveaux témoins** : **AMENDE le §3** (*« Matières est un hub :
+    ce qui arrive a déjà son entrée, un badge ici doublerait les autres »*) et **porte les quatre
+    bornes transverses B1–B4** communes aux trois témoins ajoutés le même jour — écrites **une seule
+    fois**, ici, parce que trois copies d'une même borne divergent. **Le motif du §3 rangeait le
+    COURS avec ses DÉRIVÉS** : fiche, capsule, mindmap et carte SRS sont *produites à partir* d'un
+    cours validé (`adr-0011`), le cours est l'**original**, et dire qu'un témoin sur Matières
+    doublerait les autres revient à dire qu'un original double ses copies — c'est au contraire le
+    **seul** témoin qui s'allume quand Papa valide une leçon dont aucun dérivé n'existe encore,
+    c'est-à-dire le cas normal. La partie juste du §3 est conservée : le témoin ne compte **que le
+    cours**. Témoin = **cours validés de l'année active jamais ouverts**, meurt du premier
+    `GET /lessons/{id}/cours`, **zéro date, zéro migration** (la trace est `lesson_views`, déjà
+    écrite). **Sept bornes**, dont : l'unité est la **leçon** (une matière ne peut pas mourir d'un
+    regard) · 🔴 **ne compte que ce qui est OUVRABLE** (`content_markdown IS NOT NULL`) — pas un
+    raffinement mais ce qui rend le témoin **mortel**, `student_lesson_content` répondant **404** sur
+    une leçon validée sans cours, donc **50 des 92** leçons de la base de dev auraient fait un badge
+    qu'aucun geste ne peut éteindre · 🔴 **pas de point zéro pour ce témoin, et c'est une contrainte
+    pas une esthétique** : `lesson_views` **n'appartient pas au badge**, elle est lue par la
+    fiabilité du diagnostic (`fiabilite.py` — « le cours a été lu ») et le Cahier de bord
+    (`journal.py`), donc y écrire des vues fictives **fausserait un calcul pédagogique** ; le badge
+    démarre à sa valeur réelle (**32**) et se vide à l'usage — seul des trois dans ce cas. **Bornes
+    transverses** : **B1 — `DEROGATIONS` ne bouge pas**, il reste `{"diagnostic"}` et le verrou « une
+    seule exception » n'est pas touché : les trois témoins meurent d'un **regard**, aucun n'a demandé
+    de dérogation, **le §1 sort de ce chantier intact** — c'est le critère à opposer au prochain
+    candidat · **B2 — un témoin doit pouvoir atteindre ZÉRO**, toute unité comptée doit être
+    atteignable par le geste qui l'éteint (verrou N2) · **B3 — le plafond reste `9+`**, jamais relevé
+    en compensation ; signal d'erreur : Matières encore à `9+` dans deux mois → retirer ou restreindre
+    la population, **jamais** monter le plafond · **B4 — dix entrées sur treize** porteront un témoin,
+    aucune onzième sans ADR, et la boucle « sans témoin » de `navigation.test.ts` — dont le
+    commentaire dit *« CETTE BOUCLE NE SE RÉTRÉCIT PAS »* et à qui ce chantier retire deux des cinq
+    entrées — est **remplacée par une PARTITION TOTALE** (les deux camps réunis font exactement
+    `MASSIMO_NAV`, sans doublon), strictement plus forte : aucune entrée ne change de camp en
+    silence, et une 14ᵉ force à trancher son camp. **Ce chantier ne rouvre ni le §1 ni le §2**
+    (payé par les tables neuves), ne touche ni au témoin `diagnostic`, ni au `new_count` de récence
+    d'ELI5, ni au nombre d'entrées de navigation, et ne crée aucun témoin côté Papa (§7) — Accepté
+    (2026-08-15)
+  - `docs/decisions/adr-0030-addendum-temoin-eli5.md` — **Addendum ADR-0030 — le témoin d'ELI5, ou le
+    §2 payé plutôt que contourné** : **AMENDE la CONSÉQUENCE du §2**, pas le §2. ⚠️ **La phrase du §2
+    reste vraie mot pour mot** (*« un compteur n'est éligible que s'il est adossé à une trace de
+    vue ; un compteur de récence décroît par le temps et non par le regard »*) et le compteur qu'elle
+    visait — le `new_count` de `student_notions_summary`, fenêtre de 7 jours sur `Lesson.created_at` —
+    **reste inéligible**. Ce qui change est la conséquence qu'il en tirait (*« ELI5 n'a pas de badge
+    de navigation »*), juste **à trace de vue constante** : on ne réutilise pas le compteur de
+    récence, on **crée la trace qui manquait**. Le §2 en sort **renforcé** — « la récence ne suffit
+    pas » devient « alors on paie la table ». Témoin = **notions ELI5-éligibles que ZETIS n'a jamais
+    expliquées**, table neuve `eli5_views` (une ligne par élève × notion), route dédiée
+    `POST /api/ai/eli5/skills/{id}/seen`. **Sept bornes**, dont : adossé à `eli5_views` **jamais** au
+    `new_count` de récence — patron exact de `new_cards_count` face à `get_reviews_summary`, deux
+    voisines qui portent le même mot pour deux choses et se renvoient l'une à l'autre en docstring
+    (verrou N5 : scan de jetons **et** différence numérique dans un monde construit pour) · **aucun
+    compteur d'ouvertures** (doctrine `mindmap_views` : un compteur qu'on n'affiche nulle part finit
+    par être affiché) · le geste qui éteint est l'**explication demandée**, et **seulement sur
+    succès** · **ELI5 reverse ne marque rien** — reformuler est du **travail**, le confondre avec
+    l'ouverture ferait entrer le témoin dans la colonne interdite par la petite porte · la population
+    est **celle que la page montre** (verrou N6) · 🔴 **point zéro à la pose** : la migration marque
+    vu **toutes** les notions éligibles, le témoin démarre à **0** et ne compte que ce qui arrive
+    ensuite — **n'amende PAS l'« aucun backfill » du §4** (qui refusait de marquer vu ce qui n'avait
+    *jamais* été ouvert ; ici on pose l'**origine du témoin**, et le passé n'est pas de la nouveauté
+    mais de l'arriéré), conséquence assumée que Massimo ne verra jamais de badge pour les **267**
+    notions déjà en base, sans quoi le badge afficherait **236** donc `9+` figé pendant des mois.
+    **Alternatives écartées** : réutiliser le `new_count` de récence (ce que le §2 interdit) ·
+    réutiliser `lesson_views` — zéro migration, mais le compteur serait **strictement identique** à
+    celui de Matières, deux entrées affichant le même nombre pour deux raisons : le doublon que le §3
+    redoutait, et là il serait réel · marquer dans `POST /explain` (invisible au contrat d'API,
+    intestable seul). **Le signal qui dirait qu'on s'est trompé** : badge durablement à `9+` (le
+    robinet, pas le badge) · Massimo demande des explications pour éteindre la pastille · le badge ne
+    bouge jamais — ⚠️ aucun n'est mesuré — Accepté (2026-08-15)
+  - `docs/decisions/adr-0030-addendum-temoin-quiz.md` — **Addendum ADR-0030 — le témoin du Quiz, et
+    un témoin qui naît d'une production** : 🔴 **le plus lourd doctrinalement des trois addenda du
+    jour**, parce qu'il élargit ce qui fait **naître** un témoin. **AMENDE le §3** et le motif
+    **rebasé par l'`adr-0044` §7**. Le motif d'origine (*« Quiz n'a pas de `validation_status` du
+    tout »*) est **faux depuis `a9b0c1d2e3f4`** ; le motif rebasé (*« seul le diagnostic est gaté,
+    donc aucun moment ça arrive »*) **reste vrai — et cette décision ne le contredit pas, elle le
+    contourne par le haut** : le §1 ne dit pas « naît d'un geste de Papa », il dit « naît d'un geste
+    de Papa **/ du système** (un contenu arrive) », et un quiz produit par le worker **est** un
+    contenu qui arrive. Ce témoin naît donc d'une **PRODUCTION**, pas d'une validation — premier du
+    dispositif dans ce cas. 🔴 **Conséquence écrite noir sur blanc : Papa n'est plus le robinet** —
+    la borne 2 de l'addendum Diagnostic (*« le compteur ne compte que du RELU, Papa reste le robinet,
+    seule régulation de volume »*) **ne s'applique pas ici** ; la seule régulation est le rythme de
+    production, perte de contrôle réelle, assumée, à surveiller. Témoin = **quiz jouables jamais
+    OUVERTS**, table neuve `quiz_views`, `POST /api/student/quiz/{id}/seen`. **Sept bornes**, dont :
+    🔴 **le compteur ne regarde JAMAIS `QuizAttempt`** — ni `completed_at`, ni `score_percent`, ni
+    l'existence d'une tentative : il meurt de l'**ouverture**, pas de la passation, et sans cette
+    borne il bascule dans la colonne interdite **sans décision qui l'autorise** (deux verrous : scan
+    de jetons + un monde où une tentative créée en base ne le bouge pas, N3) · la **définition du
+    jouable reste UNIQUE** — `servable_quiz_ids` liée à `list_student_quiz_index` par un **test
+    d'égalité** (N4, patron `new_fiches_count`), parce que `_servable_quizzes_of_subject` fait une
+    requête **par quiz** et ne peut pas servir la page la plus visitée, mais que deux formulations
+    d'un même filtre finissent toujours par diverger · **un quiz de DIAGNOSTIC n'entre jamais**
+    (sinon il doublerait l'exception nommée, avec deux règles de mort opposées) · **naissance par
+    production, robinet absent**, écrit **pour être surveillé** : si le volume dérape, la réponse est
+    de **gater la production**, jamais d'atténuer le badge · **point zéro à la pose** (même
+    raisonnement qu'ELI5 ; Massimo ne verra jamais de badge pour les **37** quiz déjà en base) ·
+    **bornes 3 et 4 de l'addendum Diagnostic non amendées** (aucun décompte de jours, aucune couleur
+    d'alerte). **Alternative écartée** : compter les quiz **jamais joués** façon Diagnostic — zéro
+    migration puisque `completed_at` existe, mais ce serait une **DEUXIÈME** exception à « NOUVEAU
+    jamais DÛ », sur l'entrée la plus proche de l'évaluation ; l'exception du Diagnostic est bornée
+    par « une seule entrée », l'étendre reviendrait à dire que la règle n'en est plus une. **Le signal
+    qui dirait qu'on s'est trompé** : le badge monte pendant que Massimo ne joue pas (gater la
+    production) · il ouvre des quiz sans les faire pour éteindre la pastille — ⚠️ **comportement
+    toléré par construction**, c'est le prix de la borne 1 · le badge ne bouge jamais (défaut dans le
+    worker) — Accepté (2026-08-15)
 - `docs/decisions/adr-0031-production-en-lot-et-journal.md` — **ADR-0031 — produire un chapitre en une fois : exécution asynchrone et journal de production** : **ABSORBE ET EXÉCUTE l'ADR-0023**, accepté le 2026-07-28 et resté **sans implémentation à aucun endroit** (vérifié : `equip_notion` toujours dans `reports/`, `plan(scope)` inexistant, aucun endpoint 202, bouton « ⚡ Compléter le chapitre » toujours désactivé, `batch_id`/`PRODUCTION_MAX_PENDING` prose seule). ⚠️ **Le prérequis manquant de TOUT le chantier d'autonomisation, listé nulle part : il n'existe AUCUNE file d'exécution IA** — `worker-ai` est un README, la seule `Queue` RQ sert worker-media, et toute la génération est **synchrone** sur un seul Ollama/GPU. « Départ au plus tard », « Massimo passe devant », lot interruptible : ces trois notions supposaient une exécution différable et préemptible qui n'existait pas. Livre : extraction de l'orchestrateur vers `production` (**refactor de déplacement, tests existants inchangés** — un test retouché invalide le refactor), **`plan(scope)` fonction PURE partagée** avec la matrice de couverture (un substrat, deux consommateurs — deux résolutions divergentes se paieraient comme le prédicat de disponibilité le 2026-07-30), **endpoint 202 + file RQ `production` + worker** (patron worker-media sandboxé, **concurrence 1** : un seul GPU, deux jobs se disputeraient la même ressource), **`production_runs`** (`trigger` sur le LOT jamais sur la pièce, **FK typées jamais polymorphes**, aucune rétro-attribution) + `production_run_id`, **`PRODUCTION_MAX_PENDING` enfin écrit** (régulateur du palier 2 SEULEMENT — le palier 3 auto-valide, le compteur resterait à zéro dans le seul régime où il serait vital), et l'activation du bouton Couverture (page **toujours en lecture seule**). ⚠️ **« Massimo passe devant » se décide ENTRE deux pièces, jamais pendant** : un appel LLM n'est pas préemptible, le grain de la préemption est la pièce — à écrire, sinon quelqu'un promettra une interruption immédiate. **Le modèle anticipe, le code n'anticipe pas** : `production_runs` naît complet, seuls `trigger='manual'` + `authorized_by='parent_direct'` sont émis. **L'OBSERVATION EST LE LIVRABLE autant que le code** — temps réel, taux de dégradation, et surtout « **15 objets d'un coup sont-ils relisables ?** » : la réponse décide du chantier suivant, et l'ADR-0023 l'a déjà tranchée — si c'est non, ce n'est ni le cron ni les déclencheurs, **c'est la file de relecture** — Proposé (2026-08-02)
   - `docs/decisions/adr-0031-addendum-deux-passes-et-gate-cours.md` — **Addendum ADR-0031 — les deux passes du §7 : le gate vit dans la SÉLECTION, pas dans l'orchestrateur** : écrit **pendant** la slice A, à partir de son read-before-code. ⚠️ **Le §7 de l'ADR-0023 — cité par l'ADR-0031 ET par le §G comme « le seul gate humain obligatoire et bloquant, et il ne bouge pas » — n'a JAMAIS été implémenté** : `equip_notion` valide le cours lui-même par **deux chemins** (un brouillon `draft` que Papa avait peut-être délibérément laissé en attente → validé ; aucun cours → généré **puis** validé, Papa ne l'a jamais vu), puis enchaîne les dérivés. **Ce n'est pas un bug** : à l'échelle d'UNE notion c'est la soupape §5ter de l'ADR-0021, « ouverte étroitement », que le §F.4 assume et trace en `parent_bulk`. **C'est l'ÉCHELLE qui la rend inacceptable** — un clic sur « ⚡ Compléter le chapitre » ferait rédiger et auto-valider **quinze cours**, le seul contenu que Massimo lit vraiment. **Décision** : `equip_notion` **ne change pas** (toucher l'orchestrateur régresserait le Conseil de classe et la composition champion, et rouvrirait l'ADR-0021 §2 que personne n'a demandé à rouvrir) ; **le gate vit dans la sélection** — la passe 2 n'équipe QUE les notions dont la leçon est déjà `validated` avec contenu, les autres sont **rendues bloquées avec leur motif**, si bien que les deux chemins d'auto-validation deviennent **inatteignables depuis un lot sans qu'une ligne de l'orchestrateur bouge**. Les deux passes explicitées : passe 1 rédige et **laisse en brouillon**, le gate est Papa via les surfaces existantes (validation par leçon ou `validate-all` → `parent_bulk`, §F.3, **rien à construire**), passe 2 équipe. **Corollaire** : `plan(scope)` livré en slice A **sans** le filtre `validated` de l'ADR-0023 §2 cesse d'être une dérogation locale — **le filtre n'est pas un détail de résolution, c'est LE GATE**, il n'a rien à faire dans un résolveur partagé avec une page de lecture. ⚠️ **Coût nommé** : un lot sur un chapitre neuf **ne produira rien** à la passe 2, tout sera bloqué en attente de validation — la surface doit le dire, sinon Papa lira un échec là où il y a un gate ; **c'est le point le plus facile à rater de la slice C**. Verrou n°1 exigé : *après un lot complet sur un chapitre entièrement en brouillon, AUCUNE leçon n'est passée `validated`* — sans lui, tout cet addendum est décoratif — Proposé (2026-08-02)
 - `docs/decisions/adr-0032-paliers-autonomie-zetis.md` — **ADR-0032 — les paliers d'autonomie de ZETIS : le panneau de réglage, et la levée du gel d'A1** : troisième document du chantier d'autonomisation, après le §G (autorité, veto) et l'ADR-0031 (exécution, journal). ⚠️ **RÉVOQUE deux décisions écrites** — le §G.2 (« A1 rédaction de cours → **2 FIGÉ** ») et la lettre de l'ADR-0023 §7 (« le gate humain ne bouge pas ») : décision du **commanditaire**, prise au vu de l'observation du 2026-08-02, **bornée, outillée et désarmée par défaut**. **L'observation change le cahier des charges** : sur 33 objets produits, **2 seulement** arrivent en relecture — le panneau ne sert pas d'abord à faire **monter** Papa d'un palier, mais à lui **montrer où il est déjà** (il est au palier 3 pour les dérivés sans l'avoir choisi). **Six clés PLATES dans `app_settings`** (table existante → **aucune migration**), une par classe du §G.2 ; ⚠️ les seules routes de settings sont namespacées `/api/agenda/settings` → **routeur neutre à créer**. **Trois préréglages *Manuel · Semi-autonome · Autonome* = un RACCOURCI D'ÉCRITURE, JAMAIS un état stocké** — l'étiquette se **dérive** des six valeurs et affiche « Sur mesure » sinon ; un mode stocké *plus* six clés donnerait **deux réponses à une seule question**, le mal que le §G.1 a évité en refusant une colonne `authority`. **A2 et A4 ne bougent dans aucun préréglage** (lisibles, non écrivables, refus serveur). **Levée d'A1 sous trois bornes** : désarmée par défaut (2 préréglages sur 3 la laissent à 2), ⚠️ **la provenance suit `authorized_by`, PAS le palier** (corrigé au read-before-code : le §G.1 définit `parent_rule` par l'**absence de clic**, or un lot lancé depuis la Couverture EST un clic — à A1=3 la provenance juste reste `parent_bulk` ; **`parent_rule` demeure légale et NON ÉMISE**), et **le palier 3 n'existe pas sans veto branché**. Le contre-motif est **maintenu au dossier** : le cours est le seul contenu vraiment lu et, depuis l'observation, **le dernier gate humain** — le porter à 3 ne fait pas monter d'un palier, **ça retire le dernier**. **Le palier se branche dans la SÉLECTION** (`runner.select_notions`), jamais dans l'orchestrateur — ce que l'addendum ADR-0031 avait préservé sans le savoir ; **l'autorité devient un PARAMÈTRE** (`equip_notion(..., authority=)`), car un service qui lirait les réglages lui-même deviendrait inappelable par le Conseil de classe et le champion, dont l'autorité reste `parent_bulk` **quel que soit le palier**. ⚠️ **DÉFAUT BLOQUANT trouvé au read-before-code** : `equip_notion` auto-valide le cours via `set_lesson_validation`, qui tamponne **`parent`** — « relu pièce à pièce par Papa » — **sur un cours que personne n'a ouvert** (violation directe du §F.3, invisible du verrou existant qui ne vérifie que la NON-NULLITÉ de la provenance) ; **13 leçons** en base mêlent déjà vraies validations de Papa et auto-validations, **plus séparables** ; réparé ici (**aucune rétro-attribution**, §F.4) car tout le dispositif de paliers repose sur `validated_by` disant vrai. **Le veto obtient enfin une surface** — sur le **Journal** (flux daté + geste par pièce) et non la Couverture (matrice d'état) que le §G suggérait, question que l'ADR-0031 devait trancher et n'a pas tranchée ; ⚠️ ce « Retirer » **n'ouvre pas A4** (A4 dit que *ZETIS* ne supprime jamais seul ; ici c'est *Papa*). **Le régulateur du palier 3 est DIFFÉRÉ avec sa condition d'ouverture nommée** : tant que tout lot part d'un clic, **le geste EST le régulateur** — le jour où un déclencheur non humain existe (`agenda`, `evidence`, `derived`, cron), un plafond de volume par fenêtre devient obligatoire, et ce jour-là c'est un ADR. **Jamais** : compteur d'arriéré, ratio ZETIS/Papa (§F.2), surface Massimo (V1), A4 réglable. Nuancier : 4ᵉ teinte **avec** la correction du `null` confondu avec `parent_bulk` (dette §G constat 5). ⚠️ Coûts : le dernier gate humain devient optionnel ; le veto reste **partiellement** un droit sans notification ; 13 leçons restent mal tamponnées. **Observation attendue** : une **descente** de préréglage dans le premier mois vaudrait plus qu'une montée — elle dirait que le veto n'a pas suffi — Proposé (2026-08-02)
