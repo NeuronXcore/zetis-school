@@ -6,14 +6,15 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — la fiche répond quand on la touche (ADR-0058)
+### ✅ CHANTIER MERGÉ — la fiche répond quand on la touche (ADR-0058)
 
-Branche **`feat/la-fiche-repond-quand-on-la-touche`**, base `70e9b7d`.
-**Code NON COMMITÉ** au moment où ces lignes sont écrites (l'humain vérifie diff + tests, puis
-committe). Commits déjà poussés : voir `git log --oneline main..HEAD`.
+**MERGÉ dans `main` le 2026-08-15 — PR [#133](https://github.com/NeuronXcore/zetis-school/pull/133),
+squash `0cd0a9a`.** Branche `feat/la-fiche-repond-quand-on-la-touche` **supprimée** (locale et
+distante), base d'origine `70e9b7d`. **Rien à pousser.** *(Étape 4bis faite dans la foulée.)*
 
-> 🔴 **Trois défauts de l'ADR-0054 fermés d'un coup**, parce qu'ils n'en faisaient qu'un :
-> *un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute.*
+> 🔴 **NE PAS RÉ-IMPLÉMENTER.** Trois défauts de l'ADR-0054 fermés d'un coup, parce qu'ils n'en
+> faisaient qu'un : *un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute.*
+> ✅ **Tout a été vu à l'écran**, sur les vraies données — y compris les deux pannes simulées.
 
 #### ✅ FAIT
 
@@ -134,14 +135,14 @@ aucun code.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff et les tests**, puis **commit → push → PR → merge**, puis l'étape **4bis**
-   (`docs/WORKFLOW.md §5`).
-2. 🔴 **LA DETTE DATÉE EXPIRÉE** — décider quoi faire du masquage SRS : la reformuler, ou la clore
+Le chantier est **mergé** : il n'y a rien à y reprendre. **Un seul chantier à la fois** :
+
+1. 🔴 **LA DETTE DATÉE EXPIRÉE** — décider quoi faire du masquage SRS : la reformuler, ou la clore
    en nommant ce qu'on ne saura pas. **Ne pas la laisser dormir comme « à faire ».**
-3. 🔴 **Deux dettes à une ligne** : l'import chez **Papa** · `showSubjectHeader` sur **`/quiz`**.
-4. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
-5. **Trois arbitrages d'écran** : `page-quiz.md` · les icônes de chapitre · « Sans chapitre » à 19 %.
-6. **L'enrichissement des fiches par lot** — trois points à trancher, demande un `/cadrage`.
+2. 🔴 **Deux dettes à une ligne** : l'import chez **Papa** · `showSubjectHeader` sur **`/quiz`**.
+3. 🔴 **Exercer le prompt v2 des fiches** sur une vraie génération.
+4. **Trois arbitrages d'écran** : `page-quiz.md` · les icônes de chapitre · « Sans chapitre » à 19 %.
+5. **L'enrichissement des fiches par lot** — trois points à trancher, demande un `/cadrage`.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.
