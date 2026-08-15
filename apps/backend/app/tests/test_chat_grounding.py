@@ -387,3 +387,52 @@ def test_la_regle_d_autorite_survit_a_la_troncature(client_db, monkeypatch) -> N
     entiers = set(_Lecon.content_markdown.split("\n\n"))
     for paragraphe in corps.split("\n\n"):
         assert paragraphe in entiers, "un paragraphe a été coupé en son milieu"
+
+
+# --- Le LaTeX se voit ET s'entend (ADR-0059 §21, trouvé à l'écran le 2026-08-15) ----------------
+
+
+def test_le_LATEX_ne_parvient_JAMAIS_a_Massimo(client_db) -> None:
+    """🔴 Deux dégâts, pas un : Massimo LIT des dollars, et Piper les PRONONCE.
+
+    Vu à l'écran sur « dénominateur commun » : *« pour faire $1/2 + 1/3$, on ne peut pas… »*.
+    La voix est la surface principale du chat — la réponse parlée devenait « dollar un demi plus
+    un tiers dollar ». Corriger côté front n'aurait réparé que la moitié visible.
+
+    ⚠️ **Le CONTENU survit, seuls les délimiteurs partent** : « 1/2 + 1/3 » se lit et se dit très
+    bien. On ne supprime jamais du sens.
+
+    Sabotage : retirer `_sans_latex` de `_sanitize` — ou le poser côté front, où le test ci-dessous
+    resterait vert alors que la voix continuerait de dire « dollar ».
+    """
+    client, _ = client_db
+    # ⚠️ Un tour qui n'est PAS une question de fond : sinon le §7 remplace le `reply` par la note
+    # honnête (aucun ancrage en base ici) et le test observerait le nettoyage… d'un texte jeté.
+    _use(
+        {
+            "reply": "Pour faire $1/2 + 1/3$, on cherche un \\frac{3}{6} commun.",
+            "declared_difficulty": {"declared": False, "kind": ""},
+            "tool_suggestion": "",
+            "answer": {"is_question": False},
+            "intent": {"kind": "none"},
+        }
+    )
+    sid = _open(client)
+    reply = _say(client, sid, text="bonjour").json()["reply"]
+
+    assert "$" not in reply and "\\frac" not in reply
+    assert "1/2 + 1/3" in reply, "le contenu mathématique doit SURVIVRE"
+    assert "3/6" in reply, "\\frac{3}{6} devient 3/6, il ne disparaît pas"
+
+
+def test_une_somme_en_dollars_n_est_pas_du_LATEX(client_db) -> None:
+    """Le garde-fou : « 5 $ » n'est pas une formule.
+
+    Le délimiteur LaTeX est collé à son contenu (`$1/2$`), la devise en est séparée par une espace.
+    Sans cette distinction, deux prix dans une phrase se feraient manger l'un l'autre.
+
+    Sabotage : retirer les gardes d'espace de `_MATH_INLINE`.
+    """
+    from app.modules.chat import service as chat_service
+
+    assert chat_service._sans_latex("Ça coûte 5 $ et l'autre 3 $.") == "Ça coûte 5 $ et l'autre 3 $."

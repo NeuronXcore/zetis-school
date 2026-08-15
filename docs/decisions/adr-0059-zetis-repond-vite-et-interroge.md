@@ -549,6 +549,36 @@ observe qu'on *demande* le défilement, pas que le bloc devienne visible. La vis
 été vue à l'écran, en 375 px. C'est la cinquième fois dans ce dépôt qu'un défaut n'existe que
 pour l'œil.
 
+### §21 — Addendum du 2026-08-15 : le LaTeX se voit ET s'entend
+
+Vu à l'écran : *« pour faire $1/2 + 1/3$, on ne peut pas le faire directement »*. **Deux dégâts,
+pas un.** Massimo lit des dollars au milieu d'une phrase, et **Piper les prononce** — la réponse
+parlée devient « dollar un demi plus un tiers dollar ». La voix est la surface principale du
+chat ; corriger côté front n'aurait réparé que la moitié visible.
+
+C'est encore le §7 qui l'a fait apparaître : un aiguilleur ne produit pas de formules, un
+répondeur si.
+
+**Deux gestes, et ils ne se remplacent pas.** Le prompt (`RÈGLE DE VOIX`) réduit à la source et
+améliore la formulation — à l'essai, le moteur est passé de `$3/6$` à « trois sixièmes », ce
+qu'aucun nettoyage n'aurait pu produire. Le nettoyage serveur, lui, **garantit** : une consigne
+ne garantit rien, c'est la doctrine du §7 appliquée une fois de plus.
+
+Le nettoyage vit dans `_sanitize` — le seul point que **toute** réplique traverse, tour de chat
+comme tour d'interrogation. On retire les délimiteurs (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`), on
+déplie `\frac{a}{b}` en `a/b`, on traduit une courte liste de commandes (`\times` → `×`). **Le
+contenu survit toujours** : « 1/2 + 1/3 » se lit et se dit très bien.
+
+⚠️ **`5 $` n'est pas une formule.** Le délimiteur LaTeX est collé à son contenu, la devise en est
+séparée par une espace ; `_MATH_INLINE` l'exige. Sans cette garde, deux prix dans une phrase se
+mangeraient l'un l'autre.
+
+⚠️ La liste de commandes est **volontairement courte**. Une commande inconnue reste telle quelle
+plutôt que d'être devinée : visible, donc corrigeable, au lieu d'être silencieusement déformée.
+
+*Non traité, et nommé* : les exposants (`x^2`) restent tels quels. Ils se lisent, ils se disent
+mal. À rouvrir si Massimo travaille les puissances.
+
 ## Alternatives considérées
 
 - **Router une question de fond vers ELI5** (garder « aiguilleur »). Écartée par le
@@ -703,6 +733,11 @@ Tests-verrous, avec le **sabotage** qui doit les faire rougir — joué pour de 
     ou le brancher sur `words` (il défilerait à chaque mot du karaoké).
 22. **§20 — un tour sans rien à proposer ne déplace pas le regard** — sabotage : défiler
     inconditionnellement.
+23. **§21 — aucun LaTeX ne parvient à Massimo, et le contenu survit** — sabotage : retirer
+    `_sans_latex` de `_sanitize`, ou le poser côté front (le verrou resterait vert pendant que la
+    voix continuerait de dire « dollar »).
+24. **§21 — `5 $` n'est pas une formule** — sabotage : retirer les gardes d'espace de
+    `_MATH_INLINE`.
 
 ⚠️ Tout test de résolution ou de **non**-résolution utilise l'embedder **crc32**, jamais
 `FakeEmbeddingProvider` — non déterministe, vert une fois sur deux.

@@ -9,6 +9,7 @@ de MÉTADONNÉES (jamais un texte de message). Aucun XP n'est crédité (§2).
 
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -190,7 +191,45 @@ def _current_student(db: Session) -> StudentProfile:
     return student
 
 
+#: 🔴 **Le LaTeX se voit ET s'entend** (trouvé à l'écran le 2026-08-15). Sur « dénominateur
+#: commun », ZETIS a rendu *« pour faire $1/2 + 1/3$, on ne peut pas… »*. Deux dégâts, pas un :
+#: Massimo lit des dollars au milieu d'une phrase, et **Piper les PRONONCE** — la réponse parlée
+#: devient « dollar un demi plus un tiers dollar ». La voix est la surface principale du chat.
+#:
+#: Le nettoyage vit dans `_sanitize` parce que c'est le seul point que **toute** réplique traverse,
+#: tour de chat comme tour d'interrogation. Le corriger côté front n'aurait réparé que la moitié
+#: visible et laissé la voix intacte.
+#:
+#: ⚠️ **On garde le CONTENU, on ne retire que les délimiteurs** : « 1/2 + 1/3 » se lit et se dit
+#: très bien. Rien n'est jamais supprimé du sens.
+_MATH_INLINE = re.compile(r"\$(?!\s)([^$\n]+?)(?<!\s)\$")  # `$…$` sans espace collée : pas 5 $
+_MATH_BLOC = re.compile(r"\$\$(.+?)\$\$", re.S)
+_MATH_PAREN = re.compile(r"\\[(\[](.+?)\\[)\]]", re.S)  # \( … \) et \[ … \]
+_MATH_FRAC = re.compile(r"\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}")
+#: Les commandes qui survivraient au retrait des délimiteurs. Liste volontairement COURTE : celles
+#: qu'une explication de collège produit vraiment. Une commande inconnue reste telle quelle plutôt
+#: que d'être devinée — visible, donc corrigeable, au lieu d'être silencieusement déformée.
+_MATH_COMMANDES = (
+    (r"\times", "×"), (r"\div", "÷"), (r"\cdot", "·"), (r"\pm", "±"),
+    (r"\leq", "≤"), (r"\geq", "≥"), (r"\le", "≤"), (r"\ge", "≥"), (r"\neq", "≠"),
+    (r"\approx", "≈"), (r"\pi", "π"), (r"\%", "%"), (r"\left", ""), (r"\right", ""),
+    (r"\,", " "), (r"\;", " "), (r"\!", ""), (r"\ ", " "),
+)
+
+
+def _sans_latex(texte: str) -> str:
+    """Rend le texte lisible à l'écran ET prononçable. Voir le commentaire ci-dessus."""
+    texte = _MATH_FRAC.sub(r"\1/\2", texte)
+    for commande, remplacement in _MATH_COMMANDES:
+        texte = texte.replace(commande, remplacement)
+    texte = _MATH_BLOC.sub(r"\1", texte)
+    texte = _MATH_PAREN.sub(r"\1", texte)
+    texte = _MATH_INLINE.sub(r"\1", texte)
+    return texte
+
+
 def _sanitize(text: str) -> str:
+    text = _sans_latex(text)
     lowered = text.lower()
     if any(word in lowered for word in _BANNED_WORDS):
         return _SAFE_REPLY
