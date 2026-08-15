@@ -100,15 +100,15 @@ a coupé ce constat en deux, et **les deux moitiés étaient fausses différemme
 - ✅ **~~La relecture visuelle n'a pas eu lieu~~ — FAITE le 2026-08-15, les trois points tiennent,
   aucun défaut** (détail en tête). Elle a eu lieu **après** le merge : la contrainte reste entière
   pour les prochains chantiers d'interface, et elle est structurelle, pas circonstancielle.
-- 🔴 **LES DEUX MIGRATIONS NE SONT PAS EN PRODUCTION** — et c'est désormais la dette la plus
-  urgente, puisque le code qui les attend est sur `main`. `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`,
-  **chaînées** (les poser en parallèle donnerait deux têtes Alembic, silencieusement, et
-  l'entrypoint de prod fait `upgrade head` au démarrage). ⚠️ Leur point zéro lit l'état de la base
-  **au moment où elles tournent** : en prod elles marqueront vu ce qui existera ce jour-là, donc
-  les deux bases ne porteront pas les mêmes lignes — c'est l'intention, pas une dérive. Procédure :
-  `scripts/README.md` (⚠️ `ZETIS_DATABASE_URL`, jamais `DATABASE_URL`, ignorée **en silence**).
-  Sans elles, `GET /api/student/news/summary` tombera en prod : les compteurs lisent `eli5_views`
-  et `quiz_views`.
+- ✅ **~~LES DEUX MIGRATIONS NE SONT PAS EN PRODUCTION~~ — POSÉES le 2026-08-15.** Prod à
+  **`f9a0b1c2d3e4`**, tête unique. Détail et pièges : section « migrations » de `scripts/README.md`.
+  🔴 **Ce n'étaient pas deux migrations en attente, mais CINQ** — trois venaient de chantiers
+  mergés et jamais appliqués (`c3d4e5f6a7b2` fiche_author_massimo, `d4e5f6a7b8c3`
+  un_seul_brouillon_par_lecon, `e5f6a7b8c9d4` cle_de_carte_a_trois_colonnes) et sont chaînées avant
+  les nôtres. **La prod dérive silencieusement du dépôt** : rien ne mesure cet écart, et il ne s'est
+  vu qu'en le demandant à `alembic history`. Point zéro appliqué : `eli5_views` **90**,
+  `quiz_views` **0** (aucun quiz jouable en prod). ✅ Vérifié en faisant calculer les dix témoins
+  par le code de `main` contre la base de prod — `matieres` **34**, `eli5` 0, `quiz` 0.
 - ⚠️ **`servable_quiz_ids` est une SECONDE formulation** du filtre de `_servable_quizzes_of_subject`,
   assumée pour ne pas faire une requête par quiz dans `news/summary`. Tenue par un test d'égalité
   (N4) — si l'une évolue, l'autre doit suivre.
@@ -199,13 +199,10 @@ l'autre a révélé un **décor dégénéré** (un seul quiz en base). Détail :
 Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étape 4bis **faite** le
 2026-08-15 (c'est cette rédaction-ci).
 
-1. 🔴 **APPLIQUER LES DEUX MIGRATIONS EN PRODUCTION** — le premier pas, et le seul qui soit
-   bloquant. Le code est sur `main` et lit `eli5_views` / `quiz_views` ; sans les tables,
-   `GET /api/student/news/summary` tombe et **les dix badges de Massimo tombent avec**.
-   Chaînées : `f8a9b0c1d2e3` puis `f9a0b1c2d3e4`. Procédure et pièges : `scripts/README.md`.
+1. ✅ ~~Appliquer les migrations en production~~ — **fait le 2026-08-15, prod à `f9a0b1c2d3e4`.**
 2. ✅ ~~Regarder les badges à l'écran~~ — **fait le 2026-08-15, les trois points tiennent.**
 3. **Juger la qualité du décodage glouton sur une vraie voix** — dette héritée de l'ADR-0059, qui
-   était déjà « le premier pas ouvert » à sa clôture et l'est resté.
+   était déjà « le premier pas ouvert » à sa clôture et l'est resté. **Redevenu le premier pas.**
 4. Puis **`/ouverture`** ou une session de **cadrage** sur `main`, selon que le chantier suivant a
    déjà un ADR. ⚠️ Au 2026-08-15, les derniers ADR de `docs/decisions/` sont ceux de ce chantier,
    tous **livrés** : le suivant se choisit au `BACKLOG.md`, et s'il n'a pas d'ADR, la prochaine

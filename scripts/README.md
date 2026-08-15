@@ -95,3 +95,81 @@ jamais été exercée contre cette pile, donc la fuite n'y a jamais eu lieu.
 > de ZETIS est **prod-like et locale** (compose `zetis-prod`) — le jour où une prod distante
 > existera, le bilan sera dû à nouveau sur elle : ce résultat ne se transporte pas d'une base à
 > l'autre.
+
+## Appliquer les migrations Alembic en production
+
+✅ **Procédure vérifiée à l'usage le 2026-08-15** (prod portée de `b2c3d4e5f9a1` à `f9a0b1c2d3e4`).
+Elle réutilise la forme du bilan ci-dessus — tourner **dans** le réseau du compose, en
+court-circuitant l'entrypoint — et n'a besoin **d'aucune publication de port** : `ZETIS_DATABASE_URL`
+est déjà dans l'environnement du service `backend`, pointant sur `postgres:5432`.
+
+```bash
+docker compose -f docker-compose.prod.yml up -d postgres
+
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
+  --entrypoint alembic backend current
+
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
+  --entrypoint alembic backend upgrade head
+
+docker compose -f docker-compose.prod.yml down
+```
+
+🔴 **Le montage de `alembic/` n'est pas un confort, c'est la condition.** L'image
+`zetis-prod-backend` est construite par `COPY apps/backend` : elle fige les migrations **du jour de
+son build**. Au 2026-08-15 elle en portait **46** quand `main` en avait **54** — sans le montage,
+`upgrade head` s'arrête à la tête que l'image connaît et **répond fièrement `head`**. C'est un
+faux-vert parfait : la commande réussit, la révision affichée est cohérente, et il manque huit
+migrations.
+
+🔴 **Compter les migrations en attente AVANT d'écrire, et ne pas croire le décompte du chantier
+en cours.** Le 2026-08-15, le chantier apportait deux migrations ; il y en avait **cinq** en
+attente. Trois venaient de chantiers mergés et jamais appliqués — **la prod dérive silencieusement
+du dépôt**, rien ne mesure cet écart, et les migrations étant chaînées on ne peut pas poser les
+siennes sans poser les autres.
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
+  --entrypoint alembic backend history -r <revision-courante>:head
+```
+
+⚠️ **Lire chaque migration héritée avant de la laisser passer.** Deux des trois de ce jour
+supprimaient des lignes en `upgrade()` (dédoublonnage avant contrainte d'unicité). Elles se sont
+révélées **sans effet ici — mesuré, pas supposé** : `fiches` était vide et la table SRS ne portait
+qu'une ligne sans doublon. Le contrôle coûte une requête ; le supposer coûte des données.
+
+**Préalables**, tous appris à l'usage :
+
+- monter **`postgres` seul**, jamais la pile : l'entrypoint du backend ferait `alembic upgrade head`
+  **avant** la sauvegarde ;
+- `pg_dump` d'abord, **par le conteneur** (celui de l'hôte est en 14.x, le serveur en 16.x → refus,
+  et il laisse un fichier de 0 octet qui ressemble à une sauvegarde). Chercher `grep -c "dump
+  complete"`, **pas** `tail -3` : pg_dump 16 écrit une ligne après le marqueur. Repère : ~620 K ;
+- `down` **sans `-v`** — les volumes nommés doivent survivre ;
+- ne rien accoler aux commandes (`; echo $?` et consorts) : la queue composée casse le préfixe des
+  règles de permission et renvoie tout au classifieur, qui voit `prod` et refuse.
+
+**Discriminant obligatoire** : la révision de la prod doit **différer de celle du dev**, et les
+volumétries aussi (au 2026-08-15 : 476 notions / 119 leçons / 4 quiz en prod, contre 457 / 157 / 57
+en dev). `ZETIS_DATABASE_URL` est la seule variable lue — `DATABASE_URL` est ignorée **en silence**,
+et alembic répond alors la révision du **dev** sans que rien ne le signale.
+
+**Preuve de bout en bout**, une fois migré : faire calculer la réponse par le code de `main` contre
+la base de prod, plutôt que se contenter du `head` d'alembic.
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/apps/backend/app:/repo/apps/backend/app:ro" \
+  --entrypoint python backend -c "from app.db.base import SessionLocal; ..."
+```
+
+| Base | Date | Révision | Points zéro posés |
+|---|---|---|---|
+| dev | 2026-08-15 | `f9a0b1c2d3e4` | `eli5_views` 267 · `quiz_views` 37 |
+| production | 2026-08-15 | `f9a0b1c2d3e4` | `eli5_views` **90** · `quiz_views` **0** (aucun quiz jouable) |
+
+Les deux bases ne portent pas les mêmes lignes, et c'est l'intention : un point zéro marque vu ce
+qui existe **au moment où il tourne**.
