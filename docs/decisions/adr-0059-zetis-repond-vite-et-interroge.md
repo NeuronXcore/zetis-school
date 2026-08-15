@@ -484,6 +484,47 @@ Le verrou est élargi en conséquence, et une route de dictée dédiée au chat
 (`POST /api/student/chat/transcribe`, `require_child`) rend la trace aveugle au contenu. Elle est
 aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul geste, deux problèmes.**
 
+### §19 — 🔴 Addendum du 2026-08-15 (au micro) : sans notion, on cherche dans les COURS
+
+Le §9 posait la cascade *cours → RAG → refus honnête*, et le §7 la contrainte d'ancrage. Les deux
+sont suspendus au **même point de départ** : `resolve_skill`, qui vectorise le message **entier**
+et le compare aux noms de notions. Le chantier n'avait jamais interrogé ce qui se passe quand ce
+point de départ se tait.
+
+Au micro, sur *« explique-moi la différence entre le narrateur et le personnage principal »* :
+deux notions dans une phrase, la similarité se dilue, **aucune** ne passe le seuil de 0,72. Sans
+notion, pas de matière ; sans matière, pas de contexte canonique et pas de repli RAG. ZETIS a
+répondu *« je ne l'ai pas encore dans tes cours »* — **alors que le cours sur le Narrateur existe
+et est validé**. Le refus honnête du §8 s'est retourné en affirmation fausse.
+
+Trois corrections, dans cet ordre, et **chacune répare autre chose** :
+
+1. **Le repli RAG cherche toutes matières confondues** quand aucune notion ne résout. Il était
+   indexé sur la matière de la notion résolue : mort exactement là où le §9 le voulait. Le
+   plancher de distance devient le seul garde-fou — c'est sa raison d'être.
+2. **Un second refus, distinct** — `NOTE_NOTION_INCERTAINE`. *« Je n'ai pas identifié de quoi tu
+   parles »* et *« je n'ai pas ce contenu »* sont deux choses différentes, et la seconde est une
+   affirmation que le serveur **n'est pas en position de faire** quand la première est vraie.
+3. 🔴 **Le vrai correctif : on cherche dans les cours validés eux-mêmes.** Le RAG ne pouvait pas
+   en tenir lieu — **il n'indexe que les sources ingérées, jamais les cours**. Un dépôt dont les
+   cours n'ont pas été ingérés comme sources aurait obtenu le refus poli au lieu de la réponse.
+
+`lesson_resolution.lesson_matching_text` répond à la question **inverse** de celle du module :
+*de quel cours validé cette phrase parle-t-elle ?* Aucun embedding, donc rien à diluer — elle
+regarde ce que les cours **s'appellent**. Elle vit dans ce module et pas dans `chat/` pour la
+raison de l'`adr-0037` : le périmètre (année active, chapitre validé) n'existe qu'à un endroit.
+C'est le même précédent qu'`ordered_chapter_skill_ids`, qui y héberge déjà la traversée inverse.
+
+**La porte d'entrée est le titre du cours ou le nom d'une de ses notions ; le contenu ne fait que
+départager.** C'est le garde-fou, et il est plus important que la fonction : « différence »
+apparaît dans n'importe quel cours de maths, et ancrer ZETIS dessus le ferait répondre à côté
+**avec l'aplomb d'une source validée** — strictement pire que le refus qu'on répare. Le contenu
+ne peut donc jamais élire un cours à lui seul. Effet de bord heureux : sans candidat par le
+titre, aucun `content_markdown` n'est chargé.
+
+*Ce qu'on ne prétend pas régler* : une question qui n'emprunte aucun mot au titre du cours reste
+sans ancrage, et ZETIS demande de préciser. C'est le comportement voulu — le §7 tient.
+
 ## Alternatives considérées
 
 - **Router une question de fond vers ELI5** (garder « aiguilleur »). Écartée par le
@@ -501,6 +542,17 @@ aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul gest
   ajouterait un artefact commité qui périme.
 - **`/quiz/:id` et `/capsules/:id` en chemin.** Écartées par le §3 : `?quiz=` et `?capsule=`
   suivent le patron déjà établi et ne coûtent aucune route.
+- **Vectoriser les cours pour les retrouver sémantiquement** (§19). Écartée : `Lesson` n'a aucune
+  colonne d'embedding, en ajouter une demanderait une migration et un ré-indexage à chaque
+  réécriture de cours — pour un repli de dernier recours. *La recherche par enseigne coûte une
+  requête sur des colonnes courtes.*
+- **Ingérer les cours dans le RAG pour que le repli existant suffise** (§19). Écartée : le RAG
+  porte des sources *validées par Papa* avec leur provenance ; y verser les cours créerait une
+  seconde copie à tenir synchrone, et le §9 aurait ancré sur un extrait là où le cours entier est
+  disponible et canonique.
+- **Baisser le seuil de résolution de notion** (§19). Écartée : elle règlerait ce cas en en
+  cassant d'autres — un seuil bas fait résoudre n'importe quel message vers la notion la moins
+  éloignée, et le §7 s'ancrerait alors **à tort** au lieu de se taire.
 - **Traiter la fuite de verbatim en chantier séparé.** Écartée : on livrerait sciemment une
   fonctionnalité qui aggrave une fuite connue et mesurée.
 - **Réactiver le VAD Silero pour gagner du temps.** Écartée : échec réel déjà documenté dans le
@@ -510,7 +562,7 @@ aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul gest
 
 **Backend** — `chat/{actions,service,store,announce,router,schemas}.py` · `prompts/chat.py`
 (+ `chat_recall.py`) · `rag/service.py` · `ai/canonical_context.py` (§12) ·
-`stt/{provider,service}.py` · `core/config.py`.
+`stt/{provider,service}.py` · `core/config.py` · `lesson_resolution.py` (§19, addendum).
 
 **Frontend Massimo** — `lib/{notionRoutes,chatActions,chat,dictation,voice}.ts` ·
 `pages/{ChatPage,QuizPage,CapsulesIAPage,MindmapSubjectPage}.tsx` · `pages/chat.css`.
@@ -616,6 +668,13 @@ Tests-verrous, avec le **sabotage** qui doit les faire rougir — joué pour de 
     modification**.
 17. **La source est affichée, jamais parlée** — sabotage : la concaténer au `reply` avant la
     synthèse.
+18. **§19 — sans notion résolue, un cours validé ancre quand même la réponse** — sabotage :
+    retirer `lesson_matching_text` de `_contexte_sans_notion` (`grounding` retombe à `aucune`).
+19. **§19 — le CONTENU seul n'élit jamais un cours** — sabotage : rendre éligibles les
+    correspondances de contenu. 🔴 C'est le verrou qui rend le §19 sûr, pas celui qui le rend
+    utile : sans lui, ZETIS répond à côté avec l'aplomb d'une source validée.
+20. **§19 — le périmètre du chat est celui de `lessons_by_skill`, plus `validated` et cours
+    rédigé** — sabotage : accepter un brouillon (le gate de Papa serait contourné par le chat).
 
 ⚠️ Tout test de résolution ou de **non**-résolution utilise l'embedder **crc32**, jamais
 `FakeEmbeddingProvider` — non déterministe, vert une fois sur deux.

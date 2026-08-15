@@ -42,12 +42,14 @@ son comportement dans son nom, et un 404 remonté depuis un job RQ ne part vers 
 (ADR-0035). Ici on rend `{}` ; l'appelant décide si c'est un 404, un blocage journalisé, ou rien.
 """
 
+import re
+import unicodedata
 from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Chapter, Lesson, LessonSkill, SchoolYear, SchoolYearSubject
+from app.db.models import Chapter, Lesson, LessonSkill, SchoolYear, SchoolYearSubject, Skill
 
 
 def active_year(db: Session) -> SchoolYear | None:
@@ -117,6 +119,116 @@ def lessons_by_skill(db: Session, skill_ids: Sequence[int]) -> dict[int, list[Le
 def lessons_of_skill(db: Session, skill_id: int) -> list[Lesson]:
     """Raccourci mono-notion. Même règle, exactement — c'est `lessons_by_skill` qui décide."""
     return lessons_by_skill(db, [skill_id]).get(skill_id, [])
+
+
+#: Mots trop fréquents pour désigner quoi que ce soit. Seuls comptent les mots d'au moins quatre
+#: lettres : « moi », « pas », « une » sortent d'eux-mêmes, sans avoir à être listés.
+_MOTS_VIDES = frozenset(
+    """
+    alors aide aider ainsi aussi autre autres avec avoir bien bonjour cela celle celui cette ceux
+    chose choses comme comment comprendre comprends dans dire donc donne donner elle elles encore
+    entre etre eux explication explique expliquer fait faire jamais leur leurs mais meme merci
+    montre montrer parce parle parler peut peux plus pour pourquoi pouvez pouvoir quand quel
+    quelle quelles quels quoi rien sais savoir sont stp sujet tous tout toute toutes tres trop
+    truc trucs veut veux vraiment zetis
+    """.split()
+)
+
+
+def _sans_accents(texte: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texte.lower()) if unicodedata.category(c) != "Mn"
+    )
+
+
+def _mots(texte: str) -> set[str]:
+    """Les mots d'un texte, normalisés. Comparer des ENSEMBLES rend la casse, les accents et les
+    frontières de mots gratuits — « principal » ne peut pas se cacher dans « principalement »."""
+    return set(re.findall(r"[a-z0-9]+", _sans_accents(texte)))
+
+
+def _termes_significatifs(texte: str) -> set[str]:
+    return {mot for mot in _mots(texte) if len(mot) >= 4 and mot not in _MOTS_VIDES}
+
+
+def lesson_matching_text(db: Session, *, text: str) -> Lesson | None:
+    """« De quel cours validé cette phrase parle-t-elle ? » — le sens INVERSE, sans notion.
+
+    🔴 **Née AU MICRO le 2026-08-15, du dernier défaut de l'`adr-0059`.** À *« explique-moi la
+    différence entre le narrateur et le personnage principal »*, ZETIS a répondu qu'il n'avait pas
+    ça dans les cours — alors que **le cours sur le Narrateur existe, validé**. La chaîne entière
+    part de `resolve_skill`, qui vectorise le message ENTIER et le compare aux noms de notions :
+    deux notions dans une phrase diluent la similarité, aucune ne passe le seuil, et tout ce qui
+    suit (contexte canonique, repli RAG indexé sur la matière) meurt avec elle.
+
+    Cette fonction est le dernier recours, et elle ne passe par aucun embedding : elle regarde ce
+    que les cours **s'appellent**.
+
+    ## La porte d'entrée est le TITRE, jamais le contenu
+
+    Un terme du message doit apparaître dans le titre du cours ou dans le nom d'une de ses notions.
+    Le contenu ne fait que **départager** les candidats — il ne peut jamais en élire un à lui seul.
+    C'est délibéré et c'est le garde-fou : un cours de maths mentionnant « différence » quelque
+    part dans deux kilo-octets n'est pas un cours sur la différence, et ancrer ZETIS dessus lui
+    ferait répondre à côté **avec l'aplomb d'une source validée** — pire que le refus qu'on répare.
+
+    Effet de bord heureux : sans candidat par le titre, aucun `content_markdown` n'est chargé. Le
+    cas courant (la notion a résolu, on ne passe pas ici) et le cas sans correspondance coûtent une
+    seule requête sur des colonnes courtes.
+
+    ⚠️ **Même périmètre que `lessons_by_skill`** — année active, chapitre validé — plus les deux
+    gates que `resolve_canonical_context` applique de son côté : leçon `validated` et cours rédigé.
+    Ils sont ici DANS la requête : ce qui sert de source canonique au chat ne peut pas être un
+    brouillon, et un cours vide n'ancre rien.
+
+    Rend `None` dès qu'aucun titre ne mord — l'appelant en fait ce qu'il veut ; le chat, lui, dit
+    à Massimo qu'il n'est pas sûr de la notion plutôt que d'affirmer ne pas l'avoir.
+    """
+    termes = _termes_significatifs(text)
+    if not termes:
+        return None
+    year = active_year(db)
+    if year is None:
+        return None
+
+    rows = db.execute(
+        select(Lesson.id, Lesson.title, Skill.name)
+        .join(Chapter, Chapter.id == Lesson.chapter_id)
+        .join(SchoolYearSubject, SchoolYearSubject.id == Chapter.school_year_subject_id)
+        .outerjoin(LessonSkill, LessonSkill.lesson_id == Lesson.id)
+        .outerjoin(Skill, Skill.id == LessonSkill.skill_id)
+        .where(
+            SchoolYearSubject.school_year_id == year.id,
+            Chapter.validation_status == "validated",
+            Lesson.status == "validated",
+            Lesson.content_markdown.isnot(None),
+        )
+    ).all()
+
+    # Une leçon apparaît une fois par notion portée : on recolle son « enseigne » (titre + noms de
+    # notions) avant de compter.
+    enseignes: dict[int, set[str]] = {}
+    for lesson_id, titre, notion in rows:
+        enseignes.setdefault(lesson_id, set()).update(_mots(f"{titre or ''} {notion or ''}"))
+
+    candidats = {
+        lesson_id: len(termes & mots) for lesson_id, mots in enseignes.items() if termes & mots
+    }
+    if not candidats:
+        return None
+
+    meilleur: tuple[tuple[int, int, int], Lesson] | None = None
+    for lesson_id, touches_titre in candidats.items():
+        lesson = db.get(Lesson, lesson_id)
+        if lesson is None:  # pragma: no cover — la requête vient de sortir cet id
+            continue
+        touches_contenu = len(termes & _mots(lesson.content_markdown or ""))
+        # Départage final par `id` : deux cours à égalité parfaite existent, et rendre « celui que
+        # la base a sorti en premier » ferait un test vert un jour sur deux.
+        score = (touches_titre, touches_contenu, lesson.id)
+        if meilleur is None or score > meilleur[0]:
+            meilleur = (score, lesson)
+    return meilleur[1] if meilleur is not None else None
 
 
 def ordered_chapter_skill_ids(db: Session, chapter_id: int) -> list[int]:

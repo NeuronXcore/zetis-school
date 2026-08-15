@@ -34,6 +34,14 @@ pendant onze secondes**.
 notion, une page muette quand sa voisine marchait, la galaxie ouvrant les fiches, et ZETIS ouvrant
 la bonne page *en disant qu'il ne connaissait pas le sujet*.
 
+> 🔴 **Et un cinquième, le plus grave, trouvé au micro lui aussi.** À « la différence entre le
+> narrateur et le personnage principal », ZETIS a répondu qu'il n'avait pas ça dans les cours —
+> **le cours sur le Narrateur existait, validé**. Nommer deux notions dans une phrase suffisait à
+> ce qu'aucune ne soit reconnue, et tout l'ancrage mourait avec la reconnaissance. ZETIS cherche
+> désormais dans les cours **eux-mêmes**, d'après ce qu'ils s'appellent. Quand il ne trouve
+> toujours pas, il demande de préciser au lieu d'affirmer qu'il ne l'a pas : *« je n'ai pas
+> compris de quoi tu parles »* et *« je n'ai pas ce cours »* ne sont pas la même phrase.
+
 ## 0.92.0 — La fiche répond quand on la touche
 
 Trois défauts notés séparément après la relecture de l'ADR-0054. Relus dans le code, ils disaient

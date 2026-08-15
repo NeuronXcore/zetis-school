@@ -9,6 +9,7 @@ le moteur réponde.
 import app.db.models as m
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.db.models import AIJob, Skill, StudentProfile
 from app.main import app
 from app.modules.ai import get_embedder, get_provider
@@ -93,6 +94,168 @@ def test_le_refus_honnete_enregistre_la_demande(client_db) -> None:
         assert [(r.skill_id, r.content_kind) for r in lignes] == [(skill_id, "cours")]
     finally:
         db.close()
+
+
+def test_le_repli_RAG_VIT_quand_la_notion_ne_resout_pas(client_db, monkeypatch) -> None:
+    """🔴 Né AU MICRO le 2026-08-15 — le repli était mort là où il devait servir.
+
+    « Explique-moi la différence entre le narrateur et le personnage principal » nomme DEUX
+    notions : la similarité se dilue, aucune ne passe le seuil de 0,72. Sans notion, aucune
+    matière — et le repli, indexé sur la matière, ne se déclenchait **jamais**. ZETIS répondait
+    *« je ne l'ai pas dans tes cours »* alors que le cours sur le Narrateur existe, validé.
+
+    Sans notion, on cherche **toutes matières confondues** et on laisse le plancher de distance
+    trier. C'est sa raison d'être, et le seul garde-fou qui reste quand on ne peut plus filtrer.
+
+    Sabotage : remettre `if skill_id is not None` autour de la récupération.
+    """
+    from app.modules.chat import service as chat_service
+    from app.modules.rag.service import RagHit
+
+    client, _ = client_db
+    monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 2.0)  # rien ne résout
+    monkeypatch.setattr(
+        chat_service,
+        "retrieve_with_provenance",
+        lambda db, emb, **kw: [
+            RagHit(
+                content="Le narrateur est celui qui raconte ; le personnage principal est celui "
+                "dont on raconte l'histoire.",
+                document_title="Cours de Français",
+                source_type="papa_course",
+                level=None,
+                chapter=None,
+                distance=0.21,
+            )
+        ],
+    )
+    _use(_question("extraits", reply="Le narrateur raconte, le personnage vit l'histoire."))
+    sid = _open(client)
+    body = _say(client, sid, text="explique-moi la différence entre le narrateur et le personnage").json()
+
+    assert body["grounding"]["kind"] == "extraits"
+    assert body["grounding"]["sources_used"] == 1
+    # La réponse du moteur SURVIT : elle était ancrée, il n'y a rien à remplacer.
+    assert "narrateur" in body["reply"].lower()
+
+
+def test_sans_NOTION_identifiee_ZETIS_ne_se_prononce_pas_sur_le_contenu(client_db, monkeypatch) -> None:
+    """🔴 Né AU MICRO — « je ne l'ai pas dans tes cours » était FAUX.
+
+    « Je n'ai pas identifié de quoi tu parles » et « je n'ai pas ce contenu » sont deux choses
+    différentes. La seconde est une affirmation que le serveur n'est pas en position de faire
+    quand la première est vraie.
+
+    Sabotage : rendre `NOTE_SANS_ANCRAGE` dans les deux cas.
+    """
+    from app.modules.chat import service as chat_service
+
+    client, _ = client_db
+    monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 2.0)
+    monkeypatch.setattr(chat_service, "retrieve_with_provenance", lambda db, emb, **kw: [])
+    _use(_question("cours", reply="Une explication inventée."))
+    sid = _open(client)
+    reply = _say(client, sid, text="explique-moi la différence entre deux choses vagues").json()["reply"]
+
+    assert reply == chat_service.NOTE_NOTION_INCERTAINE
+    assert "dans tes cours" not in reply, "aucune affirmation sur ce que ZETIS possède"
+
+
+def _cours_valide(Session, *, titre: str, contenu: str) -> None:
+    """Un cours validé, atteignable — année active, chapitre validé, contenu rédigé."""
+    db = Session()
+    try:
+        annee = m.SchoolYear(
+            student_id=db.scalar(select(StudentProfile.id)),
+            label="2026-2027",
+            level="4e",
+            status="active",
+        )
+        db.add(annee)
+        db.flush()
+        sys_row = m.SchoolYearSubject(
+            school_year_id=annee.id, subject_id=db.scalar(select(m.Subject.id))
+        )
+        db.add(sys_row)
+        db.flush()
+        chapitre = m.Chapter(
+            school_year_subject_id=sys_row.id, name="Chapitre", validation_status="validated"
+        )
+        db.add(chapitre)
+        db.flush()
+        db.add(
+            m.Lesson(
+                chapter_id=chapitre.id,
+                title=titre,
+                content_markdown=contenu,
+                status="validated",
+                created_by="papa",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_le_COURS_VALIDE_est_retrouve_quand_la_notion_ne_resout_pas(client_db, monkeypatch) -> None:
+    """🔴 LE correctif de fond, né au micro le 2026-08-15 — et le RAG n'y pouvait rien.
+
+    « Explique-moi la différence entre le narrateur et le personnage principal » nomme DEUX
+    notions : la similarité se dilue, aucune ne passe le seuil, et toute la chaîne d'ancrage meurt
+    avec la résolution. ZETIS a répondu qu'il n'avait pas ça dans les cours — **c'était faux**.
+
+    Le repli RAG ne pouvait pas suffire : **il n'indexe que les sources ingérées, jamais les
+    cours**. Ici le RAG est explicitement muet, et l'ancrage doit quand même se faire — sur le
+    COURS, donc `grounding.kind == "cours"`, pas `extraits`.
+
+    Sabotage : retirer l'appel à `lesson_matching_text` de `_contexte_sans_notion`.
+    """
+    from app.modules.chat import service as chat_service
+
+    client, Session = client_db
+    _cours_valide(
+        Session,
+        titre="Le narrateur",
+        contenu="Le narrateur est celui qui raconte. Le personnage principal vit l'histoire.",
+    )
+    monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 2.0)  # rien ne résout
+    monkeypatch.setattr(chat_service, "retrieve_with_provenance", lambda db, emb, **kw: [])
+    _use(_question("cours", reply="Le narrateur raconte, le personnage vit l'histoire."))
+    sid = _open(client)
+    body = _say(
+        client, sid, text="explique-moi la différence entre le narrateur et le personnage principal"
+    ).json()
+
+    assert body["grounding"]["kind"] == "cours"
+    assert body["grounding"]["lesson_title"] == "Le narrateur"
+    # La réponse du moteur SURVIT : elle était ancrée, il n'y a rien à remplacer.
+    assert "narrateur" in body["reply"].lower()
+    assert chat_service.NOTE_NOTION_INCERTAINE not in body["reply"]
+
+
+def test_un_cours_qui_ne_parle_PAS_de_la_question_n_ancre_rien(client_db, monkeypatch) -> None:
+    """Symétrie du test précédent — et le garde-fou qui le rend sûr.
+
+    Le cours existe, validé, mais rien dans son enseigne ne répond à la question. Ancrer dessus
+    ferait répondre ZETIS à côté **avec l'aplomb d'une source validée** : pire que le refus.
+
+    Sabotage : élire un cours sur une correspondance de CONTENU seule.
+    """
+    from app.modules.chat import service as chat_service
+
+    client, Session = client_db
+    _cours_valide(
+        Session,
+        titre="Les fractions",
+        contenu="On additionne deux fractions en cherchant un dénominateur commun.",
+    )
+    monkeypatch.setattr(settings, "chat_skill_resolution_min_score", 2.0)
+    monkeypatch.setattr(chat_service, "retrieve_with_provenance", lambda db, emb, **kw: [])
+    _use(_question("cours", reply="Une explication inventée."))
+    sid = _open(client)
+    reply = _say(client, sid, text="parle-moi du narrateur et du personnage").json()["reply"]
+
+    assert reply == chat_service.NOTE_NOTION_INCERTAINE
 
 
 def test_le_grounding_est_calcule_serveur_jamais_cru_au_moteur(client_db) -> None:

@@ -48,6 +48,8 @@ from app.modules.chat.schemas import (
 from app.modules.tts.provider import TtsProvider, TtsRequest
 from app.modules.chat.store import ROLE_ASSISTANT, ROLE_USER, ChatStore
 from app.modules.progress.service import OPEN_GAP_STATUSES
+from app.modules.lesson_resolution import lesson_matching_text
+from app.modules.rag.service import retrieve_with_provenance
 from app.modules.stt import service as stt_service
 from app.modules.stt.provider import SttProvider
 from app.prompts.chat_recall import RECALL_PROMPT_VERSION
@@ -265,6 +267,44 @@ def _recall_block(db: Session, *, student_id: int) -> str:
     return "\n".join(lines)
 
 
+def _contexte_sans_notion(
+    db: Session, embedder: EmbeddingProvider, *, query: str
+) -> CanonicalContext | None:
+    """Le dernier recours quand `resolve_skill` n'a rien reconnu (correctif live du 2026-08-15).
+
+    🔴 **Constaté au micro, deux fois de suite.** *« Explique-moi la différence entre le narrateur
+    et le personnage principal »* nomme DEUX notions : la similarité se dilue, aucune ne passe le
+    seuil de 0,72 — et toute la chaîne d'ancrage meurt avec la résolution. ZETIS a répondu qu'il
+    n'avait pas ça dans les cours. **C'était faux : le cours sur le Narrateur existe, validé.**
+
+    Deux replis, dans l'ordre de la cascade que l'ADR-0011 a figée — **le cours d'abord, le RAG en
+    complément** :
+
+    1. `lesson_matching_text` — de quel cours validé cette phrase parle-t-elle, d'après ce que les
+       cours *s'appellent* ? Aucun embedding, donc rien à diluer. C'est le repli qui manquait ; le
+       RAG ne pouvait pas en tenir lieu, il n'indexe que les sources ingérées, jamais les cours.
+    2. le RAG **toutes matières confondues** — sans notion, il n'y a pas de matière à filtrer, et
+       le plancher de distance devient le seul garde-fou. C'est exactement sa raison d'être.
+
+    Rend `None` quand les deux se taisent : le chat dit alors qu'il n'est pas sûr de la notion, et
+    **n'affirme rien sur ce qu'il possède** — il n'est pas en position de le savoir.
+    """
+    lesson = lesson_matching_text(db, text=query)
+    try:
+        passages = retrieve_with_provenance(
+            db,
+            embedder,
+            skill_id=None,
+            query=query,
+            max_distance=settings.chat_rag_max_distance,
+        )
+    except Exception:  # noqa: BLE001 — un repli qui échoue ne casse pas un tour de chat
+        passages = []
+    if lesson is None and not passages:
+        return None
+    return CanonicalContext(lesson=lesson, chunks=[hit.content for hit in passages])
+
+
 def _compose_context(
     db: Session, embedder: EmbeddingProvider, *, student_id: int, skill_id: int | None, query: str
 ) -> tuple[str, CanonicalContext | None]:
@@ -291,6 +331,9 @@ def _compose_context(
     ctx: CanonicalContext | None = None
     if skill_id is not None:
         ctx = resolve_canonical_context(db, embedder, skill_id=skill_id, query=query)
+    else:
+        ctx = _contexte_sans_notion(db, embedder, query=query)
+    if ctx is not None:
         canonical = build_canonical_sections(
             ctx,
             max_lesson_chars=max(0, settings.chat_course_token_budget) * 4,
@@ -311,6 +354,18 @@ def _compose_context(
 #: au moteur, qui broderait une explication pour meubler. §16 : ZETIS parle à la première
 #: personne, il ne nomme aucun adulte.
 NOTE_SANS_ANCRAGE = "Ça, je ne l'ai pas encore dans tes cours — je le note."
+
+#: 🔴 **Quand la NOTION n'a pas été identifiée, ZETIS ne se prononce pas sur le contenu.**
+#:
+#: Constaté au micro le 2026-08-15 : « explique-moi la différence entre le narrateur et le
+#: personnage principal » nomme deux notions, aucune ne passe le seuil de résolution — et ZETIS a
+#: répondu *« je ne l'ai pas encore dans tes cours »*. C'était **faux** : le cours sur le
+#: Narrateur existe, validé.
+#:
+#: « Je n'ai pas identifié de quoi tu parles » et « je n'ai pas ce contenu » sont deux choses
+#: différentes, et la seconde est une affirmation que le serveur n'est pas en position de faire
+#: quand la première est vraie. Il demande donc de préciser au lieu de conclure.
+NOTE_NOTION_INCERTAINE = "Je ne suis pas sûr de la notion — tu peux me dire laquelle précisément ?"
 
 
 def _ground_answer(parsed: dict, ctx: CanonicalContext | None) -> tuple[ChatGrounding | None, bool]:
@@ -707,7 +762,10 @@ def handle_message(
             # une note laisserait l'explication inventée à l'écran, précédée d'un aveu que Massimo
             # ne lirait pas. Substituer est déterministe, testable, et c'est la seule façon de
             # tenir la règle d'ancrage sans dépendre de la docilité du moteur.
-            reply = NOTE_SANS_ANCRAGE
+            # ⚠️ Deux refus DIFFÉRENTS, et ils ne disent pas la même chose. Sans notion
+            # identifiée, le serveur ne peut rien affirmer sur ce qu'il possède : il demande de
+            # préciser. Avec une notion identifiée mais sans contenu, il constate — et le note.
+            reply = NOTE_SANS_ANCRAGE if resolved_skill_id is not None else NOTE_NOTION_INCERTAINE
         # ⚠️ **Une seule honnêteté par tour.** La substitution ci-dessus dit déjà « je ne l'ai pas,
         # je le note » ; l'orchestration en dessous a sa propre note pour la même situation
         # (« ça, je ne le trouve pas dans ton programme »). Les deux à la suite donnent un

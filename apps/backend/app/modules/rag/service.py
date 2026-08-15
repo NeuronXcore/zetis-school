@@ -162,7 +162,7 @@ def retrieve_with_provenance(
     db: Session,
     embedder: EmbeddingProvider,
     *,
-    skill_id: int,
+    skill_id: int | None,
     query: str,
     k: int = 3,
     max_distance: float | None = None,
@@ -186,7 +186,17 @@ def retrieve_with_provenance(
     silencieuse que l'`adr-0037` documente. Condition d'activation : un audit montrant que la
     quasi-totalité des chunks en portent un.
     """
-    skill = db.get(Skill, skill_id)
+    # 🔴 **`skill_id=None` cherche dans TOUTES les matières** (correctif live du 2026-08-15).
+    #
+    # Le repli RAG était indexé sur la matière de la notion résolue — donc **mort exactement là où
+    # il devait servir** : quand rien ne résout. Constaté au micro sur « explique-moi la différence
+    # entre le narrateur et le personnage principal » : deux notions dans une phrase, la similarité
+    # se dilue, aucune ne passe le seuil de 0,72 — et ZETIS a répondu qu'il n'avait pas ça dans les
+    # cours, alors que **le cours sur le Narrateur existe et est validé**.
+    #
+    # Sans notion, il n'y a pas de matière à filtrer : on cherche large et on laisse le **plancher
+    # de distance** faire le tri. C'est précisément à ça qu'il sert.
+    skill = db.get(Skill, skill_id) if skill_id is not None else None
     subject_id = skill.subject_id if skill is not None else None
     if not has_retrievable_chunks(db, subject_id=subject_id):
         return []
