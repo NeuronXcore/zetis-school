@@ -484,6 +484,16 @@ Le verrou est élargi en conséquence, et une route de dictée dédiée au chat
 (`POST /api/student/chat/transcribe`, `require_child`) rend la trace aveugle au contenu. Elle est
 aussi l'endroit où se posent les réglages de vitesse du §5 — **un seul geste, deux problèmes.**
 
+**L'existant est soldé, pas seulement le code** (2026-08-15). `scripts/purge_chat_verbatim.py`
+retire la clé `transcript` des lignes déjà écrites. Il **efface la clé, pas la ligne** : le
+`job_type`, la durée et la taille de l'audio survivent — la trace d'exécution qu'exige
+`CLAUDE.md` §Règles IA. La règle est *« aucun `ai_jobs` ne porte un TEXTE de Massimo »*, pas
+*« aucune dictée n'a eu lieu »*.
+
+Passé sur la base de **dev** : 78 lignes, du 4 juillet au 14 août, vérifiées à zéro après coup.
+⚠️ **La production reste à traiter** — le script est fait pour ça, bilan par défaut et écriture
+sur `--apply` seulement.
+
 ### §19 — 🔴 Addendum du 2026-08-15 (au micro) : sans notion, on cherche dans les COURS
 
 Le §9 posait la cascade *cours → RAG → refus honnête*, et le §7 la contrainte d'ancrage. Les deux
