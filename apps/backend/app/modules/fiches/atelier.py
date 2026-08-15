@@ -42,6 +42,7 @@ from app.modules.fiches.population import (
     STATUS_DRAFT,
     STATUS_PERSONAL,
     draft_of_student,
+    finished_of_student,
 )
 from app.modules.memory.population import CARD_TYPE_DEFINITION_PERSO
 from app.modules.memory.service import schedule_review
@@ -205,6 +206,41 @@ def _draft_out(db: Session, row: Fiche) -> dict:
 # ── Le cycle de vie du brouillon ───────────────────────────────────────────────
 
 
+# 🔴 Le DÉCOR d'un brouillon — pré-rempli à l'ouverture, il ne dit RIEN du travail de Massimo.
+DECOR_DE_LA_FICHE = frozenset({"title", "subject", "level", "chapter"})
+
+
+def champs_de_travail() -> tuple[str, ...]:
+    """Les champs qu'un brouillon porte quand Massimo a écrit quelque chose (adr-0058 §5).
+
+    🔴 **DÉRIVÉ du schéma, jamais écrit à la main** — et ce n'est pas de l'élégance, c'est une
+    cicatrice. L'ADR et la spec ont nommé pendant une journée trois champs qui **n'existent pas**
+    (`pieges`, `exemple`, `methode` — les libellés des ÉTAPES À L'ÉCRAN). Un prédicat écrit sur
+    eux aurait lu trois champs absents, déclaré **vide** un brouillon qui ne l'est pas, et
+    **écrasé le travail de Massimo** : c'était le signal d'erreur n° 3 de l'ADR, réalisé depuis
+    l'ADR lui-même.
+
+    ⚠️ Dériver du schéma survit en plus à l'ajout d'une septième section (`mnemonique` en est une,
+    ajoutée par l'`adr-0055`) ; une liste en dur redeviendrait fausse **en silence**.
+    """
+    return tuple(k for k in FicheDraft.model_fields if k not in DECOR_DE_LA_FICHE)
+
+
+def _sans_travail(spec: dict | None) -> bool:
+    """Vrai quand Massimo n'a **rien** écrit — le décor pré-rempli ne compte pas."""
+    donnees = spec or {}
+    return not any(donnees.get(champ) for champ in champs_de_travail())
+
+
+def _derniere_finie(db: Session, *, student_id: int, lesson_id: int) -> Fiche | None:
+    """La dernière fiche FINIE de cette leçon, ou `None`. Ordre : la version la plus haute."""
+    return db.scalar(
+        select(Fiche)
+        .where(finished_of_student(student_id, lesson_id))
+        .order_by(Fiche.version.desc(), Fiche.id.desc())
+    )
+
+
 def open_or_get_draft(db: Session, *, student_id: int, lesson_id: int) -> dict:
     """Ouvre le brouillon d'une leçon — ou **retrouve** celui qui existe déjà.
 
@@ -225,7 +261,33 @@ def open_or_get_draft(db: Session, *, student_id: int, lesson_id: int) -> dict:
         select(Fiche).where(draft_of_student(student_id, lesson_id)).order_by(Fiche.id)
     )
     if existing is not None:
+        # 🔴 §5 — le brouillon VIDE laissé par le défaut d'hier se REPEUPLE (adr-0058).
+        # Le §4 ci-dessous empêche d'en créer d'autres ; il ne répare pas ceux qui existent, car
+        # ce sont des brouillons et la branche du §4 ne les voit même pas. Mesuré en base :
+        # `id=59` (leçon 7) était vide derrière trois versions finies, et `rework` le rendait tel
+        # quel — la porte « sûre » rendait la page blanche.
+        #
+        # ⚠️ **Un brouillon qui porte quoi que ce soit n'est JAMAIS touché** : `id=54` (leçon 1)
+        # porte trois `points_cles` choisis par Massimo. Le repeupler serait détruire son travail.
+        if _sans_travail(existing.spec_json):
+            derniere = _derniere_finie(db, student_id=student_id, lesson_id=lesson_id)
+            if derniere is not None:
+                existing.spec_json = dict(derniere.spec_json or {})
+                db.commit()
+                db.refresh(existing)
         return _draft_out(db, existing)
+
+    # 🔴 §4 — LA CAUSE. Aucun brouillon, mais une fiche finie existe : on ne repart JAMAIS de rien
+    # quand quelque chose existe. On délègue à `rework`, qui sait déjà créer la version N+1 à
+    # partir de la dernière finie (adr-0054 §7) — on ne réécrit pas sa règle ici, sinon deux
+    # formulations de la même chose, et elles divergeraient.
+    #
+    # ⚠️ **La règle vit ICI et pas dans les portes** : deux portes avaient été désamorcées une par
+    # une (la tuile, le cours), et une troisième entrée serait apparue — une URL partagée, un
+    # retour arrière, un rechargement. Elle appartient au service qui décide.
+    derniere = _derniere_finie(db, student_id=student_id, lesson_id=lesson_id)
+    if derniere is not None:
+        return rework(db, fiche_id=derniere.id, student_id=student_id)
 
     ctx = _context(db, lesson)
     # La version d'un NOUVEAU brouillon suit ses fiches finies : la 1re est v1, celle qui suit

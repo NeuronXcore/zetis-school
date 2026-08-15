@@ -1441,3 +1441,162 @@ def test_le_temoin_de_NAVIGATION_dit_la_meme_chose_que_le_deck(client_db) -> Non
         assert service.new_fiches_count(db, eleve) == sum(
             s["new_count"] for s in resume["subjects"]
         ) == 1
+
+
+# ── ADR-0058 : la fiche répond quand on la touche ──────────────────────────────
+
+
+def _finir_avec(db, lesson_id: int, essentiel: str) -> dict:
+    """Ouvre, remplit l'essentiel, finit. Rend la fiche FINIE."""
+    student = get_default_student(db)
+    brouillon = _ouvrir(db, lesson_id)
+    atelier.patch_draft(
+        db,
+        draft_id=brouillon["id"],
+        student_id=student.id,
+        draft=FicheDraft(**{**brouillon["draft"], "essentiel": essentiel}),
+    )
+    return atelier.finish_draft(db, draft_id=brouillon["id"], student_id=student.id)
+
+
+def test_rouvrir_apres_avoir_fini_rend_le_TRAVAIL_pas_un_vide(client_db) -> None:
+    """🔴 LE test qui manquait aux 55 — et le défaut qu'il décrit s'est RÉALISÉ en base.
+
+    `open_or_get_draft` ne cherchait que des brouillons. Après un `finish` il n'en trouvait aucun
+    et fabriquait un brouillon **vide** en version N+1 : Massimo rouvrait son atelier et trouvait
+    une page blanche à la place de son travail. Deux portes avaient été désamorcées une par une ;
+    la cause, non — et toute autre entrée (URL, retour arrière, rechargement) refabriquait le vide.
+
+    ⚠️ SABOTAGE ATTENDU : retirer la délégation à `rework` doit faire ROUGIR.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        fini = _finir_avec(db, lesson.id, "Ce que Massimo a écrit.")
+
+        repris = _ouvrir(db, lesson.id)  # l'entrée « nue », sans passer par une porte
+        assert repris["draft"]["essentiel"] == "Ce que Massimo a écrit."
+        assert repris["version"] == fini["version"] + 1
+        assert repris["id"] != fini["id"]
+
+
+def test_un_brouillon_VIDE_derriere_une_fiche_finie_se_repeuple(client_db) -> None:
+    """🔴 §5 — la règle qui répare le PASSÉ, sans script de migration.
+
+    Le §4 empêche d'en créer d'autres ; il ne voit pas ceux qui existent, puisque ce sont des
+    brouillons. Mesuré en base le 2026-08-15 : `id=59` (leçon 7) était vide derrière trois
+    versions finies, et `rework` le rendait tel quel — la porte « sûre » rendait la page blanche.
+
+    ⚠️ SABOTAGE ATTENDU : retirer le bloc `_sans_travail` doit faire ROUGIR.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        fini = _finir_avec(db, lesson.id, "Le travail de la v1.")
+
+        # On fabrique le fantôme exactement comme le défaut le faisait : un brouillon vN+1 vide.
+        fantome = Fiche(
+            lesson_id=lesson.id,
+            spec_json={"title": "La phrase complexe"},  # décor seul
+            validation_status=STATUS_DRAFT,
+            author="massimo",
+            student_id=get_default_student(db).id,
+            source="manual",
+            version=fini["version"] + 1,
+        )
+        db.add(fantome)
+        db.commit()
+
+        repris = _ouvrir(db, lesson.id)
+        assert repris["id"] == fantome.id, "on répare le brouillon EXISTANT, on n'en crée pas un"
+        assert repris["draft"]["essentiel"] == "Le travail de la v1."
+
+
+def test_un_brouillon_REMPLI_n_est_JAMAIS_repeuple(client_db) -> None:
+    """🔴 LE SIGNAL D'ERREUR N° 3 DE L'ADR, EN VERROU — le seul risque irréversible du chantier.
+
+    Il a failli se réaliser **depuis le texte de l'ADR** : celui-ci nommait six sections dont
+    trois — `pieges`, `exemple`, `methode` — **n'existent pas** (ce sont les libellés des étapes à
+    l'écran). Un prédicat écrit sur ces noms aurait lu trois champs absents et déclaré vide le
+    brouillon `id=54`, qui porte trois `points_cles` choisis par Massimo.
+
+    🔴 **Le décor porte donc `points_cles`, et lui seul** : c'est le champ exact que le prédicat
+    faux ne voyait pas. Une seule section remplie, pour prouver que le seuil est « au moins une ».
+
+    ⚠️ SABOTAGE ATTENDU : écrire la liste des champs à la main sans `points_cles` doit faire
+    ROUGIR ce test.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        _finir_avec(db, lesson.id, "La version finie.")
+        student = get_default_student(db)
+
+        en_cours = db.scalar(select(Fiche).where(Fiche.validation_status == STATUS_DRAFT))
+        assert en_cours is None, "après finish, aucun brouillon ne reste"
+
+        travail = Fiche(
+            lesson_id=lesson.id,
+            spec_json={"title": "La phrase complexe", "points_cles": ["Juxtaposition"]},
+            validation_status=STATUS_DRAFT,
+            author="massimo",
+            student_id=student.id,
+            source="manual",
+            version=9,
+        )
+        db.add(travail)
+        db.commit()
+
+        repris = _ouvrir(db, lesson.id)
+        assert repris["id"] == travail.id
+        assert repris["draft"]["points_cles"] == ["Juxtaposition"], "son travail est INTACT"
+        assert not repris["draft"]["essentiel"], "la fiche finie n'a PAS écrasé son brouillon"
+
+
+def test_le_DECOR_seul_ne_compte_pas_comme_du_travail(client_db) -> None:
+    """Un brouillon dont seul le décor est rempli est **vide** — le décor est pré-rempli par
+    construction (titre, matière, niveau, chapitre) et ne dit rien de ce que Massimo a fait.
+
+    Sans ce cas, la règle du §5 pourrait tester le décor sans que rien ne rougisse.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db, content=_COURS)
+        _finir_avec(db, lesson.id, "La version finie.")
+
+        decor = Fiche(
+            lesson_id=lesson.id,
+            spec_json={"title": "T", "subject": "M", "level": "4e", "chapter": "C"},
+            validation_status=STATUS_DRAFT,
+            author="massimo",
+            student_id=get_default_student(db).id,
+            source="manual",
+            version=9,
+        )
+        db.add(decor)
+        db.commit()
+
+        assert atelier._sans_travail(decor.spec_json) is True
+        assert _ouvrir(db, lesson.id)["draft"]["essentiel"] == "La version finie."
+
+
+def test_les_champs_de_travail_sont_DERIVES_du_schema(client_db) -> None:
+    """🔴 Le verrou qui empêche l'erreur de revenir par copier-coller.
+
+    Les champs de travail = `FicheDraft.model_fields` MOINS le décor. Toute liste écrite à la main
+    finit par mentir : celle de l'ADR a nommé `pieges`, `exemple` et `methode`, qui n'existent
+    pas, et aurait coûté le travail de Massimo.
+
+    ⚠️ SABOTAGE ATTENDU : remplacer la dérivation par une liste en dur — surtout une qui contient
+    `pieges` — doit faire ROUGIR.
+    """
+    attendus = tuple(
+        k for k in FicheDraft.model_fields if k not in {"title", "subject", "level", "chapter"}
+    )
+    assert atelier.champs_de_travail() == attendus
+    # Les trois noms de l'erreur ne doivent JAMAIS y entrer.
+    for fantasme in ("pieges", "exemple", "methode"):
+        assert fantasme not in atelier.champs_de_travail()
+    # Et les vrais, si.
+    assert "points_cles" in atelier.champs_de_travail()
+    assert "erreurs_a_eviter" in atelier.champs_de_travail()

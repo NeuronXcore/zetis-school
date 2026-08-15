@@ -64,6 +64,8 @@ export interface FicheCardProps {
   subjectSlug: string;
   /** Handler du pont SRS (chantier séparé). Absent = bouton désactivé (stub). */
   onAddToCards?: () => void;
+  /** Le pont travaille — même état d'occupation que `porte.busy` (adr-0058 §3). */
+  cartesEnCours?: boolean;
   /** La porte du §1. Absente = la surface n'en ouvre aucune (cas du panneau de mindmap). */
   porte?: { kind: FichePorteKind; onClick: () => void; busy?: boolean };
   /**
@@ -76,7 +78,14 @@ export interface FicheCardProps {
   dateISO?: string | null;
 }
 
-export function FicheCard({ spec, subjectSlug, onAddToCards, porte, dateISO }: FicheCardProps) {
+export function FicheCard({
+  spec,
+  subjectSlug,
+  onAddToCards,
+  cartesEnCours = false,
+  porte,
+  dateISO,
+}: FicheCardProps) {
   const a5Ref = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState<null | "image" | "print">(null);
 
@@ -236,7 +245,7 @@ export function FicheCard({ spec, subjectSlug, onAddToCards, porte, dateISO }: F
           <button
             type="button"
             onClick={onAddToCards}
-            disabled={!onAddToCards}
+            disabled={!onAddToCards || cartesEnCours}
             title={
               onAddToCards
                 ? "Tes définitions deviennent des cartes de révision"
@@ -245,7 +254,9 @@ export function FicheCard({ spec, subjectSlug, onAddToCards, porte, dateISO }: F
             }
             className="inline-flex min-h-[44px] items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300 disabled:opacity-40"
           >
-            🃏 Ajouter à mes cartes
+            {/* Le geste est ENTENDU avant d'être satisfait (adr-0058 §3) — même formulation que
+                la porte juste au-dessus, qui l'avait depuis toujours. */}
+            {cartesEnCours ? "⏳ On y va…" : "🃏 Ajouter à mes cartes"}
           </button>
           <button
             type="button"

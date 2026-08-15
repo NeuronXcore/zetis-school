@@ -89,3 +89,22 @@ def draft_of_student(student_id: int, lesson_id: int) -> ColumnElement[bool]:
         Fiche.lesson_id == lesson_id,
         Fiche.validation_status == STATUS_DRAFT,
     )
+
+
+def finished_of_student(student_id: int, lesson_id: int) -> ColumnElement[bool]:
+    """Les fiches FINIES d'une leçon pour cet élève — le pendant de `draft_of_student` (adr-0058).
+
+    🔴 **Pourquoi ce prédicat existe** : `open_or_get_draft` ne regardait que les brouillons.
+    Après un `finish`, il n'en trouvait aucun et fabriquait un brouillon **vide** en version N+1 —
+    Massimo rouvrait son atelier et retrouvait une page blanche à la place de son travail.
+
+    ⚠️ Il rend **toutes** les versions finies, pas la dernière : c'est l'appelant qui ordonne
+    (`Fiche.version` décroissante) — deux façons d'ordonner dans un prédicat partagé finiraient
+    par diverger.
+    """
+    return and_(
+        Fiche.author == AUTHOR_MASSIMO,
+        Fiche.student_id == student_id,
+        Fiche.lesson_id == lesson_id,
+        Fiche.validation_status == STATUS_PERSONAL,
+    )

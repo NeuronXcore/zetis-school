@@ -993,6 +993,26 @@ lecture et rend le brouillon du gagnant. Sans ce rattrapage, le perdant de la co
 > personnelle assistée de toute valeur juste, et donné à tout lecteur existant de `source` un sens
 > qu'il n'attend pas.
 
+#### 🔴 Règle de lecture — on ne repart JAMAIS de rien quand quelque chose existe (`adr-0058`)
+
+Ouvrir l'atelier d'une leçon **ne fabrique un brouillon vierge que si cette leçon n'a rien** — ni
+brouillon en cours, ni fiche finie. Quand une fiche finie existe, `open_or_get_draft` **délègue à
+`rework`**, qui repart de la dernière version.
+
+⚠️ **La règle vit dans le SERVICE, pas dans les portes.** Elle avait été posée à la main sur deux
+appelants (la tuile, le cours) ; toute autre entrée — URL partagée, retour arrière, rechargement —
+refabriquait un brouillon **vide** en version N+1, et Massimo retrouvait une page blanche à la
+place de son travail. Mesuré en base : un brouillon vide derrière **trois** versions finies, que
+`rework` rendait tel quel — le chemin réputé sûr rendait la page blanche.
+
+🔴 **Et un brouillon VIDE derrière une fiche finie se repeuple** depuis cette fiche, à l'ouverture.
+Pas de script de migration : la même règle répare le passé et empêche le futur.
+
+⚠️ **« Vide » se DÉRIVE du schéma** — `FicheDraft.model_fields` **moins** le décor
+(`title`, `subject`, `level`, `chapter`), qui est pré-rempli par construction et ne dit rien du
+travail de Massimo. **Jamais une liste recopiée** : l'ADR en a écrit une, avec trois champs qui
+n'existent pas, et elle aurait écrasé du travail réel.
+
 #### 🔴 Règle de lecture — ne JAMAIS interroger `fiches` sans dire de quelle population on parle
 
 Depuis que la table porte deux auteurs, une requête qui ne filtre ni le statut ni l'auteur répond

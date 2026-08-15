@@ -1,5 +1,32 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.92.0 — La fiche répond quand on la touche
+
+Trois défauts notés séparément après la relecture de l'ADR-0054. Relus dans le code, ils disaient
+la même chose : **un geste qui n'obtient pas de réponse n'est pas un geste, c'est un doute.**
+
+- **« C'est fini, je la garde »** ouvre désormais **la fiche**. Ce bouton et « J'ai fini pour
+  aujourd'hui » atterrissaient au même endroit, alors que l'un crée une fiche et l'autre laisse un
+  brouillon. L'adresse existait depuis l'ADR-0054 ; elle n'était pas utilisée.
+- **Le pont vers les cartes** dit qu'il travaille, et dit quand il échoue. Il était muet aux deux
+  moments — un `catch` vide, et aucun état d'occupation, alors que la porte à trois lignes de là
+  en avait un depuis toujours.
+- **Rouvrir un travail rend le travail**, par n'importe quelle porte. C'était le plus grave : après
+  avoir fini sa fiche, rouvrir l'atelier fabriquait un brouillon **vide** — Massimo cliquait
+  « retravailler » et trouvait une page blanche. Deux portes avaient été rapiécées une par une ; la
+  cause était ailleurs, dans le service qui décide.
+
+> **Le défaut n'était pas théorique : il était en base.** Une leçon portait un brouillon vide
+> derrière trois versions finies, et le chemin réputé sûr le rendait tel quel. Il est réparé —
+> **sans script de migration** : la règle qui l'empêche de revenir répare aussi ce qui existait.
+
+🔴 **Et le chantier a failli détruire du travail depuis son propre ADR.** Celui-ci nommait six
+sections de fiche, dont **trois qui n'existent pas** — les libellés des étapes à l'écran, pas les
+champs du schéma. Un prédicat écrit sur eux aurait déclaré « vide » un brouillon qui portait trois
+points-clés choisis par Massimo, et l'aurait écrasé. C'était, mot pour mot, le signal d'alarme que
+l'ADR écrivait lui-même. Attrapé avant la première ligne de code ; la règle **dérive maintenant du
+schéma**, et un test empêche la liste de revenir à la main.
+
 ## 0.91.0 — Les missions se rangent aussi, et le report reposait sur une raison fausse
 
 Cinquième et dernière page du motif. Elle avait été mise de côté pour un motif écrit noir sur
