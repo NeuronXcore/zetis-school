@@ -9,6 +9,7 @@ de MÉTADONNÉES (jamais un texte de message). Aucun XP n'est crédité (§2).
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, UploadFile, status
@@ -49,6 +50,7 @@ from app.modules.chat.store import ROLE_ASSISTANT, ROLE_USER, ChatStore
 from app.modules.progress.service import OPEN_GAP_STATUSES
 from app.modules.stt import service as stt_service
 from app.modules.stt.provider import SttProvider
+from app.prompts.chat_recall import RECALL_PROMPT_VERSION
 from app.prompts.chat import (
     CHAT_PROMPT_VERSION,
     CHAT_SYSTEM,
@@ -396,8 +398,42 @@ def _tour_de_recall(
     contexte, _ctx = _compose_context(
         db, embedder, student_id=student.id, skill_id=etat.skill_id, query=etat.current_question
     )
+    # 🔴 **Un tour d'interrogation se TRACE**, comme tout appel IA du dépôt (`CLAUDE.md` §Règles
+    # IA, `adr-0059` §10). Il ne l'était pas : `recall.repondre` appelait le provider en direct,
+    # et les trois réponses de la première interrogation jouée en vrai (2026-08-15) n'ont laissé
+    # **aucune trace**. Les verdicts portés sur Massimo étaient inauditables — précisément ce que
+    # la trace existe pour empêcher.
+    debut = time.monotonic()
+    job = AIJob(
+        job_type="chat_recall",
+        status="running",
+        input_json={
+            "session_id": session_id,
+            "recall_index": etat.asked_count,
+            "prompt_version": RECALL_PROMPT_VERSION,
+        },
+        created_by="child",
+        created_at=datetime.now(timezone.utc),
+        started_at=datetime.now(timezone.utc),
+    )
+    db.add(job)
+    db.flush()
+
     tour = recall.repondre(provider, etat, text, context_block=contexte)
     reply = _sanitize(tour.reply)
+
+    # ⚠️ **Des ÉTIQUETTES, jamais un texte** (§1c) : ni la question de ZETIS, ni la réponse de
+    # Massimo. Un verdict appartient au vocabulaire fermé à quatre valeurs, exactement au même
+    # titre que le `kind` de `declared_difficulty` que le §1c autorise nommément.
+    job.status = "succeeded"
+    job.output_json = {
+        "skill_id": etat.skill_id,
+        "recall_index": etat.asked_count,
+        "verdict": tour.verdict,
+        "finished": tour.finished,
+    }
+    job.duration_ms = int((time.monotonic() - debut) * 1000)
+    job.finished_at = datetime.now(timezone.utc)
 
     if tour.state is None:
         store.clear_state(student.id, session_id)
@@ -790,6 +826,22 @@ def handle_message(
                 )
             else:
                 recall_out = None
+            # ⚠️ **La trace du tour d'ouverture était VIDE.** Ce chemin rend la réponse par un
+            # `return` anticipé, donc le bloc de métadonnées de fin de fonction n'était jamais
+            # atteint : un `ai_jobs` `chat_turn` avec `output_json` NULL, constaté en base le
+            # 2026-08-15. Un `return` en milieu de fonction emporte silencieusement tout ce qui
+            # suit — ici, la seule trace de ce qui s'est passé.
+            job_ouverture = db.get(AIJob, job_id)
+            if job_ouverture is not None:
+                job_ouverture.output_json = {
+                    "skill_id": ouverture["skill_id"],
+                    "kind": None,
+                    "tool_type": None,
+                    "duration_ms": job_ouverture.duration_ms,
+                    "action": action_result.meta or None,
+                    "grounding": None,
+                    "source_mismatch": None,
+                }
             store.append_turn(student.id, session_id, role=ROLE_USER, text=text)
             store.append_turn(student.id, session_id, role=ROLE_ASSISTANT, text=reply)
             db.commit()

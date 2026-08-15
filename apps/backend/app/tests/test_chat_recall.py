@@ -5,6 +5,8 @@ pas faire** : inventer les questions sans cours, dire « faux » à cause d'une 
 continuer quand Massimo veut arrêter, ou faire compter une mesure qui n'est pas fiable.
 """
 
+import json
+
 import app.db.models as m
 from sqlalchemy import select
 
@@ -212,6 +214,122 @@ def test_une_reponse_trop_courte_n_est_JAMAIS_evaluee(client_db, monkeypatch) ->
     assert moteur.appels == avant, "aucune évaluation demandée sur une dictée trop courte"
     assert body["reply"] == recall.TROP_COURT
     assert body["recall"]["asked"] == 1, "on ne consomme pas une question"
+
+
+def test_JE_NE_SAIS_PAS_ne_consomme_PAS_une_question(client_db, monkeypatch) -> None:
+    """🔴 Né AU MICRO le 2026-08-15, sur la PREMIÈRE interrogation jouée en vrai.
+
+    Massimo a dit « je ne sais pas aide moi », puis « je ne sais pas ». À chaque fois, ZETIS a
+    jugé, corrigé, et **enchaîné sur une autre question**. Il a brûlé ses trois questions sans
+    jamais avoir eu l'occasion de répondre à la première.
+
+    **Demander de l'aide n'est pas se tromper.** ZETIS aide et repose la MÊME question — c'est le
+    seul moyen que la récupération active ait lieu, et c'est l'ordre que `CLAUDE.md` prescrit
+    (l'explication simple AVANT l'exercice).
+
+    ⚠️ Le plancher de longueur ne l'attrape pas (14 caractères > 8) et n'a pas à le faire : il
+    vise les dictées ratées, pas les aveux.
+
+    Sabotage : retirer la branche `_est_un_aveu` de `repondre`.
+    """
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(actions, "notion_panel", lambda db, sid: _panel(skill_id, avec_cours=True))
+    _use(_Interrogateur())
+    sid = _open(client)
+    _say(client, sid, text=f"interroge-moi sur {RESOLVING}")
+
+    body = _say(client, sid, text="je ne sais pas aide moi").json()
+    assert body["recall"]["asked"] == 1, "un aveu ne consomme pas la question"
+    assert body["recall"]["finished"] is False
+
+    # Second aveu sur la MÊME question : on corrige et on avance — on n'insiste pas.
+    suite = _say(client, sid, text="je ne sais toujours pas").json()
+    assert suite["recall"]["asked"] == 2
+
+
+def test_la_cloture_ne_felicite_pas_quand_RIEN_n_a_ete_reussi(client_db, monkeypatch) -> None:
+    """🔴 Né AU MICRO le 2026-08-15 — « tu as bien travaillé » après zéro réussite.
+
+    Une félicitation qui ne correspond à rien n'encourage pas : elle apprend que la parole de
+    ZETIS ne veut rien dire. La clôture DIT ce qui s'est passé — sans jamais employer le
+    vocabulaire d'échec que `CLAUDE.md` interdit.
+
+    Sabotage : rendre `CLOTURE` inconditionnellement.
+    """
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(actions, "notion_panel", lambda db, sid: _panel(skill_id, avec_cours=True))
+    _use(_Interrogateur(verdict="a_revoir"))  # rien n'est réussi
+    sid = _open(client)
+    _say(client, sid, text=f"interroge-moi sur {RESOLVING}")
+    for _ in range(3):
+        fin = _say(client, sid, text="une réponse qui ne va pas").json()
+
+    assert fin["recall"]["finished"] is True
+    assert "bien travaillé" not in fin["reply"]
+    assert "notion à renforcer" in fin["reply"]
+    # ⚠️ Et JAMAIS le vocabulaire d'échec.
+    for interdit in ("nul", "échec", "faux", "erreur"):
+        assert interdit not in fin["reply"].lower()
+
+
+def test_une_reussite_suffit_a_meriter_la_cloture_chaleureuse(client_db, monkeypatch) -> None:
+    """Symétrie du test précédent : une mini-victoire compte (`CLAUDE.md`)."""
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(actions, "notion_panel", lambda db, sid: _panel(skill_id, avec_cours=True))
+    _use(_Interrogateur(verdict="ok"))
+    sid = _open(client)
+    _say(client, sid, text=f"interroge-moi sur {RESOLVING}")
+    for _ in range(3):
+        fin = _say(client, sid, text="je crois que ça fait deux").json()
+
+    assert fin["recall"]["finished"] is True
+    assert "bien travaillé" in fin["reply"]
+
+
+def test_chaque_tour_d_interrogation_LAISSE_UNE_TRACE_sans_verbatim(client_db, monkeypatch) -> None:
+    """🔴 Né AU MICRO le 2026-08-15 — les tours d'interrogation ne traçaient RIEN.
+
+    `recall.repondre` appelait le provider en direct : les trois réponses de la première
+    interrogation réelle n'ont laissé **aucun `ai_jobs`**. Les verdicts portés sur Massimo étaient
+    inauditables — précisément ce que la trace existe pour empêcher (`CLAUDE.md` §Règles IA).
+
+    ⚠️ Et la trace ne porte QUE des étiquettes : ni la question de ZETIS, ni la réponse dictée.
+
+    Sabotage : supprimer le bloc `AIJob` de `_tour_de_recall`.
+    """
+    from app.db.models import AIJob
+
+    client, Session = client_db
+    skill_id = _skill_id(Session)
+    monkeypatch.setattr(actions, "notion_panel", lambda db, sid: _panel(skill_id, avec_cours=True))
+    _use(_Interrogateur())
+    sid = _open(client)
+    _say(client, sid, text=f"interroge-moi sur {RESOLVING}")
+    marqueur = "MARQUEUR_REPONSE_ZorglubXYZ"
+    _say(client, sid, text=f"{marqueur} je crois que ça fait deux")
+
+    db = Session()
+    try:
+        traces = db.scalars(select(AIJob).where(AIJob.job_type == "chat_recall")).all()
+        assert traces, "un tour d'interrogation doit laisser une trace de métadonnées"
+        for job in traces:
+            blob = json.dumps(job.input_json or {}) + json.dumps(job.output_json or {})
+            assert marqueur not in blob, "la réponse dictée ne doit JAMAIS entrer dans ai_jobs"
+            assert set((job.output_json or {}).keys()) <= {
+                "skill_id",
+                "recall_index",
+                "verdict",
+                "finished",
+            }
+        # Le tour d'OUVERTURE laissait un `output_json` NULL : un `return` anticipé emportait
+        # silencieusement le bloc de métadonnées de fin de fonction.
+        ouverture = db.scalars(select(AIJob).where(AIJob.job_type == "chat_turn")).all()
+        assert ouverture and all(j.output_json for j in ouverture), "trace d'ouverture vide"
+    finally:
+        db.close()
 
 
 def test_un_verdict_inconnu_retombe_sur_le_DOUTE_jamais_sur_un_negatif() -> None:

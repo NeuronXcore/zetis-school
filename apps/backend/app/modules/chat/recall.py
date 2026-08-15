@@ -39,9 +39,61 @@ VERDICT_DOUTE = "a_reformuler"
 #: §16 : ZETIS parle à la première personne et ne nomme aucun adulte.
 CLOTURE = "Voilà, c'est tout pour cette fois — tu as bien travaillé !"
 
+#: 🔴 **Clôture quand RIEN n'a été réussi** (correctif live 2026-08-15). Sur la première
+#: interrogation jouée en vrai, Massimo n'a réussi aucune des trois questions — et ZETIS a conclu
+#: par « tu as bien travaillé ». Une félicitation qui ne correspond à rien n'encourage pas : elle
+#: apprend que la parole de ZETIS ne veut rien dire.
+#:
+#: ⚠️ Elle ne dit pas l'échec pour autant — `CLAUDE.md` interdit « nul », « échec », « lacune ».
+#: Elle nomme ce qui s'est passé (une notion à renforcer) et ce qui vient après. C'est le
+#: vocabulaire du dépôt : « notion à renforcer », « prochaine étape ».
+CLOTURE_A_RENFORCER = (
+    "Voilà pour cette fois. C'est une notion à renforcer — on la retravaillera ensemble, "
+    "et ça viendra."
+)
+
+#: Verdicts qui comptent comme une réussite, même partielle. Une mini-victoire suffit à mériter
+#: la clôture chaleureuse (`CLAUDE.md` : les mini-victoires).
+_VERDICTS_REUSSIS = ("ok", "partiel")
+
+
+def cloture_pour(verdicts: list[str]) -> str:
+    """La clôture DIT ce qui s'est passé, elle ne félicite pas au hasard."""
+    return CLOTURE if any(v in _VERDICTS_REUSSIS for v in verdicts) else CLOTURE_A_RENFORCER
+
 #: Ce que ZETIS dit quand la dictée n'a rien donné d'exploitable. Aucun appel au moteur : une
 #: dictée ratée ne doit JAMAIS produire un verdict sur Massimo.
 TROP_COURT = "Je n'ai pas bien saisi — tu peux me le redire ?"
+
+#: 🔴 **« Je ne sais pas » n'est PAS une réponse fausse : c'est une demande d'aide.**
+#:
+#: Constaté au micro le 2026-08-15, sur la première interrogation jouée en vrai. Massimo a dit
+#: « je ne sais pas aide moi », puis « je ne sais pas » — et à chaque fois ZETIS a traité l'aveu
+#: comme une tentative : verdict, correction, **question suivante**. Il a consommé les trois
+#: questions sans jamais avoir eu l'occasion de répondre à la première.
+#:
+#: Le plancher de longueur ne l'attrape pas (14 caractères > 8) et n'a pas à le faire : il vise
+#: les dictées ratées, pas les aveux. Ce sont deux choses différentes et elles demandent deux
+#: réponses différentes — redire la question d'un côté, AIDER de l'autre.
+_AVEUX = (
+    "je ne sais pas",
+    "je sais pas",
+    "j'sais pas",
+    "aucune idée",
+    "aucune idee",
+    "je ne comprends pas",
+    "je comprends pas",
+    "aide-moi",
+    "aide moi",
+    "j'y arrive pas",
+    "je n'y arrive pas",
+)
+
+
+def _est_un_aveu(reponse: str) -> bool:
+    """Massimo demande-t-il de l'aide plutôt que de proposer une réponse ?"""
+    minuscule = reponse.strip().lower()
+    return any(aveu in minuscule for aveu in _AVEUX)
 
 
 @dataclass
@@ -58,6 +110,9 @@ class RecallState:
     asked_count: int
     current_question: str
     verdicts: list[str]
+    #: Nombre d'aveux d'ignorance sur la question EN COURS. Au premier, ZETIS aide et repose la
+    #: même question ; au second, il corrige et avance — on n'insiste pas indéfiniment.
+    aides: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -66,6 +121,7 @@ class RecallState:
             "asked_count": self.asked_count,
             "current_question": self.current_question,
             "verdicts": list(self.verdicts),
+            "aides": self.aides,
         }
 
     @classmethod
@@ -76,6 +132,7 @@ class RecallState:
             asked_count=int(data.get("asked_count") or 0),
             current_question=str(data.get("current_question") or ""),
             verdicts=[str(v) for v in (data.get("verdicts") or [])],
+            aides=int(data.get("aides") or 0),
         )
 
 
@@ -159,6 +216,43 @@ def repondre(
     if len(propre) < settings.chat_recall_min_answer_chars:
         return RecallTurn(reply=TROP_COURT, state=state)
 
+    # 🔴 **Un aveu d'ignorance ne consomme PAS la question** (correctif live 2026-08-15, première
+    # interrogation jouée en vrai). Massimo a dit « je ne sais pas aide moi » : ZETIS a jugé,
+    # corrigé, et **enchaîné sur une autre question**. Il a brûlé ses trois questions sans jamais
+    # avoir eu l'occasion de répondre à la première.
+    #
+    # Demander de l'aide n'est pas se tromper. ZETIS aide, et **repose la même question** — c'est
+    # le seul moyen que la récupération active ait lieu, et c'est l'ordre que `CLAUDE.md` prescrit
+    # (l'explication simple AVANT l'exercice).
+    #
+    # ⚠️ Une seule fois par question : au second aveu, on corrige et on avance. Insister
+    # indéfiniment sur une question qu'il ne sait pas serait une autre façon de l'enfermer.
+    if _est_un_aveu(propre) and state.aides == 0:
+        parsed = _ask(
+            provider,
+            context_block=context_block,
+            skill_name=state.skill_name,
+            previous=(
+                f"Question posée : {state.current_question}\n"
+                "Massimo dit qu'il ne sait pas et demande de l'aide. Donne-lui un INDICE tiré du "
+                "cours — surtout PAS la réponse — puis REPOSE-LUI EXACTEMENT la même question, "
+                "mot pour mot."
+            ),
+            last=False,
+        )
+        indice = str(parsed.get("feedback") or "").strip()
+        return RecallTurn(
+            reply=f"{indice} {state.current_question}".strip() if indice else state.current_question,
+            state=RecallState(
+                skill_id=state.skill_id,
+                skill_name=state.skill_name,
+                asked_count=state.asked_count,  # ⚠️ INCHANGÉ : la question n'est pas consommée
+                current_question=state.current_question,
+                verdicts=list(state.verdicts),
+                aides=1,
+            ),
+        )
+
     derniere = state.asked_count >= settings.chat_recall_questions
     parsed = _ask(
         provider,
@@ -171,12 +265,14 @@ def repondre(
     feedback = str(parsed.get("feedback") or "").strip()
     question = str(parsed.get("next_question") or "").strip()
 
+    tous_verdicts = [*state.verdicts, verdict]
     if derniere:
         # ⚠️ La clôture est composée SERVEUR. Même si le moteur a désobéi et posé une question de
         # plus, elle n'est pas servie : c'est le seul moyen que « trois questions » veuille dire
         # trois questions.
+        fin = cloture_pour(tous_verdicts)
         return RecallTurn(
-            reply=f"{feedback} {CLOTURE}".strip() if feedback else CLOTURE,
+            reply=f"{feedback} {fin}".strip() if feedback else fin,
             state=None,
             verdict=verdict,
             finished=True,
@@ -185,8 +281,9 @@ def repondre(
     if not question:
         # Le moteur n'a plus de question alors qu'il en restait : on clôt proprement plutôt que
         # de le relancer — ZETIS n'insiste jamais (`adr-0026` §4).
+        fin = cloture_pour(tous_verdicts)
         return RecallTurn(
-            reply=f"{feedback} {CLOTURE}".strip() if feedback else CLOTURE,
+            reply=f"{feedback} {fin}".strip() if feedback else fin,
             state=None,
             verdict=verdict,
             finished=True,
@@ -200,6 +297,7 @@ def repondre(
             asked_count=state.asked_count + 1,
             current_question=question,
             verdicts=[*state.verdicts, verdict],
+            aides=0,  # nouvelle question, nouveau droit à l'aide
         ),
         verdict=verdict,
     )
