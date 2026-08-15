@@ -124,12 +124,13 @@ la même chose que regarder.*
 
 **Nées de ce chantier :**
 
-- 🔴 **LE VERBATIM EST TOUJOURS EN PRODUCTION.** Le dev est nettoyé, pas la prod — aucune pile de
-  production n'était joignable depuis la session. Le geste :
-  `python scripts/purge_chat_verbatim.py --apply`, avec **`ZETIS_DATABASE_URL`** pointant sur la
-  bonne base. ⚠️ `DATABASE_URL` est ignorée **en silence** par l'app ; le script refuse de tourner
-  (code 2) s'il voit l'une sans l'autre. Bilan sans `--apply`, sans risque. Procédure et codes de
-  sortie : `scripts/README.md`.
+- ✅ **~~LE VERBATIM EST TOUJOURS EN PRODUCTION~~ — DETTE FERMÉE le 2026-08-15.** Le bilan est passé
+  sur la prod : **rien à effacer**, `eli5_transcribe` n'y a jamais tourné. Cette dette a vécu une
+  journée et n'a jamais été vraie : elle est née d'une **prod injoignable**, pas d'une prod sale —
+  « non vérifié » avait été écrit en 🔴 comme s'il valait « fuite avérée ». ⚠️ Le piège reste
+  entier pour la suite : `DATABASE_URL` est ignorée **en silence** par l'app, seule
+  **`ZETIS_DATABASE_URL`** compte, et le discriminant est la 1ʳᵉ ligne de sortie (`postgres:5432`
+  et non `localhost:5432`). Procédure, codes de sortie et état par base : `scripts/README.md`.
 - 🔴 **La qualité du décodage glouton n'a jamais été JUGÉE sur une vraie voix.** Elle n'a été
   mesurée que sur une voix de synthèse, qui articule trop bien. **Un seul point réel observé** :
   « alternes-internes » transcrit « alternatifs interne » — rattrapé par ZETIS, mais c'est une
@@ -217,17 +218,28 @@ elles ne touchent aucun code.
 
 Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus.
 
-1. 🔴 **Passer `purge_chat_verbatim.py --apply` sur la PRODUCTION.** Seul travail réellement ouvert
-   de ce chantier, et il porte sur la **vie privée de Massimo** — donc prioritaire sur toute
-   nouvelle fonctionnalité. Le dev est fait ; la prod n'était pas joignable depuis la session.
-   ⚠️ **Le geste n'est pas celui du dev** : en prod, Postgres n'est que sur le réseau `interne`
-   (aucun port publié) et `scripts/` n'est **pas** dans l'image backend. Il faut tourner *dans* le
-   compose, script monté, entrypoint court-circuité — **commande écrite dans `scripts/README.md`,
-   mais JAMAIS exécutée** (aucune pile de prod joignable le 2026-08-15). Le bilan est sans effet
-   de bord : il vaut vérification de la commande autant que de la base. Lancez-le d'abord.
-2. **Juger la qualité du décodage glouton sur une vraie voix** — seule dette du chantier qui touche
-   la **justesse** de ce que ZETIS comprend. Repli : `beam_size=2`, jamais le retour à 5.
+1. ✅ **La purge de production est SOLDÉE — 2026-08-15, rien à effacer.** Ce point était le seul
+   🔴 du chantier ; il est clos, et **aucun `--apply` n'a été nécessaire**. La prod est propre pour
+   une raison vérifiée : **`eli5_transcribe` n'existe pas dans ses `ai_jobs`** — la dictée n'a
+   jamais été exercée contre cette pile, donc la fuite de l'ADR-0059 §18 n'y a jamais eu lieu.
+   ⚠️ **Le vert a été corroboré, pas cru sur parole** : la table compte 113 lignes (dont 103 avec
+   `output_json`, 10 `job_type`), donc « rien à effacer » n'est pas « table vide » — la confusion
+   des deux est le motif de faux-vert le plus fréquent de ce dépôt.
+   Bénéfice second : la commande de prod de `scripts/README.md`, jusque-là **seulement dérivée** du
+   compose et du Dockerfile, est désormais **vérifiée à l'usage**. Détail et pièges là-bas ; deux
+   à retenir — monter **`postgres` seul** (lever la pile ferait `alembic upgrade head` sur la prod),
+   et ne rien accoler à la commande (une queue `; echo $?` casse le préfixe de permission et fait
+   refuser le classifieur).
+   📄 Consigné en décision : `docs/decisions/adr-0059-addendum-la-production-etait-deja-propre.md`
+   (clôt la réserve du §18 sans rien révoquer), **indexé dans `DECISIONS.md`** ✅.
+2. **Juger la qualité du décodage glouton sur une vraie voix** — **désormais le premier pas ouvert**,
+   et seule dette du chantier qui touche la **justesse** de ce que ZETIS comprend. Repli :
+   `beam_size=2`, jamais le retour à 5.
 3. Puis **`/ouverture`** sur le chantier suivant. Le reste des dettes est nommé ci-dessus.
+   ⚠️ Au 2026-08-15, **aucun ADR cadré et non livré** n'existe dans `docs/decisions/` : le dernier
+   (ADR-0059) est celui du chantier mergé. Le chantier suivant se choisit au `BACKLOG.md`, et s'il
+   n'a pas d'ADR, la prochaine session est une session de **cadrage** sur `main` — pas un
+   `/ouverture`.
 
 ⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
 encore ouvertes devront être **remontées**, pas enterrées avec le récit.

@@ -61,9 +61,37 @@ Puis, une fois le bilan lu, la même commande avec `--apply` à la fin.
 la configuration de l'app, sans qu'on ait à la retaper. `POSTGRES_PASSWORD` doit être dans le
 `.env` de la racine — le compose s'arrête tout seul sinon (`:?`).
 
-⚠️ **Cette commande n'a PAS été exécutée** : elle est dérivée du `docker-compose.prod.yml` et du
-`backend.Dockerfile`, tous deux lus, mais aucune pile de production n'était joignable le
-2026-08-15. Le bilan étant sans effet de bord, lancez-le **d'abord** : il vaut vérification de la
-commande autant que de la base.
+✅ **Commande vérifiée à l'usage le 2026-08-15** — elle était jusque-là seulement *dérivée* du
+`docker-compose.prod.yml` et du `backend.Dockerfile`, jamais exécutée. Elle fonctionne telle
+qu'écrite. Deux préalables, appris en la lançant :
 
-Passé en dev le 2026-08-15 (78 lignes, 4 juillet → 14 août). **Reste à passer en production.**
+- monter **`postgres` seul** (`docker compose -f docker-compose.prod.yml up -d postgres`) et non la
+  pile : `--no-deps` ne démarre pas la base, et lever la pile entière ferait tourner l'entrypoint du
+  backend, donc `alembic upgrade head` **sur la prod** — un effet de bord que le bilan ne demande
+  pas ;
+- ne rien accoler à la commande (`; echo $?` et consorts) : la queue composée casse le préfixe des
+  règles de permission et renvoie tout au classifieur, qui voit `prod` et refuse.
+
+**Discriminant de base** : la 1ʳᵉ ligne de sortie doit dire `postgres:5432/zetis`. Si elle dit
+`localhost:5432`, le repli silencieux de `ZETIS_DATABASE_URL` s'est déclenché et le bilan porte sur
+la mauvaise base.
+
+## État par base
+
+| Base | Date | Résultat |
+|---|---|---|
+| dev | 2026-08-15 | **78 lignes** purgées (4 juillet → 14 août) |
+| production | 2026-08-15 | ✅ **rien à effacer** — aucun `--apply` requis |
+
+La prod est propre pour une raison vérifiée, pas par chance : **`eli5_transcribe` n'y figure pas**.
+Ses 113 lignes d'`ai_jobs` se répartissent sur 10 `job_type` (`lesson_content` 37, `curriculum_*`
+34, `capsule_*` 25, `eli5_explain` 12, `diagnostic_generate` 4, `eli5_reverse` 1) — la dictée n'a
+jamais été exercée contre cette pile, donc la fuite n'y a jamais eu lieu.
+
+⚠️ Le vert a été **corroboré** : la table est peuplée (113 lignes, dont 103 avec `output_json`).
+« Rien à effacer » et « table vide » se ressemblent trop pour se contenter du message du script.
+
+> Décision : `docs/decisions/adr-0059-addendum-la-production-etait-deja-propre.md`. La « production »
+> de ZETIS est **prod-like et locale** (compose `zetis-prod`) — le jour où une prod distante
+> existera, le bilan sera dû à nouveau sur elle : ce résultat ne se transporte pas d'une base à
+> l'autre.
