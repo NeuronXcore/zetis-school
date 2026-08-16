@@ -1,3 +1,14 @@
+---
+id: "0051"
+titre: "Papa peut lire un diagnostic avant de le laisser passer"
+type: surface
+statut: propose
+date: 2026-08-11
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0051 — Papa peut lire un diagnostic avant de le laisser passer
 
 ## Statut

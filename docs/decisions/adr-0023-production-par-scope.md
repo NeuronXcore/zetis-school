@@ -1,3 +1,14 @@
+---
+id: "0023"
+titre: "Production de contenu par scope : extraire l'équipement et l'exposer depuis la Couverture"
+type: architecture
+statut: remplace
+date: 2026-08-02
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0007", "0009", "0011", "0021", "0022", "0031"]
+---
 # ADR-0023 — Production de contenu par scope : extraire l'équipement et l'exposer depuis la Couverture
 
 ## Statut

@@ -1,3 +1,14 @@
+---
+id: "0022"
+titre: "Missions croisées « champion » (multi-matières, multi-outils, verdict par notion)"
+type: surface
+statut: accepte
+date: 2026-07-06
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0010", "0017", "0018", "0020", "0021"]
+---
 # ADR-0022 — Missions croisées « champion » (multi-matières, multi-outils, verdict par notion)
 
 ## Statut

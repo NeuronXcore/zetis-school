@@ -1,3 +1,14 @@
+---
+id: "0006"
+titre: "Extension navigateur `zetis-clip` (capture de sources RAG, côté Papa)"
+type: surface
+statut: accepte
+date: 2026-07-01
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0006 — Extension navigateur `zetis-clip` (capture de sources RAG, côté Papa)
 
 ## Statut

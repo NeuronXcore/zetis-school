@@ -11,7 +11,7 @@ l'endpoint 202. Le modèle avant l'exécution qu'il trace — sinon la migration
 Protocole d'exécution : **`/slice`**. Il ne se répète pas ici.
 
 Décisions : `docs/decisions/adr-0031-production-en-lot-et-journal.md` (§3 exécution, §4 journal,
-§5 régulateur) et son **addendum** `adr-0031-addendum-deux-passes-et-gate-cours.md` (le gate du §7).
+§5 régulateur) et son **addendum** `adr-0031-production-en-lot-et-journal.md` (Amendement 1) (le gate du §7).
 
 > **Cette slice ne branche aucun bouton.** Elle rend la production exécutable et traçable. La
 > surface Papa et l'observation sont la slice C.

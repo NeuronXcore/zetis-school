@@ -6,7 +6,7 @@
 > sont ce qui reste à faire.
 >
 > Décisions : `adr-0034-journal-production-et-veto.md`,
-> `adr-0034-addendum-regime-et-destination.md`, `adr-0034-addendum-tri-et-filtre-du-journal.md`.
+> `adr-0034-journal-production-et-veto.md` (Amendement 1), `adr-0034-journal-production-et-veto.md` (Amendement 2).
 > **Maquette** : `mockup/maquette-papa-journal-tri-filtre.html` — deux états de la même page
 > (le filtre garde / le filtre ne garde rien), regardée et mesurée dans un navigateur.
 
@@ -250,7 +250,7 @@ dans `packages/types` — le chantier le matérialise en base, il ne l'ajoute pa
 
 ## `[0041-A]` ▶ CHANTIER — La ligne « Travail » dit ce qu'elle a produit
 
-> Addendum ADR-0041 (`adr-0041-addendum-le-travail-dit-ce-qu-il-a-produit.md`), maquette
+> Addendum ADR-0041 (`adr-0041-tout-ce-qui-produit-se-voit.md` (Amendement 1)), maquette
 > `mockup/mockup-papa-journal-travail-v1.html`. Cadré le 2026-08-09 à partir d'une observation à
 > l'écran : *« on n'arrive pas à savoir si les data ont été créées ou pas »*.
 

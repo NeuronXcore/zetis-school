@@ -6,7 +6,7 @@
 > avant même ce chantier.
 >
 > **Complétée le 2026-07-31** par l'addendum « **Accueil vivant** »
-> (`adr-0024-addendum-accueil-vivant.md`) : la page recomposée le matin était calme mais **pauvre**
+> (`adr-0024-zetis-galaxy-progression.md` (Amendement 2)) : la page recomposée le matin était calme mais **pauvre**
 > — hors la mission du jour, Massimo n'y lisait qu'une semaine de sept cases. S'ajoutent
 > **« Mon ciel »**, **« Mon chemin »** (la frise, qui revient) et **« Tes derniers gains »**.
 > Maquette : `mockup/mockup-page-accueil-v3.html`.
@@ -167,7 +167,7 @@ plus en bas, dans une colonne étroite à côté de « Ma semaine »). **Composi
 ciel, qui a sa propre bande. **Aucune superposition texte / graphe.**
 
 ⚠️ **La carte porte un ciel 3D depuis le 2026-07-31 au soir**
-(`adr-0024-addendum-galaxie-sur-accueil.md`, qui **révoque le §B** du matin). La galaxie s'y
+(`adr-0024-zetis-galaxy-progression.md` (Amendement 4), qui **révoque le §B** du matin). La galaxie s'y
 **construit étoile par étoile**, comme dans la modale et par le même hook (`useGalaxyGrowth`) —
 et elle **rejoue à chaque visite de la page** : une animation qui ne joue qu'une fois par session
 ne rend pas une page vivante.

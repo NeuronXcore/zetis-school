@@ -118,7 +118,7 @@ Cinq KPI, **cliquables** (`role="button"`, `aria-pressed`) : **Temps actif**, **
 (contrat existant, delta vs période précédente) et une **sparkline** de 12 points.
 
 > **« À renforcer »** (`weak` + `learning`) est arrivé le 2026-08-05 avec
-> `adr-0028-addendum-kpi-a-renforcer` : c'est le seul signal de **régression** du bandeau, et il ne
+> `adr-0028-dashboard-papa-agregat-unique` (Amendement 2) : c'est le seul signal de **régression** du bandeau, et il ne
 > vivait jusque-là que dans la barre empilée et la courbe ambre. Trois propriétés le distinguent
 > des quatre autres :
 >
@@ -221,7 +221,7 @@ cliquable = filtre. Matières à 0 min exclues du tracé.
 > geste doit se lire avant son effet.
 
 Les trois courbes historiques ont été remplacées par un sélecteur de quatre vues (addendum
-`adr-0028-addendum-memoire-quatre-vues`), pour deux défauts mesurés le 2026-08-05 :
+`adr-0028-dashboard-papa-agregat-unique` (Amendement 3)), pour deux défauts mesurés le 2026-08-05 :
 
 - **l'échelle était confisquée** — axe max 222 (fixé par `covered`), « à renforcer » à 5,8 % de la
   hauteur et « consolidées » à **0,45 %** : les deux courbes qu'on venait lire tenaient dans une
@@ -332,7 +332,7 @@ encore côté Papa et viole déjà cette règle sur deux pages : **ne pas s'en s
 
 ### 5 bis. Panneau d'analyse d'une matière — *à implémenter*
 
-> Cadré par `adr-0028-addendum-analyse-par-matiere` et `adr-0020-addendum-portee-matiere`
+> Cadré par `adr-0028-dashboard-papa-agregat-unique` (Amendement 1) et `adr-0020-conseil-de-classe-ia` (Amendement 1)
 > (2026-08-05). **Seconde exception** au §4 « zéro état de chargement », après le drill-down d'un
 > jour.
 
@@ -441,7 +441,7 @@ pointillée. Note : *« Un pic se lisse en avançant une révision, pas en la su
 
 ### Les deux cartes qui prennent le focus elles-mêmes (⌖)
 
-Addendum `adr-0028-addendum-cartes-focalisables`. Ces deux cartes sont les seules dont la mesure
+Addendum `adr-0028-dashboard-papa-agregat-unique` (Amendement 4). Ces deux cartes sont les seules dont la mesure
 n'est le sujet d'**aucun** des cinq KPI : `charge` n'était allumée que par 2 focus sur 5, `chaine`
 par **1 sur 5**, et aucun geste de la page ne pouvait les désigner. Elles ne pouvaient que
 s'éteindre.

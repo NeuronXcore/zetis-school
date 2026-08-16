@@ -1,3 +1,14 @@
+---
+id: "0002"
+titre: "Séparation frontends Massimo et Papa"
+type: architecture
+statut: accepte
+date: null
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0002 — Séparation frontends Massimo et Papa
 
 ## Statut

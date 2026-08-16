@@ -1132,7 +1132,7 @@ dette.
 **→ Addendum à l'ADR-0030 nécessaire.** Ne pas toucher le test-verrou sans lui : il existe
 précisément pour empêcher qu'on complète la liste « par symétrie apparente ».
 
-> ✅ **L'addendum EXISTE** : `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` (commit
+> ✅ **L'addendum EXISTE** : `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) (commit
 > `7ce2657`), livré avec la PR #100. Le texte ci-dessus est conservé comme trace du constat, pas
 > comme une tâche ouverte.
 >

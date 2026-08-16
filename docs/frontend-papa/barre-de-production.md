@@ -9,7 +9,7 @@
 >
 > Créée au cadrage du 2026-08-06. Met en œuvre `adr-0041`.
 > **Remplace la pastille de production** de `PapaLayout.tsx:83-118`, livrée avec
-> `adr-0036-addendum-file-sans-consommateur` — dont elle **conserve intégralement la doctrine**.
+> `adr-0036-demande-vers-production` (Amendement 2) — dont elle **conserve intégralement la doctrine**.
 >
 > Maquette de référence : `docs/frontend-papa/mockup/maquette-papa-barre-production.html`.
 

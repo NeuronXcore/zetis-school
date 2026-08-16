@@ -1,3 +1,14 @@
+---
+id: "0012"
+titre: "STT (dictée) via Whisper local pour ELI5"
+type: mesure
+statut: accepte
+date: 2026-07-04
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0008", "0009"]
+---
 # ADR-0012 — STT (dictée) via Whisper local pour ELI5
 
 - Statut : Accepté

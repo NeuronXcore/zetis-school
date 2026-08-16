@@ -151,7 +151,7 @@ Et      : [Lacune ouverte 3] [Sans mission active 17]   Trier : [Notion] [Matiè
 - **Les compteurs des pastilles portent sur l'année entière, jamais sur la sélection.** Même
   doctrine que les boutons de `/lacunes`, qui annoncent le compte réel de ce qu'ils vont créer.
 - **Recherche locale et lexicale**, accents pliés, réponse à la frappe, **zéro requête** (patron
-  `adr-0024-addendum-page-matiere-index-notions`). La recherche sémantique reste au chat.
+  `adr-0024-zetis-galaxy-progression` (Amendement 6)). La recherche sémantique reste au chat.
 
 ### Colonnes
 
@@ -278,7 +278,7 @@ Matière : [Toutes] [Français] …
 
 ### Les compteurs sont dérivés du journal affiché
 
-C'est l'invariant « le détail recompose le nombre » (`adr-0038-addendum-progression-agit` §2),
+C'est l'invariant « le détail recompose le nombre » (`adr-0038-les-preuves-menent-quelque-part` (Amendement 1) §2),
 transposé de la ligne à la fenêtre. Aucun compteur n'est servi à part.
 
 **Corollaire testable** : sur une fenêtre de 90 jours, le compte des bascules est **identique** à

@@ -1,3 +1,14 @@
+---
+id: "0056"
+titre: "La file cesse d'enterrer ce qu'il vient d'écrire"
+type: surface
+statut: propose
+date: 2026-08-14
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0056 — La file cesse d'enterrer ce qu'il vient d'écrire
 
 ## Statut

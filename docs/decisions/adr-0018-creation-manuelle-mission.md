@@ -1,3 +1,14 @@
+---
+id: "0018"
+titre: "Création manuelle de mission (« Commander ») : contrat et résolution des notions"
+type: surface
+statut: accepte
+date: 2026-07-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0009", "0010", "0011", "0017"]
+---
 # ADR-0018 — Création manuelle de mission (« Commander ») : contrat et résolution des notions
 
 ## Statut

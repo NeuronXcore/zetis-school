@@ -1761,7 +1761,7 @@ trois routes.
 
 **Une passe agrégée, sept requêtes, quel que soit le volume** — aucun N+1, aucune pagination,
 **aucun paramètre de période**. Filtres, tri, recherche et bascule de vue sont **client, zéro
-requête** (patron `adr-0024-addendum-page-matiere-index-notions`). Un test compare deux volumes et
+requête** (patron `adr-0024-zetis-galaxy-progression` (Amendement 6)). Un test compare deux volumes et
 chiffre l'écart s'il rougit.
 
 ⚠️ **`since` n'est PAS un `int | null`** (`adr-0040` §7) : quatre états, dont **DEUX `unknown`
@@ -1808,8 +1808,8 @@ même règle que l'écrasement de `recent_evolution` (Lot 0).
 ### GET `/api/parent/progress/subjects/{subject_id}/analysis`
 
 Ce que l'agrégat du dashboard ne peut pas porter, pour UNE matière : des **NOMS**. Chargée
-paresseusement au dépliage d'un panneau (`adr-0028-addendum-analyse-par-matiere`) puis d'une ligne
-de Progression (`adr-0038-addendum-progression-agit`). Lecture seule, **sans LLM** — *l'analyse est
+paresseusement au dépliage d'un panneau (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1)) puis d'une ligne
+de Progression (`adr-0038-les-preuves-menent-quelque-part` (Amendement 1)). Lecture seule, **sans LLM** — *l'analyse est
 l'évidence, le Conseil est la narration*.
 
 ⚠️ **Aucun paramètre de période** : tout ce qui est fenêtré vit déjà dans `SubjectOut`. C'est ce qui
@@ -2495,7 +2495,7 @@ pour un objet décoratif.
 🔴 **`diagnostic` est une EXCEPTION NOMMÉE, et la seule.** Il compte les diagnostics relus que
 Massimo n'a pas passés, donc il **meurt du TRAVAIL** et non d'un regard : colonne interdite de la
 règle ci-dessous, ouverte par décision du commanditaire et bornée par
-`adr-0030-addendum-temoin-diagnostic.md`. ⚠️ Il **passe** le test du §1 (aucune date ne le fait
+`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1). ⚠️ Il **passe** le test du §1 (aucune date ne le fait
 bouger) : ce n'est donc pas ce test qui l'a autorisé. Avant d'ajouter une clé, poser les **deux**
 questions — de quoi elle naît, **et de quoi elle meurt**.
 

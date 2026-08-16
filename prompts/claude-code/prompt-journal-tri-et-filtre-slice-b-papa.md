@@ -11,7 +11,7 @@ filtre, le 3 le tri. Les mélanger empêcherait de voir que la pagination marcha
 
 Protocole d'exécution : **`/slice`**. Il ne se répète pas ici.
 
-Décisions : `docs/decisions/adr-0034-addendum-tri-et-filtre-du-journal.md`. Spec :
+Décisions : `docs/decisions/adr-0034-journal-production-et-veto.md` (Amendement 2). Spec :
 `docs/frontend-papa/page-journal.md` — **la section « ▶ CHANTIER » est le contrat**, y compris ses
 libellés.
 

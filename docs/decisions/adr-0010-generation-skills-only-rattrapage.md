@@ -1,3 +1,14 @@
+---
+id: "0010"
+titre: "Génération « skills-only » pour un niveau antérieur (rattrapage)"
+type: surface
+statut: accepte
+date: 2026-07-03
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0010 — Génération « skills-only » pour un niveau antérieur (rattrapage)
 
 ## Statut
