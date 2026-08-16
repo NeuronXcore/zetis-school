@@ -15,7 +15,8 @@ refs: ["0002", "0011", "0024", "0025", "0031", "0032", "0038", "0043", "0044", "
 ## Statut
 
 Proposé — 2026-08-16. **N'amende aucune décision produit.** Il amende la **méthode** :
-`docs/WORKFLOW.md` §2 (le rituel de cadrage) et §7 (le garde-fou méta).
+`docs/WORKFLOW.md` §2 (le rituel de cadrage), **§2bis** (le geste git — « deux sessions, pas
+une »), **§6.1** (le texte-type d'ouverture) et §7 (le garde-fou méta).
 
 > **Rédaction révisée le jour même — v1 commitée en `380d4d1`, v2 quelques heures plus tard.**
 > La première version ne posait que **deux** cas — décision et surface — et le premier usage réel
@@ -192,10 +193,28 @@ modifié pour passer*.
 
 ## Périmètre
 
-**Dans :** `docs/WORKFLOW.md` §2 et §7 · `.claude/commands/cadrage.md` (les quatre questions en
-première ligne) · `.claude/commands/ouverture.md` (un chantier `chore/` — cas 1 — est dispensé
-d'ADR, et un chantier d'**application** — cas 2 — l'est aussi à condition de **citer** l'ADR qu'il
-exécute) · `CLAUDE.md` (la liste des commandes, qui ignore `/cadrage` depuis sa création).
+**Dans**, et la liste a été corrigée par un read-before-code — voir l'encadré ci-dessous :
+
+| Cible | Ce qui y change |
+|---|---|
+| `docs/WORKFLOW.md` **§2** | le rituel de cadrage — les quatre cas |
+| `docs/WORKFLOW.md` **§2bis** | 🔴 *« Deux sessions, pas une »* et le tableau « ADR → `main`, **avant** la branche ». **C'est le texte que cet ADR renverse pour la surface** |
+| `docs/WORKFLOW.md` **§6.1** | le texte-type d'ouverture — il doit porter la ligne de déclaration du §4 |
+| `docs/WORKFLOW.md` **§7** | le garde-fou méta, qui gagne enfin un critère |
+| `.claude/commands/cadrage.md` | les quatre questions, en première ligne |
+| `.claude/commands/ouverture.md` | un chantier `chore/` (cas 1) est dispensé d'ADR ; un chantier d'**application** (cas 2) l'est aussi, **à condition de citer** l'ADR qu'il exécute. ⚠️ Son encadré d'en-tête répète la doctrine « le cadrage est une session à part » — il tombe sous la même correction que le §2bis |
+| `CLAUDE.md` | la liste des commandes, qui ignore `/cadrage` depuis sa création |
+
+> ⚠️ **§2bis et §6.1 ont été ajoutés le 2026-08-16, après coup.** La rédaction initiale ne nommait
+> que §2 et §7 : elle avait identifié la *doctrine* à changer sans repérer **où elle est écrite**.
+> Or la phrase qui porte réellement la contrainte — *« un ADR écrit dans la session qui code cesse
+> d'être une contrainte pour devenir une justification »* — vit au **§2bis**, que cet ADR cite
+> pourtant deux fois : une au §Contexte, une au §2 de sa propre Décision. Appliquer le périmètre
+> à la lettre aurait laissé `WORKFLOW.md` affirmant deux choses opposées.
+>
+> **Le motif vaut d'être gardé** : il ne suffit pas de nommer la règle qu'on amende, il faut
+> ouvrir le fichier et trouver la ligne. C'est le read-before-code appliqué à la méthode
+> elle-même — et c'est un `grep` qui l'a vu, pas une relecture.
 
 **Hors :** les 59 décisions existantes — aucune n'est reclassée rétroactivement. Le classement
 `type:` du front-matter est indicatif, il ne rejuge rien. La réorganisation du registre
