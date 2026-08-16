@@ -349,7 +349,7 @@ def test_create_champion_requires_two_subjects(client_db) -> None:
 
 
 # ==================================================================================================
-# Portée matière (adr-0020-addendum-portee-matiere)
+# Portée matière (adr-0020-conseil-de-classe-ia (Amendement 1))
 # ==================================================================================================
 
 

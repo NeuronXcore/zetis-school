@@ -41,8 +41,29 @@ modifié sur une branche.
 
 | Lot | Fichiers | Où | Quand |
 |---|---|---|---|
-| **Décision** | l'ADR (ou l'addendum) · `DECISIONS.md` · `MEMORY.md` · `BACKLOG.md` si besoin | **`main`** | **maintenant**, avant `/ouverture` |
+| **Décision** | l'ADR · `DECISIONS.md` **régénéré** · `MEMORY.md` · `BACKLOG.md` si besoin | **`main`** | **maintenant**, avant `/ouverture` |
 | **Exécution** | spec de page · maquettes · prompts | la **branche** | c'est `/ouverture` qui la crée |
+
+🔴 **`DECISIONS.md` ne s'écrit PLUS à la main — il se RÉGÉNÈRE** (depuis la PR #136). Son en-tête le
+dit : *« Fichier généré. Ne pas éditer à la main. »* Écris l'ADR, puis lance :
+
+```bash
+python3 scripts/gen_frontmatter.py docs/decisions --write
+python3 scripts/gen_decisions_index.py docs/decisions DECISIONS.md --write
+bash scripts/check_adr_refs.sh                                  # doit sortir en 0
+```
+
+⚠️ **Relis le front-matter généré avant de me le rendre**, deux pièges y sont connus : tout ADR
+absent de la liste `ARCHITECTURE` de `gen_frontmatter.py` est classé **`type: surface`** — un ADR de
+méthode doit y être **ajouté** — et le champ `pr:` est **faux** dès que l'ADR **cite** une PR dans
+sa prose (il attrape la première rencontrée).
+
+🔴 **Ne cadre QUE le cas 3 de l'`adr-0060`** — décision neuve, reconnaissable à *« il y a une
+migration »* ou *« l'annulation coûte plus d'un commit »*. Un **rangement** (cas 1) et une
+**application** (cas 2) ne se cadrent pas : il n'y a rien à décider, ils partent directement sur
+leur branche. Une **surface** (cas 4) s'écrit **après** l'écran, pas avant. **Si le chantier
+demandé n'est pas un cas 3, dis-le et arrête-toi** : écrire un ADR qui n'est pas dû, c'est
+fabriquer une décision là où il n'y a qu'une dette.
 
 ⚠️ **Le lot Décision se committe AVANT d'appeler `/ouverture`**, sinon la commande suivante bute
 sur ce qu'on vient d'écrire.

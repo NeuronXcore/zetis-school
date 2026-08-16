@@ -4,8 +4,8 @@
 
 **Décisions de référence** — à lire **avant** toute écriture de code :
 
-- `docs/decisions/adr-0024-addendum-galaxie-animee.md` (slice A)
-- `docs/decisions/adr-0029-addendum-construction-depuis-root.md` (slice B)
+- `docs/decisions/adr-0024-zetis-galaxy-progression.md` (Amendement 3) (slice A)
+- `docs/decisions/adr-0029-rejeu-anime-galaxie.md` (Amendement 1) (slice B)
 - `docs/frontend-massimo/mockup/mockup-page-galaxy-animations-v1.html` — **la maquette fait foi
   pour le rythme et l'ordre**, pas pour le rendu (elle est en 2D ; le rendu reste `GalaxyCanvas`).
 

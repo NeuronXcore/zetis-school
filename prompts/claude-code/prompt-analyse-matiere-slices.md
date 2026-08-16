@@ -1,6 +1,6 @@
 # Chantier « analyse par matière » — prompts de slices
 
-> Cadrage : `adr-0028-addendum-analyse-par-matiere` + `adr-0020-addendum-portee-matiere`
+> Cadrage : `adr-0028-dashboard-papa-agregat-unique` (Amendement 1) + `adr-0020-conseil-de-classe-ia` (Amendement 1)
 > (2026-08-05). Spec : `docs/frontend-papa/page-dashboard.md §5 bis`.
 > Branche : `feat/analyse-matiere`, depuis `main`.
 >

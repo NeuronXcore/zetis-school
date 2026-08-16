@@ -138,7 +138,7 @@ de `Gap` (mauvais score à un quiz de fin de cours, sans diagnostic), et une lac
 ouverte alors que la maîtrise est repassée à `solid`. Les deux mesures n'ont **aucune raison
 d'être égales** — relevé en base de dev le 2026-08-05 : **13** notions à renforcer pour **1**
 lacune ouverte. Les fondre sous un mot unique a déjà coûté un bug
-(`adr-0028-addendum-analyse-par-matiere`), puis un affichage de « 1 » à côté de « 9 » sur le même
+(`adr-0028-dashboard-papa-agregat-unique` (Amendement 1)), puis un affichage de « 1 » à côté de « 9 » sur le même
 écran (`dashboardDerive.ts:276`).
 
 ## Lacune ouverte

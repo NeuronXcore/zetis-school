@@ -7,10 +7,55 @@ Scripts utilitaires (setup, seed DB, backups).
 | `dev.sh` | lance la pile de développement |
 | `with-worker.sh` | enveloppe une commande en garantissant le worker RQ |
 | `bench_llm.py` | compare vitesse et qualité des moteurs sur les vrais prompts (ADR-0008) |
-| `reorder_decisions.py` | remet `DECISIONS.md` en ordre |
 | `purge_chat_verbatim.py` | efface les mots dictés restés dans `ai_jobs` (ADR-0059 §18) |
 | `check_migration_drift.py` | mesure l’écart entre la révision d’une base et la tête du dépôt |
 | `bench_stt_beam.py` | compare les réglages de décodage de la dictée sur les mêmes énoncés |
+| `adr_lib.py` | **lit** le registre ADR (titre, statut, date, PR, renvois) — partagé, ne devine rien |
+| `reorder_decisions.py` | remet `DECISIONS.md` en ordre — *obsolète depuis que l'index est généré* |
+| `fusion_addendums.py` | fusionne chaque addendum dans son parent (`## Amendement N`) |
+| `gen_frontmatter.py` | pose le front-matter YAML en tête de chaque ADR |
+| `gen_decisions_index.py` | régénère `DECISIONS.md` — un index, pas une seconde copie |
+| `redirige_renvois_addendums.py` | redirige vers son parent tout renvoi désignant un addendum supprimé |
+| `check_adr_refs.sh` | verrou : tout `ADR-00XX` cité doit correspondre à un fichier |
+
+## Le registre ADR — six scripts, un ordre imposé
+
+Le rangement du 2026-08-16 a ramené le registre de **105 à 60 fichiers** (un ADR = un fichier) et
+`DECISIONS.md` de **1180 à 89 lignes**. Les scripts restent utiles après coup : ils sont tous
+**idempotents** et **refusent d'écrire** si leur garantie n'est pas tenue.
+
+🔴 **L'ordre n'est pas un confort.** Un front-matter posé avant la fusion s'y ferait absorber : il
+n'est ni un titre ni un H1, la garantie le compte « ligne perdue » et le script refuse d'écrire.
+
+```bash
+python3 scripts/fusion_addendums.py docs/decisions              # rapport seul
+python3 scripts/fusion_addendums.py docs/decisions --write
+python3 scripts/gen_frontmatter.py docs/decisions --write
+python3 scripts/gen_decisions_index.py docs/decisions DECISIONS.md --write
+python3 scripts/redirige_renvois_addendums.py --write           # après la fusion, jamais avant
+bash scripts/check_adr_refs.sh                                  # doit sortir en 0
+```
+
+**Chacun rend son rapport sans `--write`.** Toujours lire le rapport avant d'appliquer.
+
+⚠️ **`check_adr_refs.sh` ne teste QUE `ADR-\d{4}`, jamais un chemin de fichier.** Il reste vert sur
+un renvoi qui désigne un fichier supprimé par son nom — c'est précisément ce que
+`redirige_renvois_addendums.py` répare, et ce que le verrou **ne sait pas voir**. Après toute
+suppression ou tout renommage d'un fichier ADR, balayer en plus :
+
+```bash
+grep -rhoE '(docs/decisions/)?adr-[0-9]{4}-[a-z0-9-]+(\.md)?' --include='*.md' --include='*.py' --include='*.ts' --include='*.tsx' . | sort -u
+```
+
+⚠️ **`ORDRE_DECLARE` (`fusion_addendums.py`) n'est pas un réglage, c'est un registre.** Il porte le
+rang que chaque addendum **déclare lui-même**, avec sa citation. Le tri `(date, nom de fichier)`
+qu'il remplace plaçait le **révoquant avant le révoqué** sur 4 groupes de dates ex-æquo sur 8. Ses
+clés sont des noms de fichiers **supprimés** : ne pas les « réparer ».
+
+⚠️ **`revoque:` et `revoque_par:` restent vides**, à dessein. Les candidats sont extraits
+mécaniquement dans `docs/decisions/annexes/rapport-revocations.md` — ce sont des candidats, pas des
+faits ; les reporter à la main. Et **aucun statut ne se promeut tout seul** : *livré* est un fait,
+*ratifié* est un geste humain (`docs/decisions/annexes/statuts-en-attente-2026-08-06.md`).
 
 ## `purge_chat_verbatim.py` — à passer sur chaque base
 

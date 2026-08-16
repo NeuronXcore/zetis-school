@@ -1,3 +1,14 @@
+---
+id: "0047"
+titre: "La page Lacunes permet d'agir"
+type: surface
+statut: accepte
+date: 2026-08-09
+pr: 101
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0042"]
+---
 # ADR-0047 — La page Lacunes permet d'agir
 
 ## Statut

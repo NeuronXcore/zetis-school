@@ -21,7 +21,7 @@ export interface NavItem {
    *  🔴 **UNE EXCEPTION, UNE SEULE, ET ELLE EST NOMMÉE.** `/diagnostic` porte un témoin qui meurt
    *  du **TRAVAIL** : il compte les diagnostics relus par Papa que Massimo n'a pas encore passés.
    *  Il tombe donc dans la colonne interdite, **par décision du commanditaire** prise après que
-   *  l'objection lui a été exposée et réaffirmée — `adr-0030-addendum-temoin-diagnostic.md`, qui
+   *  l'objection lui a été exposée et réaffirmée — `adr-0030-temoins-nouveaute-navigation.md` (Amendement 1), qui
    *  porte cinq bornes opposables (dont : le compteur ne compte que du RELU, Papa restant le
    *  robinet, et aucun décompte de jours, interdiction NON amendée).
    *  Ne pas en déduire qu'un compteur de non-faits est désormais recevable ailleurs.
@@ -34,18 +34,18 @@ export interface NavItem {
    *    entrée »~~. Le motif rangeait le **cours** avec ses **DÉRIVÉS** : fiche, capsule, mindmap et
    *    carte sont produites *à partir* du cours (ADR-0011), le cours est l'original, et c'est le
    *    seul objet dont l'arrivée n'avait aucune entrée. Le témoin ne compte QUE le cours, donc il
-   *    ne double rien (`adr-0030-addendum-temoin-matieres`).
+   *    ne double rien (`adr-0030-temoins-nouveaute-navigation` (Amendement 2)).
    *  - **Quiz** — ~~« la table `quizzes` n'a pas de `validation_status` »~~ (faux depuis
    *    `a9b0c1d2e3f4`), puis ~~« seul le DIAGNOSTIC est gaté (ADR-0043), donc aucun moment ça
    *    arrive » (ADR-0044 §7)~~. Ce second motif **reste vrai** — et la décision ne le contredit
    *    pas, elle passe par-dessus : le §1 dit « naît d'un geste de Papa ou **DU SYSTÈME** », et un
    *    quiz produit par le worker est un contenu qui arrive. Ce témoin naît d'une **PRODUCTION**,
    *    pas d'une validation — donc **Papa n'en est pas le robinet**
-   *    (`adr-0030-addendum-temoin-quiz`, borne 4, écrite pour être surveillée).
+   *    (`adr-0030-temoins-nouveaute-navigation` (Amendement 4), borne 4, écrite pour être surveillée).
    *  - **ELI5** — ~~« a bien un `new_count`, mais c'est un critère de RÉCENCE (leçon créée dans les
    *    7 jours) : il décroîtrait tout seul »~~. La règle reste vraie et ce compteur-là reste
    *    inéligible : on ne l'a pas réutilisé, **on a payé la table** (`eli5_views`). Le §2 en sort
-   *    renforcé (`adr-0030-addendum-temoin-eli5`).
+   *    renforcé (`adr-0030-temoins-nouveaute-navigation` (Amendement 3)).
    *
    *  Les absences qui restent : Accueil, Ma Galaxie et Chat n'ont ni trace de vue ni contenu
    *  entrant. Elles sont désormais tenues par une **PARTITION TOTALE** dans `navigation.test.ts` —

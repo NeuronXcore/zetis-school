@@ -1,3 +1,14 @@
+---
+id: "0044"
+titre: "La page Diagnostic de Massimo propose au lieu de lister"
+type: surface
+statut: accepte
+date: 2026-08-08
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0044 — La page Diagnostic de Massimo propose au lieu de lister
 
 ## Statut
@@ -28,7 +39,7 @@ squash `6642a30`, les **trois sessions** du prompt
 `CHANGELOG.md` **0.60.1** — la **zone C**, créée par cet ADR, s'écrasait sur un téléphone
 (PR [#101](https://github.com/NeuronXcore/zetis-school/pull/101)).
 
-> 🔴 **La Décision 7 est RÉVOQUÉE** par `adr-0030-addendum-temoin-diagnostic.md` (commit `7ce2657`),
+> 🔴 **La Décision 7 est RÉVOQUÉE** par `adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) (commit `7ce2657`),
 > écrit le même jour, **sur décision du commanditaire après objection exposée et réaffirmée** :
 > l'entrée « 🧭 Diagnostic » de la sidebar de Massimo porte finalement un **témoin numérique** qui
 > s'éteint par le **travail** et non par le regard — exception assumée à « NOUVEAU jamais DÛ ».
@@ -243,7 +254,7 @@ garantit qu'aucun résultat de mesure ne peut fuir dans la formulation.
 ### 7. Diagnostic reste SANS témoin de nouveauté — et les deux motifs écrits sont corrigés
 
 > 🔴 **RÉVOQUÉE le 2026-08-08, le jour même**, par
-> `adr-0030-addendum-temoin-diagnostic.md` : décision du **commanditaire**, prise après que
+> `adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) : décision du **commanditaire**, prise après que
 > l'objection lui a été exposée et **réaffirmée**. Diagnostic reçoit un témoin **numérique** qui
 > s'éteint **au passage** du diagnostic, donc par le travail — une **exception assumée** à la règle
 > « NOUVEAU jamais DÛ », nommée et bornée dans l'addendum.

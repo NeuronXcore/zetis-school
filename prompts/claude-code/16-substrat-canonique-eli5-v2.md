@@ -16,7 +16,7 @@ Lance d'abord `graphify update .`, puis lis, dans cet ordre, avant toute ligne d
 
 1. `CLAUDE.md` ;
 2. `docs/decisions/adr-0011-contexte-canonique-partage.md` EN ENTIER — c'est la spec ;
-   son addendum de dépendance `adr-0009-addendum-cours-canonique.md` §A/§B/§C ;
+   son addendum de dépendance `adr-0009-referentiel-programme-scolaire.md` (Amendement 1) §A/§B/§C ;
 3. `DATA_MODEL.md` : `Lesson`, `LessonSkill`, règle métier « Cours canonique » ;
 4. Le CODE réel, sans rien supposer :
    - modèles `Lesson`, `LessonSkill`, `Skill` (formes exactes) ;

@@ -1,3 +1,14 @@
+---
+id: "0045"
+titre: "La page Diagnostic de Papa montre ce qu'elle annonce"
+type: surface
+statut: accepte
+date: 2026-08-08
+pr: 99
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0045 — La page Diagnostic de Papa montre ce qu'elle annonce
 
 ## Statut
@@ -178,7 +189,7 @@ décroît que par le travail et grossit quand Massimo ne vient pas (`CLAUDE.md` 
 « NOUVEAU jamais DÛ » de l'`adr-0030`). La date de proposition est déjà affichée — elle dit le même
 fait sans le transformer en dette.
 
-⚠️ Le témoin de sidebar de l'`adr-0030-addendum-temoin-diagnostic` est une **exception nommée et
+⚠️ Le témoin de sidebar de l'`adr-0030-temoins-nouveaute-navigation` (Amendement 1) est une **exception nommée et
 bornée**, sur l'interface de Massimo. Elle ne s'étend pas ici, et l'addendum le dit.
 
 ### (e) Un endpoint qui sert les populations filtrées — écartée

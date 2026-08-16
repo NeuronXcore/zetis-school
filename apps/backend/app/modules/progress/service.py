@@ -40,7 +40,7 @@ def active_missions(db: Session, *, student_id: int, subject_id: int | None = No
     """Missions `planned|active`, TOUS types confondus. Optionnellement bornées à une matière.
 
     SOURCE UNIQUE de « une mission couvre déjà cette notion » : `skills_with_active_mission` en
-    dérive, et le panneau d'analyse d'une matière (`adr-0028-addendum-analyse-par-matiere`) affiche
+    dérive, et le panneau d'analyse d'une matière (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1)) affiche
     exactement ces lignes.
 
     ⚠️ **Aucun filtre `validation_status`**, contrairement à `missions.pilot.pilot_list` qui exige

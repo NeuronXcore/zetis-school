@@ -15,7 +15,7 @@ Trois écrans, route `/eli5` inchangée, **moteur ELI5 (explain/reverse, badge) 
    badge « ✨ new » si des notions ont été fraîchement ajoutées (`new_count`), matière à 0 →
    <!-- ⚠️ Ce `new_count` est un critère de RÉCENCE (leçon porteuse créée dans les 7 jours). Il
    reste ICI, en page, et il n'est PAS le témoin de navigation : celui-ci compte les notions
-   jamais expliquées, adossé à `eli5_views` (`adr-0030-addendum-temoin-eli5`, 2026-08-15). Deux
+   jamais expliquées, adossé à `eli5_views` (`adr-0030-temoins-nouveaute-navigation` (Amendement 3), 2026-08-15). Deux
    compteurs, deux objets, aucune fusion. -->
    atténuée « bientôt ✨ » mais toujours cliquable. Deck spécial « ✨ Question libre » en tête.
    En-tête : **emblème animé** (symboles de complexité en orbite autour de l'ampoule 💡 qui fait

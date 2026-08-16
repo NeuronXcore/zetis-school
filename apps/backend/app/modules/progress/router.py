@@ -59,7 +59,7 @@ def skills_index(db: Session = Depends(get_db)) -> dict:
 
     **Une passe agrégée**, un nombre de requêtes CONSTANT (sept), aucun N+1, aucune pagination et
     **aucun paramètre de période** : filtres, tri, recherche et bascule de vue sont client, zéro
-    requête. Patron `adr-0024-addendum-page-matiere-index-notions`.
+    requête. Patron `adr-0024-zetis-galaxy-progression` (Amendement 6).
 
     ⚠️ Cette route était documentée dans `API_SPEC.md` sous un avertissement « JAMAIS
     implémentée » ; elle en sort en étant écrite. Les trois autres de cette section n'existent

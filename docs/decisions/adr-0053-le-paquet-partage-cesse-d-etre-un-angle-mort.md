@@ -1,3 +1,14 @@
+---
+id: "0053"
+titre: "Le paquet partagé cesse d'être un angle mort"
+type: surface
+statut: propose
+date: 2026-08-12
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0053 — Le paquet partagé cesse d'être un angle mort
 
 ## Statut

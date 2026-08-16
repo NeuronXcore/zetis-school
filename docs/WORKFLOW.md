@@ -17,13 +17,33 @@ dans le dépôt, pas dans le contexte de l'agent.**
 
 ## 2. La boucle, par chantier (un seul à la fois)
 
-1. **Cadrer** — rituel de cadrage : **décisions (ADR) et exploration (maquette)** d'abord —
-   l'ordre entre les deux varie selon le chantier (la maquette peut précéder l'ADR quand elle
-   sert à décider, l'ADR précède quand la décision commande la forme) — puis la **spec**
-   (jamais avant la maquette qu'elle référence), puis le **prompt** (toujours en dernier).
-   Côté Papa : références Mobbin en amont de la maquette. Chaque décision est écrite *avant*
-   la moindre ligne. *Pourquoi :* une décision figée ne se re-discute pas à chaque session,
-   l'agent la relit au lieu de la rouvrir. Le cadrage se rembourse 10× en exécution.
+1. **Cadrer — mais d'abord, savoir DE QUEL CAS il s'agit.** 🔴 **Tous les chantiers ne se cadrent
+   pas de la même façon**, et la version précédente de ce paragraphe l'ignorait : elle exigeait
+   qu'« une décision soit écrite avant la moindre ligne », ce qui est vrai d'**un** cas sur quatre.
+   L'**`adr-0060`** pose les quatre, **dans un ordre** — la première réponse « oui » tranche :
+
+   | # | Question | Cas | ADR |
+   |---|---|---|---|
+   | **1** | **Rien n'est décidé** — on remet de la documentation ou de l'outillage au réel ? | **Rangement** (`chore/`) | **Aucun** |
+   | **2** | La règle **existe déjà**, et on la fait respecter là où elle ne l'était pas ? | **Application** (`fix/`) | **Aucun** — on **cite** celui qui la porte |
+   | **3** | Y a-t-il une **migration** ? Ou l'annulation coûte-t-elle **plus d'un commit** ? | **Décision neuve** (`feat/`) | **AVANT** le code |
+   | **4** | Sinon — rendu, libellé, gabarit, ordre d'affichage | **Surface** (`feat/`) | **APRÈS** l'écran regardé |
+
+   ⚠️ **Le cas 2 est celui qu'on rate** : un chantier qui touche une frontière *ressemble* à une
+   décision. Poser `require_child` sur une route qui l'avait perdue n'est pas décider, c'est
+   **exécuter** l'ADR-0002. Sa seule contrainte est la **citation** — un chantier d'application qui
+   ne nomme pas l'ADR qu'il exécute est une décision déguisée.
+
+   **Dans le cas 3 seulement**, le rituel complet s'applique : **décisions (ADR) et exploration
+   (maquette)** d'abord — l'ordre entre les deux varie (la maquette précède quand elle sert à
+   décider, l'ADR précède quand la décision commande la forme) — puis la **spec** (jamais avant la
+   maquette qu'elle référence), puis le **prompt** (toujours en dernier). Côté Papa : références
+   Mobbin en amont de la maquette. *Pourquoi :* une décision figée ne se re-discute pas à chaque
+   session, l'agent la relit au lieu de la rouvrir. Le cadrage se rembourse 10× en exécution.
+
+   **Dans le cas 4**, l'ADR est un **compte rendu écrit après l'écran**, et il porte
+   obligatoirement une section « **ce que l'écran a démenti** ». Si elle est vide, la relecture
+   visuelle n'a pas eu lieu et l'ADR n'est pas écrivable.
 2. **Isoler** — mono-chantier + branche dédiée + un **hors-périmètre explicite** dans le
    prompt (geste git complet : §2bis). *Pourquoi :* le mode d'échec n°1 d'un agent est la
    dérive (« tant qu'on y est… »). Le hors-périmètre est une clôture, pas une correction
@@ -38,15 +58,48 @@ dans le dépôt, pas dans le contexte de l'agent.**
    le diff, tu vérifies que le périmètre a tenu. *Pourquoi :* c'est la seule étape non
    délégable. Point critique récurrent : la **non-régression** (un test existant *modifié* pour
    passer = régression masquée).
+
+   **Deux filets automatisent le PREMIER TIERS de cette étape — et rien d'autre :**
+
+   | Filet | Où | Portée |
+   |---|---|---|
+   | `hooks/pre-push` | local, installé par `ln -sf ../../hooks/pre-push .git/hooks/pre-push` | refuse le push si une suite est rouge · contournable par `--no-verify` |
+   | `.github/workflows/ci.yml` | sur chaque PR et chaque push sur `main` | les 3 suites + les verrous du dépôt |
+
+   🔴 **Un push vert ou une CI verte ne disent RIEN du diff ni du périmètre.** Le vert est une
+   condition **nécessaire** ; il n'a jamais été suffisante. Les deux tiers restants sont à toi.
+
+   ⚠️ **Un test vert sur ta machine ne prouve pas qu'il est autonome.** Le 2026-08-16, deux tests
+   d'authentification exigeaient un PostgreSQL vivant sans que rien ne le dise — ils passaient
+   **parce que `docker compose` tournait à côté**. Un venv neuf n'y change rien : il isole les
+   **dépendances Python**, pas les **services réseau**. Pour le prouver, **couper le service** :
+
+   ```bash
+   ZETIS_DATABASE_URL="postgresql+psycopg://x:x@127.0.0.1:59999/nope" python -m pytest -q
+   ```
 5. **Mémoriser** — l'agent écrit la reprise (`MEMORY.md`) **pendant qu'il est lucide**, puis
    commit. *Pourquoi :* pour que la doc voyage *dans* le commit. La conversation est volatile,
    le dépôt est permanent.
-6. **Intégrer** — PR → revue du diff → merge → `git pull` sur `main` → **remettre `MEMORY.md` au
-   réel** → chantier suivant depuis un `main` à jour. *Pourquoi la PR même en solo :* c'est la
-   porte de revue matérialisée, *avant* que le code n'entre dans `main`. *Pourquoi `MEMORY.md`
-   ici :* il a été écrit à l'étape 5, donc **avant** le merge — il annonce encore une branche
-   vivante et des commits à pousser. C'est arrivé **deux fois** (`8618b78`, `c16719c`), et à
+6. **Intégrer** — PR → revue du diff → **merge en squash** → `git pull` sur `main` → **remettre
+   `MEMORY.md` au réel** → chantier suivant depuis un `main` à jour. *Pourquoi la PR même en solo :*
+   c'est la porte de revue matérialisée, *avant* que le code n'entre dans `main`. *Pourquoi
+   `MEMORY.md` ici :* il a été écrit à l'étape 5, donc **avant** le merge — il annonce encore une
+   branche vivante et des commits à pousser. C'est arrivé **deux fois** (`8618b78`, `c16719c`), et à
    chaque fois la session suivante a failli refaire du travail déjà fait.
+
+   ⚠️ **Le squash n'est pas un détail de goût.** Une branche peut porter des commits hérités d'une
+   session précédente, jamais relus dans celle qui merge — c'est arrivé sur la PR #136, qui en
+   portait trois.
+
+   🔴 **Avant de supprimer la branche, comparer au SQUASH, jamais à la tête de `main`.** Après le
+   merge, `main` avance (l'étape 4bis ci-dessous), et `git diff main <branche>` affiche alors un
+   écart qui n'est **pas** du travail retenu par la branche. Le piège s'est présenté **quatre fois
+   de suite** les 16 et 17 août, à l'identique :
+
+   ```bash
+   git diff <revision-du-squash> <branche> --stat   # doit être VIDE
+   git push origin --delete <branche> && git branch -D <branche>
+   ```
 
 ## 2bis. Ouvrir un chantier — le geste git standard
 
@@ -57,14 +110,39 @@ Deux phrases à retenir ; tout le reste s'en déduit :
 
 | Artefact | Où | Pourquoi |
 |---|---|---|
-| ADR (+ ligne `DECISIONS.md`) | **`main`**, avant la branche | une loi vaut pour tout le dépôt, pas pour un chantier ; et deux branches qui éditent `DECISIONS.md` = conflit garanti |
+| ADR (+ `DECISIONS.md` **régénéré**) | **`main`**, avant la branche | une loi vaut pour tout le dépôt, pas pour un chantier ; et deux branches qui éditent `DECISIONS.md` = conflit garanti |
 | Spec de page, maquette, prompts | **la branche**, en **premier commit** | ils ne servent qu'à ce chantier et doivent être dans le dépôt avant la première session d'agent |
 | Code | la branche, sessions suivantes | jamais dans le commit des specs |
 
-**Deux sessions, pas une.** Le **cadrage** (ADR → maquette/spec → prompt) se fait dans sa propre
-session, sur `main`, **sans une ligne de code** — un ADR écrit dans la session qui code cesse
-d'être une contrainte pour devenir une justification. La session de **slice** vient ensuite, sur
-la branche, et l'ADR y est **relu**, jamais rouvert.
+🔴 **`DECISIONS.md` ne s'écrit plus à la main — il se RÉGÉNÈRE** (depuis la PR #136). Son en-tête
+le dit : *« Fichier généré par `scripts/gen_decisions_index.py`. Ne pas éditer à la main. »* Écrire
+l'ADR suffit ; l'index le trouve.
+
+```bash
+python3 scripts/gen_frontmatter.py docs/decisions --write      # pose le front-matter du nouvel ADR
+python3 scripts/gen_decisions_index.py docs/decisions DECISIONS.md --write
+bash scripts/check_adr_refs.sh                                  # doit sortir en 0
+```
+
+⚠️ **Deux pièges du générateur**, tous deux rencontrés : il classe en `type: surface` tout ADR
+absent de la liste `ARCHITECTURE` de `gen_frontmatter.py` — **un ADR de méthode doit y être ajouté**
+— et il remplit un `pr:` **faux** dès que l'ADR **cite** une PR dans sa prose. Relire le
+front-matter généré avant de committer.
+
+**Deux sessions, pas une — dans le CAS 3 seulement.** Le **cadrage** (ADR → maquette/spec → prompt)
+se fait dans sa propre session, sur `main`, **sans une ligne de code** : un ADR écrit dans la
+session qui code cesse d'être une contrainte pour devenir une justification. La session de **slice**
+vient ensuite, sur la branche, et l'ADR y est **relu**, jamais rouvert.
+
+> ⚠️ **Un rangement (cas 1) et une application (cas 2) n'ont PAS de session de cadrage** — il n'y a
+> rien à décider. Ils partent directement sur leur branche `chore/` ou `fix/`, avec leur périmètre
+> et leur hors-périmètre posés dans le premier message. **Ne pas appeler `/ouverture` pour eux** :
+> elle exige un ADR et bloquerait sur un chantier parfaitement légitime.
+>
+> ⚠️ **Un cas 4 (surface) inverse l'ordre** : la branche d'abord, l'écran regardé, **puis** l'ADR
+> qui rend compte. Et si le changement est **réversible en un commit**, **sans migration**, et **ne
+> modifie aucun texte vu par Massimo**, il ne demande **aucun** compte rendu — une entrée
+> `CHANGELOG` et un test suffisent.
 
 > **Raccourci : `/ouverture <chantier> <ADR>`** — pour la session de SLICE, pas pour le cadrage
 > (elle vérifie que le cadrage a eu lieu ; l'appeler avant, c'est se faire bloquer par son propre
@@ -79,10 +157,12 @@ la branche, et l'ADR y est **relu**, jamais rouvert.
 Le geste, toujours identique (seul vocabulaire git dont ce workflow a besoin) :
 
 ```bash
-# 1. Les décisions, sur un main à jour
+# 1. Les décisions, sur un main à jour  ── CAS 3 uniquement
 git switch main && git pull
-# … copier ADR dans docs/decisions/ + ligne dans DECISIONS.md …
-git add -A && git commit -m "docs: ADR-00XX (<sujet>) + index" && git push
+# … écrire l'ADR dans docs/decisions/ …  puis RÉGÉNÉRER l'index (jamais l'éditer) :
+python3 scripts/gen_frontmatter.py docs/decisions --write
+python3 scripts/gen_decisions_index.py docs/decisions DECISIONS.md --write
+git add -A && git commit -m "docs: ADR-00XX (<sujet>)" && git push
 
 # 2. La branche, qui naît avec ses documents
 git switch -c feat/<chantier>
@@ -302,8 +382,13 @@ regardée.**
 
 ### 6.1 Ouverture de session (nouveau chantier)
 
+🔴 **La première ligne déclare le CAS** (`adr-0060` §4). Ce n'est pas une formalité : c'est elle qui
+dit s'il faut un ADR, et quand.
+
 ```
 Chantier : <nom> — Slice <A/B> (<ADR>). Branche : feat/<chantier> (étape <n>).
+Cas ADR-0060 : <rangement | application | décision neuve | surface> — donc <aucun ADR |
+  aucun ADR mais je CITE <ADR-00XX> | ADR déjà écrit, je le relis | ADR APRÈS l'écran regardé>.
 Mono-chantier : cette session ne touche QUE <périmètre>. Hors de ça, tu t'arrêtes.
 
 Décisions déjà tranchées (ne les rouvre pas) : <lister>.
@@ -340,11 +425,25 @@ Puis reprends au "PROCHAIN PAS" du MEMORY.md.
 Avant de committer, mets à jour la doc de chantier (toi l'agent, pendant que tu es lucide) :
 1. MEMORY.md § Reprise : fait / en cours / à-faire + décisions actives + prochain pas.
 2. TROUBLESHOOTING.md : tout écart réel rencontré (signature d'API inattendue, etc.).
-3. ARCHITECTURE.md : UNIQUEMENT si une structure a été ajoutée (table, module).
-   Ne touche PAS CHANGELOG (rien de livré tant que la slice n'est pas finie), ni ROADMAP,
-   ni CLAUDE.md.
+3. Les documents de STRUCTURE, chacun sous SA condition — passe la liste, ne devine pas :
+   ARCHITECTURE.md (un service ou un flux change) · PROJECT_STRUCTURE.md (un module OU UN
+   DOSSIER RACINE ajouté/déplacé/supprimé) · DATA_MODEL.md (table, colonne, contrainte, règle
+   de lecture) · API_SPEC.md (un endpoint naît, change de contrat, disparaît) · .env.example
+   (une variable — corrige alors tout son groupe) · docs/frontend-*/page-*.md (l'écran change
+   de comportement).
+4. CHANGELOG.md : **une entrée si un COMPORTEMENT change, pas si des fichiers bougent.**
+   Ne touche PAS ROADMAP.md ni CLAUDE.md.
 Puis donne-moi la checklist 9 points + le message de commit suggéré.
 ```
+
+> 🔴 **Le critère du `CHANGELOG` a été tranché PAR L'USAGE**, les 16 et 17 août, après quatre
+> clôtures qui l'avaient contourné : *une entrée si un comportement change, pas si des fichiers
+> bougent.* Un rangement de documentation n'en a pas ; le même rangement qui **corrige une
+> régression** en a une. Ce critère importe au-delà du confort : le **contrôle 3 de l'élagage**
+> (§5) exige une entrée `CHANGELOG` avant de supprimer une section de `MEMORY.md`.
+>
+> ⚠️ **`CLAUDE.md` reste hors de la clôture** — mais il n'est pas intouchable pour autant : un
+> chantier qui applique une décision aux fichiers de méthode le corrige, comme celui-ci l'a fait.
 
 ### 6.4 Checklist de clôture (9 points)
 
@@ -359,3 +458,13 @@ chaque `wip` (un `MEMORY.md` juste vaut mieux que sept fichiers effleurés) ; pa
 commit d'une ligne. Chaque artefact doit **gagner** sa place : décision réutilisable → ADR ;
 choix d'IA de navigation → une ligne de spec ; rien → rien. La méthode aide tant qu'elle réduit
 l'incertitude ; dès qu'elle devient rituel vide, elle coûte.
+
+🔴 **Ce garde-fou a désormais une règle, et non plus seulement une intention** : les **quatre cas**
+du §2 étape 1 (`adr-0060`). Trois d'entre eux ne demandent **aucun** ADR. Le registre en portait
+**104 fichiers pour 59 décisions** avant qu'on le range — 44 % d'addendums, dont sept sur un seul
+ADR et **cinq le même jour**. Un rituel qui produit un document par hésitation ne fixe plus rien :
+il enregistre.
+
+⚠️ **Et la sobriété vaut dans les deux sens.** Le cas 2 est celui qu'on rate *par excès de zèle* :
+écrire un ADR pour un chantier qui ne fait qu'exécuter une règle existante, c'est **fabriquer une
+décision là où il n'y a qu'une dette**.

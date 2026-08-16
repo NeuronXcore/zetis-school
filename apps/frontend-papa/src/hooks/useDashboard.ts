@@ -125,7 +125,7 @@ export function useDashboard(): UseDashboard {
    *  directement. Deux appels successifs partent tous deux de l'URL d'avant, et le second gagne.
    *
    *  D'où la signature par LOT, qui est le vrai correctif : le panneau d'analyse doit écrire
-   *  `subject` et `panel` ensemble (`adr-0028-addendum-analyse-par-matiere` §3). En deux appels,
+   *  `subject` et `panel` ensemble (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1) §3). En deux appels,
    *  le panneau ne s'ouvrirait pas — et la cause serait à des lieues du symptôme.
    *
    *  ⚠️ La forme fonctionnelle ci-dessous n'achète donc **rien** aujourd'hui : elle est l'usage

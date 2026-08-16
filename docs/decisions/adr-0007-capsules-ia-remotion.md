@@ -1,3 +1,14 @@
+---
+id: "0007"
+titre: "Capsules IA : moteur Remotion (capsule = spec typé, Player en Lot 1)"
+type: architecture
+statut: accepte
+date: 2026-07-01
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0007 — Capsules IA : moteur Remotion (capsule = spec typé, Player en Lot 1)
 
 ## Statut

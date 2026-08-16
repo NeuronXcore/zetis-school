@@ -1,3 +1,14 @@
+---
+id: "0043"
+titre: "Le diagnostic est une mesure qui engage : il sort de l'évaluation éphémère"
+type: architecture
+statut: accepte
+date: 2026-08-08
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0014", "0042"]
+---
 # ADR-0043 — Le diagnostic est une mesure qui engage : il sort de l'évaluation éphémère
 
 ## Statut

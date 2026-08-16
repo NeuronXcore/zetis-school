@@ -1,3 +1,14 @@
+---
+id: "0058"
+titre: "La fiche répond quand on la touche"
+type: surface
+statut: propose
+date: 2026-08-14
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0058 — La fiche répond quand on la touche
 
 ## Statut

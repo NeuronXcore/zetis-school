@@ -1,3 +1,14 @@
+---
+id: "0048"
+titre: "ZETIS doute de sa propre mesure"
+type: architecture
+statut: accepte
+date: 2026-08-09
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0048 — ZETIS doute de sa propre mesure
 
 ## Statut

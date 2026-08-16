@@ -29,7 +29,7 @@ beforeEach(() => {
 // 🔴 CE FICHIER EXISTE PARCE QUE `useAgenda` EST DEVENU LE SEUL APPELANT.
 //
 // Jusqu'au 2026-08-15, `markAgendaSeen` avait deux appelants et le bandeau d'Accueil portait le
-// seul test. `adr-0025-addendum-le-regard-vit-a-l-agenda` a retiré celui-là — laisser le geste
+// seul test. `adr-0025-agenda-scolaire` (Amendement 7) a retiré celui-là — laisser le geste
 // survivant non couvert aurait transformé une révocation en suppression silencieuse du témoin.
 describe("useAgenda — le regard", () => {
   it("marque l'agenda vu à l'ouverture de la page", async () => {

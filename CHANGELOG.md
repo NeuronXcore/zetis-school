@@ -1,5 +1,78 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.98.0 — La méthode dit enfin ce qu'elle décide
+
+Rien ne change pour Massimo ni pour Papa. Mais le dépôt cesse de porter **deux doctrines opposées** :
+l'ADR-0060 posait quatre cas depuis la veille, et les fichiers que l'agent lit disaient encore
+l'ancienne règle.
+
+- 🔴 **Deux commandes portaient des instructions fausses, pas seulement périmées.** `/ouverture`
+  s'arrêtait « si un ADR manque » — or trois cas sur quatre n'en ont aucun, et elle a réellement
+  bloqué un chantier légitime. Cinq fichiers disaient d'éditer `DECISIONS.md` à la main, alors
+  qu'il est **généré** et porte « Ne pas éditer à la main » en en-tête.
+- **Les quatre cas sont écrits là où on les lit** : `WORKFLOW.md` §2, `CLAUDE.md`, et chaque
+  commande dit désormais à quel cas elle s'applique.
+- **Quatre règles nées de l'usage entrent dans le workflow** : le hook et la CI n'automatisent
+  qu'**un tiers** de l'étape de vérification · pour prouver qu'une suite est autonome, **couper le
+  service** (un venv neuf ne suffit pas) · **comparer au squash, jamais à la tête de `main`** avant
+  de supprimer une branche · une entrée `CHANGELOG` **si un comportement change**, pas si des
+  fichiers bougent.
+
+## 0.97.0 — Une CI, et les deux défauts qu'elle a trouvés en arrivant
+
+Rien ne change pour Massimo ni pour Papa. En revanche, la suite de tests devient enfin **jouable
+par quiconque clone le dépôt** — ce qu'elle n'était pas.
+
+- **`.github/workflows/ci.yml`** — les trois suites et les verrous du dépôt à chaque PR, sans aucun
+  service. Le job `verrous` rejoue `check_adr_refs.sh`, la syntaxe du hook, l'absence de backtick
+  hors commentaire et le mode `100755`.
+- 🔴 **Deux tests d'authentification exigeaient un vrai PostgreSQL.** `test_auth.py` construisait
+  son `TestClient` au niveau module, sans fixture : `get_db` n'était pas surchargé. Ils étaient
+  verts sur la machine de développement **parce que `docker compose` y tourne**, et rouges partout
+  ailleurs. Ils tournent désormais sur SQLite en mémoire, comme les 1382 autres.
+- 🔴 **Un test de voix cassait sous Node 20.** Il mêlait le `Blob` de jsdom et le `Response`
+  d'undici ; vert sous Node 24 (la machine de dev), rouge sous le plancher que `engines.node`
+  annonce. Corrigé par un corps en `Uint8Array` — **prouvé par la CI seule**, aucun Node 20
+  n'existant en local.
+- ⚠️ **La CI ne bloque rien.** Sans *required check*, un rouge se voit mais n'empêche pas le merge.
+  Activer ce réglage change qui peut merger : c'est une décision, laissée à l'humain.
+
+## 0.96.0 — Un verrou avant le push
+
+Rien ne change pour Massimo ni pour Papa. Le dépôt gagne le garde-fou dont l'absence avait laissé
+une suite rouge atteindre `main` entre deux PR vertes (voir 0.95.0).
+
+- **`hooks/pre-push` refuse un `git push` si les trois suites ne sont pas vertes** — ≈ 40 s.
+  Versionné, donc relisible et diffable ; installé par un lien
+  (`ln -sf ../../hooks/pre-push .git/hooks/pre-push`), et **non** par `core.hooksPath`, qui aurait
+  éteint le `pre-commit` local en silence.
+- 🔴 **Un outil absent est un échec, jamais un saut.** Un hook qui passe au vert parce qu'il n'a pas
+  pu mesurer transforme « je ne sais pas » en « c'est bon » — c'est pire que pas de hook.
+- **Il n'automatise qu'un tiers** de `WORKFLOW.md` §2 étape 4 : relire le diff et vérifier le
+  périmètre restent humains, et le message de succès le rappelle à chaque push.
+- **Ce n'est pas une CI.** Il est local et `--no-verify` le contourne. `.github/workflows/` n'existe
+  toujours pas.
+
+## 0.95.0 — Le registre devient un seul fichier par décision, et un test rouge sort de l'ombre
+
+Rien ne change pour Massimo ni pour Papa : c'est du rangement, et une régression qu'il a révélée.
+
+- **Un ADR = un fichier.** Les 46 addendums deviennent des `## Amendement N` de leur parent, avec
+  un tableau récapitulatif en tête. Le registre passe de **105 à 60 fichiers**, `DECISIONS.md` de
+  **1180 à 89 lignes** — un index qui renvoie, au lieu d'un second exemplaire de chaque décision.
+  Les numéros ne bougent pas ; aucun renvoi `ADR-00XX` ne casse.
+- **L'ordre des amendements ne suit plus le nom de fichier** mais le rang que chaque document
+  déclare lui-même. Le tri alphabétique plaçait le **révoquant avant le révoqué** sur quatre
+  groupes de dates ex-æquo.
+- **`ADR-0033` existe enfin**, en statut *Abandonné* : cité par cinq documents et sans fichier
+  depuis toujours, il refermait un trou que le verrou signalait à chaque passage.
+- 🔴 **Une régression corrigée, qu'aucun filet n'avait vue.** Supprimer les fichiers d'addendum a
+  rendu **rouge** un test qui vérifie qu'une dérogation cite un ADR existant. Le verrou de
+  références était vert (il ne teste que `ADR-00XX`, jamais un chemin), la PR était verte (le dépôt
+  n'a pas de CI), et la clôture disait « aucun test lancé, aucune ligne de code » — c'était vrai,
+  mais un test **lisait le registre**. Les **233 renvois** vers des fichiers supprimés sont
+  redirigés, code applicatif compris.
+
 ## 0.94.0 — Trois témoins de plus, et un regard qui change de place
 
 Quatre entrées de la barre de Massimo n'annonçaient rien quand quelque chose arrivait pour lui.
@@ -1733,7 +1806,7 @@ diagnostics » mais **« commence par là, et voici pourquoi »**. ADR-0044, tro
 L'entrée Diagnostic porte un témoin **numérique** qui compte les diagnostics relus non passés et
 **s'éteint au PASSAGE**, donc par le travail. C'est la colonne interdite de l'ADR-0030 §1, ouverte
 **par décision du commanditaire** après objection exposée et réaffirmée
-(`adr-0030-addendum-temoin-diagnostic.md`, cinq bornes opposables). Le contre-motif est maintenu
+(`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1), cinq bornes opposables). Le contre-motif est maintenu
 au dossier ; le coût n'a pas motivé la décision — la forme interdite était gratuite, la légale
 coûtait une table.
 
@@ -2329,7 +2402,7 @@ plate puis monte d'un coup — un artefact de mise en service, pas une dégradat
 désormais `history_since`, et l'avertissement **disparaît de lui-même** dès que l'historique couvre
 la fenêtre regardée. Une phrase figée aurait été juste six mois puis fausse pour toujours.
 
-Décision : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`. Aucune migration.
+Décision : `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2). Aucune migration.
 
 ## 0.50.0 — Le Dashboard dit ce qu'il montre
 
@@ -4259,7 +4332,7 @@ Date : 2026-07-03
 
 ### Décisions
 
-- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-addendum-cours-canonique.md`) :
+- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-referentiel-programme-scolaire.md` (Amendement 1)) :
   un `Lesson.content_markdown` **validé** devient le contexte prioritaire des dérivés
   (ELI5, capsule, quiz…), avant le RAG brut et la connaissance du modèle ; le lien
   `Lesson ↔ Skill` est la table N-N `lesson_skills`.

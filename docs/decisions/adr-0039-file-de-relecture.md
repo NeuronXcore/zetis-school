@@ -1,3 +1,14 @@
+---
+id: "0039"
+titre: "Tout nombre affiché sur le Dashboard ouvre exactement ce qu'il compte"
+type: surface
+statut: accepte
+date: 2026-08-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0014", "0023", "0028", "0034", "0037", "0038"]
+---
 # ADR-0039 — Tout nombre affiché sur le Dashboard ouvre exactement ce qu'il compte
 
 ## Statut
@@ -5,7 +16,7 @@
 Accepté — 2026-08-05.
 
 > S'appuie sur : `adr-0028` (l'agrégat unique, le §1 « aucun query param », le §4 « zéro état de
-> chargement », le §5 « les KPI sont des filtres de focus »), `adr-0028-addendum-analyse-par-matiere`
+> chargement », le §5 « les KPI sont des filtres de focus »), `adr-0028-dashboard-papa-agregat-unique` (Amendement 1)
 > (le verrou constat↔preuve, « le réseau ne sert que des NOMS », **« un panneau déplié, pas une
 > modale »**), `adr-0038` (les trois preuves de la Lecture ZETIS mènent quelque part),
 > `adr-0023` (la Couverture de production, ses interdits §F.2), `adr-0014 §2` (le quiz servi sans

@@ -224,7 +224,7 @@ rendre possible.
 - `docs/frontend-massimo/page-diagnostic.md` — **en entier**
 - `docs/frontend-massimo/mockup/mockup-page-diagnostic-massimo.html` — les **quatre** états
 - `docs/decisions/adr-0044-*.md` — Décisions 1, 2, 3, 4, 8. ⚠️ **La Décision 7 est RÉVOQUÉE** :
-- `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` — **en entier**, c'est elle qui la
+- `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) — **en entier**, c'est elle qui la
   remplace, et elle porte cinq bornes opposables
 - `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` — Décisions 1 et 2, la règle amendée
 - `apps/frontend-massimo/src/pages/DiagnosticPage.tsx` — les trois écrans actuels
@@ -244,7 +244,7 @@ laisser tomber quand la session s'allonge — et la plus délicate à écrire ju
 > 🔴 **CETTE INSTRUCTION A ÉTÉ RETOURNÉE le 2026-08-08.** Une version antérieure de ce prompt
 > disait « **Aucun `newsKey` n'est ajouté** », en rouge, d'après l'`adr-0044` Décision 7. Cette
 > décision a été **RÉVOQUÉE le jour même** par
-> `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` — décision du commanditaire, prise après
+> `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) — décision du commanditaire, prise après
 > que l'objection lui a été exposée et **réaffirmée**. Lis l'addendum avant d'écrire.
 
 - **`/diagnostic` REÇOIT un `newsKey`.** Le compteur vaut le nombre de diagnostics **relus par

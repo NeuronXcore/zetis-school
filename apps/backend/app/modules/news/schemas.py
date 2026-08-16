@@ -18,7 +18,7 @@ class NewsSummary(BaseModel):
     interroge le **temps** ; la règle interroge aussi la **mort du compteur** : meurt-il d'un
     REGARD, ou du TRAVAIL ? `diagnostic` répond « non » au premier et « du travail » au second :
     il a donc franchi cette porte-ci sans encombre, et c'est une **décision** qui l'a autorisé
-    (`adr-0030-addendum-temoin-diagnostic.md`), pas ce test. Poser les deux questions.
+    (`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1)), pas ce test. Poser les deux questions.
 
     Pas de `total` (aucune surface ne l'affiche, et il inviterait à un badge global qui ne
     renverrait nulle part), pas de date, pas de `due_*`, pas de `done_*`. Les compteurs sont
@@ -26,12 +26,12 @@ class NewsSummary(BaseModel):
     """
 
     agenda: int
-    #: Cours validés jamais ouverts. `adr-0030-addendum-temoin-matieres` — meurt d'un REGARD.
+    #: Cours validés jamais ouverts. `adr-0030-temoins-nouveaute-navigation` (Amendement 2) — meurt d'un REGARD.
     matieres: int
-    #: Notions jamais expliquées en ELI5. `adr-0030-addendum-temoin-eli5` — meurt d'un REGARD.
+    #: Notions jamais expliquées en ELI5. `adr-0030-temoins-nouveaute-navigation` (Amendement 3) — meurt d'un REGARD.
     #: ⚠️ Sans rapport avec le `new_count` de récence de `student_notions_summary`.
     eli5: int
-    #: Quiz jouables jamais OUVERTS. `adr-0030-addendum-temoin-quiz` — meurt d'un REGARD.
+    #: Quiz jouables jamais OUVERTS. `adr-0030-temoins-nouveaute-navigation` (Amendement 4) — meurt d'un REGARD.
     #: ⚠️ Jamais « jamais joués » : `QuizAttempt` n'entre pas dans ce compteur.
     quiz: int
     fiches: int

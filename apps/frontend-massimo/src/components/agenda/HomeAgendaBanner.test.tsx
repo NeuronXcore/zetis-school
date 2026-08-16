@@ -78,7 +78,7 @@ describe("HomeAgendaBanner — « À préparer »", () => {
     expect(screen.queryByText(/ajoute/i)).toBeNull();
   });
 
-  it("ne marque PAS l'agenda vu — le regard vit à /agenda seul (adr-0025-addendum-le-regard-vit-a-l-agenda)", async () => {
+  it("ne marque PAS l'agenda vu — le regard vit à /agenda seul (adr-0025-agenda-scolaire (Amendement 7))", async () => {
     // ~~« marque l'agenda vu — le rendu du bandeau EST un regard (addendum §12.3) »~~ — INVERSÉ le
     // 2026-08-15. L'ancienne raison est gardée barrée, pas effacée : le §12.3 argumentait ses deux
     // surfaces (« n'en retenir qu'une ferait mentir le badge sur ce qu'il a déjà lu »), et un test

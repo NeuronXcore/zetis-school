@@ -2,7 +2,7 @@
 
 Sert `GET /api/parent/progress/skills` (adr-0040 §11). **Aucun N+1, aucune pagination, aucun
 paramètre de période** : filtres, tri, recherche et bascule de vue sont client, zéro requête —
-patron `adr-0024-addendum-page-matiere-index-notions`. Le nombre de requêtes est CONSTANT,
+patron `adr-0024-zetis-galaxy-progression` (Amendement 6). Le nombre de requêtes est CONSTANT,
 indépendant du nombre de notions et de matières, et un test le verrouille.
 
 ⚠️ **Aucune ré-énumération de statuts.** `SkillMastery.status` a SIX valeurs, `in_progress` étant

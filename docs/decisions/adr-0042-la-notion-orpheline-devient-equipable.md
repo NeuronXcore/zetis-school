@@ -1,3 +1,14 @@
+---
+id: "0042"
+titre: "La notion orpheline devient équipable : le quiz s'ancre sur la notion"
+type: surface
+statut: accepte
+date: 2026-08-07
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0010", "0011", "0014", "0017", "0021", "0027", "0034", "0036", "0037"]
+---
 # ADR-0042 — La notion orpheline devient équipable : le quiz s'ancre sur la notion
 
 ## Statut

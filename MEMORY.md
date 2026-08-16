@@ -6,262 +6,259 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — Trois témoins de plus (addenda ADR-0025 et ADR-0030)
+### 🧭 CADRAGE — ADR-0061, la *required check* (2026-08-16, sur `main`)
 
-**Mergé dans `main` le 2026-08-15 — PR
-[#135](https://github.com/NeuronXcore/zetis-school/pull/135), squash `8f5400d`.**
-Base `4dffacf` (le commit de cadrage, parti seul et en premier). `main` est à jour avec `origin` :
-**rien à pousser**.
+**Aucune ligne de code.** Session de **cadrage** : elle vit sur `main`, ne livre rien, et écrit une
+décision. **Non commitée** — l'humain vérifie puis committe.
 
-✅ **Branche `feat/trois-temoins-de-plus` supprimée** (locale et distante, 2026-08-15), vérifié par
-`git ls-remote` — la ref de suivi ne fait pas foi, elle a déjà menti dans les deux sens.
-⚠️ `git branch --merged main` ne la listait **pas**, et ce n'était pas un signal d'alerte : un
-merge en **squash** ne fait pas des commits d'origine des ancêtres de `main`. La preuve utile est
-`git diff --stat <branche> <squash>` — arbres identiques, donc rien à perdre. `-D` était donc
-requis, et légitime.
+🔴 **Variante que `/cloture` ne couvre pas, et il faut la lire avant d'appliquer sa table** : le
+« chantier » que cet ADR cadre **n'est pas du code**. C'est **trois cases à cocher** dans
+*Settings → Branches* de GitHub. Il n'y aura donc **ni branche, ni PR, ni `/ouverture`** — le lot
+« spec + maquettes + prompts » de `WORKFLOW.md §2bis` est **vide par nature**. Le prochain pas
+n'est pas une commande, c'est un **geste de l'humain dans l'interface**.
 
-⚠️ **Ne pas ré-implémenter** ce qui suit : tout est sur `main`.
+#### ✅ FAIT — le lot `main`, en un seul commit
 
-> ✅ **RELECTURE VISUELLE FAITE — par le commanditaire, le 2026-08-15, APRÈS le merge. Les trois
-> points tiennent, aucun défaut trouvé.**
-> 1. **Matières** affiche `9+` ✅
-> 2. **ELI5** et **Quiz** n'affichent **aucune pastille** ✅ — le point zéro fait ce qu'il annonce
-> 3. le badge **Agenda RESTE** allumé sur l'Accueil ✅ — c'est tout l'objet de la révocation, et
->    c'était le seul des quatre dont la correction n'était prouvée que par un test
->
-> ⚠️ **Elle a eu lieu APRÈS le merge, et c'est la 6ᵉ fois qu'elle ne précède pas la PR.** À écrire
-> une fois pour toutes, parce que ce n'est pas une dette de rigueur mais une **contrainte
-> structurelle** : *l'agent ne peut pas se connecter à l'app* (règle permanente — ne jamais saisir
-> de mot de passe), donc **aucun chantier d'interface de ce dépôt ne peut être relu visuellement
-> par l'agent seul**. Le merge a été fait en connaissance de cause, l'objection ayant été exposée
-> trois fois, dont en tête du corps de la PR.
->
-> **Ce que ça coûte, et ce que ça n'a pas coûté ici** : sur l'ADR-0059, la relecture — faite
-> *avant* le merge — avait produit **trois défauts que rien d'autre n'avait vus**. Ici elle n'en a
-> produit aucun, mais ce résultat était inconnu au moment de merger. La leçon n'est donc pas « on
-> pouvait s'en passer » : c'est que **le gate doit être posé chez l'humain, pas chez l'agent**, et
-> qu'un chantier d'interface devrait attendre son regard avant la PR.
-
-#### Ce qui a motivé le chantier
-
-Le constat était : « il manque les badges pour agenda, matières, ELI5, quiz ». Le read-before-code
-a coupé ce constat en deux, et **les deux moitiés étaient fausses différemment** :
-
-- **l'Agenda avait déjà son badge**, correct côté serveur, et **personne ne l'avait jamais vu** ;
-- **Matières, ELI5 et Quiz n'étaient pas des oublis** mais trois exclusions argumentées, tenues par
-  deux test-verrous — d'où quatre addenda **avant** la moindre ligne de code.
-
-#### ✅ FAIT
-
-| Lot | Détail |
+| Fichier | Quoi |
 |---|---|
-| **Cadrage (sur `main`, `4dffacf`)** | 4 addenda + 4 entrées `DECISIONS.md`. **Non poussé.** |
-| **Agenda** | le bandeau d'Accueil cesse de marquer vu ; son test **inversé** ; `useAgenda.test.ts` créé |
-| **Matières** | `new_matieres_count` + `_active_year_or_none` — **zéro migration**, réutilise `lesson_views` |
-| **ELI5** | modèle `Eli5View`, migration `f8a9b0c1d2e3`, `POST /api/ai/eli5/skills/{id}/seen` |
-| **Quiz** | modèle `QuizView`, migration `f9a0b1c2d3e4`, `servable_quiz_ids`, `POST /api/student/quiz/{id}/seen` |
-| **Front** | 3 `newsKey`, 3 émissions dans `lib/`, `NewsKey`/`EMPTY_NEWS` élargis |
-| **Verrous** | décor `_seed_programme` + N1/N2/N3/N4/N5/N6/N7/N8/N10 + partition totale |
-| **Docs** | `API_SPEC.md`, `docs/frontend-massimo/{README,navigation,page-agenda,page-eli5}.md` |
-
-**Migrations chaînées, tête unique `f9a0b1c2d3e4`. Appliquées en DEV seulement.**
+| `docs/decisions/adr-0061-le-vert-devient-une-condition-d-entree.md` | la décision |
+| `DECISIONS.md` | **régénéré**, 61 décisions — ⚠️ jamais édité à la main |
+| `scripts/gen_frontmatter.py` | une ligne : `"0061"` dans `ARCHITECTURE` |
+| `MEMORY.md` | cette section + une correction de fait |
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **`DEROGATIONS` n'a pas bougé** : il vaut toujours `{"diagnostic"}`. Les trois nouveaux
-   témoins meurent d'un **REGARD** et n'ont demandé aucune exception. *C'est le dossier du
-   chantier* : l'élargissement n'a pas ouvert la porte. Le critère à opposer au prochain candidat
-   est **« ce témoin a-t-il besoin d'une dérogation ? »**.
-2. 🔴 **Une trace de vue n'appartient PAS au badge qui la consomme.** `lesson_views` est lue par
-   `diagnostics/fiabilite.py` (« le cours a été lu ») et `production/journal.py` — c'est pourquoi
-   **Matières n'a aucun point zéro** et démarre à 32. ELI5 et Quiz, dont les tables sont neuves,
-   démarrent à 0. **Avant tout backfill d'une table de vue : chercher qui d'autre la lit.**
-3. **Le point zéro n'amende pas l'« aucun backfill » de l'ADR-0030 §4.** Celui-ci refusait de
-   prétendre que le passé avait été lu ; ici on pose l'**origine du témoin**. Le passé n'est pas de
-   la nouveauté, c'est de l'arriéré. Conséquence assumée : Massimo ne verra jamais de badge sur les
-   267 notions et 37 quiz déjà en base.
-4. 🔴 **Le témoin Quiz meurt de l'OUVERTURE, jamais de la passation.** Ouvrir puis abandonner sans
-   répondre l'éteint quand même — prix assumé de ne pas compter du travail.
-5. 🔴 **Ce témoin naît d'une PRODUCTION, pas d'une validation : Papa n'en est pas le robinet.**
-   Seul du dispositif dans ce cas. Si le volume dérape, on **gate la production**, jamais le badge.
-6. **Le §2 de l'ADR-0030 n'est pas assoupli, il est PAYÉ** : le `new_count` de récence d'ELI5 reste
-   inéligible et reste **en page** ; le témoin vit sur `eli5_views`.
-7. **Matières compte le COURS, et rien d'autre.** La partie juste du motif « hub » est conservée :
-   fiches, capsules et cartes ont chacune leur entrée.
-8. **`content_markdown IS NOT NULL` rend le témoin MORTEL** (borne B2), ce n'est pas un
-   raffinement : 50 des 92 leçons validées de la base de dev rendent 404 sur `/cours`.
-9. **La partition des entrées est TOTALE** — les deux camps réunis font exactement `MASSIMO_NAV`.
-   Une 14ᵉ entrée devra trancher son camp. `MASSIMO_NAV` garde **13** entrées, `/galaxy` à l'index
-   10 (ADR-0024 §1 : ajouter des témoins n'est pas ajouter des onglets).
-10. **Le regard de l'agenda vit à `/agenda` seul.** §12.1, §12.2, §12.4 et §12.5 de l'addendum
-    ADR-0025 **ne sont pas rouverts**, et la granularité par élève ne bouge pas.
+1. **Trois checks requis** (`backend — pytest`, `frontends — vitest`, `verrous du dépôt`).
+   **GitGuardian NON requis** : un service tiers en panne bloquerait le dépôt sans recours.
+   **« Branch up to date » NON exigé** : ~7 min de CI par avancement de `main`, pour un bénéfice
+   qui suppose des PR concurrentes — que le mono-chantier interdit.
+2. **Le bypass reste ouvert** (*Do not allow bypassing* décoché) : même arbitrage que `--no-verify`.
+   🔴 **Le signal à surveiller est l'USAGE du bypass, pas son existence** — deux fois en un mois
+   hors `fix/observation-sorties` ⇒ **réparer la CI, jamais retirer le verrou**.
+3. **Un merge autorisé ne dit RIEN du diff ni du périmètre.** Le vert devient une condition
+   **nécessaire** ; il n'a jamais été suffisante. `WORKFLOW.md` §2 étape 4 reste entière.
 
-#### 🧾 DETTES OUVERTES
+#### 🧾 DETTES OUVERTES — nées de ce cadrage
 
-**Nées de ce chantier :**
+- 🔴 **`gen_frontmatter.py` a rempli `pr: 136` sur cet ADR — un FAIT FAUX.** `RE_PR` attrape le
+  premier `PR #\d+` du texte, or l'ADR **cite** la PR #136 dans son contexte sans en être issu.
+  Corrigé **à la main** (`pr: null`) ; le fichier ayant désormais un front-matter, une
+  régénération le saute et la correction tient. **Le défaut du script, lui, reste entier** — tout
+  ADR qui cite une PR dans sa prose recevra ce champ faux.
+- ⚠️ **`type:` était `surface`**, ce qui aurait rangé la décision commandant l'entrée dans `main`
+  parmi les décisions d'écran. Corrigé dans le fichier **et** dans `ARCHITECTURE` du script, comme
+  l'`adr-0060` avant lui — c'est un motif qui se répète, pas un accident.
+- ⚠️ **`BACKLOG.md` n'a PAS été touché, à dessein** : c'est un backlog **fonctionnel** (P0/P1/P2 par
+  surface produit). Un réglage de protection de branche n'y est pas une entrée, c'en serait une
+  erreur de catégorie.
+- ⚠️ **Le geste lui-même n'est pas vérifiable depuis le dépôt.** Rien dans Git ne dira si les trois
+  cases sont cochées. La seule preuve est **une PR volontairement rouge qui refuse de se merger** —
+  et `fix/observation-sorties` la fournit sans rien fabriquer.
 
-- ✅ **~~La relecture visuelle n'a pas eu lieu~~ — FAITE le 2026-08-15, les trois points tiennent,
-  aucun défaut** (détail en tête). Elle a eu lieu **après** le merge : la contrainte reste entière
-  pour les prochains chantiers d'interface, et elle est structurelle, pas circonstancielle.
-- ✅ **~~LES DEUX MIGRATIONS NE SONT PAS EN PRODUCTION~~ — POSÉES le 2026-08-15.** Prod à
-  **`f9a0b1c2d3e4`**, tête unique. Détail et pièges : section « migrations » de `scripts/README.md`.
-  🔴 **Ce n'étaient pas deux migrations en attente, mais CINQ** — trois venaient de chantiers
-  mergés et jamais appliqués (`c3d4e5f6a7b2` fiche_author_massimo, `d4e5f6a7b8c3`
-  un_seul_brouillon_par_lecon, `e5f6a7b8c9d4` cle_de_carte_a_trois_colonnes) et sont chaînées avant
-  les nôtres. **La prod dérive silencieusement du dépôt** : rien ne mesure cet écart, et il ne s'est
-  vu qu'en le demandant à `alembic history`. Point zéro appliqué : `eli5_views` **90**,
-  `quiz_views` **0** (aucun quiz jouable en prod). ✅ Vérifié en faisant calculer les dix témoins
-  par le code de `main` contre la base de prod — `matieres` **34**, `eli5` 0, `quiz` 0.
-- ⚠️ **`servable_quiz_ids` est une SECONDE formulation** du filtre de `_servable_quizzes_of_subject`,
-  assumée pour ne pas faire une requête par quiz dans `news/summary`. Tenue par un test d'égalité
-  (N4) — si l'une évolue, l'autre doit suivre.
-- ⚠️ **Les deux migrations portent un miroir SQL** de `eligible_notion_ids` et `servable_quiz_ids`.
-  Joué une seule fois à la pose, jamais re-synchronisé — c'est écrit dans les migrations.
-- ⚠️ **Le badge Matières démarre à 32 et n'a pas de mécanisme de dégonflage** autre que l'usage.
-  Signal de sortie écrit dans la borne B3 : **encore `9+` dans deux mois** → retirer le témoin ou
-  restreindre sa population, **jamais** monter le plafond.
-- ⚠️ **`_seed_programme` ne sème qu'UN quiz de mission et UN diagnostic.** Suffisant pour les
-  verrous actuels ; un futur compteur qui distinguerait plusieurs matières y serait à vide.
+#### 🧪 TESTS
 
-**Remontées de l'ADR-0059 (élagué ce jour — les quatre contrôles passent : ADR ✅,
-`TROUBLESHOOTING.md` §ADR-0059 ✅, `CHANGELOG.md` 0.93.0 ✅) :**
+**Aucun : aucune ligne de code.** Les suites n'ont pas été relancées depuis le squash `314f336`,
+où elles étaient à **1384 / 807 / 814**.
 
-- 🔴 **La qualité du décodage glouton n'a toujours PAS été jugée sur une vraie voix** — mais le
-  banc existe désormais (`scripts/bench_stt_beam.py`) et une mesure intermédiaire a été faite.
-  **Sur 68 narrations Piper avec leur texte exact (1507 mots)** : beam 1 = **13,3 %** de mots faux,
-  beam 2 = **12,7 %**, beam 5 = **12,4 %** ; beam 1 et 2 divergent sur **22 des 68**.
-  🔴 **Cela a corrigé une affirmation FAUSSE qui était dans `stt/provider.py`** — *« transcription
-  identique au mot près »*, écrite sur la foi d'**un** énoncé de 4,3 s.
-  ⚠️ **Cela ne tranche pas le réglage** : c'est de la voix de synthèse, exactement ce que la dette
-  exclut, et le taux absolu n'est pas un WER (la référence est ce que Piper a *reçu* à dire, pas ce
-  qu'il a *prononcé*). Seule la comparaison relative tient. **Ce qui reste appartient à un humain** :
-  enregistrer 5–10 énoncés de Massimo, écrire ce qu'il a dit, relancer le banc. Repli si
-  dégradation : `beam_size=2`, **jamais** 5.
-- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré**, et **son rôle a grandi avec le §19** :
-  sans notion résolue la recherche porte sur toutes les matières, ce seuil devient le seul
-  garde-fou. À surveiller en premier si ZETIS s'ancre à côté.
-- ⚠️ Budgets de contexte non mesurés après élargissement (~1200 → ~5000 caractères, base 9,4 s) ·
-  filtre RAG par **niveau** exposé mais désactivé · `_AVEUX_IGNORANCE` est un filet, pas une
-  garantie · exposants LaTeX (`x^2`) non traités · `lesson_matching_text` compare des mots
-  **exacts** · trois verrous ne prouvent que la moitié de ce qu'ils gardent (jsdom ne mesure
-  aucune géométrie) · la sortie « stop » d'une interrogation et la clôture après trois questions
-  **n'ont pas été jouées en vrai**.
-- ⚠️ Remontées de l'ADR-0058 : deux messages de panne **coexistent** à l'écran (correct, décrit
-  nulle part) · le style des messages d'échec n'est encadré par **aucune** règle.
+⚠️ **Une mesure a tout de même été faite**, et elle corrige un fait : `fix/observation-sorties`
+porte **6** tests rouges (`6 failed | 5 passed`), pas 3 comme écrit plus bas depuis ce matin.
 
-**Remontées plus anciennes, toujours ouvertes :**
+#### ▶ PROCHAIN PAS
 
+🔴 **LE GESTE EST IMPOSSIBLE — constaté le 2026-08-17.** La protection de branche n'existe pas sur
+un **dépôt privé en plan gratuit** : `branches/main/protection` et `rulesets` répondent tous deux
+**403** (*« Upgrade to GitHub Pro or make this repository public »*).
+
+**L'ADR-0061 a été corrigé EN PLACE** (et non par addendum : il est `propose` et cité par aucun
+autre ADR — `adr-0060`). Il reste **juste et proposé** ; seul son moyen manque. Son §Suivi porte les
+trois conditions qui le débloqueraient, et **ce qui tient le rôle en attendant**.
+
+1. **Trancher la voie** — la plus courte est **GitHub Pro** (~4 $/mois). Rendre le dépôt public est
+   **exclu** : il porte les données de Massimo. Une organisation Team débloque aussi, au prix d'une
+   administration pour **un** contributeur.
+2. ⚠️ **En attendant, le trou est ENTIER et il est nommé** : un merge sur du rouge reste possible,
+   à la seule condition de ne pas regarder. C'est exactement la situation du 2026-08-16. Le hook est
+   local et contournable ; la CI **affiche** sans empêcher.
+3. 🔴 **La leçon, qui vaut au-delà** : *un ADR qui décide d'un RÉGLAGE doit vérifier que le réglage
+   EXISTE avant de l'écrire.* Une commande d'API en lecture aurait suffi. Le read-before-code
+   s'applique aux **moyens** autant qu'au code.
+
+✅ **~~Le chantier d'application de l'ADR-0060~~ — FAIT** (PR #140, squash `2105ba9`).
+
+---
+
+### ✅ CHANTIER MERGÉ — L'ADR-0060 est appliqué (PR #140, squash `2105ba9`, 2026-08-17)
+
+**Rangement** au sens ADR-0060 **cas 1** — aucun ADR. **Aucune ligne de code applicatif.**
+Il met les fichiers de méthode au réel : ils portaient encore l'ancienne doctrine, un jour après
+que l'ADR-0060 l'ait remplacée.
+
+**Mergé en squash le 2026-08-17** : [PR #140](https://github.com/NeuronXcore/zetis-school/pull/140),
+9 fichiers, un seul commit d'origine. Base du chantier : `3372750`.
+
+**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `2105ba9` · copie propre · **le
+balayage ne rend plus que l'interdit lui-même** (`reprise.md:69`) — le dépôt ne porte plus qu'une
+doctrine. CI verte sur la PR (les 3 jobs).
+
+⚠️ **`chore/appliquer-adr-0060` n'est PAS supprimée.** Avant de la supprimer, comparer à
+**`2105ba9`**, PAS à la tête de `main` — le piège s'est présenté **quatre fois** les 16 et 17 août,
+et il est désormais écrit au `WORKFLOW.md` §2 étape 6.
+
+#### 🔴 CE QU'IL A TROUVÉ — deux instructions FAUSSES, pas seulement périmées
+
+Un agent obéissant les aurait exécutées :
+
+| Où | L'instruction | La conséquence |
+|---|---|---|
+| `ouverture.md` §2 | *« ARRÊTE-TOI si un ADR manque »* | **trois cas sur quatre n'en ont aucun** — elle a réellement bloqué `chore/registre-adr` le 2026-08-16 |
+| **5 fichiers** | *« ajouter la ligne dans `DECISIONS.md` »* | ce fichier est **généré** (PR #136) et porte « Ne pas éditer à la main » |
+
+🔴 **Un ADR non appliqué est PIRE qu'un ADR absent** : il donne l'illusion que la règle a changé,
+pendant que les fichiers réellement lus par l'agent disent l'inverse. Le dépôt a porté **deux
+doctrines opposées pendant une journée entière.**
+
+#### ✅ FAIT — 9 fichiers
+
+| Fichier | Quoi |
+|---|---|
+| `docs/WORKFLOW.md` | §2 étape 1 (les 4 cas), étape 4 (hook + CI + coupure de service), étape 6 (squash + parade) · §2bis (régénération, « deux sessions » borné au cas 3) · §6.1 (déclarer le cas) · §6.3 (`CHANGELOG` + 6 documents) · §7 (le garde-fou a une règle) |
+| `.claude/commands/ouverture.md` | table des 4 cas, **s'arrête avant son §2** si on l'appelle à tort |
+| `.claude/commands/cadrage.md` | régénération + les 2 pièges du générateur · cas 3 uniquement |
+| `.claude/commands/reprise.md` | 🔴 disait *« le dépôt impose un cadrage (ADR) avant la moindre ligne »* — la phrase-souche même |
+| `.claude/commands/cloture.md` | le critère `CHANGELOG` · la colonne CADRAGE bornée au cas 3 · `CLAUDE.md` n'est pas intouchable |
+| `CLAUDE.md` | le rituel devient conditionnel au cas · `/cadrage` et `/ouverture` marquées cas 3 |
+| `TROUBLESHOOTING.md` · `CHANGELOG.md` | 2 entrées · 0.98.0 |
+
+#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+
+1. **`/cadrage` et `/ouverture` ne servent QU'AU CAS 3.** Les cas 1, 2 et 4 partent **directement
+   sur leur branche**, périmètre et hors-périmètre dans le premier message.
+2. **`DECISIONS.md` se RÉGÉNÈRE**, partout, dans tous les fichiers de méthode. On ne recopie
+   jamais une ligne d'index.
+3. **Le critère `CHANGELOG`** : *une entrée si un comportement change, pas si des fichiers bougent.*
+   ⚠️ Il **commande le contrôle 3 de l'élagage** — sans entrée, une section de `MEMORY.md` ne peut
+   pas être supprimée.
+4. **`CLAUDE.md` est hors de la CLÔTURE, pas intouchable.** Un chantier qui applique une décision
+   aux fichiers de méthode le corrige.
+
+#### 🧾 DETTES OUVERTES — nées de ce chantier
+
+- ⚠️ **`slice.md` n'a pas été modifié.** Relu, il ne contredit rien : il porte la cage d'exécution,
+  et le cas se déclare à l'ouverture. Mais il **ne mentionne pas** l'`adr-0060` — à surveiller si
+  la déclaration du cas devait remonter jusqu'à lui.
+- ⚠️ **Rien ne vérifie mécaniquement qu'un fichier de méthode contredit un ADR.** Le balayage est
+  un `grep` écrit dans `TROUBLESHOOTING.md`, lancé à la main. Un verrou de CI est imaginable, il
+  n'existe pas.
+- 🔴 **La correction n'est pas prouvée à l'usage.** Elle le sera au prochain chantier : `/ouverture`
+  appelée sur un cas 1 doit **s'arrêter en le disant**, et non réclamer un ADR.
+
+#### 🧾 DETTES REMONTÉES — de la session de méthode ADR-0060 (élaguée ce jour ; contrôles : ADR ✅, `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` ❌ — **aucune entrée**, cohérent pour une session sans code livré)
+
+- 🔴 **L'ADR-0060 n'est appliqué NULLE PART.** `WORKFLOW.md` §2/§2bis/§6.1/§7, `cadrage.md`,
+  `ouverture.md` et `CLAUDE.md` disent encore l'ancienne doctrine. L'ADR décrit un rituel que le
+  dépôt ne pratique pas. Chantier **`chore/`** (cas 1), donc **sans nouvel ADR**.
+- 🌿 **DEUX BRANCHES PARQUÉES restent**, base `0141b62`, **aucune poussée** (vérifié :
+  `git branch -r` ne connaît que `origin/main`) :
+  · `fix/diagnostics-roles` — le test de verrou de rôle + 3 exceptions datées, **vert en l'état**.
+  · `fix/observation-sorties` — 🔴 **3 tests ROUGES par construction**, ils décrivent un défaut
+  **non corrigé** : `terminer()` n'est appelé qu'à la soumission réussie
+  (`DiagnosticPage.tsx:161`), ni à l'annulation, ni à l'échec de chargement, ni au démontage.
+  **Elle ne doit PAS partir seule** — le correctif appartient au même chantier.
+- 🔴 **Hors dépôt, invisible à un `git clone`** : un hook `.git/hooks/pre-commit` nettoie les
+  `.DS_Store`, et **4 leurres immuables** sont posés dans `.git/`. **Conséquence : `rm -rf` du
+  dépôt échoue** (`Operation not permitted`) — ce n'est pas une corruption, il faut
+  `chflags -R nouchg` d'abord.
+- ✅ **CLOSES par ce chantier** : `DECISIONS.md` sans ligne pour l'ADR-0060 · `check_adr_refs.sh`
+  en code 1 · le trou `ADR-0033`.
+
+#### 🧾 DETTES REMONTÉES — du chantier « Trois témoins de plus » (élagué ce jour ; les quatre contrôles passent : ADR ✅, `TROUBLESHOOTING.md` §2026-08-15 ✅, `CHANGELOG.md` 0.94.0 ✅)
+
+- 🔴 **La qualité du décodage glouton n'a toujours PAS été jugée sur une vraie voix.** Le banc
+  existe (`scripts/bench_stt_beam.py`) ; sur 68 narrations **Piper** (1507 mots) : beam 1 = 13,3 %
+  de mots faux, beam 2 = 12,7 %, beam 5 = 12,4 %, beam 1 et 2 divergent sur 22 des 68. **Cela ne
+  tranche pas le réglage** — c'est de la voix de synthèse, exactement ce que la dette exclut.
+  **Ce qui reste appartient à un humain** : enregistrer 5–10 énoncés de Massimo, écrire ce qu'il a
+  dit, relancer le banc. Repli si dégradation : `beam_size=2`, **jamais** 5.
 - 🔴 **DETTE DATÉE EXPIRÉE** : la vérification du masquage SRS devait se faire le 2026-08-15.
   **Plus jouable sous cette forme** — à reformuler sur d'autres cartes, ou à clore en disant ce
   qu'on ne saura pas.
 - 🔴 Le **prompt v2 des fiches** n'a jamais généré une fiche · **deux dettes à une ligne** (copie de
   `groupCapsules.ts` chez Papa · `showSubjectHeader` sur `/quiz`) · **l'enrichissement des fiches
-  par lot** (addendum `adr-0015` §11) demande un `/cadrage`.
+  par lot** (`adr-0015` Amendement 1 §11) demande un `/cadrage`.
+- ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré**, et son rôle a grandi avec le §19 : sans
+  notion résolue la recherche porte sur toutes les matières, ce seuil devient le seul garde-fou.
+- ⚠️ **`servable_quiz_ids` est une SECONDE formulation** du filtre de
+  `_servable_quizzes_of_subject`, tenue par un test d'égalité (N4) — si l'une évolue, l'autre doit
+  suivre. Les **deux migrations portent un miroir SQL** de ce filtre, joué une seule fois à la pose.
+- ⚠️ **Le badge Matières démarre à 32, sans mécanisme de dégonflage** autre que l'usage. Signal de
+  sortie (borne B3) : encore `9+` dans deux mois → **retirer le témoin ou restreindre sa
+  population, jamais monter le plafond**.
+- ⚠️ **`_seed_programme` ne sème qu'UN quiz de mission et UN diagnostic** — un futur compteur
+  multi-matières y serait à vide.
+- ⚠️ Budgets de contexte non mesurés après élargissement (~1200 → ~5000 caractères) · filtre RAG
+  par **niveau** exposé mais désactivé · `_AVEUX_IGNORANCE` est un filet, pas une garantie ·
+  exposants LaTeX (`x^2`) non traités · `lesson_matching_text` compare des mots **exacts** ·
+  trois verrous ne prouvent que la moitié de ce qu'ils gardent (jsdom ne mesure aucune géométrie) ·
+  la sortie « stop » et la clôture après trois questions **n'ont pas été jouées en vrai** ·
+  deux messages de panne **coexistent** à l'écran (correct, décrit nulle part) · le style des
+  messages d'échec n'est encadré par **aucune** règle.
 - ⚠️ « Sans chapitre » vaut 19 % en Maths · repli `subject: ""` du champion · deux missions en
-  double (dev) · tuiles de chapitre à icône unique sur `/revision` ·
-  `chapter_servable_counts` n'est pas un vrai lot · titre de page figé pendant une recherche sur
-  `/fiches` · quota du mélange du jour non arbitré · trou d'un jour du masquage · brouillons 51 et
-  54 · l'`adr-0054` garde deux comptes faux · pied de fiche à 5 lignes en 375 px · `review_load`
-  compte des cartes masquées · commentaire de `coverage.py:364` faux · **veto d'un cours
-  impossible dès qu'une fiche personnelle existe** · **aucun linter Python** · `page-quiz.md`
-  (spec absente).
+  double (dev) · tuiles de chapitre à icône unique sur `/revision` · `chapter_servable_counts`
+  n'est pas un vrai lot · titre de page figé pendant une recherche sur `/fiches` · quota du mélange
+  du jour non arbitré · trou d'un jour du masquage · brouillons 51 et 54 · l'`adr-0054` garde deux
+  comptes faux · pied de fiche à 5 lignes en 375 px · `review_load` compte des cartes masquées ·
+  commentaire de `coverage.py:364` faux · **veto d'un cours impossible dès qu'une fiche personnelle
+  existe** · **aucun linter Python** · `page-quiz.md` (spec absente).
 
-**Observation de clôture, reconduite et NON traitée** : `MEMORY.md` porte toujours ~1200 lignes de
-sections « ⬆️ REMONTÉ » pour ~200 lignes d'actif. Le motif que `/cloture` §1bis décrit
-(*« cimetière à dettes »*) s'est déplacé d'un cran : ce ne sont plus les sections de chantier qui
-s'empilent, ce sont leurs résidus. **Deuxième clôture consécutive à le constater sans le traiter** —
-ce serait une suppression massive hors périmètre, et elle mérite sa propre session.
+#### 🧪 TESTS
 
-#### 🧪 CE QUI TOURNE, ET CE QUI RESTE EN BASE
+**Aucun : aucune ligne de code applicatif.** Les suites n'ont pas été relancées depuis le squash
+`314f336`, où elles étaient à **1384 / 807 / 814**.
 
-**Infra Docker allumée** (postgres/redis/minio). La paire `backend-dev` (:8001) + `massimo-dev`
-(:5176) a été lancée pour la vérification et **est morte avec la session** — à relancer pour
-regarder les badges.
+⚠️ **Ce chantier n'est pas testable au sens des suites** — il modifie des fichiers que **l'agent**
+lit, pas que le code exécute. Sa vérification est un **balayage**, écrit dans `TROUBLESHOOTING.md` :
 
-**Ce que le chantier a écrit en base de DEV**, et qui y reste — ⚠️ **la production n'a rien de tout
-ça, les migrations n'y sont pas encore passées** :
+```bash
+grep -rniE 'impose un cadrage|ADR.{0,20}avant la moindre ligne|ligne dans DECISIONS' \
+  docs/WORKFLOW.md .claude/commands/*.md CLAUDE.md
+```
 
-| Table | Lignes | Origine |
-|---|---|---|
-| `eli5_views` | **267** | point zéro de `f8a9b0c1d2e3` |
-| `quiz_views` | **37** | point zéro de `f9a0b1c2d3e4` |
-| `lesson_views` | 10 | **inchangé** — aucun point zéro, c'est la décision |
+Il ne rend plus qu'un seul résultat : **l'interdit lui-même**, dans `reprise.md`. C'est un faux
+positif, et le bon signe.
 
-⚠️ **Les mutations de la preuve live ont TOUTES été rendues** : la leçon marquée vue a été
-dé-marquée, les vues supprimées ont été reposées, la tentative de quiz et l'item d'agenda `[verif]`
-ont été supprimés. Vérifié après coup : 267 / 37 / 10, identique à l'après-migration. ⚠️ Le
-watermark `agenda_last_seen_at` a en revanche **avancé** — sans conséquence, c'est son métier.
-
-**Suites lancées APRÈS la dernière modification de code :**
-
-| Suite | Résultat |
-|---|---|
-| backend `pytest` | **1381** ✅ |
-| Massimo `vitest` | **807** ✅ |
-| `tsc -b` Massimo et Papa | ✅ |
-| Papa `vitest` | **814** ✅ — lancé plus tôt dans la session ; **aucun fichier Papa n'a été touché** de tout le chantier |
-
-**Dix sabotages joués, dix rouges** — mais **deux sont sortis verts au premier essai**, et ils ne
-disaient pas la même chose : l'un était **mal visé** (il passait par `globalThis`, hors du mock),
-l'autre a révélé un **décor dégénéré** (un seul quiz en base). Détail : `TROUBLESHOOTING.md`.
-
-#### 🧰 CE QUE LA MIGRATION DE PROD A FAIT AJOUTER (2026-08-15, après le merge)
-
-**La dérive de la prod se mesure désormais.** Elle ne se mesurait pas : trois migrations mergées y
-attendaient depuis des jours, et il a fallu *penser* à demander `alembic history`.
-
-- `scripts/check_migration_drift.py` — compare la révision d'une base à la tête du dépôt. Quatre
-  codes de sortie : aligné `0`, **en retard** `1`, **révision inconnue du dépôt** `2` (une branche
-  non mergée posée en base — le backend ne remontera pas au redémarrage), **deux têtes** `3`.
-  `--tete-attendue` est le garde-fou contre l'image périmée, qui annoncerait « aligné » sur une base
-  en retard.
-- `apps/backend/app/tests/test_migrations_graph.py` — le pendant **sans base**, dans la suite
-  ordinaire : une seule tête, autant de révisions que de fichiers, et un **témoin de la tête
-  courante** fait pour être mis à jour à chaque migration (une ligne de diff qu'on relit).
-- `apps/backend/alembic.ini` — `version_path_separator` (déprécié) → `path_separator`. Le dépôt
-  traite les warnings en erreurs, et la dépréciation faisait rougir le test qui construit un
-  `Config`. Corrigé à la source plutôt que masqué.
-
-⚠️ **Il n'y a AUCUNE CI dans ce dépôt** (`.github/workflows/` n'existe pas) : « mettre ça en CI »
-n'était pas une option. Le verrou vit dans la suite de tests, le script se lance à la main. À passer
-à la clôture d'un chantier qui touche au schéma.
-
-⚠️ **Aucun contrôle AU DÉMARRAGE ne peut voir cette dérive** : l'entrypoint fait déjà
-`alembic upgrade head`, donc à ce moment-là il est trop tard pour la constater. La fenêtre est
-*entre le merge et le redémarrage suivant*, et elle ne se voit que de l'extérieur.
-
-**3 sabotages joués, 3 rouges** (seconde tête · fichier ignoré par alembic · tête qui bouge sans le
-témoin) et les 4 codes de sortie éprouvés contre une vraie base.
+🔴 **La vraie preuve viendra à l'usage** : `/ouverture` appelée sur un cas 1 doit **s'arrêter en le
+disant**, et non réclamer un ADR. Personne ne l'a encore fait.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **mergé et clos**. Il ne reste rien à livrer dessus. ✅ Étape 4bis **faite** le
-2026-08-15 (c'est cette rédaction-ci).
+Le chantier est **clos et mergé**. La méthode dit désormais ce qu'elle décide.
 
-1. ✅ ~~Appliquer les migrations en production~~ — **fait le 2026-08-15, prod à `f9a0b1c2d3e4`.**
-2. ✅ ~~Regarder les badges à l'écran~~ — **fait le 2026-08-15, les trois points tiennent.**
-3. **Juger la qualité du décodage glouton sur une vraie voix** — dette héritée de l'ADR-0059, qui
-   était déjà « le premier pas ouvert » à sa clôture et l'est resté. **Redevenu le premier pas.**
-4. Puis **`/ouverture`** ou une session de **cadrage** sur `main`, selon que le chantier suivant a
-   déjà un ADR. ⚠️ Au 2026-08-15, les derniers ADR de `docs/decisions/` sont ceux de ce chantier,
-   tous **livrés** : le suivant se choisit au `BACKLOG.md`, et s'il n'a pas d'ADR, la prochaine
-   session est un **cadrage**, pas un `/ouverture`.
+1. 🔴 **Le geste de l'ADR-0061 attend toujours** — voir la section CADRAGE ci-dessus, **qui reste
+   vivante** : trois cases à cocher dans *Settings → Branches*, et rien dans Git ne dira si c'est
+   fait. **C'est le seul travail encore dû par l'humain seul.**
+2. Puis, par ordre de valeur :
+   - **balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
+     des frères, et la CI ne les dira que s'ils touchent un service ;
+   - **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis quatre chantiers ;
+   - les deux branches parquées, dont `fix/observation-sorties` (**6** tests rouges par
+     construction, base `0141b62`, **très en retard** — elle demandera une remise à jour avant
+     toute PR, et **la CI la rendra rouge**, ce qui est correct).
 
-**Résidus de cette clôture**, qui ne vivent nulle part ailleurs :
+**Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
+base **n'a pas été touchée** · aucune migration · les suites non relancées (aucun code) ·
+`slice.md` relu mais **non modifié** · **rien ne vérifie mécaniquement** qu'un fichier de méthode
+contredit un ADR — le balayage est un `grep` lancé à la main · `MEMORY.md` porte toujours bien plus
+de « ⬆️ REMONTÉ » que d'actif, **septième clôture consécutive à le constater** :
 
-- ~~la branche `feat/trois-temoins-de-plus` existe toujours~~ — **supprimée** le 2026-08-15 ;
-- les serveurs `backend-dev` :8001 et `massimo-dev` :5176 sont morts avec la session ;
-- la base de **dev** porte les points zéro (267 / 37) et le watermark d'agenda avancé ;
-- la permission `Bash(gh pr merge:*)` a été ajoutée à `.claude/settings.local.json` (gitignoré).
-
-⚠️ **Cette section sera élaguée à la clôture du chantier SUIVANT** (`/cloture` §1bis) : ses dettes
-encore ouvertes devront être **remontées**, pas enterrées avec le récit.
+```bash
+echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f1) - 1 )) / total $(wc -l < MEMORY.md)"
+```
 
 ---
 
 ## ⬆️ REMONTÉ de l'élagage de la slice Missions (PR #132, squash `ff3d843`)
 
-> Le récit est retiré : **les quatre contrôles passent.** `adr-0057-addendum-missions.md` ✅ ·
+> Le récit est retiré : **les quatre contrôles passent.** `adr-0057-une-seule-facon-de-trouver.md` (Amendement 1) ✅ ·
 > `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-missions` (**7 sous-sections**) ✅ ·
 > `CHANGELOG.md` **0.91.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
 > Détail par `git log -p MEMORY.md`.
@@ -397,7 +394,7 @@ encore ouvertes devront être **remontées**, pas enterrées avec le récit.
 ## ⬆️ REMONTÉ de l'élagage de la slice 2 « l'essentiel et les définitions » (PR #123, squash `b905ffd`)
 
 > Le récit est retiré : **les quatre contrôles passent.**
-> ADR `adr-0015-addendum-fiche-de-massimo.md` (§8-§9) ✅ ·
+> ADR `adr-0015-fiches-revision.md` (Amendement 1) (§8-§9) ✅ ·
 > `TROUBLESHOOTING.md` §`feat/fiche-de-massimo-slice-2` (**6 sous-sections**) ✅ ·
 > `CHANGELOG.md` **0.82.0** ✅ · 4ᵉ contrôle — **neuf dettes étaient encore ouvertes**, toutes
 > remontées dans « DETTES OUVERTES » ci-dessus. Une seule a été RÉSOLUE par la slice 3 :
@@ -411,7 +408,7 @@ encore ouvertes devront être **remontées**, pas enterrées avec le récit.
 ## ⬆️ REMONTÉ de l'élagage de la slice 1 « la fiche de Massimo » (PR #122, squash `1b78f3d`)
 
 > Le récit est retiré : **les quatre contrôles passent.**
-> `docs/decisions/adr-0015-addendum-fiche-de-massimo.md` ✅ ·
+> `docs/decisions/adr-0015-fiches-revision.md` (Amendement 1) ✅ ·
 > `TROUBLESHOOTING.md` §`feat/fiche-de-massimo` (**14 sous-sections**, comptées ici) ✅ ·
 > `CHANGELOG.md` **0.81.0** ✅ · 4ᵉ contrôle — **six dettes étaient encore ouvertes**, elles sont
 > remontées dans « DETTES OUVERTES » de la section active ci-dessus (glisser au doigt,
@@ -1025,7 +1022,7 @@ par paliers, donc les pages volent **en rafale** (3 au plus), jamais en continu.
 
 > ⚠️ **Les quatre suivantes sont REMONTÉES du chantier « KPI À renforcer » (PR #90) lors de son
 > élagage (2026-08-06, 4ᵉ contrôle).** Ses trois autres contrôles passaient — ADR
-> `adr-0028-addendum-kpi-a-renforcer.md` ✅, `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅,
+> `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2) ✅, `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅,
 > `CHANGELOG.md` 0.51.0 ✅ — mais ses « résidus » enterraient quatre constats **encore vrais**,
 > revérifiés un par un à la clôture.
 
@@ -1131,7 +1128,7 @@ par paliers, donc les pages volent **en rafale** (3 au plus), jamais en continu.
   état, pas seulement la branche entière** — c'est la parade, et elle ne coûte qu'un `git stash
   push -- <chemins>`.
 - ⚠️ **L'ADR de ce chantier est écrit APRÈS son code** — dette éteinte, mais l'ordre reste un écart.
-  `adr-0036-addendum-file-sans-consommateur.md` fige cinq règles déjà livrées ; il n'a donc jamais pu
+  `adr-0036-demande-vers-production.md` (Amendement 2) fige cinq règles déjà livrées ; il n'a donc jamais pu
   **infléchir** la conception, seulement la constater. C'est exactement ce que le rituel
   `mockup → spec → ADR → prompt` existe pour éviter, et le document le dit dans son propre Statut.
   ⚠️ **Ne pas en faire un précédent** : ça a marché ici parce que le chantier était petit et
@@ -1571,7 +1568,7 @@ si la file regrossit.
 > **2026-08-05 — le 5ᵉ KPI du dashboard Papa, « À renforcer »** (PR
 > [#90](https://github.com/NeuronXcore/zetis-school/pull/90), squash `392b075`), section retirée à
 > la clôture du chantier « mémoire à quatre vues » (2026-08-06). Contrôles : ADR
-> `adr-0028-addendum-kpi-a-renforcer.md` ✅ · `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅ ·
+> `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2) ✅ · `TROUBLESHOOTING.md` §`feat/kpi-a-renforcer` ✅ ·
 > `CHANGELOG.md` 0.51.0 ✅ · **quatre résidus REMONTÉS** en tête de « DETTES OUVERTES » (les deux
 > incohérences de `launch.json`, `KPI_ORDER` mort, les deux écarts de delta du dashboard, et
 > l'emplacement de `FRAGILE_STATUSES`) — tous **revérifiés par commande** avant remontée, aucun
@@ -1591,7 +1588,7 @@ si la file regrossit.
 
 > **2026-08-05 — une file que personne n'écoute** (PR #85, squash `7c3e290`), section retirée à la
 > clôture du chantier « file de relecture ». Contrôles : ADR
-> `adr-0036-addendum-file-sans-consommateur.md` ✅ · `TROUBLESHOOTING.md` §`fix/file-de-production`
+> `adr-0036-demande-vers-production.md` (Amendement 2) ✅ · `TROUBLESHOOTING.md` §`fix/file-de-production`
 > ✅ · `CHANGELOG.md` 0.48.0 ✅ · **rien d'ouvert** dans la section retirée — les deux dettes 🔴
 > qu'elle nommait en « prochain pas » (fenêtre de la branche `flat`, `CHANGELOG` muet sur #82/#83)
 > étaient **déjà** dans DETTES OUVERTES, vérifié avant suppression. Ce qui s'y trouvait d'utile et
@@ -1600,14 +1597,14 @@ si la file regrossit.
 > sans l'utiliser) que la seule vérification finale n'aurait jamais montré.
 
 > **2026-08-05 — le panneau d'analyse par matière** (PR #83, squash `cb59600`), section retirée à
-> la clôture du 2026-08-05. Contrôles : ADR `adr-0028-addendum-analyse-par-matiere.md` ✅ ·
+> la clôture du 2026-08-05. Contrôles : ADR `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 1) ✅ ·
 > `TROUBLESHOOTING.md` §`feat/analyse-matiere` ✅ · **`CHANGELOG.md` — ❌ à la clôture, ✅ depuis le
 > 2026-08-05** : l'entrée manquante avait été remontée en dette, elle a été **rétro-inscrite en
 > 0.46.2** depuis les sources · ce qui restait ouvert : **deux dettes PAYÉES** par le chantier
 > suivant, le reste déjà dans « DETTES OUVERTES ».
 
 > **2026-08-04 — les deux bandeaux** (PR #78 `4458574`, PR #79 `c02a555`), section retirée à la
-> clôture suivante après les quatre contrôles : ADR `adr-0029-addendum-galaxie-dans-le-bandeau.md`,
+> clôture suivante après les quatre contrôles : ADR `adr-0029-rejeu-anime-galaxie.md` (Amendement 2),
 > `TROUBLESHOOTING.md` §bandeaux, `CHANGELOG.md`, et **ce qui restait ouvert remonté ci-dessus** —
 > dont 🔴 *le bandeau Massimo n'a jamais été vu*, qui est toujours dû.
 

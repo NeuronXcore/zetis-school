@@ -4,6 +4,448 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `chore/appliquer-adr-0060` — quand la doc dit à l'agent de se bloquer — 2026-08-17
+
+### 🔴 Deux commandes portaient des instructions FAUSSES, pas seulement périmées
+
+**Symptôme** : `/ouverture` s'arrête *« si un ADR manque »*. Or l'`adr-0060` établit que **trois cas
+sur quatre n'ont aucun ADR**. La commande bloquait donc un chantier **parfaitement légitime** —
+c'est arrivé le 2026-08-16 sur `chore/registre-adr`, et il a fallu la contourner à la main.
+
+Même famille : **cinq fichiers de méthode** disaient d'ajouter « la ligne dans `DECISIONS.md` »,
+alors que ce fichier est **généré** depuis la PR #136 et porte en en-tête *« Ne pas éditer à la
+main »*. Un agent obéissant aurait édité un fichier qui s'écrase à la régénération suivante.
+
+**Cause commune** : une décision a été prise (`adr-0060`, `DECISIONS.md` généré) **sans que les
+fichiers qui la contredisent soient mis à jour**. Le dépôt a porté deux doctrines opposées pendant
+une journée entière.
+
+**Parade** — après toute décision qui change la méthode, balayer les fichiers qui la portent :
+
+```bash
+grep -rniE 'impose un cadrage|ADR.{0,20}avant la moindre ligne|ligne dans DECISIONS' \
+  docs/WORKFLOW.md .claude/commands/*.md CLAUDE.md
+```
+
+⚠️ **Un ADR non appliqué est pire qu'un ADR absent** : il donne l'illusion que la règle a changé,
+pendant que les fichiers réellement lus par l'agent disent l'inverse.
+
+### ⚠️ « `.claude/commands/` » au pluriel — et je n'en avais traité que deux sur cinq
+
+**Symptôme** : périmètre annoncé `docs/WORKFLOW.md` **et `.claude/commands/`**. J'ai lu et corrigé
+`ouverture.md` et `cadrage.md`, puis déclaré le chantier fini. Le contrôle de clôture a trouvé
+**trois contradictions de plus** dans les trois commandes que je n'avais pas ouvertes — dont
+`reprise.md` qui disait mot pour mot *« le dépôt impose un cadrage (ADR) avant la moindre ligne de
+code »*, la phrase-souche même que le chantier corrigeait.
+
+**Cause** : j'ai lu les fichiers **où je m'attendais** à trouver le problème, pas **tous ceux que le
+périmètre nommait**. Le read-before-code a porté sur une hypothèse, pas sur un inventaire.
+
+**Parade** : quand un périmètre nomme un **répertoire**, en énumérer le contenu et **rendre le
+compte** avant de commencer — « 5 fichiers, j'en lis 5 ». Un périmètre au pluriel se vérifie par un
+`ls`, jamais par l'intuition de ce qui est concerné.
+
+## Chantier `fix/ci-github-actions` — deux tests verts pour la mauvaise raison — 2026-08-16
+
+### 🔴 Un `TestClient` construit au niveau MODULE parle au vrai PostgreSQL
+
+**Symptôme** : au premier run de la CI, `test_login_massimo_ok` et `test_me_returns_role`
+échouent — `psycopg.OperationalError: connection to server at "127.0.0.1", port 5432 failed`.
+**Les mêmes tests étaient verts en local depuis toujours.**
+
+**Cause** : `test_auth.py` faisait `client = TestClient(app)` **au niveau module**, sans aucune
+fixture. `app.dependency_overrides[get_db]` n'était donc jamais posé, et l'application utilisait sa
+`SessionLocal` réelle. Ils étaient verts sur la machine de dev **parce que `docker compose` y
+tourne** — et rouges pour quiconque clone le dépôt.
+
+**Pourquoi seulement deux des sept** : `login` appelle `student_id_or_none(db)` **uniquement pour un
+rôle enfant** (`auth/router.py:27`). La session SQLAlchemy étant paresseuse, la connexion ne s'ouvre
+qu'à la première requête — `papa` n'en émettait aucune, `massimo` oui.
+
+**Parade** : une fixture `autouse` locale au fichier qui surcharge **`get_db` seulement**.
+
+⚠️ **Ne PAS utiliser `client_db` de `conftest.py` pour des tests d'authentification** : elle
+surcharge aussi `get_current_user` par un utilisateur constant, ce qui rendrait
+`test_me_requires_token` et `test_me_returns_role` **incapables d'échouer**.
+
+**Comment le reproduire sans éteindre Postgres** — la seule façon d'obtenir une preuve locale :
+
+```bash
+ZETIS_DATABASE_URL="postgresql+psycopg://x:x@127.0.0.1:59999/nope" \
+  .venv/bin/python -m pytest app/tests/test_auth.py -q
+```
+
+Avant le correctif : `2 failed, 8 passed`. Après : `10 passed`.
+
+⚠️ **La leçon dépasse ce fichier** : un test vert sur la machine de dev ne prouve rien tant qu'un
+service tourne à côté. Chercher les autres `TestClient(app)` hors fixture avant d'affirmer qu'une
+suite est autonome.
+
+### 🔴 `new Response(new Blob(…))` casse sous Node 20 — et passe sous Node 24
+
+**Symptôme** : `speech.test.ts` échoue en CI avec `TypeError: object.stream is not a function`,
+alors qu'il est vert en local.
+
+**Cause** : le test mêlait **deux implémentations**. Le `Blob` vient de **jsdom**, le `Response` vient
+d'**undici** ; undici appelle `object.stream()` sur le corps, que le `Blob` de jsdom n'expose pas
+sous Node 20. Sous **Node 24** les globales s'alignent et l'appel réussit. La machine de dev tourne
+en Node 24 ; `engines.node` annonce `>=20`, et c'est ce plancher que la CI teste.
+
+**Parade** : donner un `Uint8Array` (un `BufferSource`) comme corps, jamais un `Blob` jsdom :
+
+```ts
+new Response(new Uint8Array([1, 2, 3]), {
+  status: 200,
+  headers: { "content-type": "audio/wav" },
+})
+```
+
+⚠️ **Aucun Node 20 n'est installé sur la machine de dev** : ce correctif ne pouvait être prouvé
+**que** par la CI. C'est le premier défaut du dépôt dont la vérification est structurellement hors
+de portée en local.
+
+### ⚠️ Un venv neuf ne prouve pas l'absence de services
+
+**Ce que j'ai cru vérifier, et qui était faux.** Avant d'écrire la CI, j'avais monté un venv neuf
+avec seulement `.[dev]` pour prouver que les extras `stt`/`tts` n'étaient pas requis : **1384 passed**.
+J'en avais conclu — et écrit — *« aucun service nécessaire, et c'est vérifié »*.
+
+**C'était faux pour 2 tests sur 1384.** Le venv neuf isole les **dépendances Python**, pas les
+**services réseau** : Postgres tournait à côté, et rien dans le résultat ne le disait.
+
+**Parade** : pour prouver l'autonomie d'une suite, couper l'accès au service — `ZETIS_DATABASE_URL`
+sur un port mort — et non changer d'environnement Python. Les deux contrôles ne mesurent pas la
+même chose.
+
+## Chantier `fix/hook-pre-push` — le verrou qui manquait — 2026-08-16
+
+### 🔴 Des backticks dans une chaîne à guillemets doubles, dans un hook, EXÉCUTENT
+
+**Symptôme** : la première version de `hooks/pre-push` contenait, pour documenter l'échappatoire :
+
+```sh
+echo "pre-push : les trois suites — `git push --no-verify` pour passer outre."
+```
+
+**Cause** : en shell, les backticks sont une **substitution de commande**, et les guillemets doubles
+ne les protègent pas (seuls les guillemets simples le font). Cette ligne aurait lancé un
+`git push --no-verify` **depuis le hook de push**.
+
+**Parade** : guillemets **simples** pour toute ligne d'aide qui cite une commande, et un contrôle
+mécanique avant de committer un hook :
+
+```sh
+sh -n hooks/pre-push                          # syntaxe
+grep -n '`' hooks/pre-push | grep -v '^[0-9]*:#'   # aucun backtick hors commentaire
+```
+
+⚠️ **Attrapé par relecture, pas par un test.** Un hook n'a pas de suite : la seule barrière est de
+le lire, et de jouer **tous** ses chemins à la main.
+
+### 🔴 `git config core.hooksPath` remplace TOUT `.git/hooks/` — en silence
+
+**Symptôme** : poser `core.hooksPath hooks` pour versionner le `pre-push` aurait **éteint** le
+`pre-commit` local qui nettoie les `.DS_Store` — sans aucun message.
+
+**Cause** : `core.hooksPath` ne s'ajoute pas au dossier par défaut, il le **remplace**. Or ce
+`pre-commit` porte dans son en-tête une décision explicite : *« Hook LOCAL et non suivi par git […]
+C'est assumé — l'alternative (un script commité) ajoutait un fichier au dépôt pour un problème qui
+ne touche que cette machine. »* Le poser aurait renversé cette décision sans la discuter.
+
+**Parade** : un **lien** plutôt qu'un réglage global. Le fichier reste versionné (relisible,
+diffable, survit au reclone) et le dossier par défaut reste actif :
+
+```sh
+ln -sf ../../hooks/pre-push .git/hooks/pre-push
+```
+
+### ⚠️ Un hook qui ne peut pas mesurer doit ÉCHOUER, jamais sauter
+
+Le piège le plus coûteux d'un hook de test n'est pas qu'il soit lent : c'est qu'il passe au **vert**
+parce que `npx` ou le venv sont absents. Il transforme alors *« je ne sais pas »* en *« c'est
+bon »* — strictement pire que pas de hook.
+
+`hooks/pre-push` traite l'outil absent comme un **échec**, et c'est vérifié :
+
+```sh
+printf 'refs/heads/x a refs/heads/x b\n' | env -i PATH=/usr/bin:/bin HOME="$HOME" \
+  /bin/sh .git/hooks/pre-push origin git@x    # → « OUTIL ABSENT (npx) », code 1
+```
+
+⚠️ **Jouer les quatre chemins**, pas seulement le vert : push normal · test rouge · outil absent ·
+**suppression de branche** (un `git push --delete` ne doit pas déclencher 40 s de tests).
+
+## Chantier `chore/renvois-addendums-code` — la dette du registre, et ce qu'elle cachait — 2026-08-16
+
+### 🔴 Un test était ROUGE sur `main`, et rien dans la chaîne ne pouvait le voir
+
+**Symptôme** : `test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme`
+(`app/tests/test_news_doctrine.py:182`) échouait sur `main` depuis le merge du rangement du
+registre — **découvert par lecture, pas par une alerte**.
+
+```
+AssertionError: La dérogation de « diagnostic » cite
+« adr-0030-addendum-temoin-diagnostic.md », qui n'existe pas.
+```
+
+**Cause** : le test fait `(racine / document).is_file()` sur une valeur du dict `DEROGATIONS`, qui
+nommait un fichier d'addendum. La fusion l'a supprimé.
+
+**Pourquoi personne ne l'a vu**, et c'est le vrai enseignement — **trois filets ont laissé passer,
+chacun pour une raison valable** :
+
+1. `check_adr_refs.sh` était **vert** : il ne teste que `ADR-\d{4}`, jamais un chemin.
+2. La PR était **verte** : le dépôt n'a aucune CI ; seul GitGuardian s'exécute.
+3. La clôture disait *« aucun test lancé — aucune ligne de code applicatif »*, ce qui était
+   **vrai**. Mais un test **lisait le registre** : le critère « ai-je touché du code ? » ne dit
+   rien sur « ai-je touché ce qu'un test observe ? ».
+
+**Parade** : ne pas déduire de « chantier documentaire » que la suite est hors d'atteinte. Avant de
+clore un chantier qui **supprime ou renomme des fichiers**, même de documentation, chercher qui les
+nomme dans du code exécuté :
+
+```bash
+grep -rnE '"[^"]*adr-[0-9]{4}[^"]*"' --include='*.py' --include='*.ts' --include='*.tsx' apps packages
+```
+
+### 🔴 `redirige_renvois_addendums.py` ne pouvait servir qu'une fois
+
+**Symptôme** : relancé après le merge pour finir les 54 renvois de `apps/`+`packages/`, le script
+annonçait `0 renvoi(s) redirigé(s)` — l'air d'avoir fini, en n'ayant rien fait.
+
+**Cause** : `carte()` lisait `git diff --diff-filter=D`, c'est-à-dire l'**arbre de travail contre
+`HEAD`**. Une fois la fusion commitée, il n'y a plus aucune suppression en attente : la carte est
+vide, et un dictionnaire vide ne fait échouer aucune boucle.
+
+**Parade** : `--depuis <revision>` lit les suppressions dans un commit
+(`git show --diff-filter=D`), et le contenu des fichiers disparus dans son **parent** (`<rev>^`).
+Le script **sort en 1 avec un message explicite** quand la carte est vide, au lieu de rendre un
+rapport à zéro qui ressemble à un succès.
+
+### 🔴 Une redirection mécanique casse un littéral de chaîne — et le test reste rouge en ayant l'air réparé
+
+**Symptôme** (mesuré avant d'écrire, en simulant) : le script aurait produit
+
+```python
+"diagnostic": "adr-0030-temoins-nouveaute-navigation.md (Amendement 1)",
+```
+
+La mention se pose après le **backtick fermant** ; ici le délimiteur est un **guillemet**, donc elle
+entrait **dans** la chaîne. `is_file()` cherchait alors un fichier nommé
+`…navigation.md (Amendement 1)` : le test serait resté rouge, mais avec un renvoi d'apparence
+correcte — le pire des deux mondes.
+
+**Parade** : dans `reecrire()`, un renvoi encadré de guillemets (`"` ou `'`) reçoit le nom du parent
+**seul**, sans mention. **Le backtick délimite de la prose, le guillemet délimite une donnée.**
+
+⚠️ **Corollaire** : sur les 54 renvois, **53 étaient des commentaires** et un seul était exécuté —
+et c'est précisément celui-là qui portait la régression. Le compte rassurant (« ce ne sont que des
+commentaires ») était faux d'exactement une unité.
+
+### ⚠️ `TROUBLESHOOTING.md` doit être exclu du balayage qu'il documente
+
+Ce fichier **cite des noms supprimés en exemple** — c'est ce qui rend les pièges lisibles. Le
+rediriger donnerait *« un renvoi écrit `adr-0024-zetis-galaxy-progression.md (Amendement 3)` ne
+contient aucune occurrence de ADR-0024 »*, une phrase qui ne démontre plus rien. Il est dans
+`EXCLUS`, avec `scripts/` et pour la même raison : **un registre de noms morts n'est pas une liste
+de liens cassés.**
+
+## Chantier `chore/registre-adr` — un ADR = un fichier — 2026-08-16
+
+### 🔴 `check_adr_refs.sh` ne teste QUE `ADR-\d{4}`, jamais un chemin de fichier
+
+**Symptôme** : après la fusion, qui supprime les 46 fichiers d'addendum, le verrou du dépôt
+répondait `✅ toutes les références ADR résolvent` alors que **179 renvois pointaient vers des
+fichiers inexistants**.
+
+**Cause** : `check_adr_refs.sh:8` grep `ADR-[0-9]{4}` uniquement. Un renvoi écrit
+`` `docs/decisions/adr-0024-addendum-galaxie-animee.md` `` ne contient **aucune** occurrence de
+`ADR-0024` — le verrou ne le voit pas. Le nom de fichier et le numéro sont deux espaces de nommage
+distincts, et un seul est gardé.
+
+**Parade** : après toute suppression ou tout renommage de fichier ADR, balayer **en plus** :
+
+```bash
+grep -rhoE '(docs/decisions/)?adr-[0-9]{4}-[a-z0-9-]+(\.md)?' --include='*.md' --include='*.py' \
+  --include='*.ts' --include='*.tsx' . | sort -u
+```
+
+⚠️ **Le verrou reste vert aujourd'hui sur 54 renvois morts** dans `apps/` et `packages/`, laissés
+hors périmètre. Ne pas lire son `✅` comme « aucun renvoi cassé ».
+
+### 🔴 Compter les renvois AVANT une fusion sous-estime — 93 annoncés, 179 réels
+
+**Symptôme** : comptage soigneux avant écriture → **93** renvois à réparer. Après la fusion, le
+balayage en rendait **179**.
+
+**Cause, et elle est structurelle** : les corps d'addendums **citaient leurs frères**. Ces
+renvois-là avaient été écartés du comptage — à juste titre, puisqu'ils vivaient dans des fichiers
+voués à disparaître. Mais la fusion ne les supprime pas : elle les **absorbe dans le parent**, où
+ils resurgissent. Un renvoi qui allait mourir avec son fichier survit à la fusion de ce fichier.
+
+**Parade** : pour toute opération qui **fusionne** des fichiers, compter l'impact **sur le résultat
+de la fusion**, jamais sur l'état d'avant. Le dry-run doit produire le texte fusionné puis compter
+dedans.
+
+### 🔴 85 renvois sur 179 étaient des AUTO-renvois — le fichier se cite lui-même
+
+**Symptôme** : la première version de la redirection produisait, dans
+`adr-0024-zetis-galaxy-progression.md`, la phrase *« cf. l'addendum
+`adr-0024-zetis-galaxy-progression.md` (Amendement 1) §A »* — un fichier renvoyant à lui-même par
+son propre nom.
+
+**Cause** : un addendum absorbé dans son parent y emporte ses citations de frères. Une redirection
+« nom d'addendum → nom du parent » appliquée uniformément transforme donc une référence externe en
+auto-référence, sans que rien ne l'attrape.
+
+**Parade** : traiter le cas à part — quand le fichier citant **est** le parent, le renvoi cesse
+d'être un chemin. Rendu `**Amendement N**`, backticks encadrants retirés
+(`redirige_renvois_addendums.reecrire`, paramètre `nom_fichier`).
+
+### 🔴 Un tri `(date, nom de fichier)` place le RÉVOQUANT AVANT le RÉVOQUÉ
+
+**Symptôme** : `fusion_addendums.py` triait les addendums par `(date, nom de fichier)`. Sur les
+huit groupes portant plusieurs addendums du même jour, **quatre** sortaient mal ordonnés —
+`## Amendement 2` de l'ADR-0024 aurait porté la phrase *« Cinquième addendum en une journée »*.
+
+**Cause** : l'ordre alphabétique n'a aucun rapport avec la chronologie. Sur ADR-0024, cinq
+addendums du 2026-07-31 se numérotent **en toutes lettres** dans leur bloc de statut ; sur ADR-0025,
+cinq addendums du 2026-08-10 portent `§13`…`§17` dans leur H1. Deux sources d'ordre existaient dans
+les documents, et le tri n'en lisait aucune.
+
+**Parade** : `ORDRE_DECLARE` (`scripts/fusion_addendums.py`) — chaque rang est celui que le document
+**déclare lui-même**, avec la citation qui l'établit en commentaire. Le script **signale** tout
+ex-æquo dont l'ordre n'est déclaré nulle part, au lieu de retomber en silence sur l'alphabétique.
+
+⚠️ **Contrôle croisé indispensable** : deux scripts calculent indépendamment le numéro d'amendement
+(la fusion l'écrit dans `## Amendement N`, la redirection l'écrit dans `(Amendement N)`). Vérifier
+qu'ils coïncident, sinon on produit 179 renvois **précis et faux** :
+
+```bash
+python3 - <<'PY'
+# les 46 numéros calculés doivent égaler les en-têtes réellement écrits
+PY
+```
+
+### ⚠️ `gen_frontmatter.py` écrivait son rapport HORS du dossier qu'il instrumente
+
+**Symptôme** : `--write` a produit `docs/rapport-revocations.md`, un cran au-dessus du périmètre de
+la session (`docs/decisions/`).
+
+**Cause** : `args.racine.parent / "rapport-revocations.md"`. Le `.parent` était une commodité, pas
+une décision.
+
+**Parade** : corrigé en `args.racine / "annexes"`. ⚠️ Le commentaire `revoque:` des front-matter
+déjà posés pointait encore vers l'ancien chemin — **un déplacement de fichier généré laisse des
+renvois dans les fichiers déjà générés**.
+
+### ⚠️ `graphify update .` refuse toute baisse du nombre de nœuds, même voulue
+
+**Symptôme** : `WARNING: new graph has 16339 nodes but existing graph.json has 16348. Refusing to
+overwrite — you may be missing chunk files from a previous session.`
+
+**Cause** : garde-fou contre une reconstruction partielle. Il ne distingue pas une perte accidentelle
+d'une **suppression volontaire** — ici les 46 fichiers d'addendum.
+
+**Parade** : `graphify update . --force`, **après** avoir vérifié que la baisse s'explique
+entièrement. Une sauvegarde du graphe curé est prise automatiquement (`graphify-out/<date>/`).
+
+## Session de méthode `ADR-0060` + rangement de `main` — 2026-08-16
+
+### 🔴 `git push` envoie le REF, pas les commits qu'on vient de vérifier
+
+J'avais rendu **deux** commits vérifiés en annonçant « à toi de pousser ». Entre cette
+vérification et le `git push origin main`, un commit a été fait **dans le dépôt, hors session**.
+Le push a envoyé **trois** commits — dont un jamais relu — sur un remote public.
+
+**Cause.** `git push origin main` ne pousse pas un ensemble de commits : il pousse **ce que `main`
+désigne à l'instant du push**. Sur ce dépôt le travail arrive aussi par l'humain, en cours de tour.
+
+**Parade.** Avant tout push différé : `git log --oneline origin/main..HEAD`, et rapprocher de ce
+qu'on a vérifié. Un commit inconnu se lit et se signale, il ne part pas en silence. Pour garantir
+le périmètre : `git push origin <sha>:main`.
+
+### 🔴 `.gitignore` ne couvre JAMAIS l'intérieur de `.git/` — et `refs/.DS_Store` fait rougir `fsck`
+
+`git fsck` sortait `refs/.DS_Store: badRefName: invalid refname format`. Le réflexe — « ajouter
+`.DS_Store` au `.gitignore` » — est **sans effet** : la ligne y était déjà (`.gitignore:42`), et
+**aucun `.DS_Store` n'a jamais été suivi**. Le fichier fautif vivait **dans `.git/refs/`**, où
+`.gitignore` ne s'applique pas.
+
+**Cause.** Le Finder écrit un `.DS_Store` dans **tout** dossier qu'il affiche, y compris `.git/` si
+l'on navigue avec les fichiers cachés visibles. macOS n'offre aucun réglage pour l'empêcher sur un
+volume local — ⚠️ **`DSDontWriteNetworkStores` ne vaut que pour les volumes réseau**, le proposer
+ici est une fausse piste.
+
+**Parade.** 43 fichiers supprimés, puis deux étages posés **hors dépôt** : un hook
+`.git/hooks/pre-commit` (~50 ms, élague `node_modules`/`.venv`/caches, **pas** `.git/`, sort
+toujours 0), et un **leurre** dans les 4 dossiers de `.git/` — voir l'entrée suivante.
+
+### ⚠️ Le leurre qui empêche le Finder d'écrire fait ÉCHOUER `rm -rf` sur le dépôt
+
+Prévention posée dans `.git`, `.git/refs`, `.git/objects`, `.git/logs` : un **répertoire**
+`.DS_Store` (là où le Finder veut un *fichier*), rendu immuable par `chflags uchg`. L'écriture du
+Finder échoue — vérifié dans les 4.
+
+**Éprouvé sur un clone jetable avant application** : `status`, `for-each-ref`, `commit`, `fetch`,
+`pack-refs --all`, `gc`, `clone` depuis lui — tous rc=0, et `fsck` reste propre **même après
+`gc`**. Git tolère intégralement le leurre.
+
+🔴 **Le prix, à connaître avant de paniquer** :
+
+```
+rm: .git/.DS_Store: Operation not permitted
+```
+
+Ce n'est **pas** une corruption, c'est le drapeau. Pour supprimer ou déplacer le dépôt :
+
+```bash
+chflags -R nouchg <chemin-du-depot> && rm -rf <chemin-du-depot>
+```
+
+⚠️ Hook et leurres vivent dans `.git/` : **ils ne survivent pas à un reclone.**
+
+### 🔴 Un dossier « à supprimer » contenait des HARDLINKS vers `.git/objects/`
+
+`scratchpad/_a_supprimer` avait tout du déchet (`tmp_obj_*`, `*.lock`). Cinq de ces fichiers
+avaient un **link count de 2** : c'étaient des hardlinks vers `.git/objects/`, dont **l'objet
+commit du commit qui venait d'être poussé**.
+
+Supprimer un hardlink ne détruit pas l'objet — le jumeau dans `.git` survit, vérifié par
+`git cat-file -t` après coup. Mais la parade est de **regarder avant**, pas après :
+`stat -f %l <fichier>` et `find .git -inum <inode>`.
+
+### 🔴 Poser le front-matter AVANT la fusion casse la garantie de `fusion_addendums.py`
+
+J'avais proposé l'ordre **front-matter → fusion → index**. Le docstring de
+`scripts/gen_frontmatter.py` dit l'inverse, en toutes lettres : **fusion → front-matter → index**.
+
+**Cause.** `verifier()` garantit que toute ligne **non-titre** d'une source se retrouve dans la
+sortie. Les lignes d'un front-matter (`id: "0024"`, `type: …`) ne sont ni des titres ni un H1 :
+elles seraient comptées **« ligne perdue »**, la garantie sauterait, et le script **refuserait
+d'écrire** sur les 21 parents. Le fail-safe fonctionne — mais le chantier serait bloqué sans
+comprendre pourquoi.
+
+**Parade.** Lire le docstring du script avant d'en prescrire l'ordre. Read-before-code vaut aussi
+pour l'outillage qu'on a soi-même proposé.
+
+### 🔴 `gen_decisions_index.py` lancé avant la Phase 1bis classe 104 ADR sur 105 en « surface »
+
+Répétition à blanc, en scratchpad : **1** entrée en « architecture », **104** en « surface » —
+dont `ADR-0002` (séparation des frontends), `ADR-0004` (PostgreSQL + pgvector), `ADR-0011`
+(contexte canonique), `ADR-0037`.
+
+**Cause.** `type_de()` cherche `type:` dans les 12 premières lignes et **retombe sur `"surface"`**
+par défaut ; **un seul** fichier porte un front-matter. Et la section « surface » se décrit
+elle-même comme *« on ne les lit pas pour cadrer une architecture »* : l'index dirigerait le
+cadrage à l'opposé de la vérité. Second mensonge, dans l'en-tête généré : *« Amendements fusionnés
+dans leur parent »*, alors que la fusion n'a pas eu lieu.
+
+**Parade.** Le générateur **suppose la Phase 1bis faite**. Il ne se lance qu'en **troisième**
+position, et jamais isolément. ⚠️ Vérifier aussi que le set `ARCHITECTURE` du script contient le
+numéro de tout ADR d'architecture récent : un oubli n'y produit pas un classement approximatif, il
+**retire la décision du champ de vision du cadrage**.
+
 ## Chantier `feat/la-fiche-repond-quand-on-la-touche` — 2026-08-15
 
 ### 🔴 L'ADR nommait des champs qui n'existent pas — et son propre signal d'alarme le disait
@@ -2652,7 +3094,7 @@ jusqu'au rechargement. Aucun test ne couvre l'entrée optimiste.
 
 ## Chantier `feat/memoire-quatre-vues` — la carte mémoire à 4 vues + 2 cartes focalisables — 2026-08-06
 
-> ADR : `adr-0028-addendum-memoire-quatre-vues.md` et `adr-0028-addendum-cartes-focalisables.md`.
+> ADR : `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 3) et `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 4).
 
 ### 🔴 Une refonte de composant peut faire DISPARAÎTRE une série servie, sans qu'un test rougisse
 
@@ -2735,7 +3177,7 @@ sur 4. Voir l'entrée du chantier `feat/kpi-a-renforcer` ci-dessous pour le cas 
 
 ## Chantier `feat/kpi-a-renforcer` — le 5ᵉ KPI du dashboard Papa — 2026-08-05
 
-> ADR : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`, écrit **avant** le code.
+> ADR : `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2), écrit **avant** le code.
 
 ### 🔴 Une union qui pilote un comportement, gardée par un TABLEAU — le KPI est né inerte
 

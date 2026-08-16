@@ -9,7 +9,7 @@ c'est lui qui rend le bouton honnête, et sans lui la surface ment.
 ## 0. Cadre
 
 Protocole : **`/slice`**. Décisions : `adr-0031-production-en-lot-et-journal.md` et son **addendum**
-`adr-0031-addendum-deux-passes-et-gate-cours.md`. Spec : `docs/frontend-papa/page-couverture.md`
+`adr-0031-production-en-lot-et-journal.md` (Amendement 1). Spec : `docs/frontend-papa/page-couverture.md`
 (§179-186 décrit déjà ce que le bouton fera « quand l'ADR-0023 sera livré »).
 
 ---

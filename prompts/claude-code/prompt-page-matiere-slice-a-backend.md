@@ -12,8 +12,8 @@ Protocole d'exécution : **`/slice`** (graphify, read-before-code avec rapport, 
 hors-périmètre, non-régression). Il ne se répète plus ici.
 
 Décisions de fond, à lire aussi :
-`docs/decisions/adr-0024-addendum-page-matiere-index-notions.md` et
-`docs/decisions/adr-0027-addendum-demandes-surface-eleve.md`.
+`docs/decisions/adr-0024-zetis-galaxy-progression.md` (Amendement 6) et
+`docs/decisions/adr-0027-chat-orchestrateur.md` (Amendement 2).
 Spec de page : `docs/frontend-massimo/page-matiere-dediee.md`.
 
 ---
@@ -117,7 +117,7 @@ Sortie : matière → chapitres → notions, chacune avec `status` et sa panopli
 
 ## 3. Commit 2 — route enfant sur `content_requests`
 
-> Décision de sécurité : `docs/decisions/adr-0027-addendum-demandes-surface-eleve.md`. Lis-la avant.
+> Décision de sécurité : `docs/decisions/adr-0027-chat-orchestrateur.md` (Amendement 2). Lis-la avant.
 
 ```
 POST /api/student/content-requests          (require_child)
