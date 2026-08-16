@@ -1,5 +1,21 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.96.0 — Un verrou avant le push
+
+Rien ne change pour Massimo ni pour Papa. Le dépôt gagne le garde-fou dont l'absence avait laissé
+une suite rouge atteindre `main` entre deux PR vertes (voir 0.95.0).
+
+- **`hooks/pre-push` refuse un `git push` si les trois suites ne sont pas vertes** — ≈ 40 s.
+  Versionné, donc relisible et diffable ; installé par un lien
+  (`ln -sf ../../hooks/pre-push .git/hooks/pre-push`), et **non** par `core.hooksPath`, qui aurait
+  éteint le `pre-commit` local en silence.
+- 🔴 **Un outil absent est un échec, jamais un saut.** Un hook qui passe au vert parce qu'il n'a pas
+  pu mesurer transforme « je ne sais pas » en « c'est bon » — c'est pire que pas de hook.
+- **Il n'automatise qu'un tiers** de `WORKFLOW.md` §2 étape 4 : relire le diff et vérifier le
+  périmètre restent humains, et le message de succès le rappelle à chaque push.
+- **Ce n'est pas une CI.** Il est local et `--no-verify` le contourne. `.github/workflows/` n'existe
+  toujours pas.
+
 ## 0.95.0 — Le registre devient un seul fichier par décision, et un test rouge sort de l'ombre
 
 Rien ne change pour Massimo ni pour Papa : c'est du rangement, et une régression qu'il a révélée.

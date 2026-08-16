@@ -33,6 +33,9 @@ zetis/
 │   ├── commands/            # /cloture, /reprise…
 │   ├── launch.json          # serveurs de dev appairés (backend + front, CORS)
 │   └── settings.json · settings.local.json
+├── hooks/                   # hooks git VERSIONNÉS — installés par lien, une fois par clone
+│   ├── pre-push             # refuse un push si les trois suites ne sont pas vertes
+│   └── README.md            # installation, motif, et ce que le hook ne fait PAS
 ├── apps/
 │   ├── frontend-massimo/    # interface enfant (React + Vite)
 │   │   ├── index.html · vite.config.ts · package.json

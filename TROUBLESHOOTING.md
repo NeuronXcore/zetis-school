@@ -4,6 +4,64 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/hook-pre-push` — le verrou qui manquait — 2026-08-16
+
+### 🔴 Des backticks dans une chaîne à guillemets doubles, dans un hook, EXÉCUTENT
+
+**Symptôme** : la première version de `hooks/pre-push` contenait, pour documenter l'échappatoire :
+
+```sh
+echo "pre-push : les trois suites — `git push --no-verify` pour passer outre."
+```
+
+**Cause** : en shell, les backticks sont une **substitution de commande**, et les guillemets doubles
+ne les protègent pas (seuls les guillemets simples le font). Cette ligne aurait lancé un
+`git push --no-verify` **depuis le hook de push**.
+
+**Parade** : guillemets **simples** pour toute ligne d'aide qui cite une commande, et un contrôle
+mécanique avant de committer un hook :
+
+```sh
+sh -n hooks/pre-push                          # syntaxe
+grep -n '`' hooks/pre-push | grep -v '^[0-9]*:#'   # aucun backtick hors commentaire
+```
+
+⚠️ **Attrapé par relecture, pas par un test.** Un hook n'a pas de suite : la seule barrière est de
+le lire, et de jouer **tous** ses chemins à la main.
+
+### 🔴 `git config core.hooksPath` remplace TOUT `.git/hooks/` — en silence
+
+**Symptôme** : poser `core.hooksPath hooks` pour versionner le `pre-push` aurait **éteint** le
+`pre-commit` local qui nettoie les `.DS_Store` — sans aucun message.
+
+**Cause** : `core.hooksPath` ne s'ajoute pas au dossier par défaut, il le **remplace**. Or ce
+`pre-commit` porte dans son en-tête une décision explicite : *« Hook LOCAL et non suivi par git […]
+C'est assumé — l'alternative (un script commité) ajoutait un fichier au dépôt pour un problème qui
+ne touche que cette machine. »* Le poser aurait renversé cette décision sans la discuter.
+
+**Parade** : un **lien** plutôt qu'un réglage global. Le fichier reste versionné (relisible,
+diffable, survit au reclone) et le dossier par défaut reste actif :
+
+```sh
+ln -sf ../../hooks/pre-push .git/hooks/pre-push
+```
+
+### ⚠️ Un hook qui ne peut pas mesurer doit ÉCHOUER, jamais sauter
+
+Le piège le plus coûteux d'un hook de test n'est pas qu'il soit lent : c'est qu'il passe au **vert**
+parce que `npx` ou le venv sont absents. Il transforme alors *« je ne sais pas »* en *« c'est
+bon »* — strictement pire que pas de hook.
+
+`hooks/pre-push` traite l'outil absent comme un **échec**, et c'est vérifié :
+
+```sh
+printf 'refs/heads/x a refs/heads/x b\n' | env -i PATH=/usr/bin:/bin HOME="$HOME" \
+  /bin/sh .git/hooks/pre-push origin git@x    # → « OUTIL ABSENT (npx) », code 1
+```
+
+⚠️ **Jouer les quatre chemins**, pas seulement le vert : push normal · test rouge · outil absent ·
+**suppression de branche** (un `git push --delete` ne doit pas déclencher 40 s de tests).
+
 ## Chantier `chore/renvois-addendums-code` — la dette du registre, et ce qu'elle cachait — 2026-08-16
 
 ### 🔴 Un test était ROUGE sur `main`, et rien dans la chaîne ne pouvait le voir

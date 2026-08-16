@@ -6,105 +6,94 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — Les renvois du code applicatif (PR #137, squash `4ee9804`, 2026-08-16)
+### ✅ CHANTIER COMPLET — Le verrou avant le push (`fix/hook-pre-push`, 2026-08-16)
 
-**Rangement** au sens ADR-0060 **cas 1** — aucun ADR. Il solde la dette laissée par le rangement du
-registre (PR #136, squash `807c7a2`), **et il a découvert que cette dette cachait une régression.**
+**Application** au sens ADR-0060 **cas 2** — aucun ADR, mais **citation obligatoire** de la règle
+exécutée : `docs/WORKFLOW.md` §2 étape 4, *« toi : tu lances les tests (jamais confiance au "c'est
+vert") […] c'est la seule étape non délégable »*.
 
-**Mergé en squash le 2026-08-16** : [PR #137](https://github.com/NeuronXcore/zetis-school/pull/137),
-**38 fichiers**, un seul commit d'origine — pas d'héritage, contrairement à la #136.
-Base du chantier : `cdf7c2f`.
+**Branche** `fix/hook-pre-push`, **base `591eb45`** (vérifié : `git merge-base main HEAD`).
+**COMPLET, NON COMMITÉ** — l'humain vérifie le diff puis committe.
+Pour les têtes : `git log --oneline main..HEAD`.
 
-**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `4ee9804` · copie de travail
-propre · `test_news_doctrine.py` **18 passed** — le test qui était rouge ne l'est plus, mesuré
-depuis `main` et non depuis la branche.
-
-⚠️ **`chore/renvois-addendums-code` n'est PAS supprimée** (local + `origin`). Tout son contenu est
-dans le squash. 🔴 **Avant de la supprimer, comparer à `4ee9804`, PAS à la tête de `main`** :
-`main` avance ensuite (4bis), et `git diff main <branche>` paraît alors non vide alors que la
-branche ne porte rien d'unique. Le piège s'est présenté sur la #136.
-
-#### 🔴 CE QU'IL A RÉVÉLÉ — un test était ROUGE sur `main`
-
-`test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme`
-(`apps/backend/app/tests/test_news_doctrine.py:182`) échouait **depuis le merge de la PR #136**. Il
-fait `is_file()` sur une valeur du dict `DEROGATIONS`, qui nommait un fichier d'addendum supprimé
-par la fusion.
-
-**Trois filets ont laissé passer, chacun pour une raison valable** — c'est le vrai enseignement :
-
-1. `check_adr_refs.sh` était **vert** : il ne teste que `ADR-\d{4}`, jamais un chemin.
-2. La PR était **verte** : le dépôt n'a **aucune CI** ; seul GitGuardian s'exécute.
-3. La clôture disait *« aucun test lancé — aucune ligne de code applicatif »*, ce qui était **vrai**.
-   Mais un test **lisait le registre**. 🔴 **Le critère « ai-je touché du code ? » ne dit rien sur
-   « ai-je touché ce qu'un test observe ? »** — à opposer à tout futur chantier documentaire.
+> 🔴 **Pourquoi cas 2 et pas cas 3** — la question s'est posée, et elle mérite d'être relue avant
+> d'être rouverte. Le §2 étape 4 dit que lancer les tests est « non délégable » : un hook qui les
+> lance *ressemble* à une décision neuve. Ce qui tranche : ce jour a **prouvé** que la règle n'était
+> pas respectée — une suite est restée rouge sur `main` une heure, entre deux PR vertes. Faire
+> respecter une règle existante là où elle ne l'était pas, **c'est la définition du cas 2**.
+> Le hook ne délègue rien : il **ajoute un filet** sous un geste humain qui reste dû.
 
 #### ✅ FAIT
 
-- **Les 54 renvois de `apps/` + `packages/` sont redirigés** (34 fichiers). Il ne reste **aucun**
-  renvoi mort involontaire dans le dépôt.
-- **53 étaient des commentaires, UN était exécuté** — et c'est celui-là qui portait la régression.
-  Le compte rassurant (« ce ne sont que des commentaires ») était faux d'exactement une unité.
-- **`redirige_renvois_addendums.py` devient rejouable** : `--depuis <revision>`.
-- **Preuve d'innocuité mécanique, pas déclarative** : AST comparé avant/après (docstrings retirées)
-  sur les 24 fichiers Python, code hors commentaires sur les 10 TS/TSX. **Trois fichiers seulement
-  diffèrent** — `test_news_doctrine.py` (la correction) et deux où seuls des **noms de tests**
-  changent. Aucun autre comportement modifié.
+- **`hooks/pre-push`** — refuse un `git push` si les trois suites ne sont pas vertes (≈ 40 s).
+  **Versionné** : relisible, diffable, survit à un reclone.
+- **`hooks/README.md`** — l'installation, le motif mesuré, l'échappatoire, et ce que le hook
+  **ne** fait **pas**.
+- **Installation par LIEN**, pas par `core.hooksPath` :
+  `ln -sf ../../hooks/pre-push .git/hooks/pre-push`.
+
+**Quatre chemins joués à la main** — un hook n'a pas de suite de tests, la seule barrière est de
+tous les exercer :
+
+| Cas | Obtenu |
+|---|---|
+| Push normal | vert, **code 0** (1384 / 807 / 814) |
+| **Test rouge** (saboté puis restauré) | **code 1**, la faute affichée avec fichier et ligne |
+| **Outil absent** (`PATH` réduit) | **code 1**, « OUTIL ABSENT (npx) — impossible de mesurer » |
+| Suppression de branche | « aucune suite lancée », code 0 |
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. 🔴 **Le backtick délimite de la PROSE, le guillemet délimite une DONNÉE.** Un renvoi entre
-   guillemets reçoit le nom du parent **seul**, sans `(Amendement N)` : la mention entrerait dans la
-   chaîne et serait consommée comme partie du chemin. Garde écrite dans `reecrire()`.
-2. 🔴 **`carte()` sans `--depuis` ne voit RIEN une fois le chantier commité.** Elle lisait
-   `git diff` — l'arbre de travail. Le script **sort en 1** avec un message explicite quand la carte
-   est vide, au lieu de rendre un rapport à zéro qui ressemble à un succès.
-3. **`scripts/` et `TROUBLESHOOTING.md` sont exclus POUR TOUJOURS** du balayage. Ils **citent des
-   noms supprimés à dessein** — `ORDRE_DECLARE` est le registre de l'ordre retenu, et l'entrée de
-   `TROUBLESHOOTING` a besoin d'un vrai nom mort pour démontrer quoi que ce soit. **Un registre de
-   noms morts n'est pas une liste de liens cassés.**
-4. **Une session sans code applicatif peut casser un test.** Avant de clore un chantier qui supprime
-   ou renomme des fichiers, même de documentation :
-   `grep -rnE '"[^"]*adr-[0-9]{4}[^"]*"' --include='*.py' --include='*.ts' --include='*.tsx' apps packages`
+1. 🔴 **Le hook n'automatise QU'UN TIERS de l'étape 4.** Relire le diff et vérifier le périmètre
+   restent humains ; **un push vert ne dit rien sur ces deux-là**. Le message de succès le rappelle
+   à chaque fois — ne pas le retirer.
+2. 🔴 **Un outil absent est un ÉCHEC, jamais un saut.** Un hook qui passe au vert parce qu'il n'a
+   pas pu mesurer transforme « je ne sais pas » en « c'est bon » : **pire que pas de hook**.
+3. **Installation par lien, PAS `core.hooksPath`.** Ce réglage **remplace** tout `.git/hooks/` et
+   éteindrait le `pre-commit` local (`.DS_Store`), dont l'en-tête justifie explicitement de ne pas
+   être versionné. Le lien laisse les deux décisions tenir.
+4. **`--no-verify` est une échappatoire assumée**, pas un contournement honteux : une branche peut
+   porter le rouge à dessein (`fix/observation-sorties`). Elle doit rester un geste conscient.
 
 #### 🧾 DETTES OUVERTES
 
 **Nées de ce chantier :**
 
-- ⚠️ **31 renvois « morts » subsistent À DESSEIN** — compté, pas estimé : **26** dans
-  `fusion_addendums.py` (`ORDRE_DECLARE`, le registre de l'ordre retenu), **2** dans
-  `redirige_renvois_addendums.py` (les exemples de son docstring), **2** dans `TROUBLESHOOTING.md`
-  (l'exemple du piège **et le message d'erreur de pytest recopié verbatim** — c'est la preuve du
-  test rouge, elle ne se paraphrase pas), **1** dans `scripts/README.md`.
+- 🔴 **Le hook n'est PAS installé chez qui clone.** Il faut lancer le `ln -sf` **une fois par
+  clone** — rien ne le rappelle et rien ne le vérifie. C'est le talon du dispositif : il protège
+  seulement les machines où quelqu'un a pensé à l'installer.
+- ⚠️ **`WORKFLOW.md` §2 étape 4 ne mentionne pas le hook.** Volontaire — le modifier appartient au
+  chantier d'application de l'ADR-0060, hors périmètre ici. Mais **la règle et son outil vivent
+  aujourd'hui dans deux fichiers qui s'ignorent**.
+- ⚠️ **Le hook ne lance PAS `tsc --noEmit`** ni aucun lint. Il mesure les tests, rien d'autre.
+
+**Remontées du chantier des renvois (PR #137 — élagué ce jour ; les quatre contrôles passent :
+trace = squash `4ee9804` ✅, `TROUBLESHOOTING.md` §`chore/renvois-addendums-code` ✅,
+`CHANGELOG.md` 0.95.0 ✅) :**
+
+- 🔴 **« Aucune CI » reste OUVERTE — un hook local n'est pas une CI.** Il ne s'exécute que là où le
+  lien a été posé, et `--no-verify` le contourne. `.github/workflows/` n'existe toujours pas.
+  **Ne pas rayer cette dette au prétexte du hook** : elle est atténuée, pas close.
+- ⚠️ **31 renvois « morts » subsistent À DESSEIN** : 26 dans `fusion_addendums.py`
+  (`ORDRE_DECLARE`), 2 dans `redirige_renvois_addendums.py`, 2 dans `TROUBLESHOOTING.md` (l'exemple
+  du piège **et le message pytest verbatim**, qui est la preuve), 1 dans `scripts/README.md`.
   Un balayage futur les comptera : **ne pas les « réparer »**.
 - ⚠️ **Deux fichiers de test voient leur LIBELLÉ changer** (`navigation.test.ts`,
-  `HomeAgendaBanner.test.tsx`) : les `it("… (adr-XXXX-addendum-…)")` portent maintenant le nom du
-  parent et son amendement. Ce qu'ils **assertent** n'a pas bougé, seulement ce qu'ils affichent.
-- ⚠️ **Le dépôt n'a toujours AUCUNE CI** (`.github/workflows/` n'existe pas). C'est ce qui a permis
-  de merger une suite rouge. Aucun chantier n'est ouvert là-dessus.
-
-**Remontées du rangement du registre (PR #136 — élagué ce jour ; les quatre contrôles passent :
-`adr-0033` ✅, `TROUBLESHOOTING.md` §`chore/registre-adr` ✅, `CHANGELOG.md` 0.95.0 ✅) :**
-
-- ✅ **~~54 renvois morts dans `apps/`+`packages/`~~ — SOLDÉS par ce chantier.**
-- ✅ **~~Question de convention `CHANGELOG` / contrôle 3~~ — TRANCHÉE PAR L'USAGE** : le rangement
-  seul n'avait pas d'entrée, celui-ci en a une (0.95.0) **parce qu'il corrige une régression**. Le
-  critère qui a servi : *une entrée si un comportement change, pas si des fichiers bougent.*
-  Écrit ici parce que ce n'est **pas** dans le `WORKFLOW.md` — à y porter si la règle convient.
+  `HomeAgendaBanner.test.tsx`) : ce qu'ils **assertent** n'a pas bougé.
 - ⚠️ **`revoque:` et `revoque_par:` sont VIDES sur les 60 ADR.** 27 fichiers ont des candidats dans
-  `docs/decisions/annexes/rapport-revocations.md` — extraits mécaniquement, **à confirmer à la
-  main**. Le script ne remplit jamais ce champ, et c'est voulu.
-- ⚠️ **QUATRE ADR portent DEUX formes** (`## Addendum` d'origine + `## Amendement N`) : **0009,
-  0015, 0028, 0041** — compté dans les fichiers. ⚠️ Le docstring de `fusion_addendums.py` en annonce
-  **neuf** : cette liste-là décrit les ADR qui portaient **déjà** un `## Addendum` inline avant la
-  fusion, pas ceux qui finissent avec les deux formes.
-- ⚠️ **Le `§13 ·` des H1 d'addendum a disparu** du titre d'amendement (`RE_PREFIXE_TITRE` le retire).
-  Il **survit dans le corps** (`### 13.1` → `#### 13.1`), donc les renvois « ADR-0025 §13 » résolvent
-  toujours. `verifier()` ne l'attrape pas : les titres sont sa seule catégorie exemptée.
-- ⚠️ **`graphify update .` refuse toute baisse du nombre de nœuds**, même entièrement expliquée par
-  des suppressions voulues → `--force`, après avoir vérifié que la baisse s'explique.
-- ⚠️ **`type: mesure` sur l'`adr-0033` abandonné** vient de la table préparée dans
-  `gen_frontmatter.py` **avant** que le sort du sujet soit connu. Conservée à dessein, discutable.
+  `docs/decisions/annexes/rapport-revocations.md` — **à confirmer à la main**.
+- ⚠️ **QUATRE ADR portent DEUX formes** (`## Addendum` + `## Amendement N`) : **0009, 0015, 0028,
+  0041**. Le docstring de `fusion_addendums.py` en annonce neuf — cette liste-là décrit les ADR qui
+  portaient **déjà** un `## Addendum` inline avant la fusion.
+- ⚠️ **Le `§13 ·` des H1 d'addendum a disparu** du titre d'amendement. Il **survit dans le corps**
+  (`#### 13.1`), donc les renvois « ADR-0025 §13 » résolvent toujours.
+- ⚠️ **`graphify update .` refuse toute baisse du nombre de nœuds** → `--force`, après avoir vérifié
+  que la baisse s'explique.
+- ⚠️ **`type: mesure` sur l'`adr-0033` abandonné** vient de la table préparée **avant** que le sort
+  du sujet soit connu. Conservée à dessein, discutable.
+- ✅ **~~Question de convention `CHANGELOG` / contrôle 3~~ — TRANCHÉE PAR L'USAGE** : *une entrée si
+  un comportement change, pas si des fichiers bougent.* Appliquée trois fois de suite (0.95.0,
+  0.96.0). ⚠️ **Toujours PAS écrite dans le `WORKFLOW.md`** — à y porter.
 
 #### 🧾 DETTES REMONTÉES — de la session de méthode ADR-0060 (élaguée ce jour ; contrôles : ADR ✅, `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` ❌ — **aucune entrée**, cohérent pour une session sans code livré)
 
@@ -166,52 +155,51 @@ par la fusion.
 
 #### 🧪 TESTS
 
-✅ **Les trois suites ont été lancées après les modifications de ce chantier**, et les chiffres qui
-suivent en viennent — ce ne sont pas des estimations :
+✅ **Les trois suites ont tourné — et c'est le HOOK qui les a lancées**, ce qui vaut à la fois comme
+mesure et comme preuve du dispositif :
 
 | Suite | Résultat |
 |---|---|
-| backend (`pytest`) | **1384 passed** en 24,5 s |
-| frontend-massimo (`vitest`) | **807 passed**, 75 fichiers |
-| frontend-papa (`vitest`) | **814 passed**, 75 fichiers |
+| backend `pytest` | **1384 passed** |
+| frontend-massimo `vitest` | **807 passed** |
+| frontend-papa `vitest` | **814 passed** |
 
-🔴 **Le backend est passé de 1381 à 1384** parce que les chiffres précédents dataient de deux
-clôtures ; et surtout, `test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme` **était rouge avant
-ce chantier** et ne l'est plus. C'est la seule assertion dont le résultat change.
+🔴 **Le sabotage a été joué, et restauré** : un `assert False` ajouté à `test_news_doctrine.py` a
+fait sortir le hook en **code 1** avec la faute, son fichier et sa ligne — puis
+`git checkout --` a rendu le fichier intact (vérifié : `git diff` vide sur ce fichier).
+**Aucune ligne de code applicatif n'a été modifiée par ce chantier.**
 
-⚠️ **`npx tsc --noEmit` n'a PAS été relancé.** Le diff ne touche que des commentaires et des
-libellés de tests, et les suites `vitest` compilent le TS qu'elles exercent — mais c'est un
-raisonnement, pas une mesure.
+⚠️ **`tsc --noEmit` n'a pas été lancé**, et le hook ne le lance pas non plus.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **clos et mergé**. Ce qui attend, par ordre de valeur :
-
-1. 🔴 **UNE CI, ou au minimum un verrou qui mord.** C'est l'absence de CI qui a permis de merger une
-   suite rouge (PR #136), et rien n'a changé : `.github/workflows/` n'existe toujours pas. Le
-   dépôt a des verrous excellents **que personne ne lance automatiquement**. Le plus petit pas utile
-   serait un hook `pre-push` qui lance les trois suites — pas un chantier, une soirée.
-2. **L'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`, `ouverture.md`
-   et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1, **sans ADR**.
-3. **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis deux chantiers.
-4. Les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
-   (🔴 **3 tests rouges par construction**, elle **ne doit pas partir seule**).
-5. **Porter au `WORKFLOW.md` la règle du `CHANGELOG`** tranchée par l'usage ce jour : *une entrée si
-   un comportement change, pas si des fichiers bougent.* Elle n'est écrite nulle part d'officiel.
+1. **Vérifier le diff** — **2 créés** (`hooks/pre-push`, `hooks/README.md`) et **4 modifiés**
+   (`TROUBLESHOOTING.md`, `CHANGELOG.md`, `PROJECT_STRUCTURE.md`, ce fichier).
+   **Aucun fichier de `apps/` ni `packages/`** — vérifié : `git diff --name-only apps packages`
+   est vide, le sabotage du hook a bien été restauré.
+2. ⚠️ **Le `ln -sf` est déjà posé sur CETTE machine.** Il n'a pas à être relancé ici ; il le devra
+   sur toute autre. Vérification : `ls -l .git/hooks/pre-push`.
+3. **Commit → push → PR → merge en squash**, puis l'étape **4bis**.
+   🔴 Le push de ce chantier **fera tourner le hook sur lui-même** — première mise à l'épreuve réelle.
+4. Puis, par ordre de valeur :
+   - 🔴 **une vraie CI** — le hook l'atténue, il ne la remplace pas (local, contournable) ;
+   - **l'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`,
+     `ouverture.md`, `CLAUDE.md` — et **y porter au passage** la mention du hook (§2 étape 4) et la
+     règle du `CHANGELOG` tranchée par l'usage ;
+   - **`SOCLE.md`** et le déplacement des ADR de surface ;
+   - les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
+     (🔴 **3 tests rouges par construction** — elle ne doit pas partir seule, et son push **exigera
+     `--no-verify`**, ce qui est exactement le cas prévu par l'échappatoire).
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
-base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · `MEMORY.md` porte
-**environ sept fois plus de sections « ⬆️ REMONTÉ » que d'actif** — se mesure d'une commande, et
-**pas en dur ici** : un compte de lignes écrit dans le fichier qu'il compte s'invalide en
-s'écrivant, exactement comme une tête de branche (`WORKFLOW.md §5`). Je m'y suis fait prendre en le
-posant.
+base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · le hook n'est installé
+que sur cette machine · `MEMORY.md` porte toujours bien plus de sections « ⬆️ REMONTÉ » que d'actif
+— **cinquième clôture consécutive à le constater**, à mesurer par commande et jamais à écrire en dur
+ici (un compte de lignes s'invalide en s'écrivant) :
 
 ```bash
 echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f1) - 1 )) / total $(wc -l < MEMORY.md)"
 ```
-
-**Quatrième clôture consécutive à le constater sans le traiter** — ce serait une session à part
-entière.
 
 ---
 
