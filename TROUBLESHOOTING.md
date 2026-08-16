@@ -4,6 +4,97 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Leçons transversales — relogées depuis `MEMORY.md` — 2026-08-16
+
+> **Pourquoi elles arrivent ici.** Onze élagages successifs de `MEMORY.md` ont chacun retiré leur
+> récit en gardant un paragraphe intitulé *« ce qui ne survit qu'ici »*. Aveu exact : ces leçons
+> n'avaient **aucune autre adresse**, donc `MEMORY.md` ne pouvait pas maigrir sans les détruire.
+> Or ce fichier-ci se définit comme *« un piège qui ferait perdre du temps à la prochaine
+> session »* — c'était leur place depuis le début. Chacune garde sa PR et son squash ; le récit
+> complet reste dans `git log -p MEMORY.md`.
+>
+> 🔴 **La leçon sur les leçons** : un contenu sans domicile s'accumule là où il est tombé. Quand un
+> rangement bute toujours sur les mêmes lignes, la question n'est pas *« peut-on les supprimer ? »*
+> mais *« où auraient-elles dû aller ? »*
+
+### Une position n'identifie un objet que dans la liste qui l'a produite *(slice Mindmaps, PR #130, `bdc3f6d`)*
+
+Une mindmap s'ouvrait par son **rang**. Le jour où une autre matière peut la renvoyer, le rang
+devient un bug en attente ; `?carte=<id>` a été l'adresse manquante. Sur `/revision` la question ne
+se pose pas — la destination est une session, pas une page, et le clic la lance.
+
+### Un verrou peut changer d'objet au lieu de mourir *(slice Révision, PR #131, `7deaa6f`)*
+
+Un test de dépôt interdisait le mot « chapitre » dans `RevisionPage.tsx` et disait lui-même que seul
+un ADR pouvait l'ouvrir. L'ADR est venu ; le verrou n'a pas été supprimé, il garde désormais la
+**hiérarchie** qui borne le risque qu'il protégeait. Corollaire mesuré le même jour : *une redondance
+se lit comme une double sécurité et se comporte comme un bandeau sur les yeux* — deux protections
+qui se couvraient l'une l'autre laissaient **deux sabotages verts**.
+
+### La raison écrite d'un report peut être fausse *(slice Missions, PR #132, `ff3d843`)*
+
+Missions avait été mise de côté parce que « les croisées sont multi-matières » — vrai pour **1
+mission sur 58**, et le code la traitait **déjà**. La vraie différence, que personne n'avait nommée :
+les autres pages rangent des **leçons** (un chapitre chacune), Missions range des **notions** (aucun
+chapitre propre). *Quand un report dure, relire sa raison sur le code plutôt que sur le texte qui
+l'a écrite.*
+
+### Une correction de redondance peut supprimer une information *(slice Fiches, PR #129, `290b017`)*
+
+Le chapitre s'écrivait deux fois, la matière trois. En masquant l'en-tête de matière quand il n'y a
+qu'un groupe, un résultat de recherche venu d'ailleurs s'est retrouvé affiché **sans rien qui dise
+d'où il venait**. Son propre test l'a démenti dans la minute. *La question n'est pas « est-ce
+répété ? » mais « qu'est-ce que ça dit ici ? ».*
+
+### Un motif dupliqué n'est pas neuf, il est SEUL *(slice Quiz, PR #128, `955dba0`)*
+
+Capsules Massimo, capsules Papa et galaxie portaient **trois copies** du même groupement — dont deux
+identiques à l'octet, recopiées d'une app à l'autre. Une brique partagée par copier-coller n'est pas
+partagée : elle est dupliquée, et deux copies finissent toujours par diverger. Angle mort nommé par
+l'`adr-0053`, retrouvé intact un mois plus tard.
+
+### Un verrou d'ordre a besoin d'un jumeau sur un décor où la règle voisine ne s'applique pas *(PR #127, `9a0e800`)*
+
+En ajoutant une clause d'échéance au filtre du quota, le verrou « matière » restait **VERT** — ses
+cartes sont dues, il ne pouvait pas voir la différence — et **seul** le verrou « chapitre »
+rougissait, parce que le deck chapitre sert des cartes **non dues**. Un chantier qui n'aurait écrit
+que le premier verrou aurait laissé passer la régression la plus probable.
+
+### Une heuristique jugée sur des exemples inventés ne prouve rien *(PR #126, `4910f4b`)*
+
+Le signal d'alarme écrit dans l'ADR a sonné **le jour même de la livraison** : *« l'occasion est
+détectée sur presque toutes les leçons → l'heuristique est trop large »*. Mesurée, elle répondait
+vrai sur **27 fiches sur 27** ; deux resserrages ont suivi dans la journée, jusqu'à **4 sur 27**.
+⚠️ La première mesure de contrôle a dû être refaite : une requête SQL **approximait** la règle au
+lieu de l'exécuter.
+
+### Un bouton inconditionnel est une mine déjà armée *(slice 4, PR #125, `845b427`)*
+
+Le bouton de `CoursPage` ouvrait l'atelier sur une leçon déjà fichée et y créait une v2 **vide** qui
+masquait la fiche finie : Massimo perdait sa fiche en cliquant sur un bouton qui promettait de la
+faire. ⚠️ L'étape 6 de la clôture y a par ailleurs attrapé **deux chiffres hérités faux** (3 pièges
+attribués à la mauvaise fiche, 3 cartes annoncées pour 7) — la vérification datée du lendemain
+visait moins de la moitié des cartes concernées.
+
+### « Zéro test touché » peut vouloir dire « comportement non observé » *(slice 3, PR #124, `9cda7b5`)*
+
+Un **sabotage resté VERT** y a montré que `schedule_review` n'était exercée par **aucun** test.
+« 1257 → 1257, zéro test touché » ne prouvait donc rien.
+
+### Un travail commencé qui n'apparaît nulle part n'existe pas *(slice 2, PR #123, `b905ffd`)*
+
+L'écran 2 (une tuile par leçon, 4 états) a été livré parce qu'une **question posée devant l'écran** —
+*« je n'arrive pas à retrouver comment voir ces fiches »* — a montré qu'un brouillon n'apparaissait
+nulle part. Aucun test ne pouvait le dire : un brouillon n'est pas une fiche, et la liste était
+fiche-centrée.
+
+### Regarder l'écran trouve ce que 2 700 tests verts ne trouvent pas *(slice 1, PR #122, `1b78f3d`)*
+
+Le chantier a compté **huit** lecteurs d'une table là où son cadrage en annonçait trois — et **sept
+défauts sont sortis en REGARDANT L'ÉCRAN**, dont cinq invisibles à 2 700 tests verts. C'est la
+justification vivante du `WORKFLOW.md §5bis`. ⚠️ Le piège de `git branch -r` s'y est rejoué pour la
+**sixième** fois d'affilée.
+
 ## Chantier `chore/appliquer-adr-0060` — quand la doc dit à l'agent de se bloquer — 2026-08-17
 
 ### 🔴 Deux commandes portaient des instructions FAUSSES, pas seulement périmées

@@ -251,169 +251,21 @@ echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f
 
 ---
 
-## ⬆️ REMONTÉ de l'élagage de la slice Missions (PR #132, squash `ff3d843`)
+## ⬆️ ONZE ÉLAGAGES — récits retirés, leçons RELOGÉES (PR #122 → #132)
 
-> Le récit est retiré : **les quatre contrôles passent.** `adr-0057-une-seule-facon-de-trouver.md` (Amendement 1) ✅ ·
-> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-missions` (**7 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.91.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
-> Détail par `git log -p MEMORY.md`.
+> Les quatre contrôles passent pour les onze : ADR ✅ · `TROUBLESHOOTING.md` ✅ · `CHANGELOG.md`
+> **0.81.0 → 0.91.0** ✅ · dettes remontées plus bas.
 >
-> Ce qui ne survit qu'ici : **la raison écrite d'un report peut être fausse.** Missions avait été
-> mise de côté parce que « les croisées sont multi-matières » — vrai pour **1 mission sur 58**, et
-> le code la traitait **déjà**. La vraie différence, que personne n'avait nommée, est que les
-> autres pages rangent des **leçons** (un chapitre chacune) quand Missions range des **notions**
-> (aucun chapitre propre). *Quand un report dure, relire sa raison sur le code plutôt que sur le
-> texte qui l'a écrite.*
-
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice Révision (PR #131, squash `7deaa6f`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-revision` (**8 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.90.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
-> Détail par `git log -p MEMORY.md`.
+> 🔴 **Chacun de ces onze élagages avait gardé ici un paragraphe *« ce qui ne survit qu'ici »***.
+> C'est cet aveu, onze fois répété, qui empêchait `MEMORY.md` de maigrir : la leçon n'avait aucune
+> autre adresse. **Elles sont désormais dans `TROUBLESHOOTING.md`**, § *Leçons transversales —
+> relogées depuis `MEMORY.md`* — le fichier qui se définit comme *« un piège qui ferait perdre du
+> temps à la prochaine session »*, donc leur place depuis le début.
 >
-> Ce qui ne survit qu'ici : **un verrou peut changer d'objet au lieu de mourir.** Un test de dépôt
-> interdisait le mot « chapitre » dans `RevisionPage.tsx`, et disait lui-même que seul un ADR
-> pouvait l'ouvrir. L'ADR est venu ; le verrou n'a pas été supprimé, il garde désormais la
-> **hiérarchie** qui borne le risque qu'il protégeait. Et : *une redondance se lit comme une
-> double sécurité et se comporte comme un bandeau sur les yeux* — deux protections qui se
-> couvraient l'une l'autre laissaient **deux sabotages verts**.
+> **La leçon sur les leçons** : *un contenu sans domicile s'accumule là où il est tombé.* Quand un
+> rangement bute toujours sur les mêmes lignes, la question n'est pas « peut-on les supprimer ? »
+> mais « où auraient-elles dû aller ? ». Récit complet : `git log -p MEMORY.md`.
 
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice Mindmaps (PR #130, squash `bdc3f6d`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-mindmaps` (**3 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.89.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : *une position n'identifie un objet que dans la liste qui l'a produite.*
-> Une mindmap s'ouvrait par son **rang** ; le jour où une autre matière peut la renvoyer, le rang
-> devient un bug en attente. `?carte=<id>` a été l'adresse manquante. **Sur `/revision`, la
-> question ne se pose pas** — la destination est une session, pas une page, et le clic la lance.
-
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice Fiches (PR #129, squash `290b017`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-fiches` (**4 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.88.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : **une correction de redondance a supprimé une information**. Le chapitre
-> s'écrivait deux fois, la matière trois : en masquant l'en-tête de matière quand il n'y a qu'un
-> groupe, un résultat de recherche venu d'ailleurs s'est retrouvé affiché **sans rien qui dise d'où
-> il venait**. Son propre test l'a démenti dans la minute. *La question n'est pas « est-ce
-> répété ? » mais « qu'est-ce que ça dit ici ? ».*
-
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice Quiz (PR #128, squash `955dba0`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0057 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/une-seule-facon-de-trouver-quiz` (**7 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.87.0** ✅ · 4ᵉ contrôle — quatre dettes remontées ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : **le motif n'était pas neuf, il était SEUL**. Capsules Massimo,
-> capsules Papa et galaxie portaient **trois copies** du même groupement — dont deux identiques à
-> l'octet, recopiées d'une app à l'autre. Une brique partagée par copier-coller n'est pas
-> partagée : elle est dupliquée, et deux copies finissent toujours par diverger. C'est l'angle mort
-> que l'`adr-0053` avait nommé, retrouvé intact un mois plus tard.
-
----
-
-## ⬆️ REMONTÉ de l'élagage du chantier « la file cesse d'enterrer ce qu'il vient d'écrire » (PR #127, squash `9a0e800`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0056 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/la-file-cesse-d-enterrer` (**5 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.86.0** ✅ · 4ᵉ contrôle — dette du mélange du jour remontée ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : **le sabotage le plus instructif de la journée**. En ajoutant une
-> clause d'échéance au filtre du quota, le verrou « matière » restait **VERT** — ses cartes sont
-> dues, il ne pouvait pas voir la différence — et **seul** le verrou « chapitre » rougissait, parce
-> que le deck chapitre sert des cartes **non dues**. Un chantier qui n'aurait écrit que le premier
-> verrou aurait laissé passer la régression la plus probable. *Un verrou d'ordre a besoin d'un
-> jumeau sur un décor où la règle voisine ne s'applique pas.*
-
----
-
-## ⬆️ REMONTÉ de l'élagage du chantier « les deux étapes qui manquent » (PR #126, squash `4910f4b`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0055 ✅ (avec son addendum §4 du
-> 2026-08-14) · `TROUBLESHOOTING.md` §`feat/les-deux-etapes-qui-manquent` ✅ ·
-> `CHANGELOG.md` **0.85.0** ✅ · 4ᵉ contrôle — dettes remontées dans la section active ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : le **signal d'alarme écrit dans l'ADR a sonné le jour même de la
-> livraison**. Il annonçait *« l'occasion est détectée sur presque toutes les leçons → l'heuristique
-> est trop large »* — mesurée, elle répondait vrai sur **27 fiches sur 27**. Deux resserrages ont
-> suivi dans la journée, jusqu'à **4 sur 27**. ⚠️ Et la première mesure de contrôle a dû être
-> refaite : une requête SQL **approximait** la règle au lieu de l'exécuter. *Une heuristique jugée
-> sur des exemples inventés ne prouve rien.*
-
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice 4 « la fiche vit dans le temps » (PR #125, squash `845b427`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0054 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/la-fiche-vit-dans-le-temps` (**10 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.84.0** ✅ · 4ᵉ contrôle — dettes remontées dans la section active ci-dessus.
-> Détail par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : le chantier a **désamorcé une mine déjà armée** — le bouton de
-> `CoursPage`, inconditionnel, ouvrait l'atelier sur une leçon déjà fichée et y créait une v2
-> **vide** qui masquait la fiche finie. Massimo perdait sa fiche en cliquant sur un bouton qui
-> promettait de la faire. ⚠️ Et **l'étape 6 de la clôture a attrapé deux chiffres hérités faux**
-> (3 pièges attribués à la mauvaise fiche, 3 cartes annoncées pour 7) — la vérification datée du
-> lendemain visait moins de la moitié des cartes concernées.
-
----
-
-## ⬆️ REMONTÉ de l'élagage de la slice 3 « le pont SRS et les pièges » (PR #124, squash `9cda7b5`)
-
-> Le récit est retiré : **les quatre contrôles passent.** ADR-0015 §13 ✅ ·
-> `TROUBLESHOOTING.md` §`feat/fiche-de-massimo-slice-3` (**7 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.83.0** ✅ · 4ᵉ contrôle — dettes remontées ci-dessus. Détail par
-> `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : un **sabotage resté VERT** y a montré que `schedule_review` n'était
-> exercée par **aucun** test — « 1257 → 1257, zéro test touché » ne prouvait donc rien. *« Zéro
-> test touché » peut vouloir dire « comportement non observé ».*
-
-## ⬆️ REMONTÉ de l'élagage de la slice 2 « l'essentiel et les définitions » (PR #123, squash `b905ffd`)
-
-> Le récit est retiré : **les quatre contrôles passent.**
-> ADR `adr-0015-fiches-revision.md` (Amendement 1) (§8-§9) ✅ ·
-> `TROUBLESHOOTING.md` §`feat/fiche-de-massimo-slice-2` (**6 sous-sections**) ✅ ·
-> `CHANGELOG.md` **0.82.0** ✅ · 4ᵉ contrôle — **neuf dettes étaient encore ouvertes**, toutes
-> remontées dans « DETTES OUVERTES » ci-dessus. Une seule a été RÉSOLUE par la slice 3 :
-> `new_fiches_count`. Le détail se retrouve par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : la slice 2 a livré l'écran 2 (une tuile par leçon, 4 états) parce
-> qu'une **question posée devant l'écran** — *« je n'arrive pas à retrouver comment voir ces
-> fiches »* — a montré qu'un travail commencé n'apparaissait nulle part. Aucun test ne pouvait le
-> dire : un brouillon n'est pas une fiche, et la liste était fiche-centrée.
-
-## ⬆️ REMONTÉ de l'élagage de la slice 1 « la fiche de Massimo » (PR #122, squash `1b78f3d`)
-
-> Le récit est retiré : **les quatre contrôles passent.**
-> `docs/decisions/adr-0015-fiches-revision.md` (Amendement 1) ✅ ·
-> `TROUBLESHOOTING.md` §`feat/fiche-de-massimo` (**14 sous-sections**, comptées ici) ✅ ·
-> `CHANGELOG.md` **0.81.0** ✅ · 4ᵉ contrôle — **six dettes étaient encore ouvertes**, elles sont
-> remontées dans « DETTES OUVERTES » de la section active ci-dessus (glisser au doigt,
-> `new_fiches_count`, commentaire de `coverage.py`, entrée `CoursPage`, veto d'un cours, linter
-> Python). Le détail se retrouve par `git log -p MEMORY.md`.
->
-> Ce qui ne survit qu'ici : le chantier a compté **huit** lecteurs d'une table là où son cadrage
-> en annonçait trois — et **sept défauts sont sortis en REGARDANT L'ÉCRAN**, dont cinq invisibles
-> à 2 700 tests verts. C'est la justification vivante du `WORKFLOW.md §5bis`.
-> ⚠️ Le piège de `git branch -r` s'y est rejoué pour la **sixième** fois d'affilée.
 
 ## ⬆️ REMONTÉ de l'élagage du chantier `fix/accueil-titre-coupe` (PR #121, squash `ced50a2`)
 
@@ -728,9 +580,11 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
   tombe, c'est qu'elle est payée — le **supprimer**, pas l'ajuster. Chiffrage au `BACKLOG`.
 - 🔴 **`API_SPEC.md` n'a AUCUN contrôle automatique** et avait déjà **un chantier de retard** une
   fois. Remis au réel à cette clôture — rien n'empêche la prochaine dérive.
-- 🔴 **HUIT branches de chantier sont conservées** (neuf avec `feat/anti-triche-diagnostic`). Le
-  dépôt a `delete_branch_on_merge: false`. **Aucune n'est à supprimer sans consigne**, et leurs noms
-  se ressemblent assez pour qu'un `git branch -d` distrait fasse le mauvais.
+- ✅ ~~**HUIT branches de chantier conservées** (neuf avec `feat/anti-triche-diagnostic`)~~ —
+  **MORTE, mesurée le 2026-08-16** : `git branch` ne rend que `main`, `git ls-remote --heads origin`
+  ne rend que `refs/heads/main`. Le réglage `delete_branch_on_merge: false` **tient toujours** — les
+  branches ne disparaissent pas seules, celles-ci ont été supprimées à la main après comparaison au
+  squash. La vigilance sur les noms qui se ressemblent reste valable au prochain lot.
 - 🔴 **La sidebar Papa n'est toujours pas responsive** — `w-64 shrink-0` sans point de rupture. Elle
   rend toute page Papa inutilisable à 375 px.
 - 🔴 **Le merge #98 (ADR-0042) reste sans relecture visuelle humaine.**
@@ -743,8 +597,12 @@ et ils tiennent** — mais c'est mon œil, pas celui du commanditaire, et le dé
 - 🔴 **`POSTGRES_PASSWORD` reste `zetis_dev_password`** dans le `.env` racine.
 - ⚠️ **`mem_limit: 1g` est calé sur une mesure À VIDE** (92 / 41 Mio) — à relever si un OOM
   apparaît, **jamais à baisser** sans nouvelle mesure.
-- ⚠️ **Le worker de production TOURNE** (relancé le 2026-08-09 par `scripts/with-worker.sh`, via l'entrée `backend` de `launch.json`). ⚠️ **2 PID est NORMAL** — RQ fork son scheduler.
-  ⚠️ **Sans lui, un lot lancé depuis la Couverture reste `queued` INDÉFINIMENT.**
+- 🔴 **Le worker de production NE TOURNE PLUS** — état inversé le 2026-08-16 : les serveurs de dev
+  ont été coupés, et `pgrep -f app.production_worker` ne rend rien. La ligne disait « TOURNE »
+  depuis le 2026-08-09 ; **c'est un état, pas une dette, et un état se périme.**
+  ⚠️ **Conséquence désormais ACTIVE : un lot lancé depuis la Couverture reste `queued`
+  INDÉFINIMENT.** Il repart avec l'entrée `backend` de `launch.json` (`scripts/with-worker.sh`).
+  ⚠️ **2 PID est NORMAL** quand il tourne — RQ fork son scheduler.
   Vérifier : `pgrep -fl "app.production_worker"`.
 - ⚠️ **Le `lifespan` de `main.py` est la PREMIÈRE tâche de fond du backend** — non exercé par les
   tests.
