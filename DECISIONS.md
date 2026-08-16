@@ -4,7 +4,7 @@
 > Le motif d'une décision vit dans son ADR, jamais ici — un index qui recopie
 > le contenu se périme deux fois plus vite et ne s'utilise plus.
 
-60 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
+61 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
 
 ## Décisions d'architecture
 
@@ -34,6 +34,7 @@
 | [0046](docs/decisions/adr-0046-le-worker-de-production-est-un-service.md) | Le worker de production est un service, et son absence vient à toi | ✅ Accepté | 2026-08-08 |
 | [0048](docs/decisions/adr-0048-zetis-doute-de-sa-propre-mesure.md) | ZETIS doute de sa propre mesure | ✅ Accepté | 2026-08-09 |
 | [0060](docs/decisions/adr-0060-la-surface-se-decide-devant-l-ecran.md) | La surface se décide devant l'écran | 🟡 Proposé | 2026-08-16 |
+| [0061](docs/decisions/adr-0061-le-vert-devient-une-condition-d-entree.md) | Le vert devient une condition d'entrée, pas une information | 🟡 Proposé | 2026-08-16 |
 
 ## Décisions de mesure et d'outillage
 

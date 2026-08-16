@@ -46,6 +46,10 @@ ARCHITECTURE = {
     # jour où on le régénère, il retomberait en « surface » — l'ADR qui dit
     # QUAND écrire un ADR, rangé parmi les décisions d'écran.
     "0060",
+    # 0061 (la *required check*) amende la méthode lui aussi : il rend opposable
+    # le §2 étape 6 du WORKFLOW. Même motif que 0060 — sans cette ligne, la
+    # décision qui commande l'entrée dans `main` serait rangée en « surface ».
+    "0061",
 }
 
 # ⚠️ `0033` est conservé À DESSEIN alors qu'aucun `adr-0033-*.md` n'existe :

@@ -6,6 +6,77 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+### 🧭 CADRAGE — ADR-0061, la *required check* (2026-08-16, sur `main`)
+
+**Aucune ligne de code.** Session de **cadrage** : elle vit sur `main`, ne livre rien, et écrit une
+décision. **Non commitée** — l'humain vérifie puis committe.
+
+🔴 **Variante que `/cloture` ne couvre pas, et il faut la lire avant d'appliquer sa table** : le
+« chantier » que cet ADR cadre **n'est pas du code**. C'est **trois cases à cocher** dans
+*Settings → Branches* de GitHub. Il n'y aura donc **ni branche, ni PR, ni `/ouverture`** — le lot
+« spec + maquettes + prompts » de `WORKFLOW.md §2bis` est **vide par nature**. Le prochain pas
+n'est pas une commande, c'est un **geste de l'humain dans l'interface**.
+
+#### ✅ FAIT — le lot `main`, en un seul commit
+
+| Fichier | Quoi |
+|---|---|
+| `docs/decisions/adr-0061-le-vert-devient-une-condition-d-entree.md` | la décision |
+| `DECISIONS.md` | **régénéré**, 61 décisions — ⚠️ jamais édité à la main |
+| `scripts/gen_frontmatter.py` | une ligne : `"0061"` dans `ARCHITECTURE` |
+| `MEMORY.md` | cette section + une correction de fait |
+
+#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+
+1. **Trois checks requis** (`backend — pytest`, `frontends — vitest`, `verrous du dépôt`).
+   **GitGuardian NON requis** : un service tiers en panne bloquerait le dépôt sans recours.
+   **« Branch up to date » NON exigé** : ~7 min de CI par avancement de `main`, pour un bénéfice
+   qui suppose des PR concurrentes — que le mono-chantier interdit.
+2. **Le bypass reste ouvert** (*Do not allow bypassing* décoché) : même arbitrage que `--no-verify`.
+   🔴 **Le signal à surveiller est l'USAGE du bypass, pas son existence** — deux fois en un mois
+   hors `fix/observation-sorties` ⇒ **réparer la CI, jamais retirer le verrou**.
+3. **Un merge autorisé ne dit RIEN du diff ni du périmètre.** Le vert devient une condition
+   **nécessaire** ; il n'a jamais été suffisante. `WORKFLOW.md` §2 étape 4 reste entière.
+
+#### 🧾 DETTES OUVERTES — nées de ce cadrage
+
+- 🔴 **`gen_frontmatter.py` a rempli `pr: 136` sur cet ADR — un FAIT FAUX.** `RE_PR` attrape le
+  premier `PR #\d+` du texte, or l'ADR **cite** la PR #136 dans son contexte sans en être issu.
+  Corrigé **à la main** (`pr: null`) ; le fichier ayant désormais un front-matter, une
+  régénération le saute et la correction tient. **Le défaut du script, lui, reste entier** — tout
+  ADR qui cite une PR dans sa prose recevra ce champ faux.
+- ⚠️ **`type:` était `surface`**, ce qui aurait rangé la décision commandant l'entrée dans `main`
+  parmi les décisions d'écran. Corrigé dans le fichier **et** dans `ARCHITECTURE` du script, comme
+  l'`adr-0060` avant lui — c'est un motif qui se répète, pas un accident.
+- ⚠️ **`BACKLOG.md` n'a PAS été touché, à dessein** : c'est un backlog **fonctionnel** (P0/P1/P2 par
+  surface produit). Un réglage de protection de branche n'y est pas une entrée, c'en serait une
+  erreur de catégorie.
+- ⚠️ **Le geste lui-même n'est pas vérifiable depuis le dépôt.** Rien dans Git ne dira si les trois
+  cases sont cochées. La seule preuve est **une PR volontairement rouge qui refuse de se merger** —
+  et `fix/observation-sorties` la fournit sans rien fabriquer.
+
+#### 🧪 TESTS
+
+**Aucun : aucune ligne de code.** Les suites n'ont pas été relancées depuis le squash `314f336`,
+où elles étaient à **1384 / 807 / 814**.
+
+⚠️ **Une mesure a tout de même été faite**, et elle corrige un fait : `fix/observation-sorties`
+porte **6** tests rouges (`6 failed | 5 passed`), pas 3 comme écrit plus bas depuis ce matin.
+
+#### ▶ PROCHAIN PAS
+
+1. **Relire l'ADR-0061**, et surtout ses §2 (le bypass) et §4 (la branche à jour) — ce sont les deux
+   endroits où j'ai tranché **contre** la version la plus stricte, avec des motifs qui se discutent.
+2. **Committer le lot `main`** (un seul commit).
+3. **Le geste** : *Settings → Branches* → *Require status checks to pass* → cocher les **trois**
+   jobs. Laisser GitGuardian, *up to date* et *Do not allow bypassing* **décochés**.
+4. **Vérifier qu'il mord** : ouvrir une PR depuis `fix/observation-sorties` et constater que *Merge*
+   est refusé. ⚠️ Elle est basée sur `0141b62` et **très en retard** — il faudra la remettre à jour
+   d'abord, ce qui est de toute façon dû.
+5. Puis le chantier d'**application de l'ADR-0060** aux fichiers de méthode.
+
+---
+
 ### ✅ CHANTIER MERGÉ — La CI, et les deux défauts qu'elle a trouvés (PR #139, squash `314f336`, 2026-08-16)
 
 **Application** au sens ADR-0060 **cas 2** — aucun ADR. Règle exécutée : `docs/WORKFLOW.md` §2
@@ -199,7 +270,9 @@ Par ordre de valeur :
   au §2, la règle du `CHANGELOG`, la parade « comparer au squash jamais à `main` », et la preuve
   d'autonomie par coupure de service ;
 - **`SOCLE.md`** et le déplacement des ADR de surface ;
-- les deux branches parquées, dont `fix/observation-sorties` (3 tests rouges par construction —
+- les deux branches parquées, dont `fix/observation-sorties` (**6** tests rouges par construction —
+  ⚠️ le chiffre « 3 » qui circulait ici depuis le 2026-08-16 était **faux**, mesuré ce jour :
+  `6 failed | 5 passed` sur `DiagnosticPage.observation.test.tsx` —
   son push exigera `--no-verify`, et **la CI la rendra rouge sur sa PR**, ce qui est correct).
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
