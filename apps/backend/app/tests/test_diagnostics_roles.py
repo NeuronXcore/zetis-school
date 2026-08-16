@@ -14,11 +14,19 @@ citant `require_parent` ne doit ni faire passer ni faire échouer un verrou.
 **paramètres** (`_: dict = Depends(require_parent)`), qui n'atterrissent PAS là : ils vivent dans
 `route.dependant`. Il faut descendre l'arbre, sinon le verrou est vert sur un router entièrement
 ouvert — le pire cas possible pour un test de sécurité.
+
+🔴 **On énumère le ROUTER, jamais `app.routes` — et c'est une correction, pas un goût.** La
+première version de ce fichier filtrait `app.routes` sur `isinstance(route, APIRoute)` et rendait
+**zéro route** : depuis FastAPI 0.139, `include_router` ne met plus les routes à plat dans l'app,
+il y range des `fastapi.routing._IncludedRouter` (46 ici, aucun `APIRoute`). Le verrou principal
+était donc VERT sur une liste vide — exactement le pire cas annoncé au paragraphe précédent, et
+seul `test_le_router_est_bien_celui_qu_on_croit` l'a vu. Le router nu, lui, porte toujours ses
+`APIRoute`, et ses chemins incluent déjà le préfixe. Ce que le router ne prouve pas — qu'il soit
+réellement MONTÉ dans l'app — est vérifié à part, via `app.openapi()`, qui est de l'API publique.
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
 from app.main import app
@@ -29,23 +37,18 @@ from app.modules.diagnostics.router import router as diagnostics_router
 # Les exceptions, nommées et datées — cet ensemble doit RÉTRÉCIR, jamais grossir
 # ==================================================================================================
 
-# Trois routes de LECTURE servies à tout compte authentifié, relevées le 2026-08-16.
-# Elles sont ici parce qu'une règle qu'on enfreint sans le dire cesse d'être une règle.
+# 🔴 **VIDE, et c'est le but atteint — pas un oubli.** Cet ensemble a porté trois routes de lecture
+# servies à tout compte authentifié, relevées le 2026-08-16 : `GET /subjects`, `GET /quizzes`,
+# `GET /quizzes/{quiz_id}`. Les trois ont été fermées le jour même, chacune vers le rôle de son
+# SEUL appelant réel — le motif est écrit sur chaque route dans le router.
 #
-# Chacune attend un arbitrage explicite :
-#   · GET /subjects        — liste de matières, sans donnée de Massimo. Probablement légitime.
-#   · GET /quizzes         — liste des diagnostics. Sert les deux espaces avec la même forme.
-#   · GET /quizzes/{id}    — 🔴 celle qui interroge. C'est la route de PASSATION : la route sœur
-#                            `/quizzes/{id}/relecture` est déjà `require_parent`, et son docstring
-#                            dit que ce sont deux routes pour deux rôles. Celle-ci devrait donc
-#                            être `require_child`.
+# L'arbitrage annoncé pour `/quizzes` (« sert les deux espaces ») était FAUX, et c'est la mesure qui
+# l'a dit : Papa ne l'appelle jamais, il passe par `/apercu` et `/relecture`.
 #
-# Retirer une ligne d'ici = poser la dépendance dans le router. Le test le vérifie tout seul.
-SANS_ROLE_ASSUME: set[tuple[str, str]] = {
-    ("GET", "/api/diagnostics/subjects"),
-    ("GET", "/api/diagnostics/quizzes"),
-    ("GET", "/api/diagnostics/quizzes/{quiz_id}"),
-}
+# Ajouter une ligne ici est une DÉROGATION, pas un raccourci : elle demande un motif écrit et une
+# date, et ce module est celui qui écrit une mesure au nom de Massimo. Cet ensemble doit rétrécir,
+# jamais grossir — il est à zéro, donc il ne doit plus bouger.
+SANS_ROLE_ASSUME: set[tuple[str, str]] = set()
 
 
 def _gardes(route: APIRoute) -> set:
@@ -66,12 +69,15 @@ def _gardes(route: APIRoute) -> set:
     return vues
 
 
-def _routes_diagnostics(application: FastAPI) -> list[tuple[str, str, APIRoute]]:
+def _routes_diagnostics() -> list[tuple[str, str, APIRoute]]:
+    """Les routes du router `diagnostics`, méthode par méthode.
+
+    Le chemin porté par `route.path` inclut déjà le préfixe du router (`/api/diagnostics/...`) :
+    il est comparable tel quel à ce que sert l'app.
+    """
     trouvees = []
-    for route in application.routes:
+    for route in diagnostics_router.routes:
         if not isinstance(route, APIRoute):
-            continue
-        if not route.path.startswith("/api/diagnostics"):
             continue
         for methode in sorted(route.methods - {"HEAD", "OPTIONS"}):
             trouvees.append((methode, route.path, route))
@@ -84,17 +90,41 @@ def _routes_diagnostics(application: FastAPI) -> list[tuple[str, str, APIRoute]]
 
 
 def test_le_router_est_bien_celui_qu_on_croit() -> None:
-    """Anti-test-à-vide. Un verrou qui parcourt une liste vide est vert pour rien."""
-    routes = _routes_diagnostics(app)
+    """Anti-test-à-vide. Un verrou qui parcourt une liste vide est vert pour rien.
+
+    🔴 Ce test a déjà servi une fois : c'est lui, et lui seul, qui a rattrapé l'énumération à zéro
+    du 2026-08-16 (cf. l'en-tête du fichier). Il ne se supprime pas.
+    """
+    routes = _routes_diagnostics()
     assert len(routes) >= 12, f"seulement {len(routes)} routes trouvées — le préfixe a changé ?"
     assert diagnostics_router.prefix == "/api/diagnostics"
+
+
+def test_le_router_est_reellement_monte_dans_l_app() -> None:
+    """Ce que l'énumération par le router ne peut PAS prouver : que l'app serve ces routes.
+
+    Sans ce test, un `include_router` supprimé de `main.py` laisserait tous les autres verts — ils
+    inspectent un objet qui existe en mémoire, pas un service rendu. `app.openapi()` est de l'API
+    publique, contrairement aux classes internes de `app.routes` qui ont déjà changé sous nous.
+    """
+    servis = {
+        (methode.upper(), chemin)
+        for chemin, operations in app.openapi()["paths"].items()
+        if chemin.startswith("/api/diagnostics")
+        for methode in operations
+    }
+    declarees = {(m, c) for m, c, _r in _routes_diagnostics()}
+    assert declarees <= servis, (
+        "Ces routes sont déclarées par le router mais NON servies par l'app — "
+        f"`include_router` manque-t-il ? {sorted(declarees - servis)}"
+    )
 
 
 def test_toute_route_diagnostics_porte_un_role() -> None:
     """🔴 LE VERROU. Une route ajoutée sans `require_child` ni `require_parent` fait rougir ici,
     le jour où elle est écrite — pas le jour où quelqu'un s'en sert."""
     ouvertes = []
-    for methode, chemin, route in _routes_diagnostics(app):
+    for methode, chemin, route in _routes_diagnostics():
         gardes = _gardes(route)
         if require_child in gardes or require_parent in gardes:
             continue
@@ -114,7 +144,7 @@ def test_toute_route_diagnostics_porte_un_role() -> None:
 def test_les_exceptions_existent_encore(_=None) -> None:
     """L'ensemble d'exceptions ne doit pas pourrir. Une route corrigée — ou renommée — doit
     disparaître d'ici, sinon la liste protège un fantôme et masque la suivante."""
-    reelles = {(m, c) for m, c, _r in _routes_diagnostics(app)}
+    reelles = {(m, c) for m, c, _r in _routes_diagnostics()}
     fantomes = SANS_ROLE_ASSUME - reelles
     assert not fantomes, (
         f"SANS_ROLE_ASSUME cite des routes qui n'existent plus : {sorted(fantomes)}. "
@@ -122,7 +152,7 @@ def test_les_exceptions_existent_encore(_=None) -> None:
     )
 
     corrigees = []
-    for methode, chemin, route in _routes_diagnostics(app):
+    for methode, chemin, route in _routes_diagnostics():
         if (methode, chemin) not in SANS_ROLE_ASSUME:
             continue
         gardes = _gardes(route)
@@ -139,7 +169,7 @@ def test_get_current_user_seul_ne_vaut_pas_un_role() -> None:
     """Anti-régression sur le verrou lui-même. `require_child` DÉPEND de `get_current_user` :
     si quelqu'un réécrit `_gardes` en cherchant l'absence de `get_current_user`, le verrou
     deviendrait vert sur un router ouvert. Ce test fige la sémantique."""
-    for _m, chemin, route in _routes_diagnostics(app):
+    for _m, chemin, route in _routes_diagnostics():
         gardes = _gardes(route)
         if require_child in gardes or require_parent in gardes:
             assert get_current_user in gardes, (
@@ -161,6 +191,10 @@ def _as_papa() -> None:
 
 # Le rôle est refusé AVANT que le gestionnaire ne touche la base : un identifiant inexistant
 # suffit donc, et le test n'a rien à semer.
+#
+# ⚠️ `httpx` REFUSE un corps sur `GET` (`TypeError: got an unexpected keyword argument 'json'`) —
+# la première version passait `json={}` à tout le monde et les deux tests de comportement
+# n'atteignaient jamais une assertion. D'où `_appeler`, qui n'envoie un corps que sur `POST`.
 ROUTES_PAPA = [
     ("post", "/api/diagnostics/generate"),
     ("get", "/api/diagnostics/quizzes/999/relecture"),
@@ -170,20 +204,31 @@ ROUTES_PAPA = [
     ("get", "/api/diagnostics/results"),
     ("get", "/api/diagnostics/results/999"),
     ("get", "/api/diagnostics/portee"),
+    # Fermée le 2026-08-16 — elle ouvrait le sélecteur d'un geste déjà `require_parent`.
+    ("get", "/api/diagnostics/subjects"),
 ]
 
 ROUTES_MASSIMO = [
     ("post", "/api/diagnostics/quizzes/999/submit"),
     ("get", "/api/diagnostics/mes-resultats/999"),
     ("post", "/api/diagnostics/mes-resultats/999/explication"),
+    # Fermées le 2026-08-16 — les deux routes de passation, servies au seul espace Massimo.
+    ("get", "/api/diagnostics/quizzes"),
+    ("get", "/api/diagnostics/quizzes/999"),
 ]
+
+
+def _appeler(client, methode: str, chemin: str):
+    if methode == "get":
+        return client.get(chemin)
+    return getattr(client, methode)(chemin, json={})
 
 
 def test_massimo_ne_peut_pas_atteindre_les_routes_de_papa(client_db) -> None:
     """`client_db` authentifie Massimo. Aucune route de pilotage ne doit lui répondre."""
     client, _ = client_db
     for methode, chemin in ROUTES_PAPA:
-        reponse = getattr(client, methode)(chemin, json={})
+        reponse = _appeler(client, methode, chemin)
         assert reponse.status_code == 403, (
             f"{methode.upper()} {chemin} rend {reponse.status_code} à l'enfant, pas 403"
         )
@@ -195,7 +240,7 @@ def test_papa_ne_peut_pas_soumettre_a_la_place_de_massimo(client_db) -> None:
     client, _ = client_db
     _as_papa()
     for methode, chemin in ROUTES_MASSIMO:
-        reponse = getattr(client, methode)(chemin, json={})
+        reponse = _appeler(client, methode, chemin)
         assert reponse.status_code == 403, (
             f"{methode.upper()} {chemin} rend {reponse.status_code} à Papa, pas 403"
         )
