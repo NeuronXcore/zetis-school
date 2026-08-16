@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CarteRaconteMoi } from "../components/CarteRaconteMoi";
 import { PageHeader } from "../components/PageHeader";
@@ -77,6 +77,26 @@ function PhraseRaison({ raison, estUnChoix }: { raison: Raison; estUnChoix: bool
   );
 }
 
+/** Ce que Massimo lit quand ça casse — jamais ce que la machine, elle, a compris.
+ *
+ * 🔴 **Le motif `e instanceof Error ? e.message : "…"` est un piège, et il est partout.** La
+ * phrase gentille y est la BRANCHE MORTE : `asJson` lève un vrai `Error`, donc c'est toujours
+ * `e.message` qui s'affiche — `Erreur 500`. La phrase d'à côté n'a jamais été lue par personne.
+ * Ici on inverse : le message d'interface est FIXE, et le détail technique part en console, où il
+ * sert à qui débogue au lieu d'inquiéter un enfant de treize ans (`CLAUDE.md` — « Massimo ne doit
+ * pas voir : les informations techniques »). Précédent du dépôt : `useEli5.ts:412`.
+ *
+ * Les deux phrases diffèrent parce que l'enjeu diffère, et la seconde porte le fait qui compte :
+ * **ses réponses sont toujours là.** Le test `n'oublie pas les réponses` prouve que c'est vrai ;
+ * sans cette phrase, rien à l'écran ne le lui disait. */
+const OUVERTURE_IMPOSSIBLE = "Le diagnostic n'a pas voulu s'ouvrir. Réessaie dans un instant ✨";
+const ENVOI_IMPOSSIBLE = "Tes réponses sont bien là — c'est l'envoi qui n'est pas passé. Réessaie dans un instant ✨";
+const RELECTURE_IMPOSSIBLE = "Ce résultat n'a pas voulu s'ouvrir. Réessaie dans un instant ✨";
+
+function tracer(ou: string, e: unknown): void {
+  console.warn(`[diagnostic] ${ou}`, e); // trace devtools (diagnostic)
+}
+
 export function DiagnosticPage() {
   const {
     tete,
@@ -116,11 +136,40 @@ export function DiagnosticPage() {
       setAnswers({});
       setResult(null);
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      // 🔴 SORTIE 3 DE 4. `demarrer()` a tourné en tête, dans le geste — mais on n'entre jamais en
+      // passation. Sans ce `terminer()`, l'observation reste allumée sur un écran qui n'observe
+      // plus rien : plein écran gardé, écouteurs branchés, chronomètre en marche. Et le
+      // `demarrer()` SUIVANT hériterait de la sortie d'écran comptée entre-temps.
+      observation.terminer();
+      tracer("ouverture du diagnostic", e);
+      setErreurAction(OUVERTURE_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
   }
+
+  /** SORTIE 2 DE 4 — Massimo renonce en cours de passation.
+   *
+   *  🔴 Elle ne faisait que `setQuiz(null)`. L'écran revenait, et l'observation restait allumée
+   *  derrière : le `demarrer()` suivant repartait d'un état sale, et `ms_total` comme
+   *  `sorties_ecran` de la passation SUIVANTE héritaient de celle-ci. Le dégât n'est jamais dans
+   *  la passation qu'on abandonne — il est dans la prochaine, dont l'ADR-0048 tiendra les faits
+   *  pour vrais. */
+  function renoncer() {
+    observation.terminer();
+    setQuiz(null);
+  }
+
+  /** SORTIE 4 DE 4 — Massimo quitte la page en pleine passation (barre de navigation, retour).
+   *
+   *  🔴 Le composant part, mais RIEN ne le dit à l'observation : sans ce nettoyage, le plein écran
+   *  reste, et le hook ne peut pas s'éteindre lui-même — ses propres écouteurs partent, pas l'état
+   *  qu'il a laissé au navigateur. C'est la seule des quatre sorties qui ne passe par aucun clic,
+   *  donc la seule qu'aucune relecture visuelle n'aurait attrapée.
+   *
+   *  ⚠️ `terminer()` est une identité stable (`useCallback([])`), donc ce nettoyage ne rejoue pas
+   *  à chaque rendu — il ne s'exécute qu'au démontage réel. */
+  useEffect(() => observation.terminer, [observation.terminer]);
 
   /** Promeut le diagnostic dans la carte, PUIS la ramène dans le champ de vision.
    *
@@ -140,7 +189,8 @@ export function DiagnosticPage() {
     try {
       setResult(await fetchMonResultat(attemptId));
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      tracer("relecture d'un résultat", e);
+      setErreurAction(RELECTURE_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
@@ -158,11 +208,17 @@ export function DiagnosticPage() {
         ...(observe?.parQuestion.get(q.id) ?? {}),
       }));
       setResult(await submitDiagnostic(quiz.quiz_id, payload, observe?.conditions));
+      // SORTIE 1 DE 4 — la seule qui était couverte avant ce chantier.
       observation.terminer();
       setQuiz(null);
       recharger();
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      // 🔴 PAS de `terminer()` ici, et c'est délibéré : l'écran de passation RESTE, avec les
+      // réponses de Massimo. Reperdre son travail sur une coupure réseau serait la punition d'un
+      // défaut qui n'est pas le sien — et l'observation doit continuer à courir puisque la
+      // passation, elle, continue. C'est la seule branche d'erreur qui n'éteint rien.
+      tracer("envoi du diagnostic", e);
+      setErreurAction(ENVOI_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
@@ -291,7 +347,7 @@ export function DiagnosticPage() {
         </button>
         <button
           type="button"
-          onClick={() => setQuiz(null)}
+          onClick={renoncer}
           className="mt-3 block text-sm text-zetis-muted hover:text-zetis-text"
         >
           ← Annuler

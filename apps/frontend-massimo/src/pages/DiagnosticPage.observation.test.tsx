@@ -237,11 +237,16 @@ describe("la récolte", () => {
     fireEvent.click(screen.getByRole("button", { name: /Envoyer mes réponses/ }));
 
     await screen.findByText(/C'est noté/);
-    const [, charge] = vi.mocked(submitDiagnostic).mock.calls[0] as unknown as [
+    // ⚠️ Le 2ᵉ argument EST le tableau — `submitDiagnostic(quizId, answers[], conditions?)`.
+    // L'enveloppe `{ answers }` n'existe qu'au niveau HTTP (`lib/diagnostic.ts`, dans le corps de
+    // la requête). La première version lisait `charge.answers`, donc `undefined`, et la boucle
+    // levait : le test échouait sans jamais rien vérifier.
+    const [, reponses] = vi.mocked(submitDiagnostic).mock.calls[0] as unknown as [
       number,
-      { answers: { question_id: number; choice_index: number }[] },
+      { question_id: number; choice_index: number }[],
     ];
-    for (const r of charge.answers) {
+    expect(reponses.length).toBeGreaterThan(0); // anti-test-à-vide : une boucle vide passe
+    for (const r of reponses) {
       expect(r.choice_index).toBeGreaterThanOrEqual(0);
     }
   });

@@ -261,6 +261,64 @@ describe("terminer() éteint réellement l'observation", () => {
   });
 });
 
+describe("une récolte ne referme pas l'œil du plein écran", () => {
+  /** Passe en plein écran accordé, observation démarrée. */
+  async function enPleinEcran() {
+    (document.documentElement as unknown as Record<string, unknown>).requestFullscreen = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    Object.defineProperty(document, "fullscreenElement", {
+      value: document.documentElement,
+      configurable: true,
+    });
+    const rendu = renderHook(() => useObservationPassation());
+    await act(async () => {
+      rendu.result.current.demarrer();
+    });
+    return rendu;
+  }
+
+  function quitterLePleinEcran(): void {
+    Object.defineProperty(document, "fullscreenElement", { value: null, configurable: true });
+    document.dispatchEvent(new Event("fullscreenchange"));
+  }
+
+  it("🔴 après un envoi qui ÉCHOUE, une sortie de plein écran compte encore", async () => {
+    // Le défaut réel du 2026-08-16 : `recolter()` posait un drapeau `enCoursDeSoumission` que
+    // RIEN ne remettait à false. Sur un envoi raté l'écran de passation reste — c'est voulu, et
+    // `DiagnosticPage` le teste — donc l'observation continue de courir. Mais `plein_ecran_quitte`
+    // était devenu inenregistrable pour tout le reste de la passation : muet à l'écran, muet dans
+    // le résultat, et FAUX dans la seule donnée que l'ADR-0048 tiendra pour un fait.
+    const { result } = await enPleinEcran();
+
+    result.current.recolter(); // la soumission part…
+    // …et échoue : aucun `terminer()`, la passation continue.
+    quitterLePleinEcran();
+
+    expect(result.current.recolter()!.conditions.plein_ecran_quitte).toBe(true);
+  });
+
+  it("la sortie que `terminer()` provoque lui-même ne compte pas", async () => {
+    // Contre-épreuve de la précédente : en retirant le drapeau, on ne doit pas se remettre à
+    // compter la sortie que l'APPLICATION déclenche en rangeant l'écran. `terminer()` pose
+    // `actif = false` avant d'appeler `exitFullscreen()`, et l'événement arrive après.
+    (document as unknown as Record<string, unknown>).exitFullscreen = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    const { result } = await enPleinEcran();
+
+    const avant = result.current.recolter()!.conditions.plein_ecran_quitte;
+    act(() => result.current.terminer());
+    quitterLePleinEcran(); // l'événement que l'app vient de provoquer
+
+    expect(avant).toBe(false);
+    // L'observation est éteinte : plus rien à récolter, et rien n'a été compté au passage.
+    expect(result.current.recolter()).toBeNull();
+    act(() => result.current.demarrer());
+    expect(result.current.recolter()!.conditions.plein_ecran_quitte).toBe(false);
+  });
+});
+
 describe("le démontage ne laisse rien derrière", () => {
   it("🔴 retire ses écouteurs — en StrictMode le montage est joué deux fois", () => {
     const { result, unmount } = renderHook(() => useObservationPassation());

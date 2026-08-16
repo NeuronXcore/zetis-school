@@ -77,7 +77,13 @@ export function useDiagnostics(): EtatDiagnostics {
         setItems(rows);
         setErreur(null);
       })
-      .catch((e: unknown) => setErreur(e instanceof Error ? e.message : "Erreur de chargement"))
+      // Message FIXE, détail en console : `e.message` vaut `Erreur 500` et s'affichait tel quel
+      // sur la page, à côté des deux autres. `DiagnosticPage` est son unique appelante — cette
+      // phrase-ci et les trois siennes forment une seule surface, elles se corrigent ensemble.
+      .catch((e: unknown) => {
+        console.warn("[diagnostic] chargement de la liste", e); // trace devtools (diagnostic)
+        setErreur("La liste n'a pas voulu se charger. Réessaie dans un instant ✨");
+      })
       .finally(() => setChargement(false));
   }, []);
 
