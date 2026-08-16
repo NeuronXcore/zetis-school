@@ -9,7 +9,7 @@
 ### 🧭 CADRAGE — ADR-0061, la *required check* (2026-08-16, sur `main`)
 
 **Aucune ligne de code.** Session de **cadrage** : elle vit sur `main`, ne livre rien, et écrit une
-décision. **Non commitée** — l'humain vérifie puis committe.
+décision. ✅ **Commitée** — `3372750`, puis corrigée en place par `a5d4016` (le moyen n'existe pas).
 
 🔴 **Variante que `/cloture` ne couvre pas, et il faut la lire avant d'appliquer sa table** : le
 « chantier » que cet ADR cadre **n'est pas du code**. C'est **trois cases à cocher** dans
@@ -34,7 +34,8 @@ n'est pas une commande, c'est un **geste de l'humain dans l'interface**.
    qui suppose des PR concurrentes — que le mono-chantier interdit.
 2. **Le bypass reste ouvert** (*Do not allow bypassing* décoché) : même arbitrage que `--no-verify`.
    🔴 **Le signal à surveiller est l'USAGE du bypass, pas son existence** — deux fois en un mois
-   hors `fix/observation-sorties` ⇒ **réparer la CI, jamais retirer le verrou**.
+   ⇒ **réparer la CI, jamais retirer le verrou**. *(L'exception qui visait `fix/observation-sorties`
+   est caduque : la branche est mergée verte, elle n'a jamais eu besoin du bypass.)*
 3. **Un merge autorisé ne dit RIEN du diff ni du périmètre.** Le vert devient une condition
    **nécessaire** ; il n'a jamais été suffisante. `WORKFLOW.md` §2 étape 4 reste entière.
 
@@ -52,16 +53,23 @@ n'est pas une commande, c'est un **geste de l'humain dans l'interface**.
   surface produit). Un réglage de protection de branche n'y est pas une entrée, c'en serait une
   erreur de catégorie.
 - ⚠️ **Le geste lui-même n'est pas vérifiable depuis le dépôt.** Rien dans Git ne dira si les trois
-  cases sont cochées. La seule preuve est **une PR volontairement rouge qui refuse de se merger** —
-  et `fix/observation-sorties` la fournit sans rien fabriquer.
+  cases sont cochées. La seule preuve serait **une PR volontairement rouge qui refuse de se merger**.
+  🔴 **Le témoin prévu n'existe plus : `fix/observation-sorties` a été MERGÉE, et VERTE** (PR #142,
+  squash `40eb4a8`, 2026-08-16). La PR qui devait fournir la preuve sans rien fabriquer a été
+  réparée puis livrée. Le jour où le réglage deviendra possible, il faudra **une PR rouge exprès** —
+  donc fabriquée, ce que ce point voulait précisément éviter. *Un témoin qu'on répare cesse d'être
+  un témoin* : celui qui compte sur un état cassé doit être consommé avant qu'on le corrige.
 
 #### 🧪 TESTS
 
-**Aucun : aucune ligne de code.** Les suites n'ont pas été relancées depuis le squash `314f336`,
-où elles étaient à **1384 / 807 / 814**.
+**Aucun : aucune ligne de code** dans ce cadrage.
 
-⚠️ **Une mesure a tout de même été faite**, et elle corrige un fait : `fix/observation-sorties`
-porte **6** tests rouges (`6 failed | 5 passed`), pas 3 comme écrit plus bas depuis ce matin.
+✅ **Mais les suites ont bougé depuis, et elles sont MESURÉES sur le `main` mergé** :
+**1391 / 843 / 814** (contre 1384 / 807 / 814 au squash `314f336`). CI verte sur `main` pour
+`40eb4a8`. Les deux chantiers qui les ont fait monter sont décrits plus bas.
+
+⚠️ **Le compte de rouges de `fix/observation-sorties` était de 6, pas 3** — corrigé à la mesure,
+puis **soldé** : les six sont réparés et la branche est mergée.
 
 #### ▶ PROCHAIN PAS
 
@@ -84,6 +92,68 @@ trois conditions qui le débloqueraient, et **ce qui tient le rôle en attendant
    s'applique aux **moyens** autant qu'au code.
 
 ✅ **~~Le chantier d'application de l'ADR-0060~~ — FAIT** (PR #140, squash `2105ba9`).
+
+---
+
+### ✅ DEUX CHANTIERS MERGÉS — les rôles de `diagnostics` et les sorties de passation (2026-08-16)
+
+**Étape 4bis faite.** Rien à pousser, rien en attente de commit.
+
+| Chantier | PR | Squash | Branche |
+|---|---|---|---|
+| Les 3 dernières routes sans rôle | [#141](https://github.com/NeuronXcore/zetis-school/pull/141) | `b29a985` | `fix/diagnostics-roles` — **NON supprimée** |
+| Les 4 sorties de passation | [#142](https://github.com/NeuronXcore/zetis-school/pull/142) | `40eb4a8` | `fix/observation-sorties` — **NON supprimée** |
+
+**ADR-0060 cas 2 (application)** pour les deux : on exécute l'ADR-0002, l'ADR-0043 et l'ADR-0048.
+**Aucun ADR neuf**, et c'était le bon appel — aucune décision n'a été rouverte.
+
+Suites sur le `main` mergé : **1391 / 843 / 814**, CI verte sur `40eb4a8`.
+
+#### 🔴 CE QUI COMPTE — deux verrous qui ne verrouillaient rien, et un œil qui a vu
+
+1. **Le verrou de rôle était VERT SUR UNE LISTE VIDE.** Depuis **FastAPI 0.139**, `include_router`
+   ne met plus les routes à plat dans `app.routes` : il y range des `_IncludedRouter` (46, **aucun**
+   `APIRoute`). `isinstance(route, APIRoute)` ne trouvait rien. Seul l'**anti-test-à-vide** l'a vu.
+   ⚠️ **`test_galaxy.py` n'était PAS atteint** — il énumère `student_router.routes`, le routeur nu.
+   *Tout test qui énumère `app.routes` est désormais suspect ; énumérer le ROUTER, jamais l'app.*
+2. **La relecture visuelle a trouvé un défaut qu'aucun test ne pouvait voir.** Massimo clique
+   « Envoyer » en bas d'une page de 16 questions (`scrollTop` 3585 / 4360) ; le message d'erreur
+   naissait **3509 px au-dessus de sa vue**. À son écran, **rien ne se passait**. Les tests assertent
+   sur `document.body.textContent`, qui ignore la position. *Affiché ≠ VU.*
+3. **`e instanceof Error ? e.message : "<phrase gentille>"` — la phrase gentille est une BRANCHE
+   MORTE**, et le motif apparaît **39 fois** dans l'app de Massimo. `asJson` lève un vrai `Error`,
+   donc `e.message` gagne toujours : il lisait `Erreur 500`. Corrigé **sur cette page seulement**.
+
+#### 🧾 DETTES OUVERTES — nées de ces deux chantiers
+
+- 🔴 **38 occurrences du motif à branche morte restent**, dans tout `frontend-massimo`. Même défaut,
+  mêmes phrases jamais lues. C'est le prochain chantier évident, et il est **transversal**.
+- 🔴 **`b29a985` n'a AUCUN verdict de CI sur `main`.** Les deux merges à 3 s d'intervalle ont
+  déclenché le `cancel-in-progress` de `ci.yml` : le run de `b29a985` a été tué par celui de
+  `40eb4a8`. Son contenu était vert sur la PR #141 (même arbre, squash propre) — mais un bisect
+  tombera sur un commit de `main` que la CI n'a jamais mesuré. *Prix du réglage, pas défaut.*
+- ⚠️ **Le 4ᵉ message d'erreur (liste) n'a jamais été VU.** Couper le backend **déconnecte l'app**
+  avant d'atteindre la page — impossible à photographier. Il rend dans le **même** paragraphe que
+  celui de la relecture (`erreurAction ?? erreur`, même `ref`, même effet), donc il hérite de la
+  visibilité prouvée. Hérité, pas constaté.
+- ⚠️ **`GET /diagnostics/subjects` n'a aucun test de comportement nominal** — ni avant ni après.
+  Elle est couverte en refus (403 à l'enfant), jamais en service.
+- ⚠️ **La matrice `Permissions` d'`API_SPEC.md` reste à trous** : `/relecture` et `/mes-resultats/*`
+  n'y figurent pas. Une matrice de permissions incomplète est elle-même un piège.
+- ⚠️ **Aucun lint dans ZETIS** — ni job CI, ni `ruff` dans `pyproject.toml`. Vérifié, ce n'est pas
+  une étape sautée : il n'a jamais existé.
+
+#### 📌 LEÇONS DE MÉTHODE — elles ont resservi dans la même session
+
+- 🔴 **Le hook `pre-push` mesure l'ARBRE DE TRAVAIL, pas la référence poussée**, et rien dans sa
+  sortie ne le dit. Pousser une branche non extraite afficherait trois lignes vertes sur du code
+  qui n'est pas celui qu'on envoie. Parade appliquée : **basculer sur chaque branche avant de la
+  pousser** (les chiffres l'ont confirmé — 1391/807 d'un côté, 1384/843 de l'autre).
+- 🔴 **Deux de mes propres tests n'atteignaient aucune assertion**, deux fois pour la même raison :
+  écrits contre la forme du CORPS HTTP au lieu de celle de l'APPEL. `json={}` sur un `GET` (httpx
+  refuse), et `charge.answers` alors que `submitDiagnostic` reçoit le tableau en 2ᵉ argument.
+- ⚠️ **Une contre-épreuve a visé à côté** — 21 rouges d'un coup, soit un décor cassé, pas une
+  preuve. Refaite en réintroduisant **le défaut d'origine à l'identique** : 1 rouge, le bon.
 
 ---
 
