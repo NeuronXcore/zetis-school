@@ -65,7 +65,11 @@ Conforme à `docs/WORKFLOW.md` §5–6.
    invente pas. Fais exactement ceci, puis arrête-toi :
    - remets `MEMORY.md` au réel si le 4bis manque (squash, branche supprimée, rien à pousser) ;
    - rends-moi la liste des **dettes ouvertes** telle qu'elle est écrite, **sans en choisir une** ;
-   - rappelle-moi que le dépôt impose un **cadrage** (ADR) avant la moindre ligne de code.
+   - rappelle-moi de **déclarer le cas `adr-0060`** du chantier suivant, en une ligne, **avant**
+     la moindre ligne de code. ⚠️ **Ne dis PAS « le dépôt impose un cadrage (ADR) »** : c'est faux
+     depuis l'`adr-0060`, et ça n'est vrai que d'**un** cas sur quatre. Un **rangement** et une
+     **application** n'ont aucun ADR à écrire ; une **surface** l'écrit **après** l'écran. Seule
+     une **décision neuve** — migration, ou annulation coûtant plus d'un commit — se cadre avant.
 
 2. **L'arbre est-il VERT ?** Le `MEMORY.md` de la clôture porte les chiffres réels des dernières
    suites lancées. Lis-les. **S'ils manquent ou datent d'avant les derniers commits, dis-le** —

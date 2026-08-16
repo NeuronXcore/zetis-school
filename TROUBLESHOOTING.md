@@ -4,6 +4,47 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `chore/appliquer-adr-0060` — quand la doc dit à l'agent de se bloquer — 2026-08-17
+
+### 🔴 Deux commandes portaient des instructions FAUSSES, pas seulement périmées
+
+**Symptôme** : `/ouverture` s'arrête *« si un ADR manque »*. Or l'`adr-0060` établit que **trois cas
+sur quatre n'ont aucun ADR**. La commande bloquait donc un chantier **parfaitement légitime** —
+c'est arrivé le 2026-08-16 sur `chore/registre-adr`, et il a fallu la contourner à la main.
+
+Même famille : **cinq fichiers de méthode** disaient d'ajouter « la ligne dans `DECISIONS.md` »,
+alors que ce fichier est **généré** depuis la PR #136 et porte en en-tête *« Ne pas éditer à la
+main »*. Un agent obéissant aurait édité un fichier qui s'écrase à la régénération suivante.
+
+**Cause commune** : une décision a été prise (`adr-0060`, `DECISIONS.md` généré) **sans que les
+fichiers qui la contredisent soient mis à jour**. Le dépôt a porté deux doctrines opposées pendant
+une journée entière.
+
+**Parade** — après toute décision qui change la méthode, balayer les fichiers qui la portent :
+
+```bash
+grep -rniE 'impose un cadrage|ADR.{0,20}avant la moindre ligne|ligne dans DECISIONS' \
+  docs/WORKFLOW.md .claude/commands/*.md CLAUDE.md
+```
+
+⚠️ **Un ADR non appliqué est pire qu'un ADR absent** : il donne l'illusion que la règle a changé,
+pendant que les fichiers réellement lus par l'agent disent l'inverse.
+
+### ⚠️ « `.claude/commands/` » au pluriel — et je n'en avais traité que deux sur cinq
+
+**Symptôme** : périmètre annoncé `docs/WORKFLOW.md` **et `.claude/commands/`**. J'ai lu et corrigé
+`ouverture.md` et `cadrage.md`, puis déclaré le chantier fini. Le contrôle de clôture a trouvé
+**trois contradictions de plus** dans les trois commandes que je n'avais pas ouvertes — dont
+`reprise.md` qui disait mot pour mot *« le dépôt impose un cadrage (ADR) avant la moindre ligne de
+code »*, la phrase-souche même que le chantier corrigeait.
+
+**Cause** : j'ai lu les fichiers **où je m'attendais** à trouver le problème, pas **tous ceux que le
+périmètre nommait**. Le read-before-code a porté sur une hypothèse, pas sur un inventaire.
+
+**Parade** : quand un périmètre nomme un **répertoire**, en énumérer le contenu et **rendre le
+compte** avant de commencer — « 5 fichiers, j'en lis 5 ». Un périmètre au pluriel se vérifie par un
+`ls`, jamais par l'intuition de ce qui est concerné.
+
 ## Chantier `fix/ci-github-actions` — deux tests verts pour la mauvaise raison — 2026-08-16
 
 ### 🔴 Un `TestClient` construit au niveau MODULE parle au vrai PostgreSQL

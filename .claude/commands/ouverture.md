@@ -16,6 +16,26 @@ Tu ne committes PAS et tu ne push PAS : le commit de documentation est mon geste
 > justification. Si tu es appelée avant que l'ADR existe, dis-le et arrête-toi : il n'y a rien à
 > ouvrir.
 
+> 🔴 **ELLE NE SERT QU'AU CAS 3 de l'`adr-0060` — décision neuve.** C'est la correction du
+> 2026-08-17, et elle vient d'un blocage réel : `chore/registre-adr` est un **rangement** (cas 1),
+> il n'avait aucun ADR à exhiber, et cette commande l'aurait arrêté net sur un chantier
+> parfaitement légitime. Il a fallu la contourner à la main.
+>
+> | Cas `adr-0060` | Cette commande |
+> |---|---|
+> | **1 · Rangement** (`chore/`) — rien n'est décidé | ❌ **ne pas l'appeler** — pas d'ADR à vérifier |
+> | **2 · Application** (`fix/`) — la règle existe déjà | ❌ **ne pas l'appeler** — on **cite** l'ADR, on n'en écrit pas |
+> | **3 · Décision neuve** (`feat/`) | ✅ **c'est son cas** |
+> | **4 · Surface** (`feat/`) — l'ADR vient APRÈS l'écran | ❌ **ne pas l'appeler** — il n'y a rien à vérifier encore |
+>
+> **Pour les cas 1, 2 et 4** : partir directement sur la branche (`chore/`, `fix/`, `feat/`), et
+> poser **périmètre et hors-périmètre dans le premier message** — c'est ce que cette commande
+> apporte vraiment, et ça ne dépend d'aucun ADR.
+>
+> 🔴 **Si l'utilisateur t'appelle quand même sur un cas 1, 2 ou 4 : dis-le et arrête-toi AVANT le
+> §2.** Ne réclame pas un ADR qui ne doit pas exister — ce serait fabriquer une décision là où il
+> n'y a qu'une dette.
+
 ## État réel du dépôt (lis avant toute chose)
 
 - Branche : !`git branch --show-current`
@@ -48,6 +68,11 @@ Trois conditions :
 >
 > `DECISIONS.md` modifié est un cas à part : il n'a **pas** été commité sur `main` pendant le
 > cadrage. Arrête-toi — il se committe là-bas, avec l'ADR, JAMAIS sur la branche.
+>
+> ⚠️ **`DECISIONS.md` est GÉNÉRÉ** (`scripts/gen_decisions_index.py`, depuis la PR #136). Le voir
+> modifié ne veut donc pas dire qu'on l'a édité : cela veut dire qu'une **régénération** a eu lieu
+> hors de `main`. Le diagnostic ne change pas — il se committe sur `main` — mais le geste de
+> réparation, oui : on ne recopie pas une ligne, **on relance le script depuis `main`**.
 
 ### 2. ⛔ LE CONTRÔLE QUI JUSTIFIE CETTE COMMANDE — le cadrage existe-t-il VRAIMENT ?
 
