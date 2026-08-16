@@ -1,5 +1,23 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.98.0 — La méthode dit enfin ce qu'elle décide
+
+Rien ne change pour Massimo ni pour Papa. Mais le dépôt cesse de porter **deux doctrines opposées** :
+l'ADR-0060 posait quatre cas depuis la veille, et les fichiers que l'agent lit disaient encore
+l'ancienne règle.
+
+- 🔴 **Deux commandes portaient des instructions fausses, pas seulement périmées.** `/ouverture`
+  s'arrêtait « si un ADR manque » — or trois cas sur quatre n'en ont aucun, et elle a réellement
+  bloqué un chantier légitime. Cinq fichiers disaient d'éditer `DECISIONS.md` à la main, alors
+  qu'il est **généré** et porte « Ne pas éditer à la main » en en-tête.
+- **Les quatre cas sont écrits là où on les lit** : `WORKFLOW.md` §2, `CLAUDE.md`, et chaque
+  commande dit désormais à quel cas elle s'applique.
+- **Quatre règles nées de l'usage entrent dans le workflow** : le hook et la CI n'automatisent
+  qu'**un tiers** de l'étape de vérification · pour prouver qu'une suite est autonome, **couper le
+  service** (un venv neuf ne suffit pas) · **comparer au squash, jamais à la tête de `main`** avant
+  de supprimer une branche · une entrée `CHANGELOG` **si un comportement change**, pas si des
+  fichiers bougent.
+
 ## 0.97.0 — Une CI, et les deux défauts qu'elle a trouvés en arrivant
 
 Rien ne change pour Massimo ni pour Papa. En revanche, la suite de tests devient enfin **jouable
