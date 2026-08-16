@@ -4,6 +4,78 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `fix/ci-github-actions` — deux tests verts pour la mauvaise raison — 2026-08-16
+
+### 🔴 Un `TestClient` construit au niveau MODULE parle au vrai PostgreSQL
+
+**Symptôme** : au premier run de la CI, `test_login_massimo_ok` et `test_me_returns_role`
+échouent — `psycopg.OperationalError: connection to server at "127.0.0.1", port 5432 failed`.
+**Les mêmes tests étaient verts en local depuis toujours.**
+
+**Cause** : `test_auth.py` faisait `client = TestClient(app)` **au niveau module**, sans aucune
+fixture. `app.dependency_overrides[get_db]` n'était donc jamais posé, et l'application utilisait sa
+`SessionLocal` réelle. Ils étaient verts sur la machine de dev **parce que `docker compose` y
+tourne** — et rouges pour quiconque clone le dépôt.
+
+**Pourquoi seulement deux des sept** : `login` appelle `student_id_or_none(db)` **uniquement pour un
+rôle enfant** (`auth/router.py:27`). La session SQLAlchemy étant paresseuse, la connexion ne s'ouvre
+qu'à la première requête — `papa` n'en émettait aucune, `massimo` oui.
+
+**Parade** : une fixture `autouse` locale au fichier qui surcharge **`get_db` seulement**.
+
+⚠️ **Ne PAS utiliser `client_db` de `conftest.py` pour des tests d'authentification** : elle
+surcharge aussi `get_current_user` par un utilisateur constant, ce qui rendrait
+`test_me_requires_token` et `test_me_returns_role` **incapables d'échouer**.
+
+**Comment le reproduire sans éteindre Postgres** — la seule façon d'obtenir une preuve locale :
+
+```bash
+ZETIS_DATABASE_URL="postgresql+psycopg://x:x@127.0.0.1:59999/nope" \
+  .venv/bin/python -m pytest app/tests/test_auth.py -q
+```
+
+Avant le correctif : `2 failed, 8 passed`. Après : `10 passed`.
+
+⚠️ **La leçon dépasse ce fichier** : un test vert sur la machine de dev ne prouve rien tant qu'un
+service tourne à côté. Chercher les autres `TestClient(app)` hors fixture avant d'affirmer qu'une
+suite est autonome.
+
+### 🔴 `new Response(new Blob(…))` casse sous Node 20 — et passe sous Node 24
+
+**Symptôme** : `speech.test.ts` échoue en CI avec `TypeError: object.stream is not a function`,
+alors qu'il est vert en local.
+
+**Cause** : le test mêlait **deux implémentations**. Le `Blob` vient de **jsdom**, le `Response` vient
+d'**undici** ; undici appelle `object.stream()` sur le corps, que le `Blob` de jsdom n'expose pas
+sous Node 20. Sous **Node 24** les globales s'alignent et l'appel réussit. La machine de dev tourne
+en Node 24 ; `engines.node` annonce `>=20`, et c'est ce plancher que la CI teste.
+
+**Parade** : donner un `Uint8Array` (un `BufferSource`) comme corps, jamais un `Blob` jsdom :
+
+```ts
+new Response(new Uint8Array([1, 2, 3]), {
+  status: 200,
+  headers: { "content-type": "audio/wav" },
+})
+```
+
+⚠️ **Aucun Node 20 n'est installé sur la machine de dev** : ce correctif ne pouvait être prouvé
+**que** par la CI. C'est le premier défaut du dépôt dont la vérification est structurellement hors
+de portée en local.
+
+### ⚠️ Un venv neuf ne prouve pas l'absence de services
+
+**Ce que j'ai cru vérifier, et qui était faux.** Avant d'écrire la CI, j'avais monté un venv neuf
+avec seulement `.[dev]` pour prouver que les extras `stt`/`tts` n'étaient pas requis : **1384 passed**.
+J'en avais conclu — et écrit — *« aucun service nécessaire, et c'est vérifié »*.
+
+**C'était faux pour 2 tests sur 1384.** Le venv neuf isole les **dépendances Python**, pas les
+**services réseau** : Postgres tournait à côté, et rien dans le résultat ne le disait.
+
+**Parade** : pour prouver l'autonomie d'une suite, couper l'accès au service — `ZETIS_DATABASE_URL`
+sur un port mort — et non changer d'environnement Python. Les deux contrôles ne mesurent pas la
+même chose.
+
 ## Chantier `fix/hook-pre-push` — le verrou qui manquait — 2026-08-16
 
 ### 🔴 Des backticks dans une chaîne à guillemets doubles, dans un hook, EXÉCUTENT
