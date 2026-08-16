@@ -46,7 +46,6 @@ export function useObservationPassation(): ObservationPassation {
   const tailleChangee = useRef(false);
   const copies = useRef<Set<number>>(new Set());
   const rythme = useRef<Map<number, number>>(new Map());
-  const enCoursDeSoumission = useRef(false);
 
   const demarrer = useCallback(() => {
     actif.current = true;
@@ -60,7 +59,6 @@ export function useObservationPassation(): ObservationPassation {
     tailleChangee.current = false;
     copies.current = new Set();
     rythme.current = new Map();
-    enCoursDeSoumission.current = false;
 
     // 🔴 LE PLEIN ÉCRAN DOIT ÊTRE DEMANDÉ DANS LE GESTE UTILISATEUR, DONC AVANT TOUT `await`.
     // L'API l'exige, et un `await fetch(...)` fait perdre le contexte de geste : demandé après,
@@ -120,9 +118,17 @@ export function useObservationPassation(): ObservationPassation {
       if (Number.isFinite(id)) copies.current.add(id);
     };
     const surPleinEcran = () => {
-      if (!actif.current || enCoursDeSoumission.current) return;
-      // ⚠️ La sortie de plein écran provoquée par l'app à la soumission ne compte pas : c'est
-      // `terminer()` qui la déclenche, et le drapeau ci-dessus la neutralise.
+      // ⚠️ La sortie de plein écran provoquée par l'app ne compte pas : c'est `terminer()` qui la
+      // déclenche, et il pose `actif = false` AVANT d'appeler `exitFullscreen()` — ce seul drapeau
+      // suffit, l'événement arrive toujours après.
+      //
+      // 🔴 Un seul drapeau, et c'est une correction. Un seul drapeau de plus (`enCoursDeSoumission`,
+      // posé par `recolter()`) faisait le même travail en double — sauf que RIEN ne le remettait à
+      // `false`. Sur un envoi qui échoue, l'écran de passation reste (voulu, `DiagnosticPage` le
+      // teste) et l'observation continue de courir : `plein_ecran_quitte` devenait alors
+      // **inenregistrable pour tout le reste de la passation**. Silencieux à l'écran, silencieux
+      // dans le résultat, et faux dans la seule donnée que l'ADR-0048 tiendra pour un fait.
+      if (!actif.current) return;
       if (pleinEcranDemande.current && document.fullscreenElement == null) {
         pleinEcranQuitte.current = true;
       }
@@ -148,8 +154,9 @@ export function useObservationPassation(): ObservationPassation {
   }, []);
 
   const recolter = useCallback(() => {
+    // 🔴 `recolter()` LIT, il ne change rien à l'observation en cours — une récolte peut être
+    // suivie d'un échec d'envoi, donc d'une passation qui continue et d'une seconde récolte.
     if (!actif.current) return null;
-    enCoursDeSoumission.current = true;
     const parQuestion = new Map<number, SignauxReponse>();
     for (const [id, ms] of rythme.current) {
       parQuestion.set(id, { ms_depuis_precedente: ms, enonce_copie: copies.current.has(id) });

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CarteRaconteMoi } from "../components/CarteRaconteMoi";
 import { PageHeader } from "../components/PageHeader";
@@ -77,6 +77,26 @@ function PhraseRaison({ raison, estUnChoix }: { raison: Raison; estUnChoix: bool
   );
 }
 
+/** Ce que Massimo lit quand ça casse — jamais ce que la machine, elle, a compris.
+ *
+ * 🔴 **Le motif `e instanceof Error ? e.message : "…"` est un piège, et il est partout.** La
+ * phrase gentille y est la BRANCHE MORTE : `asJson` lève un vrai `Error`, donc c'est toujours
+ * `e.message` qui s'affiche — `Erreur 500`. La phrase d'à côté n'a jamais été lue par personne.
+ * Ici on inverse : le message d'interface est FIXE, et le détail technique part en console, où il
+ * sert à qui débogue au lieu d'inquiéter un enfant de treize ans (`CLAUDE.md` — « Massimo ne doit
+ * pas voir : les informations techniques »). Précédent du dépôt : `useEli5.ts:412`.
+ *
+ * Les deux phrases diffèrent parce que l'enjeu diffère, et la seconde porte le fait qui compte :
+ * **ses réponses sont toujours là.** Le test `n'oublie pas les réponses` prouve que c'est vrai ;
+ * sans cette phrase, rien à l'écran ne le lui disait. */
+const OUVERTURE_IMPOSSIBLE = "Le diagnostic n'a pas voulu s'ouvrir. Réessaie dans un instant ✨";
+const ENVOI_IMPOSSIBLE = "Tes réponses sont bien là — c'est l'envoi qui n'est pas passé. Réessaie dans un instant ✨";
+const RELECTURE_IMPOSSIBLE = "Ce résultat n'a pas voulu s'ouvrir. Réessaie dans un instant ✨";
+
+function tracer(ou: string, e: unknown): void {
+  console.warn(`[diagnostic] ${ou}`, e); // trace devtools (diagnostic)
+}
+
 export function DiagnosticPage() {
   const {
     tete,
@@ -102,6 +122,31 @@ export function DiagnosticPage() {
   const observation = useObservationPassation();
   const zoneB = useRef<HTMLDivElement | null>(null);
   const carte = useRef<HTMLElement | null>(null);
+  const messageErreur = useRef<HTMLParagraphElement | null>(null);
+
+  /** 🔴 Le message doit être VU, et ce n'est pas la même chose qu'être affiché.
+   *
+   *  Mesuré à la relecture du 2026-08-16, sur une passation de 16 questions : Massimo clique
+   *  « Envoyer mes réponses » tout en bas (`scrollTop` 3585 sur 4360), l'envoi échoue, et le
+   *  message naît en tête d'écran — **3509 px au-dessus du haut de sa vue**. À son écran, il ne
+   *  se passe RIEN. La phrase qui lui promet que ses réponses sont sauves est celle qu'il ne
+   *  lit pas, à l'instant précis où elle compte.
+   *
+   *  Aucun test ne pouvait le voir : ils assertent sur `document.body.textContent`, qui ignore
+   *  la position. Même cause que le scroll de `choisirEtRemonter` ci-dessous — *le scroll n'est
+   *  pas un ornement.* `role="alert"` fait le même travail pour qui n'a pas d'yeux du tout.
+   *
+   *  ⚠️ Les DEUX sources comptent, et l'oubli s'est produit : la première version ne surveillait
+   *  que `erreurAction` et ne portait la `ref` que sur l'écran de passation. Le message
+   *  d'ouverture, lui, naît sur l'écran de liste — il est resté invisible un correctif de plus.
+   *  Les deux paragraphes sont exclusifs l'un de l'autre, une seule `ref` les sert tous les deux. */
+  useEffect(() => {
+    if (erreurAction || erreur) {
+      // ⚠️ Appel OPTIONNEL : jsdom n'implémente pas `scrollIntoView`, et un `useEffect` qui lève
+      // emporte le rendu avec lui. Un confort d'affichage n'a pas à pouvoir casser un écran.
+      messageErreur.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }
+  }, [erreurAction, erreur]);
 
   async function startQuiz(quizId: number) {
     // 🔴 EN TÊTE, ET AVANT TOUT `await`. Le plein écran exige le contexte de geste utilisateur, que
@@ -116,11 +161,40 @@ export function DiagnosticPage() {
       setAnswers({});
       setResult(null);
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      // 🔴 SORTIE 3 DE 4. `demarrer()` a tourné en tête, dans le geste — mais on n'entre jamais en
+      // passation. Sans ce `terminer()`, l'observation reste allumée sur un écran qui n'observe
+      // plus rien : plein écran gardé, écouteurs branchés, chronomètre en marche. Et le
+      // `demarrer()` SUIVANT hériterait de la sortie d'écran comptée entre-temps.
+      observation.terminer();
+      tracer("ouverture du diagnostic", e);
+      setErreurAction(OUVERTURE_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
   }
+
+  /** SORTIE 2 DE 4 — Massimo renonce en cours de passation.
+   *
+   *  🔴 Elle ne faisait que `setQuiz(null)`. L'écran revenait, et l'observation restait allumée
+   *  derrière : le `demarrer()` suivant repartait d'un état sale, et `ms_total` comme
+   *  `sorties_ecran` de la passation SUIVANTE héritaient de celle-ci. Le dégât n'est jamais dans
+   *  la passation qu'on abandonne — il est dans la prochaine, dont l'ADR-0048 tiendra les faits
+   *  pour vrais. */
+  function renoncer() {
+    observation.terminer();
+    setQuiz(null);
+  }
+
+  /** SORTIE 4 DE 4 — Massimo quitte la page en pleine passation (barre de navigation, retour).
+   *
+   *  🔴 Le composant part, mais RIEN ne le dit à l'observation : sans ce nettoyage, le plein écran
+   *  reste, et le hook ne peut pas s'éteindre lui-même — ses propres écouteurs partent, pas l'état
+   *  qu'il a laissé au navigateur. C'est la seule des quatre sorties qui ne passe par aucun clic,
+   *  donc la seule qu'aucune relecture visuelle n'aurait attrapée.
+   *
+   *  ⚠️ `terminer()` est une identité stable (`useCallback([])`), donc ce nettoyage ne rejoue pas
+   *  à chaque rendu — il ne s'exécute qu'au démontage réel. */
+  useEffect(() => observation.terminer, [observation.terminer]);
 
   /** Promeut le diagnostic dans la carte, PUIS la ramène dans le champ de vision.
    *
@@ -140,7 +214,8 @@ export function DiagnosticPage() {
     try {
       setResult(await fetchMonResultat(attemptId));
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      tracer("relecture d'un résultat", e);
+      setErreurAction(RELECTURE_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
@@ -158,11 +233,17 @@ export function DiagnosticPage() {
         ...(observe?.parQuestion.get(q.id) ?? {}),
       }));
       setResult(await submitDiagnostic(quiz.quiz_id, payload, observe?.conditions));
+      // SORTIE 1 DE 4 — la seule qui était couverte avant ce chantier.
       observation.terminer();
       setQuiz(null);
       recharger();
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur");
+      // 🔴 PAS de `terminer()` ici, et c'est délibéré : l'écran de passation RESTE, avec les
+      // réponses de Massimo. Reperdre son travail sur une coupure réseau serait la punition d'un
+      // défaut qui n'est pas le sien — et l'observation doit continuer à courir puisque la
+      // passation, elle, continue. C'est la seule branche d'erreur qui n'éteint rien.
+      tracer("envoi du diagnostic", e);
+      setErreurAction(ENVOI_IMPOSSIBLE);
     } finally {
       setBusy(false);
     }
@@ -240,7 +321,11 @@ export function DiagnosticPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader title={quiz.title} subtitle="Réponds tranquillement, il n'y a pas de piège." />
-        {erreurAction && <p className="mb-3 text-sm text-rose-400">{erreurAction}</p>}
+        {erreurAction && (
+          <p ref={messageErreur} role="alert" className="mb-3 text-sm text-rose-400">
+            {erreurAction}
+          </p>
+        )}
         <div className="space-y-4">
           {quiz.questions.map((q, idx) => (
             // `data-question-id` sert UNIQUEMENT à localiser une copie d'énoncé dans le DOM —
@@ -291,7 +376,7 @@ export function DiagnosticPage() {
         </button>
         <button
           type="button"
-          onClick={() => setQuiz(null)}
+          onClick={renoncer}
           className="mt-3 block text-sm text-zetis-muted hover:text-zetis-text"
         >
           ← Annuler
@@ -308,7 +393,9 @@ export function DiagnosticPage() {
         subtitle="ZETIS vérifie ce qu'il faut renforcer pour t'aider plus vite."
       />
       {(erreur || erreurAction) && (
-        <p className="mb-3 text-sm text-rose-400">{erreurAction ?? erreur}</p>
+        <p ref={messageErreur} role="alert" className="mb-3 text-sm text-rose-400">
+          {erreurAction ?? erreur}
+        </p>
       )}
       {chargement && <p className="text-sm text-zetis-muted">Un instant…</p>}
 
