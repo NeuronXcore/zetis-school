@@ -57,6 +57,71 @@ from adr_lib import ADR, charger  # noqa: E402
 RE_TITRE = re.compile(r"^(#{1,6})\s")
 RE_FENCE = re.compile(r"^\s*(```|~~~)")
 
+# --- Ordre des amendements ---------------------------------------------------
+#
+# 🔴 Le tri `(date, nom de fichier)` seul est FAUX sur les dates ex-æquo. Mesuré le
+# 2026-08-16 : huit groupes portent plusieurs addendums du même jour, et quatre d'entre
+# eux s'en trouvaient mal rangés — dont deux où l'alphabétique plaçait le **révoquant
+# avant le révoqué**. `## Amendement N` aurait alors affirmé un ordre qui n'existe nulle
+# part : « Amendement 2 » aurait porté la phrase « Cinquième addendum en une journée ».
+#
+# Rien n'est déduit ici. Chaque rang est celui que le document **déclare lui-même** ; la
+# citation qui l'établit est en commentaire. Un fichier absent de cette table retombe sur
+# le tri par nom — et si son groupe a des dates ex-æquo, `main()` le signale.
+ORDRE_DECLARE = {
+    # ADR-0011 — 2026-07-28 ×2. Rangs portés par les H1 (§E, §F) et confirmés par
+    # « À concaténer **après le §E** » (provenance-validation, L2).
+    "adr-0011-addendum-fraicheur-derives.md": 1,
+    "adr-0011-addendum-provenance-validation.md": 2,
+
+    # ADR-0024 — 2026-07-31 ×5. Chacun se numérote en toutes lettres dans son bloc de
+    # statut ; trois d'entre eux désignent `galaxie-page-dediee` comme « le premier ».
+    "adr-0024-addendum-galaxie-page-dediee.md": 1,      # cité « le premier addendum » par les n° 2, 3, 4 et 5
+    "adr-0024-addendum-accueil-vivant.md": 2,           # « Second addendum de l'ADR-0024, le jour même du premier »
+    "adr-0024-addendum-galaxie-animee.md": 3,           # « Troisième addendum à l'ADR-0024 en une journée »
+    "adr-0024-addendum-galaxie-sur-accueil.md": 4,      # « Quatrième addendum à l'ADR-0024 en une journée »
+    "adr-0024-addendum-constellations-completes.md": 5, # « Cinquième addendum … et le deuxième à révoquer une décision du matin »
+
+    # ADR-0025 — 2026-08-10 ×5. Les H1 portent les ordinaux de section du parent.
+    "adr-0025-addendum-intitule-depuis-le-referentiel.md": 13,  # « §13 · L'intitulé se choisit dans le référentiel »
+    "adr-0025-addendum-lecon-a-apprendre.md": 14,               # « §14 · "Leçon à apprendre", le quatrième type »
+    "adr-0025-addendum-lien-vers-le-cours.md": 15,              # « §15 · L'échéance mène à son cours »
+    "adr-0025-addendum-voix-de-zetis.md": 16,                   # « §16 · Papa n'existe pas dans l'espace de Massimo »
+    "adr-0025-addendum-jour-ouvert.md": 17,                     # « §17 · La bande ouvre un jour »
+
+    # ADR-0028 — deux paires. Le rang suit la dépendance que chaque document déclare.
+    "adr-0028-addendum-analyse-par-matiere.md": 1,   # 2026-08-05
+    "adr-0028-addendum-kpi-a-renforcer.md": 2,       # 2026-08-05, « s'appuie sur : … adr-0028-addendum-analyse-par-matiere »
+    "adr-0028-addendum-memoire-quatre-vues.md": 3,   # 2026-08-06
+    "adr-0028-addendum-cartes-focalisables.md": 4,   # 2026-08-06, « s'appuie sur : … adr-0028-addendum-memoire-quatre-vues »
+
+    # ADR-0030 — 2026-08-15 ×3. `temoin-matieres` porte « les quatre bornes transverses
+    # B1–B4 communes aux trois témoins ajoutés le même jour (Matières, ELI5, Quiz) …
+    # écrites une seule fois, ici » : il doit précéder les deux qui s'y adossent, et
+    # l'énumération donne l'ordre des deux suivants.
+    "adr-0030-addendum-temoin-matieres.md": 1,
+    "adr-0030-addendum-temoin-eli5.md": 2,
+    "adr-0030-addendum-temoin-quiz.md": 3,
+
+    # ADR-0032 — 2026-08-04 ×2. H1 §7 et §8, « après le §7 » (zetis-levels, L2).
+    "adr-0032-addendum-etat-zetis-en-sidebar.md": 7,
+    "adr-0032-addendum-zetis-levels.md": 8,
+
+    # ADR-0034 — 2026-08-04 ×2. « s'appuie sur : … adr-0034-addendum-regime-et-destination »
+    # (tri-et-filtre, bloc de statut).
+    "adr-0034-addendum-regime-et-destination.md": 1,
+    "adr-0034-addendum-tri-et-filtre-du-journal.md": 2,
+}
+
+# Un fichier non déclaré passe APRÈS les déclarés de sa date, puis par ordre de nom.
+RANG_PAR_DEFAUT = 10_000
+
+
+def rang(a: ADR) -> tuple[str, int, str]:
+    """Clé d'ordre d'un amendement : date, rang déclaré, nom de fichier."""
+    return (a.date or "9999", ORDRE_DECLARE.get(a.chemin.name, RANG_PAR_DEFAUT), a.chemin.name)
+
+
 LIBELLE_STATUT = {
     "propose": "Proposé",
     "accepte": "Accepté",
@@ -199,7 +264,24 @@ def main() -> int:
             continue
 
         parent = parents[0]
-        addendums.sort(key=lambda a: (a.date or "9999", a.chemin.name))
+        addendums.sort(key=rang)
+
+        # Une date ex-æquo dont l'ordre n'est déclaré nulle part retomberait sur
+        # l'alphabétique — c'est exactement ce qui avait mal rangé quatre groupes.
+        # On le DIT au lieu de le laisser passer.
+        vus: dict[str, list[str]] = defaultdict(list)
+        for a in addendums:
+            vus[a.date or "—"].append(a.chemin.name)
+        for date, noms in vus.items():
+            non_declares = [n for n in noms if n not in ORDRE_DECLARE]
+            if len(noms) > 1 and non_declares:
+                print(
+                    f"⚠️  ADR-{id_} : {len(noms)} amendements datés {date}, dont "
+                    f"{len(non_declares)} sans ordre déclaré → rangés par nom de fichier"
+                )
+                for n in non_declares:
+                    print(f"       {n}")
+
         sortie, stats = fusionner(parent, addendums)
         fautes = verifier(sortie, parent, addendums)
 

@@ -4,6 +4,106 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `chore/registre-adr` — un ADR = un fichier — 2026-08-16
+
+### 🔴 `check_adr_refs.sh` ne teste QUE `ADR-\d{4}`, jamais un chemin de fichier
+
+**Symptôme** : après la fusion, qui supprime les 46 fichiers d'addendum, le verrou du dépôt
+répondait `✅ toutes les références ADR résolvent` alors que **179 renvois pointaient vers des
+fichiers inexistants**.
+
+**Cause** : `check_adr_refs.sh:8` grep `ADR-[0-9]{4}` uniquement. Un renvoi écrit
+`` `docs/decisions/adr-0024-addendum-galaxie-animee.md` `` ne contient **aucune** occurrence de
+`ADR-0024` — le verrou ne le voit pas. Le nom de fichier et le numéro sont deux espaces de nommage
+distincts, et un seul est gardé.
+
+**Parade** : après toute suppression ou tout renommage de fichier ADR, balayer **en plus** :
+
+```bash
+grep -rhoE '(docs/decisions/)?adr-[0-9]{4}-[a-z0-9-]+(\.md)?' --include='*.md' --include='*.py' \
+  --include='*.ts' --include='*.tsx' . | sort -u
+```
+
+⚠️ **Le verrou reste vert aujourd'hui sur 54 renvois morts** dans `apps/` et `packages/`, laissés
+hors périmètre. Ne pas lire son `✅` comme « aucun renvoi cassé ».
+
+### 🔴 Compter les renvois AVANT une fusion sous-estime — 93 annoncés, 179 réels
+
+**Symptôme** : comptage soigneux avant écriture → **93** renvois à réparer. Après la fusion, le
+balayage en rendait **179**.
+
+**Cause, et elle est structurelle** : les corps d'addendums **citaient leurs frères**. Ces
+renvois-là avaient été écartés du comptage — à juste titre, puisqu'ils vivaient dans des fichiers
+voués à disparaître. Mais la fusion ne les supprime pas : elle les **absorbe dans le parent**, où
+ils resurgissent. Un renvoi qui allait mourir avec son fichier survit à la fusion de ce fichier.
+
+**Parade** : pour toute opération qui **fusionne** des fichiers, compter l'impact **sur le résultat
+de la fusion**, jamais sur l'état d'avant. Le dry-run doit produire le texte fusionné puis compter
+dedans.
+
+### 🔴 85 renvois sur 179 étaient des AUTO-renvois — le fichier se cite lui-même
+
+**Symptôme** : la première version de la redirection produisait, dans
+`adr-0024-zetis-galaxy-progression.md`, la phrase *« cf. l'addendum
+`adr-0024-zetis-galaxy-progression.md` (Amendement 1) §A »* — un fichier renvoyant à lui-même par
+son propre nom.
+
+**Cause** : un addendum absorbé dans son parent y emporte ses citations de frères. Une redirection
+« nom d'addendum → nom du parent » appliquée uniformément transforme donc une référence externe en
+auto-référence, sans que rien ne l'attrape.
+
+**Parade** : traiter le cas à part — quand le fichier citant **est** le parent, le renvoi cesse
+d'être un chemin. Rendu `**Amendement N**`, backticks encadrants retirés
+(`redirige_renvois_addendums.reecrire`, paramètre `nom_fichier`).
+
+### 🔴 Un tri `(date, nom de fichier)` place le RÉVOQUANT AVANT le RÉVOQUÉ
+
+**Symptôme** : `fusion_addendums.py` triait les addendums par `(date, nom de fichier)`. Sur les
+huit groupes portant plusieurs addendums du même jour, **quatre** sortaient mal ordonnés —
+`## Amendement 2` de l'ADR-0024 aurait porté la phrase *« Cinquième addendum en une journée »*.
+
+**Cause** : l'ordre alphabétique n'a aucun rapport avec la chronologie. Sur ADR-0024, cinq
+addendums du 2026-07-31 se numérotent **en toutes lettres** dans leur bloc de statut ; sur ADR-0025,
+cinq addendums du 2026-08-10 portent `§13`…`§17` dans leur H1. Deux sources d'ordre existaient dans
+les documents, et le tri n'en lisait aucune.
+
+**Parade** : `ORDRE_DECLARE` (`scripts/fusion_addendums.py`) — chaque rang est celui que le document
+**déclare lui-même**, avec la citation qui l'établit en commentaire. Le script **signale** tout
+ex-æquo dont l'ordre n'est déclaré nulle part, au lieu de retomber en silence sur l'alphabétique.
+
+⚠️ **Contrôle croisé indispensable** : deux scripts calculent indépendamment le numéro d'amendement
+(la fusion l'écrit dans `## Amendement N`, la redirection l'écrit dans `(Amendement N)`). Vérifier
+qu'ils coïncident, sinon on produit 179 renvois **précis et faux** :
+
+```bash
+python3 - <<'PY'
+# les 46 numéros calculés doivent égaler les en-têtes réellement écrits
+PY
+```
+
+### ⚠️ `gen_frontmatter.py` écrivait son rapport HORS du dossier qu'il instrumente
+
+**Symptôme** : `--write` a produit `docs/rapport-revocations.md`, un cran au-dessus du périmètre de
+la session (`docs/decisions/`).
+
+**Cause** : `args.racine.parent / "rapport-revocations.md"`. Le `.parent` était une commodité, pas
+une décision.
+
+**Parade** : corrigé en `args.racine / "annexes"`. ⚠️ Le commentaire `revoque:` des front-matter
+déjà posés pointait encore vers l'ancien chemin — **un déplacement de fichier généré laisse des
+renvois dans les fichiers déjà générés**.
+
+### ⚠️ `graphify update .` refuse toute baisse du nombre de nœuds, même voulue
+
+**Symptôme** : `WARNING: new graph has 16339 nodes but existing graph.json has 16348. Refusing to
+overwrite — you may be missing chunk files from a previous session.`
+
+**Cause** : garde-fou contre une reconstruction partielle. Il ne distingue pas une perte accidentelle
+d'une **suppression volontaire** — ici les 46 fichiers d'addendum.
+
+**Parade** : `graphify update . --force`, **après** avoir vérifié que la baisse s'explique
+entièrement. Une sauvegarde du graphe curé est prise automatiquement (`graphify-out/<date>/`).
+
 ## Session de méthode `ADR-0060` + rangement de `main` — 2026-08-16
 
 ### 🔴 `git push` envoie le REF, pas les commits qu'on vient de vérifier
@@ -2748,7 +2848,7 @@ jusqu'au rechargement. Aucun test ne couvre l'entrée optimiste.
 
 ## Chantier `feat/memoire-quatre-vues` — la carte mémoire à 4 vues + 2 cartes focalisables — 2026-08-06
 
-> ADR : `adr-0028-addendum-memoire-quatre-vues.md` et `adr-0028-addendum-cartes-focalisables.md`.
+> ADR : `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 3) et `adr-0028-dashboard-papa-agregat-unique.md` (Amendement 4).
 
 ### 🔴 Une refonte de composant peut faire DISPARAÎTRE une série servie, sans qu'un test rougisse
 
@@ -2831,7 +2931,7 @@ sur 4. Voir l'entrée du chantier `feat/kpi-a-renforcer` ci-dessous pour le cas 
 
 ## Chantier `feat/kpi-a-renforcer` — le 5ᵉ KPI du dashboard Papa — 2026-08-05
 
-> ADR : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`, écrit **avant** le code.
+> ADR : `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2), écrit **avant** le code.
 
 ### 🔴 Une union qui pilote un comportement, gardée par un TABLEAU — le KPI est né inerte
 

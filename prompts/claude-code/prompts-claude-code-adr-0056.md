@@ -4,7 +4,7 @@
 > qui bouge. À coller après `/slice`, qui porte la discipline.
 >
 > Lire d'abord : `docs/decisions/adr-0056-la-file-cesse-d-enterrer-ce-qu-il-vient-d-ecrire.md`,
-> et le §13 de `docs/decisions/adr-0015-addendum-fiche-de-massimo.md` (le masquage, qu'on ne
+> et le §13 de `docs/decisions/adr-0015-fiches-revision.md` (Amendement 1) (le masquage, qu'on ne
 > rouvre pas).
 >
 > **Le défaut à réparer, mesuré le 2026-08-14** : les 7 cartes `definition_perso` de Massimo sont

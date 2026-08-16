@@ -54,7 +54,7 @@ Quatre conséquences qui se lisent mal sans la règle :
 - **ELI5** a bien un badge depuis le 2026-08-15, mais **pas** celui qu'on croit : son `new_count`
   de **récence** (leçon porteuse créée dans les 7 jours) reste inéligible et reste sur ses decks,
   en page. Le témoin de navigation est adossé à `eli5_views`, une table créée pour ça. La règle du
-  §2 n'a pas été assouplie — elle a été payée (`adr-0030-addendum-temoin-eli5`).
+  §2 n'a pas été assouplie — elle a été payée (`adr-0030-temoins-nouveaute-navigation` (Amendement 3)).
 - **Quiz** compte les quiz **jamais ouverts**, jamais les quiz « pas encore faits ». Ouvrir puis
   abandonner sans répondre éteint le témoin : c'est le prix de ne pas compter du travail.
 - **Matières** compte les **cours** validés jamais ouverts, et rien d'autre — pas les fiches,

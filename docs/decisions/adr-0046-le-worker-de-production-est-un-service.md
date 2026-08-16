@@ -1,3 +1,14 @@
+---
+id: "0046"
+titre: "Le worker de production est un service, et son absence vient à toi"
+type: architecture
+statut: accepte
+date: 2026-08-08
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0009", "0034", "0036"]
+---
 # ADR-0046 — Le worker de production est un service, et son absence vient à toi
 
 ## Statut

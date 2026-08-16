@@ -1,3 +1,14 @@
+---
+id: "0049"
+titre: "Le deck de révision par chapitre"
+type: surface
+statut: accepte
+date: 2026-08-10
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0011", "0013", "0018", "0024", "0025", "0027", "0042"]
+---
 # ADR-0049 — Le deck de révision par chapitre
 
 ## Statut
@@ -37,7 +48,7 @@ depuis l'échéance d'agenda**, conforme à la recommandation. Elle ne se redisc
 **relit**.
 
 > Ce chantier est le **couplage 2 du §11 de l'ADR-0025**, resté à 0 % depuis. Il est désigné comme
-> le prochain par l'`adr-0025-addendum-lecon-a-apprendre.md` §14.6, décision validée n° 2 du
+> le prochain par l'`adr-0025-agenda-scolaire.md` (Amendement 3) §14.6, décision validée n° 2 du
 > 2026-08-10 : *« rendre visible le Commander avant de construire le plan de préparation »*, au
 > motif que le plan de préparation *« dépend d'un couplage livré à 0 % »*. L'ordonnancement était
 > écrit ; il manquait le cadrage.
@@ -45,7 +56,7 @@ depuis l'échéance d'agenda**, conforme à la recommandation. Elle ne se redisc
 ## Contexte
 
 La question qui a ouvert le chantier agenda était *« comment demander à Massimo de réviser ? »*.
-L'`adr-0025-addendum-lecon-a-apprendre.md` §14.6 y a répondu honnêtement : **on ne peut pas encore**,
+L'`adr-0025-agenda-scolaire.md` (Amendement 3) §14.6 y a répondu honnêtement : **on ne peut pas encore**,
 et il a interdit d'en donner l'illusion — *« aucune affordance de l'agenda ne doit suggérer une
 session de révision »*, parce qu'*« un bouton mort se lit comme une panne, et une promesse non tenue
 coûte plus cher que l'absence »*.

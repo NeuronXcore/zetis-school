@@ -72,7 +72,7 @@ def front_matter(a) -> str:
         f"statut: {a.statut or 'inconnu'}",
         f"date: {a.date or 'null'}",
         f"pr: {a.pr if a.pr else 'null'}",
-        "revoque: []        # à remplir à la main — voir rapport-revocations.md",
+        "revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md",
         "revoque_par: []",
         f"refs: [{', '.join(echapper(r) for r in sorted(a.refs))}]",
         "---",
@@ -106,7 +106,13 @@ def main() -> int:
     print(f"\n{poses} front-matter posé(s), {deja} déjà présent(s), {len(adrs)} fichier(s)")
 
     if args.write and rapport:
-        chemin = args.racine.parent / "rapport-revocations.md"
+        # Sous `annexes/`, avec les autres pièces du registre — et non dans
+        # `docs/` : ce rapport n'est pas une doc de produit, c'est une annexe
+        # du registre des décisions. Il atterrissait un cran trop haut
+        # (`racine.parent`), hors du dossier que ce script instrumente.
+        dossier = args.racine / "annexes"
+        dossier.mkdir(exist_ok=True)
+        chemin = dossier / "rapport-revocations.md"
         with chemin.open("w", encoding="utf-8") as f:
             f.write("# Révocations à confirmer à la main\n\n")
             f.write("> Extrait mécaniquement : ce sont des CANDIDATS, pas des faits établis.\n")

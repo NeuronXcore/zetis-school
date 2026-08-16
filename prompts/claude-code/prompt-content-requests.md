@@ -1,6 +1,6 @@
 # Prompt — Liste d'attente de contenus pour Papa (`content_requests`)
 
-Réalise l'**addendum ADR-0027** (`docs/decisions/adr-0027-addendum-content-requests.md`) : quand
+Réalise l'**addendum ADR-0027** (`docs/decisions/adr-0027-chat-orchestrateur.md` (Amendement 1)) : quand
 Massimo réclame dans le chat un contenu **absent** sur une notion **existante**, l'accumuler dans une
 file **dédupliquée** que Papa traite depuis la Couverture. Résout le Point ouvert n°4 de l'ADR-0027.
 

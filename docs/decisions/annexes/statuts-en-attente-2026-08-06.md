@@ -70,17 +70,17 @@ présent et suivi par git sur `main`.
 
 | ADR | PR | commit | date |
 |---|---|---|---|
-| `adr-0011-addendum-autorite-paliers` (§G) | cadrage seul | `5441af7` | 2026-08-02 |
+| `adr-0011-contexte-canonique-partage` (Amendement 3) (§G) | cadrage seul | `5441af7` | 2026-08-02 |
 | `adr-0031-production-en-lot-et-journal` | #68 | `731394b` | 2026-08-02 |
-| `adr-0031-addendum-deux-passes-et-gate-cours` | #68 | `731394b` | 2026-08-02 |
+| `adr-0031-production-en-lot-et-journal` (Amendement 1) | #68 | `731394b` | 2026-08-02 |
 | `adr-0032-paliers-autonomie-zetis` | #69 | `b8f2a02` | 2026-08-02 |
 | `adr-0034-journal-production-et-veto` | #70 | `4d3fc99` | 2026-08-03 |
-| `adr-0034-addendum-regime-et-destination` | #80 | `294d0d5` | 2026-08-04 |
-| `adr-0034-addendum-tri-et-filtre-du-journal` | #81 | `e940ba3` | 2026-08-04 |
+| `adr-0034-journal-production-et-veto` (Amendement 1) | #80 | `294d0d5` | 2026-08-04 |
+| `adr-0034-journal-production-et-veto` (Amendement 2) | #81 | `e940ba3` | 2026-08-04 |
 | `adr-0035-declencheur-automatique-production` | #71 | `c4f5e31` | 2026-08-03 |
-| `adr-0035-addendum-devoirs-et-porte-echeance` | #71 | `c4f5e31` | 2026-08-03 |
+| `adr-0035-declencheur-automatique-production` (Amendement 1) | #71 | `c4f5e31` | 2026-08-03 |
 | `adr-0036-demande-vers-production` | #72 | `eff83cb` | 2026-08-03 |
-| `adr-0036-addendum-verdict-de-situation` | #80 | `294d0d5` | 2026-08-04 |
+| `adr-0036-demande-vers-production` (Amendement 1) | #80 | `294d0d5` | 2026-08-04 |
 | `adr-0037-lecon-canonique-d-une-notion` | #73 | `8447382` | 2026-08-04 |
 
 ⚠️ Deux attributions sont **inférées du sujet du commit, pas écrites dedans** :
@@ -105,10 +105,10 @@ pour elles que la décision est la plus simple.
 | ADR | PR | commit | date | remarque |
 |---|---|---|---|---|
 | `adr-0026-chat-zetis-memoire` | — | `468dae7` | — | module `chat` complet sur `main` |
-| `adr-0026-addendum-retour-demandes-chat` | #66 | `e1d1b06` | 2026-08-02 | `MEMORY.md` le dit mergé |
-| `adr-0028-addendum-kpi-a-renforcer` | #90 | `392b075` | 2026-08-05 | 5ᵉ KPI livré ; frère des quatre addenda ADR-0028 déjà passés Accepté cette session |
+| `adr-0026-chat-zetis-memoire` (Amendement 1) | #66 | `e1d1b06` | 2026-08-02 | `MEMORY.md` le dit mergé |
+| `adr-0028-dashboard-papa-agregat-unique` (Amendement 2) | #90 | `392b075` | 2026-08-05 | 5ᵉ KPI livré ; frère des quatre addenda ADR-0028 déjà passés Accepté cette session |
 
-`adr-0028-addendum-kpi-a-renforcer` est le cas le plus net : ses quatre frères
+`adr-0028-dashboard-papa-agregat-unique` (Amendement 2) est le cas le plus net : ses quatre frères
 (`analyse-par-matiere`, `memoire-quatre-vues`, `cartes-focalisables`, plus l'ADR-0028
 elle-même) sont désormais Accepté, mergés dans la même série de PR #83→#91. Seul lui reste
 Proposé, et rien ne l'en distingue sinon d'avoir été oublié par le recensement.

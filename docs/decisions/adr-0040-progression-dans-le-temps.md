@@ -1,3 +1,14 @@
+---
+id: "0040"
+titre: "Progression nomme les notions et date leurs mouvements ; le Conseil cesse d'affirmer ce que l'évidence ne porte pas"
+type: surface
+statut: accepte
+date: 2026-08-06
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0040 — Progression nomme les notions et date leurs mouvements ; le Conseil cesse d'affirmer ce que l'évidence ne porte pas
 
 ## Statut
@@ -8,7 +19,7 @@ sorti, et le bas de ce fichier pour les écarts d'exécution.
 > S'appuie sur : `adr-0038` (Progression, l'avancement du programme, « une preuve mène quelque
 > part »), son addendum `progression-agit` (le dépliage, l'invariant de recomposition, « le réseau
 > ne sert que des NOMS »), `adr-0028` **§3 bis** (les quatre paliers, définition serveur) et
-> **§3 ter** (`skill_mastery_history`), `adr-0028-addendum-memoire-quatre-vues` (stocks ≠ flux,
+> **§3 ter** (`skill_mastery_history`), `adr-0028-dashboard-papa-agregat-unique` (Amendement 3) (stocks ≠ flux,
 > `history_since`), `adr-0020` (le Conseil, narration LLM sur évidence calculée, ancrage
 > anti-hallucination, rapport figé) et son addendum `portee-matiere` (le `period` est une
 > étiquette), `adr-0011` (un substrat, plusieurs consommateurs).
@@ -116,7 +127,7 @@ qui doit être écrite.
 - **Un sélecteur de période sur toute la page.** Ferait varier `engaged`, `consolidated` et
   `fragile` avec la fenêtre, sans qu'aucune source ne le permette. → Écarté (§3).
 - **Fondre « acquis / à renforcer / lacunes » en une colonne à trois valeurs.** C'est la demande
-  telle qu'elle a été formulée, et c'est le bug d'`adr-0028-addendum-analyse-par-matiere` reproduit :
+  telle qu'elle a été formulée, et c'est le bug d'`adr-0028-dashboard-papa-agregat-unique` (Amendement 1) reproduit :
   13 fragiles pour 1 lacune ouverte, deux populations disjointes. → Écarté ; **deux axes
   indépendants** (§4).
 - **Fusionner Progression et `/lacunes`.** Les deux boutons de génération de `/lacunes` sont de
@@ -409,7 +420,7 @@ lui-même » écarté par l'`adr-0020`.
 `GET /progress/skills` sert **une requête agrégée** — 280 notions × (maîtrise, dernière bascule,
 lacune, mission active) en une passe, **aucun N+1**, aucune pagination, **aucun paramètre de
 période**. Filtres, recherche lexicale et bascule de vue sont **client, zéro requête** — patron
-`adr-0024-addendum-page-matiere-index-notions`. **Test de nombre de requêtes constant**,
+`adr-0024-zetis-galaxy-progression` (Amendement 6). **Test de nombre de requêtes constant**,
 indépendant du nombre de notions et de matières.
 
 La frise est **paresseuse, par notion** : c'est la **troisième exception assumée** au « zéro état de

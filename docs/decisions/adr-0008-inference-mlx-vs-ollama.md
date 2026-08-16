@@ -1,3 +1,14 @@
+---
+id: "0008"
+titre: "Moteur d'inférence LLM : Ollama vs MLX (décision guidée par benchmark)"
+type: architecture
+statut: accepte
+date: 2026-07-02
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0008 — Moteur d'inférence LLM : Ollama vs MLX (décision guidée par benchmark)
 
 ## Statut

@@ -1,3 +1,14 @@
+---
+id: "0021"
+titre: "Équipement pédagogique d'une mission à sa création (depuis le Conseil de classe)"
+type: surface
+statut: accepte
+date: 2026-07-06
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0008", "0010", "0011", "0017", "0018", "0020", "0022", "0023"]
+---
 # ADR-0021 — Équipement pédagogique d'une mission à sa création (depuis le Conseil de classe)
 
 ## Statut

@@ -1,3 +1,14 @@
+---
+id: "0019"
+titre: "La reconstruction de mindmap comme étape de mission"
+type: surface
+statut: accepte
+date: 2026-07-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0016", "0017"]
+---
 # ADR-0019 — La reconstruction de mindmap comme étape de mission
 
 ## Statut

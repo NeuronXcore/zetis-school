@@ -1,3 +1,14 @@
+---
+id: "0017"
+titre: "Arbitrage des missions (moteur de prochaine meilleure action)"
+type: architecture
+statut: accepte
+date: 2026-07-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0007", "0009", "0010", "0011", "0014", "0018", "0019"]
+---
 # ADR-0017 — Arbitrage des missions (moteur de prochaine meilleure action)
 
 ## Statut

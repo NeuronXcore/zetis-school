@@ -2,7 +2,7 @@
 
 > **Une seule surface : l'écran 2 de `/missions`** (une matière ouverte). À coller après `/slice`.
 >
-> Lire d'abord : `docs/decisions/adr-0057-addendum-missions.md` (**tout**, il est court),
+> Lire d'abord : `docs/decisions/adr-0057-une-seule-facon-de-trouver.md` (Amendement 1) (**tout**, il est court),
 > `docs/decisions/adr-0057-une-seule-facon-de-trouver.md` (§1, §2, §3, §6),
 > `docs/frontend-massimo/page-missions.md` — ⚠️ **elle porte TROIS passages faux**, dont deux
 > antérieurs à ce chantier —, et **les quatre prompts précédents** : le geste a été fait quatre

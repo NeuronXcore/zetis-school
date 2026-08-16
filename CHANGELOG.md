@@ -1733,7 +1733,7 @@ diagnostics » mais **« commence par là, et voici pourquoi »**. ADR-0044, tro
 L'entrée Diagnostic porte un témoin **numérique** qui compte les diagnostics relus non passés et
 **s'éteint au PASSAGE**, donc par le travail. C'est la colonne interdite de l'ADR-0030 §1, ouverte
 **par décision du commanditaire** après objection exposée et réaffirmée
-(`adr-0030-addendum-temoin-diagnostic.md`, cinq bornes opposables). Le contre-motif est maintenu
+(`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1), cinq bornes opposables). Le contre-motif est maintenu
 au dossier ; le coût n'a pas motivé la décision — la forme interdite était gratuite, la légale
 coûtait une table.
 
@@ -2329,7 +2329,7 @@ plate puis monte d'un coup — un artefact de mise en service, pas une dégradat
 désormais `history_since`, et l'avertissement **disparaît de lui-même** dès que l'historique couvre
 la fenêtre regardée. Une phrase figée aurait été juste six mois puis fausse pour toujours.
 
-Décision : `docs/decisions/adr-0028-addendum-kpi-a-renforcer.md`. Aucune migration.
+Décision : `docs/decisions/adr-0028-dashboard-papa-agregat-unique.md` (Amendement 2). Aucune migration.
 
 ## 0.50.0 — Le Dashboard dit ce qu'il montre
 
@@ -4259,7 +4259,7 @@ Date : 2026-07-03
 
 ### Décisions
 
-- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-addendum-cours-canonique.md`) :
+- **Cours validé = source canonique des dérivés** (addendum `docs/decisions/adr-0009-referentiel-programme-scolaire.md` (Amendement 1)) :
   un `Lesson.content_markdown` **validé** devient le contexte prioritaire des dérivés
   (ELI5, capsule, quiz…), avant le RAG brut et la connaissance du modèle ; le lien
   `Lesson ↔ Skill` est la table N-N `lesson_skills`.

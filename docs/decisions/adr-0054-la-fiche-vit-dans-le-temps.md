@@ -1,3 +1,14 @@
+---
+id: "0054"
+titre: "La fiche vit dans le temps"
+type: surface
+statut: propose
+date: 2026-08-13
+pr: 124
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0015"]
+---
 # ADR-0054 — La fiche vit dans le temps
 
 ## Statut

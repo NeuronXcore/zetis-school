@@ -319,7 +319,7 @@ Les questions que cette spec avait laissées ouvertes sont décidées par
    `score_percent` et la `severity` des lacunes.
 2. **Le score brut disparaît de l'écran de Massimo** — même décision. Il reste servi à Papa.
 3. ~~**Diagnostic reste SANS témoin de nouveauté** (Décision 7)~~ — 🔴 **RÉVOQUÉ le jour même**
-   par `docs/decisions/adr-0030-addendum-temoin-diagnostic.md`, décision du commanditaire prise
+   par `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1), décision du commanditaire prise
    après que l'objection lui a été exposée et **réaffirmée**. Voir ci-dessous.
 4. **Aucun plafond** (Décision 4), **icône `🧭` partout** (Décision 8).
 
@@ -449,7 +449,7 @@ Il ne promet **aucune** récompense.
 - `docs/decisions/adr-0043-le-diagnostic-est-une-mesure-qui-engage.md` (Décision 4 : l'ordre
   par ancienneté de mesure, dont cette page est la remontée d'un cran)
 - `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (règle « NOUVEAU jamais DÛ »)
-- `docs/decisions/adr-0030-addendum-temoin-diagnostic.md` (**l'exception**, ses cinq bornes, et
+- `docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1) (**l'exception**, ses cinq bornes, et
   la révocation de l'`adr-0044` Décision 7)
 - `mockup/mockup-page-diagnostic-massimo.html`
 - `docs/frontend-massimo/page-missions.md` (précédent : decks par matière, durée estimée,
