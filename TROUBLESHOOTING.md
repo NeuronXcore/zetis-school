@@ -4,6 +4,102 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Session de méthode `ADR-0060` + rangement de `main` — 2026-08-16
+
+### 🔴 `git push` envoie le REF, pas les commits qu'on vient de vérifier
+
+J'avais rendu **deux** commits vérifiés en annonçant « à toi de pousser ». Entre cette
+vérification et le `git push origin main`, un commit a été fait **dans le dépôt, hors session**.
+Le push a envoyé **trois** commits — dont un jamais relu — sur un remote public.
+
+**Cause.** `git push origin main` ne pousse pas un ensemble de commits : il pousse **ce que `main`
+désigne à l'instant du push**. Sur ce dépôt le travail arrive aussi par l'humain, en cours de tour.
+
+**Parade.** Avant tout push différé : `git log --oneline origin/main..HEAD`, et rapprocher de ce
+qu'on a vérifié. Un commit inconnu se lit et se signale, il ne part pas en silence. Pour garantir
+le périmètre : `git push origin <sha>:main`.
+
+### 🔴 `.gitignore` ne couvre JAMAIS l'intérieur de `.git/` — et `refs/.DS_Store` fait rougir `fsck`
+
+`git fsck` sortait `refs/.DS_Store: badRefName: invalid refname format`. Le réflexe — « ajouter
+`.DS_Store` au `.gitignore` » — est **sans effet** : la ligne y était déjà (`.gitignore:42`), et
+**aucun `.DS_Store` n'a jamais été suivi**. Le fichier fautif vivait **dans `.git/refs/`**, où
+`.gitignore` ne s'applique pas.
+
+**Cause.** Le Finder écrit un `.DS_Store` dans **tout** dossier qu'il affiche, y compris `.git/` si
+l'on navigue avec les fichiers cachés visibles. macOS n'offre aucun réglage pour l'empêcher sur un
+volume local — ⚠️ **`DSDontWriteNetworkStores` ne vaut que pour les volumes réseau**, le proposer
+ici est une fausse piste.
+
+**Parade.** 43 fichiers supprimés, puis deux étages posés **hors dépôt** : un hook
+`.git/hooks/pre-commit` (~50 ms, élague `node_modules`/`.venv`/caches, **pas** `.git/`, sort
+toujours 0), et un **leurre** dans les 4 dossiers de `.git/` — voir l'entrée suivante.
+
+### ⚠️ Le leurre qui empêche le Finder d'écrire fait ÉCHOUER `rm -rf` sur le dépôt
+
+Prévention posée dans `.git`, `.git/refs`, `.git/objects`, `.git/logs` : un **répertoire**
+`.DS_Store` (là où le Finder veut un *fichier*), rendu immuable par `chflags uchg`. L'écriture du
+Finder échoue — vérifié dans les 4.
+
+**Éprouvé sur un clone jetable avant application** : `status`, `for-each-ref`, `commit`, `fetch`,
+`pack-refs --all`, `gc`, `clone` depuis lui — tous rc=0, et `fsck` reste propre **même après
+`gc`**. Git tolère intégralement le leurre.
+
+🔴 **Le prix, à connaître avant de paniquer** :
+
+```
+rm: .git/.DS_Store: Operation not permitted
+```
+
+Ce n'est **pas** une corruption, c'est le drapeau. Pour supprimer ou déplacer le dépôt :
+
+```bash
+chflags -R nouchg <chemin-du-depot> && rm -rf <chemin-du-depot>
+```
+
+⚠️ Hook et leurres vivent dans `.git/` : **ils ne survivent pas à un reclone.**
+
+### 🔴 Un dossier « à supprimer » contenait des HARDLINKS vers `.git/objects/`
+
+`scratchpad/_a_supprimer` avait tout du déchet (`tmp_obj_*`, `*.lock`). Cinq de ces fichiers
+avaient un **link count de 2** : c'étaient des hardlinks vers `.git/objects/`, dont **l'objet
+commit du commit qui venait d'être poussé**.
+
+Supprimer un hardlink ne détruit pas l'objet — le jumeau dans `.git` survit, vérifié par
+`git cat-file -t` après coup. Mais la parade est de **regarder avant**, pas après :
+`stat -f %l <fichier>` et `find .git -inum <inode>`.
+
+### 🔴 Poser le front-matter AVANT la fusion casse la garantie de `fusion_addendums.py`
+
+J'avais proposé l'ordre **front-matter → fusion → index**. Le docstring de
+`scripts/gen_frontmatter.py` dit l'inverse, en toutes lettres : **fusion → front-matter → index**.
+
+**Cause.** `verifier()` garantit que toute ligne **non-titre** d'une source se retrouve dans la
+sortie. Les lignes d'un front-matter (`id: "0024"`, `type: …`) ne sont ni des titres ni un H1 :
+elles seraient comptées **« ligne perdue »**, la garantie sauterait, et le script **refuserait
+d'écrire** sur les 21 parents. Le fail-safe fonctionne — mais le chantier serait bloqué sans
+comprendre pourquoi.
+
+**Parade.** Lire le docstring du script avant d'en prescrire l'ordre. Read-before-code vaut aussi
+pour l'outillage qu'on a soi-même proposé.
+
+### 🔴 `gen_decisions_index.py` lancé avant la Phase 1bis classe 104 ADR sur 105 en « surface »
+
+Répétition à blanc, en scratchpad : **1** entrée en « architecture », **104** en « surface » —
+dont `ADR-0002` (séparation des frontends), `ADR-0004` (PostgreSQL + pgvector), `ADR-0011`
+(contexte canonique), `ADR-0037`.
+
+**Cause.** `type_de()` cherche `type:` dans les 12 premières lignes et **retombe sur `"surface"`**
+par défaut ; **un seul** fichier porte un front-matter. Et la section « surface » se décrit
+elle-même comme *« on ne les lit pas pour cadrer une architecture »* : l'index dirigerait le
+cadrage à l'opposé de la vérité. Second mensonge, dans l'en-tête généré : *« Amendements fusionnés
+dans leur parent »*, alors que la fusion n'a pas eu lieu.
+
+**Parade.** Le générateur **suppose la Phase 1bis faite**. Il ne se lance qu'en **troisième**
+position, et jamais isolément. ⚠️ Vérifier aussi que le set `ARCHITECTURE` du script contient le
+numéro de tout ADR d'architecture récent : un oubli n'y produit pas un classement approximatif, il
+**retire la décision du champ de vision du cadrage**.
+
 ## Chantier `feat/la-fiche-repond-quand-on-la-touche` — 2026-08-15
 
 ### 🔴 L'ADR nommait des champs qui n'existent pas — et son propre signal d'alarme le disait

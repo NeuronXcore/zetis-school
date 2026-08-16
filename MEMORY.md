@@ -6,7 +6,139 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+### 🧭 SESSION DE MÉTHODE — ADR-0060, puis rangement de `main` (2026-08-16)
+
+**Aucune ligne de code applicatif.** Session de **cadrage** au sens de `/cloture` : elle vit sur
+`main`, ne livre rien, et écrit une décision. Variante que la commande ne couvre pas : elle a aussi
+**parqué trois branches** — ce que `WORKFLOW.md §2bis` autorise explicitement (*« la seconde
+branche peut être créée et parquée avec ses docs, mais une seule branche reçoit du code »*).
+
+**Le lot Décision est déjà commité ET poussé** — `main` est à jour avec `origin`, **rien à
+pousser**. Il ne reste donc pas « deux commits » à faire : seulement celui de cette clôture.
+
+#### ✅ FAIT — sur `main`, poussé
+
+| Lot | Détail |
+|---|---|
+| **ADR-0060** — *La surface se décide devant l'écran* | Amende la **méthode**, aucune décision produit. **Premier ADR du registre à porter un front-matter.** |
+| **Annexes** | `docs/decisions/annexes/README.md` pose le critère d'entrée (citée par un ADR · figée · datée). Le rapport de banc T4 **perd le préfixe `adr-`** — ce n'était pas une décision, et il faussait le compte du registre depuis le 2026-07-27. |
+
+🔴 **L'ADR-0060 a été révisé DEUX FOIS le jour même**, et les deux révisions sont instructives :
+
+1. **v1 → v2** : la v1 posait **deux** cas (décision / surface). Les trois premiers chantiers
+   cadrés avec elle n'entraient dans **aucune** des deux colonnes. Elle classait par **nature
+   d'objet** ; la bonne question porte sur l'**existence de la règle**. → **quatre cas ordonnés**.
+2. **v2 → v3** : le `§Périmètre` ne nommait que `WORKFLOW.md` §2 et §7. Or la phrase qui porte
+   réellement la contrainte vit au **§2bis**, et le texte-type au **§6.1**. La rédaction avait
+   identifié la *doctrine* sans repérer **où elle est écrite**.
+
+> **Le motif est conservé dans l'ADR, et il vaut au-delà de lui** : nommer la règle qu'on amende ne
+> suffit pas, il faut ouvrir le fichier et trouver la ligne. C'est un `grep` qui l'a vu, pas une
+> relecture.
+
+#### 🌿 TROIS BRANCHES PARQUÉES — base `0141b62`, **aucune poussée**
+
+Elles existent parce que `/ouverture` **refusait de s'ouvrir** (son §1.c s'arrête sur toute
+modification sous `apps/`), et elle avait raison : les fichiers existaient avant la branche qui les
+porte. On a corrigé l'ordre, pas la règle.
+
+| Branche | Ce qu'elle porte | État |
+|---|---|---|
+| `chore/registre-adr` | les 5 scripts d'outillage du registre | **rien n'a été lancé** |
+| `fix/diagnostics-roles` | le test de verrou de rôle + 3 exceptions datées | **vert en l'état** |
+| `fix/observation-sorties` | les 4 sorties de passation | 🔴 **3 tests ROUGES, par construction** — ils décrivent un défaut **non corrigé** |
+
+Pour les têtes : `git log --oneline main..<branche>`. **Aucune n'a de PR** (la dernière du dépôt est
+#135, mergée le 2026-08-15).
+
+🔴 **`fix/observation-sorties` ne doit PAS partir seule.** Ses trois tests rouges décrivent le
+défaut : `terminer()` n'est appelé qu'à la soumission réussie (`DiagnosticPage.tsx:161`), ni à
+l'annulation, ni à l'échec de chargement, ni au démontage. Le correctif appartient au **même**
+chantier ; le squash ne fera arriver qu'un seul commit sur `main`.
+
+#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+
+1. **Quatre cas ordonnés** (ADR-0060 §1), et la **première** réponse « oui » tranche :
+   rangement → aucun ADR · **application → aucun ADR mais CITATION OBLIGATOIRE** de celui qu'on
+   exécute · décision neuve → ADR **avant** · surface → ADR **après l'écran regardé**.
+2. 🔴 **Le cas 2 est celui qu'on rate**, et sa citation est sa **seule** contrainte : un chantier
+   d'application qui ne nomme pas l'ADR qu'il exécute est une décision déguisée.
+3. **Un ADR non ratifié (`propose`) et cité par personne se corrige EN PLACE**, pas par addendum —
+   sinon on fige la trace d'une règle que personne n'a appliquée. ⚠️ **Ne vaut PAS** pour un ADR
+   ratifié ou déjà cité : là, addendum et remontée au parent, comme partout.
+4. **Les statuts ne se promeuvent jamais tout seuls.** *Livré* est un fait, *ratifié* est un geste
+   humain (`annexes/statuts-en-attente-2026-08-06.md`).
+5. **Les numéros d'ADR ne changent jamais**, aucun renvoi `ADR-00XX` ne doit casser.
+6. 🔴 **ORDRE IMPOSÉ du chantier `chore/registre-adr`** : `fusion_addendums` → `gen_frontmatter` →
+   `gen_decisions_index`. **L'inverse fait sauter la garantie de fusion** (un front-matter n'est ni
+   un titre ni un H1 : compté « ligne perdue », le script refuse d'écrire). J'avais proposé l'ordre
+   **inverse** ; c'est le docstring du script qui m'a démenti.
+
+#### 🧾 DETTES OUVERTES — nées de cette session
+
+- 🔴 **`DECISIONS.md` n'a AUCUNE ligne pour l'ADR-0060** — vérifié, zéro occurrence de « 0060 ».
+  Le rituel de cadrage veut cette ligne ; le nouvel outillage interdit d'éditer le fichier à la
+  main (il se régénère). **Les deux règles se contredisent, et la contradiction n'est pas
+  tranchée** : elle se résout quand `chore/registre-adr` régénère l'index. D'ici là, l'ADR-0060
+  est **invisible depuis l'index**.
+- 🔴 **L'ADR-0060 n'est appliqué NULLE PART** : `WORKFLOW.md` §2/§2bis/§6.1/§7, `cadrage.md`,
+  `ouverture.md` et `CLAUDE.md` disent encore l'ancienne doctrine. L'ADR décrit un rituel que le
+  dépôt ne pratique pas. C'est un chantier **`chore/`** (cas 1), donc **sans nouvel ADR**.
+- 🔴 **`check_adr_refs.sh` sort en code 1** : `ADR-0033` est cité par **5 fichiers du registre**
+  (`adr-0011-addendum-autorite-paliers`, `0031`, `0032`, `0034`, `0035`) et **n'existe pas**.
+  **Ne pas le mettre en CI avant** que le chantier registre ne crée ce fichier en statut
+  *Abandonné*. (⚠️ le dépôt n'a **aucune** CI : `.github/workflows/` n'existe pas.)
+  ⚠️ **Deux pièges de comptage** : un `grep` lancé aujourd'hui rend **6**, parce que ce fichier-ci
+  cite désormais le numéro — le compte qui fait foi est celui des fichiers du **registre**. Et
+  `check_adr_refs.sh` **tronque sa liste à 5 lignes** (`head -5`) : ne jamais lire son affichage
+  comme un compte.
+  ⚠️ **Le script n'est PAS sur `main`** — il vit sur `chore/registre-adr` avec les quatre autres.
+  Un `bash scripts/check_adr_refs.sh` depuis `main` échoue sur fichier absent.
+- ⚠️ **`gen_frontmatter.py` : `0033` est conservé À DESSEIN** dans `MESURE` alors qu'aucun fichier
+  ne porte ce numéro — c'est un **trou** du registre, pas une entrée morte. Le retirer effacerait
+  la classification préparée pour le jour où il sera écrit.
+- ⚠️ **Deux chiffres du dépôt datent d'avant l'ADR-0060** et ont été corrigés dans le message de
+  `chore/registre-adr`, mais le motif reste bon à connaître : le registre est passé de 104 à
+  **105** fichiers, donc la fusion donne **105 → 59** ; et l'index à **87 lignes** n'est atteint
+  qu'**après** fusion — mesuré avant, le même script rend **127**.
+- ⚠️ **Hors dépôt, et donc invisible à un `git clone`** : un hook `.git/hooks/pre-commit` nettoie
+  les `.DS_Store`, et **4 leurres immuables** ont été posés dans `.git/`. 🔴 **Conséquence :
+  `rm -rf` du dépôt échoue** (`Operation not permitted`) — ce n'est pas une corruption, il faut
+  `chflags -R nouchg` d'abord. Détail au `TROUBLESHOOTING.md`.
+
+#### 🧪 TESTS
+
+🔴 **Aucun test n'a été lancé de la session** — elle n'a produit aucune ligne de code applicatif.
+Les suites sont donc **non relancées depuis `dd9ecfe`** (dernier commit de code). Les chiffres de
+la section suivante (1381 / 807 / 814) sont ceux du chantier **précédent** et ne disent rien de
+l'état actuel des branches parquées.
+
+#### ▶ PROCHAIN PAS
+
+Le chantier suivant est **cadré** : c'est `chore/registre-adr`, sa branche **existe déjà** et son
+outillage est commité dessus. Il n'y a donc **pas** de `/ouverture` à lancer (elle exige un ADR et
+bloquerait ; un chantier `chore/` en est dispensé par l'ADR-0060 cas 1).
+
+1. `git switch chore/registre-adr`, puis exécuter **dans l'ordre imposé** (décision active n°6) :
+   `fusion_addendums --write` → `gen_frontmatter --write` → `gen_decisions_index --write`.
+   Non-régression vérifiable : `check_adr_refs.sh` doit signaler **ADR-0033 et rien d'autre**,
+   avant comme après ; le compte doit tomber à **59** fichiers, **0 échec**.
+2. Créer `adr-0033-*.md` en statut **Abandonné** — c'est ce qui rend le verrou vert.
+3. Puis le chantier **d'application** de l'ADR-0060 à `WORKFLOW.md` et aux commandes.
+4. `fix/diagnostics-roles` et `fix/observation-sorties` attendent ; la seconde demande son
+   **correctif** avant toute PR.
+
+**Résidus de cette clôture**, qui ne vivent nulle part ailleurs : les trois branches sont locales et
+**non poussées** · le hook et les leurres `.DS_Store` sont hors dépôt et **ne survivront pas à un
+reclone** · aucun serveur de dev n'a été lancé · la base n'a **pas** été touchée.
+
+---
+
 ### ✅ CHANTIER MERGÉ — Trois témoins de plus (addenda ADR-0025 et ADR-0030)
+
+> ⚠️ **Ce n'est plus le chantier actif** — il est mergé et clos, son 4bis est fait. Il reste ici
+> parce qu'une session de **cadrage** n'élague pas (`/cloture` §1bis). Ses dettes encore ouvertes
+> ci-dessous **restent d'actualité** et devront être remontées le jour de l'élagage, pas enterrées.
 
 **Mergé dans `main` le 2026-08-15 — PR
 [#135](https://github.com/NeuronXcore/zetis-school/pull/135), squash `8f5400d`.**
