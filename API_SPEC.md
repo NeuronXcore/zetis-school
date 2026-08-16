@@ -274,9 +274,13 @@ de `quiz_type = diagnostic`). Les QCM sont générés par IA, par notion.
 > `require_child` sur `submit`. Protéger l'entrée en laissant la sortie ouverte ne protégerait rien
 > — `submit` écrit `skill_mastery` et ouvre des `Gap`, avec un signal fort.
 
-### GET `/diagnostics/subjects`
+### GET `/diagnostics/subjects` (Papa)
 
 Matières disponibles pour lancer un diagnostic : `[{ id, name }]`.
+
+⚠️ **`require_parent` depuis le 2026-08-16.** Elle s'est longtemps contentée d'un compte
+authentifié, alors que son seul appelant est le sélecteur de `POST /generate` — déjà `require_parent`.
+L'entrée d'un geste de pilotage était donc plus ouverte que le geste.
 
 ### POST `/diagnostics/generate` (Papa)
 
@@ -313,6 +317,12 @@ Aucun tri serveur : l'ordre reste `quiz_id` décroissant, la hiérarchisation se
 Questions à passer — **sans** la bonne réponse :
 `{ quiz_id, title, subject, questions: [{ id, prompt, choices, skill_id, skill_name }] }`.
 `404` si le diagnostic n'est pas relu.
+
+⚠️ **`require_child` depuis le 2026-08-16**, comme `GET /diagnostics/quizzes` juste au-dessus. Les
+deux se contentaient d'un compte authentifié malgré leur titre *(Massimo)* — Papa lit la même
+matière par `/quizzes/{id}/relecture` (`require_parent`), et c'est bien l'arbitrage de l'ADR-0051 :
+**deux routes pour deux rôles**. Le mur Papa/Massimo (ADR-0002) est désormais tenu par le code,
+plus seulement par le titre de la section.
 
 ### GET `/diagnostics/quizzes/{id}/relecture` (Papa) — ADR-0051
 
@@ -2258,6 +2268,9 @@ Sortie :
 | `/capsules/library` GET | oui | oui | oui |
 | `/capsules/{id}/view` POST | oui | oui | oui |
 | `/diagnostics/generate` POST | non | oui | oui |
+| `/diagnostics/subjects` GET | **non** | oui | oui |
+| `/diagnostics/quizzes` GET | oui | **non** | **non** |
+| `/diagnostics/quizzes/{id}` GET | oui | **non** | **non** |
 | `/diagnostics/quizzes/{id}/submit` POST | oui | **non** | **non** |
 | `/diagnostics/quizzes/{id}/validate` POST | non | oui | oui |
 | `/diagnostics/quizzes/{id}/reject` POST | non | oui | oui |

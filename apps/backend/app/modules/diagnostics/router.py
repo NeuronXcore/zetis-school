@@ -6,7 +6,7 @@ from app.db.models import Quiz, QuizAttempt
 from app.modules.activity.events import EVENT_QUIZ_ATTEMPTED, log_learning_event
 from app.modules.ai import get_provider
 from app.modules.ai.provider import LLMProvider
-from app.modules.auth.deps import get_current_user, require_child, require_parent
+from app.modules.auth.deps import require_child, require_parent
 from app.modules.diagnostics import service
 from app.modules.diagnostics.schemas import (
     DiagnosticApercuOut,
@@ -36,10 +36,26 @@ router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 #
 # 🔴 **Ce n'est pas une dérive de périmètre, c'est la moitié manquante du gate** : protéger l'entrée
 # (ce qui est servi) en laissant la sortie ouverte (ce qui est écrit) ne protège rien.
+#
+# 🔴 **Les TROIS dernières routes sans rôle ont été fermées le 2026-08-16**, et `get_current_user`
+# a quitté ce fichier : plus AUCUNE route de `diagnostics` ne se contente d'un compte authentifié.
+# Ce n'est pas une décision neuve — c'est l'exécution de la règle ci-dessus sur ce qu'elle avait
+# laissé passer. `test_diagnostics_roles.py` interdit désormais la quatrième, le jour où elle est
+# écrite. Chacune est allée au rôle de son SEUL appelant réel, relevé dans les deux frontends :
+#   · GET /subjects            → require_parent  (frontend-papa seul)
+#   · GET /quizzes             → require_child   (frontend-massimo seul)
+#   · GET /quizzes/{quiz_id}   → require_child   (frontend-massimo seul, cf. sa route sœur)
 
 
 @router.get("/subjects", response_model=list[SubjectOut])
-def subjects(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> list[dict]:
+def subjects(db: Session = Depends(get_db), _: dict = Depends(require_parent)) -> list[dict]:
+    """Les matières sur lesquelles Papa peut lancer un diagnostic.
+
+    `require_parent` et pas `get_current_user` : son seul appelant est l'espace Papa
+    (`frontend-papa/src/lib/diagnostic.ts:52`), qui la lit pour peupler le sélecteur de
+    `POST /generate` — déjà `require_parent`. Servir la liste sans le rôle laissait l'entrée
+    d'un geste de pilotage plus ouverte que le geste lui-même.
+    """
     return [{"id": s.id, "name": s.name} for s in service.list_subjects(db)]
 
 
@@ -71,15 +87,27 @@ def generate(
 
 
 @router.get("/quizzes", response_model=list[DiagnosticQuizListItem])
-def quizzes(db: Session = Depends(get_db), _: dict = Depends(get_current_user)) -> list[dict]:
+def quizzes(db: Session = Depends(get_db), _: dict = Depends(require_child)) -> list[dict]:
+    """Ce que Massimo peut passer — la liste gatée sur `validated` (ADR-0043).
+
+    `require_child` : son seul appelant est l'espace Massimo
+    (`frontend-massimo/src/lib/diagnostic.ts:122`), et `API_SPEC.md` la titre déjà `(Massimo)`.
+    Papa ne passe pas par ici — il lit `/apercu` et `/quizzes/{id}/relecture`.
+    """
     student = get_default_student(db)
     return service.list_diagnostics(db, student)
 
 
 @router.get("/quizzes/{quiz_id}", response_model=DiagnosticQuizOut)
 def quiz_questions(
-    quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(get_current_user)
+    quiz_id: int, db: Session = Depends(get_db), _: dict = Depends(require_child)
 ) -> dict:
+    """La route de PASSATION — celle de Massimo, et le docstring de sa sœur le disait déjà.
+
+    `require_child` : `/quizzes/{id}/relecture`, juste en dessous, est `require_parent` et pose
+    l'arbitrage — *deux routes pour deux rôles*. Celle-ci gate sur `validated` et retire la clé et
+    l'explication ; elle n'a jamais rien eu à servir à Papa.
+    """
     return service.get_quiz_for_taking(db, quiz_id)
 
 
