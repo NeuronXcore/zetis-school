@@ -6,14 +6,23 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — Les renvois du code applicatif (`chore/renvois-addendums-code`, 2026-08-16)
+### ✅ CHANTIER MERGÉ — Les renvois du code applicatif (PR #137, squash `4ee9804`, 2026-08-16)
 
 **Rangement** au sens ADR-0060 **cas 1** — aucun ADR. Il solde la dette laissée par le rangement du
 registre (PR #136, squash `807c7a2`), **et il a découvert que cette dette cachait une régression.**
 
-**Branche** `chore/renvois-addendums-code`, **base `cdf7c2f`** (vérifié : `git merge-base main HEAD`).
-**COMPLET, NON COMMITÉ** — l'humain vérifie le diff puis committe.
-Pour les têtes : `git log --oneline main..HEAD`.
+**Mergé en squash le 2026-08-16** : [PR #137](https://github.com/NeuronXcore/zetis-school/pull/137),
+**38 fichiers**, un seul commit d'origine — pas d'héritage, contrairement à la #136.
+Base du chantier : `cdf7c2f`.
+
+**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `4ee9804` · copie de travail
+propre · `test_news_doctrine.py` **18 passed** — le test qui était rouge ne l'est plus, mesuré
+depuis `main` et non depuis la branche.
+
+⚠️ **`chore/renvois-addendums-code` n'est PAS supprimée** (local + `origin`). Tout son contenu est
+dans le squash. 🔴 **Avant de la supprimer, comparer à `4ee9804`, PAS à la tête de `main`** :
+`main` avance ensuite (4bis), et `git diff main <branche>` paraît alors non vide alors que la
+branche ne porte rien d'unique. Le piège s'est présenté sur la #136.
 
 #### 🔴 CE QU'IL A RÉVÉLÉ — un test était ROUGE sur `main`
 
@@ -176,16 +185,19 @@ raisonnement, pas une mesure.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff** — 38 fichiers, dont **un seul changement de comportement** :
-   `apps/backend/app/tests/test_news_doctrine.py`, une valeur de `DEROGATIONS`. Tout le reste est
-   commentaire ou libellé, prouvé par comparaison d'AST.
-2. **Commit → push → PR → merge en squash**, puis l'étape **4bis** (`WORKFLOW.md §5`).
-3. Puis, au choix :
-   - **l'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`,
-     `ouverture.md` et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1, **sans ADR** ;
-   - **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis deux chantiers ;
-   - les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
-     (🔴 **3 tests rouges par construction**, elle **ne doit pas partir seule**).
+Le chantier est **clos et mergé**. Ce qui attend, par ordre de valeur :
+
+1. 🔴 **UNE CI, ou au minimum un verrou qui mord.** C'est l'absence de CI qui a permis de merger une
+   suite rouge (PR #136), et rien n'a changé : `.github/workflows/` n'existe toujours pas. Le
+   dépôt a des verrous excellents **que personne ne lance automatiquement**. Le plus petit pas utile
+   serait un hook `pre-push` qui lance les trois suites — pas un chantier, une soirée.
+2. **L'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`, `ouverture.md`
+   et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1, **sans ADR**.
+3. **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis deux chantiers.
+4. Les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
+   (🔴 **3 tests rouges par construction**, elle **ne doit pas partir seule**).
+5. **Porter au `WORKFLOW.md` la règle du `CHANGELOG`** tranchée par l'usage ce jour : *une entrée si
+   un comportement change, pas si des fichiers bougent.* Elle n'est écrite nulle part d'officiel.
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
 base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · `MEMORY.md` porte
