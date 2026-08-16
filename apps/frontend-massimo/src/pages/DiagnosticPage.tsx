@@ -122,6 +122,31 @@ export function DiagnosticPage() {
   const observation = useObservationPassation();
   const zoneB = useRef<HTMLDivElement | null>(null);
   const carte = useRef<HTMLElement | null>(null);
+  const messageErreur = useRef<HTMLParagraphElement | null>(null);
+
+  /** 🔴 Le message doit être VU, et ce n'est pas la même chose qu'être affiché.
+   *
+   *  Mesuré à la relecture du 2026-08-16, sur une passation de 16 questions : Massimo clique
+   *  « Envoyer mes réponses » tout en bas (`scrollTop` 3585 sur 4360), l'envoi échoue, et le
+   *  message naît en tête d'écran — **3509 px au-dessus du haut de sa vue**. À son écran, il ne
+   *  se passe RIEN. La phrase qui lui promet que ses réponses sont sauves est celle qu'il ne
+   *  lit pas, à l'instant précis où elle compte.
+   *
+   *  Aucun test ne pouvait le voir : ils assertent sur `document.body.textContent`, qui ignore
+   *  la position. Même cause que le scroll de `choisirEtRemonter` ci-dessous — *le scroll n'est
+   *  pas un ornement.* `role="alert"` fait le même travail pour qui n'a pas d'yeux du tout.
+   *
+   *  ⚠️ Les DEUX sources comptent, et l'oubli s'est produit : la première version ne surveillait
+   *  que `erreurAction` et ne portait la `ref` que sur l'écran de passation. Le message
+   *  d'ouverture, lui, naît sur l'écran de liste — il est resté invisible un correctif de plus.
+   *  Les deux paragraphes sont exclusifs l'un de l'autre, une seule `ref` les sert tous les deux. */
+  useEffect(() => {
+    if (erreurAction || erreur) {
+      // ⚠️ Appel OPTIONNEL : jsdom n'implémente pas `scrollIntoView`, et un `useEffect` qui lève
+      // emporte le rendu avec lui. Un confort d'affichage n'a pas à pouvoir casser un écran.
+      messageErreur.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }
+  }, [erreurAction, erreur]);
 
   async function startQuiz(quizId: number) {
     // 🔴 EN TÊTE, ET AVANT TOUT `await`. Le plein écran exige le contexte de geste utilisateur, que
@@ -296,7 +321,11 @@ export function DiagnosticPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader title={quiz.title} subtitle="Réponds tranquillement, il n'y a pas de piège." />
-        {erreurAction && <p className="mb-3 text-sm text-rose-400">{erreurAction}</p>}
+        {erreurAction && (
+          <p ref={messageErreur} role="alert" className="mb-3 text-sm text-rose-400">
+            {erreurAction}
+          </p>
+        )}
         <div className="space-y-4">
           {quiz.questions.map((q, idx) => (
             // `data-question-id` sert UNIQUEMENT à localiser une copie d'énoncé dans le DOM —
@@ -364,7 +393,9 @@ export function DiagnosticPage() {
         subtitle="ZETIS vérifie ce qu'il faut renforcer pour t'aider plus vite."
       />
       {(erreur || erreurAction) && (
-        <p className="mb-3 text-sm text-rose-400">{erreurAction ?? erreur}</p>
+        <p ref={messageErreur} role="alert" className="mb-3 text-sm text-rose-400">
+          {erreurAction ?? erreur}
+        </p>
       )}
       {chargement && <p className="text-sm text-zetis-muted">Un instant…</p>}
 

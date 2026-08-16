@@ -197,6 +197,29 @@ describe("l'échec de soumission", () => {
     expect(screen.queryByText(/C'est noté/)).toBeNull();
   });
 
+  it("🔴 ramène le message dans le champ de vision — affiché ne veut pas dire VU", async () => {
+    // Trouvé à la relecture visuelle du 2026-08-16, et invisible à tout test écrit jusque-là :
+    // Massimo clique « Envoyer » en bas d'une page de 16 questions (`scrollTop` 3585 sur 4360),
+    // et le message naissait 3509 px AU-DESSUS du haut de sa vue. À son écran, rien ne se passait
+    // — et la phrase qui lui promet que ses réponses sont sauves était celle qu'il ne lisait pas.
+    //
+    // jsdom n'implémente pas `scrollIntoView` : on le pose nous-mêmes, ce qui suffit à figer
+    // l'intention. La POSITION, elle, ne se vérifie que dans un vrai navigateur.
+    const remonter = vi.fn();
+    Element.prototype.scrollIntoView = remonter;
+    vi.mocked(submitDiagnostic).mockRejectedValue(new Error("réseau"));
+
+    afficher();
+    await lancerLaPassation();
+    fireEvent.click(screen.getByLabelText("A", { exact: false }));
+    remonter.mockClear(); // le scroll de la mise en place ne compte pas
+    fireEvent.click(screen.getByRole("button", { name: /Envoyer mes réponses/ }));
+
+    const alerte = await screen.findByRole("alert");
+    expect(alerte.textContent).toMatch(/Tes réponses sont bien là/);
+    expect(remonter).toHaveBeenCalled();
+  });
+
   it("🔴 ne dit RIEN de technique — pas de code HTTP, pas de « erreur réseau »", async () => {
     vi.mocked(submitDiagnostic).mockRejectedValue(new Error("HTTP 500 Internal Server Error"));
 
