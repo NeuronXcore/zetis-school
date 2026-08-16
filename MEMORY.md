@@ -157,89 +157,49 @@ Suites sur le `main` mergé : **1391 / 843 / 814**, CI verte sur `40eb4a8`.
 
 ---
 
-### ✅ CHANTIER MERGÉ — L'ADR-0060 est appliqué (PR #140, squash `2105ba9`, 2026-08-17)
+## ⬆️ REMONTÉ de l'élagage de l'application de l'ADR-0060 (PR #140, squash `2105ba9`)
 
-**Rangement** au sens ADR-0060 **cas 1** — aucun ADR. **Aucune ligne de code applicatif.**
-Il met les fichiers de méthode au réel : ils portaient encore l'ancienne doctrine, un jour après
-que l'ADR-0060 l'ait remplacée.
+**Les quatre contrôles, faits le 2026-08-16** : ADR ✅ (`adr-0060-la-surface-se-decide-devant-l-ecran.md`)
+· `TROUBLESHOOTING.md` ✅ (§ *Session de méthode ADR-0060*, ligne 353) · `CHANGELOG.md` ✅ (0.98.0)
+· 🔴 **le 4ᵉ ne passait pas** — la section portait une douzaine de dettes vivantes, elles sont ici.
 
-**Mergé en squash le 2026-08-17** : [PR #140](https://github.com/NeuronXcore/zetis-school/pull/140),
-9 fichiers, un seul commit d'origine. Base du chantier : `3372750`.
+### ✅ CLOSES par la session du 2026-08-16 — ne pas les ressusciter
 
-**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `2105ba9` · copie propre · **le
-balayage ne rend plus que l'interdit lui-même** (`reprise.md:69`) — le dépôt ne porte plus qu'une
-doctrine. CI verte sur la PR (les 3 jobs).
+- ~~L'ADR-0060 n'est appliqué nulle part~~ → appliqué (PR #140).
+- ~~Deux branches parquées, aucune poussée, `fix/observation-sorties` rouge par construction~~ →
+  **les deux sont MERGÉES** : `fix/diagnostics-roles` (PR #141, `b29a985`) et
+  `fix/observation-sorties` (PR #142, `40eb4a8`). Les 6 rouges sont réparés.
+  ⚠️ Les **branches distantes existent encore** — non supprimées, volontairement.
 
-⚠️ **`chore/appliquer-adr-0060` n'est PAS supprimée.** Avant de la supprimer, comparer à
-**`2105ba9`**, PAS à la tête de `main` — le piège s'est présenté **quatre fois** les 16 et 17 août,
-et il est désormais écrit au `WORKFLOW.md` §2 étape 6.
+### 🔴 TOUJOURS OUVERT — méthode
 
-#### 🔴 CE QU'IL A TROUVÉ — deux instructions FAUSSES, pas seulement périmées
-
-Un agent obéissant les aurait exécutées :
-
-| Où | L'instruction | La conséquence |
-|---|---|---|
-| `ouverture.md` §2 | *« ARRÊTE-TOI si un ADR manque »* | **trois cas sur quatre n'en ont aucun** — elle a réellement bloqué `chore/registre-adr` le 2026-08-16 |
-| **5 fichiers** | *« ajouter la ligne dans `DECISIONS.md` »* | ce fichier est **généré** (PR #136) et porte « Ne pas éditer à la main » |
-
-🔴 **Un ADR non appliqué est PIRE qu'un ADR absent** : il donne l'illusion que la règle a changé,
-pendant que les fichiers réellement lus par l'agent disent l'inverse. Le dépôt a porté **deux
-doctrines opposées pendant une journée entière.**
-
-#### ✅ FAIT — 9 fichiers
-
-| Fichier | Quoi |
-|---|---|
-| `docs/WORKFLOW.md` | §2 étape 1 (les 4 cas), étape 4 (hook + CI + coupure de service), étape 6 (squash + parade) · §2bis (régénération, « deux sessions » borné au cas 3) · §6.1 (déclarer le cas) · §6.3 (`CHANGELOG` + 6 documents) · §7 (le garde-fou a une règle) |
-| `.claude/commands/ouverture.md` | table des 4 cas, **s'arrête avant son §2** si on l'appelle à tort |
-| `.claude/commands/cadrage.md` | régénération + les 2 pièges du générateur · cas 3 uniquement |
-| `.claude/commands/reprise.md` | 🔴 disait *« le dépôt impose un cadrage (ADR) avant la moindre ligne »* — la phrase-souche même |
-| `.claude/commands/cloture.md` | le critère `CHANGELOG` · la colonne CADRAGE bornée au cas 3 · `CLAUDE.md` n'est pas intouchable |
-| `CLAUDE.md` | le rituel devient conditionnel au cas · `/cadrage` et `/ouverture` marquées cas 3 |
-| `TROUBLESHOOTING.md` · `CHANGELOG.md` | 2 entrées · 0.98.0 |
-
-#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
-
-1. **`/cadrage` et `/ouverture` ne servent QU'AU CAS 3.** Les cas 1, 2 et 4 partent **directement
-   sur leur branche**, périmètre et hors-périmètre dans le premier message.
-2. **`DECISIONS.md` se RÉGÉNÈRE**, partout, dans tous les fichiers de méthode. On ne recopie
-   jamais une ligne d'index.
-3. **Le critère `CHANGELOG`** : *une entrée si un comportement change, pas si des fichiers bougent.*
-   ⚠️ Il **commande le contrôle 3 de l'élagage** — sans entrée, une section de `MEMORY.md` ne peut
-   pas être supprimée.
-4. **`CLAUDE.md` est hors de la CLÔTURE, pas intouchable.** Un chantier qui applique une décision
-   aux fichiers de méthode le corrige.
-
-#### 🧾 DETTES OUVERTES — nées de ce chantier
-
-- ⚠️ **`slice.md` n'a pas été modifié.** Relu, il ne contredit rien : il porte la cage d'exécution,
-  et le cas se déclare à l'ouverture. Mais il **ne mentionne pas** l'`adr-0060` — à surveiller si
-  la déclaration du cas devait remonter jusqu'à lui.
-- ⚠️ **Rien ne vérifie mécaniquement qu'un fichier de méthode contredit un ADR.** Le balayage est
-  un `grep` écrit dans `TROUBLESHOOTING.md`, lancé à la main. Un verrou de CI est imaginable, il
+- 🔴 **La correction de l'ADR-0060 n'est TOUJOURS pas prouvée à l'usage.** Elle le sera quand
+  `/ouverture` sera appelée sur un cas 1 ou 2 et **s'arrêtera en le disant**. Les deux chantiers du
+  2026-08-16 étaient des **cas 2** — et la commande n'a simplement **jamais été appelée**, donc son
+  garde-fou n'a pas été exercé. *Ne pas appeler une commande fautive ne prouve pas qu'elle est
+  réparée.*
+- ⚠️ **`slice.md` ne mentionne pas l'`adr-0060`.** Relu, il ne contredit rien — il porte la cage
+  d'exécution, le cas se déclare à l'ouverture. À surveiller si la déclaration du cas devait
+  remonter jusqu'à lui.
+- ⚠️ **Rien ne vérifie mécaniquement qu'un fichier de méthode contredit un ADR.** Le balayage est un
+  `grep` écrit dans `TROUBLESHOOTING.md`, lancé à la main. Un verrou de CI est imaginable, il
   n'existe pas.
-- 🔴 **La correction n'est pas prouvée à l'usage.** Elle le sera au prochain chantier : `/ouverture`
-  appelée sur un cas 1 doit **s'arrêter en le disant**, et non réclamer un ADR.
+- ⚠️ **`MEMORY.md` porte toujours plus de « ⬆️ REMONTÉ » que d'actif** — **huitième** clôture
+  consécutive à le constater :
 
-#### 🧾 DETTES REMONTÉES — de la session de méthode ADR-0060 (élaguée ce jour ; contrôles : ADR ✅, `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` ❌ — **aucune entrée**, cohérent pour une session sans code livré)
+```bash
+echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f1) - 1 )) / total $(wc -l < MEMORY.md)"
+```
 
-- 🔴 **L'ADR-0060 n'est appliqué NULLE PART.** `WORKFLOW.md` §2/§2bis/§6.1/§7, `cadrage.md`,
-  `ouverture.md` et `CLAUDE.md` disent encore l'ancienne doctrine. L'ADR décrit un rituel que le
-  dépôt ne pratique pas. Chantier **`chore/`** (cas 1), donc **sans nouvel ADR**.
-- 🌿 **DEUX BRANCHES PARQUÉES restent**, base `0141b62`, **aucune poussée** (vérifié :
-  `git branch -r` ne connaît que `origin/main`) :
-  · `fix/diagnostics-roles` — le test de verrou de rôle + 3 exceptions datées, **vert en l'état**.
-  · `fix/observation-sorties` — 🔴 **3 tests ROUGES par construction**, ils décrivent un défaut
-  **non corrigé** : `terminer()` n'est appelé qu'à la soumission réussie
-  (`DiagnosticPage.tsx:161`), ni à l'annulation, ni à l'échec de chargement, ni au démontage.
-  **Elle ne doit PAS partir seule** — le correctif appartient au même chantier.
+### 🔴 TOUJOURS OUVERT — code et environnement
+
+- 🔴 **Balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
+  des frères, et la CI ne les dira que s'ils touchent un service.
+- ⚠️ **`SOCLE.md`** et le déplacement des ADR de surface — hors périmètre depuis **quatre** chantiers.
 - 🔴 **Hors dépôt, invisible à un `git clone`** : un hook `.git/hooks/pre-commit` nettoie les
-  `.DS_Store`, et **4 leurres immuables** sont posés dans `.git/`. **Conséquence : `rm -rf` du
-  dépôt échoue** (`Operation not permitted`) — ce n'est pas une corruption, il faut
-  `chflags -R nouchg` d'abord.
-- ✅ **CLOSES par ce chantier** : `DECISIONS.md` sans ligne pour l'ADR-0060 · `check_adr_refs.sh`
-  en code 1 · le trou `ADR-0033`.
+  `.DS_Store`, et **4 leurres immuables** sont posés dans `.git/`. **Conséquence : `rm -rf` du dépôt
+  échoue** (`Operation not permitted`) — ce n'est pas une corruption, il faut `chflags -R nouchg`
+  d'abord.
 
 #### 🧾 DETTES REMONTÉES — du chantier « Trois témoins de plus » (élagué ce jour ; les quatre contrôles passent : ADR ✅, `TROUBLESHOOTING.md` §2026-08-15 ✅, `CHANGELOG.md` 0.94.0 ✅)
 
@@ -280,49 +240,6 @@ doctrines opposées pendant une journée entière.**
   commentaire de `coverage.py:364` faux · **veto d'un cours impossible dès qu'une fiche personnelle
   existe** · **aucun linter Python** · `page-quiz.md` (spec absente).
 
-#### 🧪 TESTS
-
-**Aucun : aucune ligne de code applicatif.** Les suites n'ont pas été relancées depuis le squash
-`314f336`, où elles étaient à **1384 / 807 / 814**.
-
-⚠️ **Ce chantier n'est pas testable au sens des suites** — il modifie des fichiers que **l'agent**
-lit, pas que le code exécute. Sa vérification est un **balayage**, écrit dans `TROUBLESHOOTING.md` :
-
-```bash
-grep -rniE 'impose un cadrage|ADR.{0,20}avant la moindre ligne|ligne dans DECISIONS' \
-  docs/WORKFLOW.md .claude/commands/*.md CLAUDE.md
-```
-
-Il ne rend plus qu'un seul résultat : **l'interdit lui-même**, dans `reprise.md`. C'est un faux
-positif, et le bon signe.
-
-🔴 **La vraie preuve viendra à l'usage** : `/ouverture` appelée sur un cas 1 doit **s'arrêter en le
-disant**, et non réclamer un ADR. Personne ne l'a encore fait.
-
-#### ▶ PROCHAIN PAS
-
-Le chantier est **clos et mergé**. La méthode dit désormais ce qu'elle décide.
-
-1. 🔴 **Le geste de l'ADR-0061 attend toujours** — voir la section CADRAGE ci-dessus, **qui reste
-   vivante** : trois cases à cocher dans *Settings → Branches*, et rien dans Git ne dira si c'est
-   fait. **C'est le seul travail encore dû par l'humain seul.**
-2. Puis, par ordre de valeur :
-   - **balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
-     des frères, et la CI ne les dira que s'ils touchent un service ;
-   - **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis quatre chantiers ;
-   - les deux branches parquées, dont `fix/observation-sorties` (**6** tests rouges par
-     construction, base `0141b62`, **très en retard** — elle demandera une remise à jour avant
-     toute PR, et **la CI la rendra rouge**, ce qui est correct).
-
-**Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
-base **n'a pas été touchée** · aucune migration · les suites non relancées (aucun code) ·
-`slice.md` relu mais **non modifié** · **rien ne vérifie mécaniquement** qu'un fichier de méthode
-contredit un ADR — le balayage est un `grep` lancé à la main · `MEMORY.md` porte toujours bien plus
-de « ⬆️ REMONTÉ » que d'actif, **septième clôture consécutive à le constater** :
-
-```bash
-echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f1) - 1 )) / total $(wc -l < MEMORY.md)"
-```
 
 ---
 
