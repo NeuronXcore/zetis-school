@@ -118,7 +118,7 @@ def _build_context(
 ) -> tuple[dict, set[int], set[int], dict[int, dict]]:
     """Compose l'évidence read-only en un contexte par matière (notions fragiles d'abord).
 
-    `subject_id` restreint le contexte à UNE matière (`adr-0020-addendum-portee-matiere`). `None`
+    `subject_id` restreint le contexte à UNE matière (`adr-0020-conseil-de-classe-ia` (Amendement 1)). `None`
     = conseil global, comportement historique inchangé.
     """
     mastery = evidence.mastery_by_skill(db, student_id=student.id)
@@ -363,7 +363,7 @@ def generate_council_report(
 ) -> dict:
     """Génère + persiste un rapport figé. 100 % local (`llm` = provider Ollama/MLX).
 
-    `subject_id` = portée matière (`adr-0020-addendum-portee-matiere`). `None` = global.
+    `subject_id` = portée matière (`adr-0020-conseil-de-classe-ia` (Amendement 1)). `None` = global.
     """
     period = (period or "").strip() or _default_period(db, student)
     context, allowed_subject_ids, allowed_skill_ids, evolution_by_subject = _build_context(

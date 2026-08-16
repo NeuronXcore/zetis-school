@@ -114,7 +114,7 @@ export async function undismissAgendaItem(id: number): Promise<AgendaItemStudent
  *  🔴 **UN SEUL appelant : `useAgenda`, à l'ouverture de `/agenda`.**
  *  ~~« Appelée depuis DEUX surfaces, et il en faut deux […] N'en retenir qu'une ferait mentir le
  *  témoin sur ce qui a déjà été lu. »~~ — RÉVOQUÉ le 2026-08-15 par
- *  `adr-0025-addendum-le-regard-vit-a-l-agenda`. Le bandeau d'Accueil marquait vu au montage, donc
+ *  `adr-0025-agenda-scolaire` (Amendement 7). Le bandeau d'Accueil marquait vu au montage, donc
  *  avant que le témoin ait pu s'afficher ; et il ne montre qu'un extrait, pas ce qui est arrivé.
  *  La règle est désormais : **marque vu la surface qui montre TOUT ce qui est arrivé**, et il n'y
  *  en a qu'une.

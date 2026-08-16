@@ -336,7 +336,7 @@ class MindmapView(Base):
 
 
 class Eli5View(Base):
-    """Notion ouverte en ELI5 par un élève (`adr-0030-addendum-temoin-eli5`, 2026-08-15).
+    """Notion ouverte en ELI5 par un élève (`adr-0030-temoins-nouveaute-navigation` (Amendement 3), 2026-08-15).
 
     Sixième table du patron `*_views`, calquée sur `MindmapView` : unicité (élève, notion), un
     horodatage, **aucun compteur d'ouvertures** — combien de fois Massimo a redemandé la même
@@ -364,7 +364,7 @@ class Eli5View(Base):
 
 
 class QuizView(Base):
-    """Quiz ouvert par un élève (`adr-0030-addendum-temoin-quiz`, 2026-08-15). Septième table du
+    """Quiz ouvert par un élève (`adr-0030-temoins-nouveaute-navigation` (Amendement 4), 2026-08-15). Septième table du
     patron `*_views`, calquée sur `MindmapView`.
 
     🔴 **« Ouvert », jamais « passé ».** Le témoin de navigation qui en vit meurt de l'OUVERTURE ;

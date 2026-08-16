@@ -24,7 +24,7 @@ class CouncilReport(Base):
     student_id: Mapped[int] = mapped_column(ForeignKey("student_profiles.id"), index=True)
     # Portée du rapport. `NULL` = GLOBAL (toutes matières), comportement historique et défaut de
     # tous les rapports antérieurs — d'où l'absence de backfill. Une valeur = rapport CIBLÉ sur
-    # une matière (`adr-0020-addendum-portee-matiere`).
+    # une matière (`adr-0020-conseil-de-classe-ia` (Amendement 1)).
     #
     # ⚠️ C'est CE champ qui porte la portée, jamais le libellé de `period` : encoder « Maths ·
     # Bilan » dans `period` polluerait le filtre d'égalité de `list_reports` et rendrait la portée

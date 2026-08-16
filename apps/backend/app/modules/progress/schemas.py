@@ -49,7 +49,7 @@ class ConsolidatedSkillOut(BaseModel):
     last_seen_at: str | None = None
 
 
-# --- Panneau d'analyse d'une matière (adr-0028-addendum-analyse-par-matiere) ---------------------
+# --- Panneau d'analyse d'une matière (adr-0028-dashboard-papa-agregat-unique (Amendement 1)) ---------------------
 #
 # ⚠️ Ce contrat ne sert QUE ce que l'agrégat du dashboard ne peut pas porter : des NOMS. Les
 # compteurs de notions, les minutes, le calendrier, les créneaux et la charge SRS des 14 jours sont

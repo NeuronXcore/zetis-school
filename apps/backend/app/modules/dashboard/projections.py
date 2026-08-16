@@ -214,7 +214,7 @@ def bucket_sums(pairs: list[tuple[date, int]], marks: list[date]) -> list[int]:
 #   - un flux peut être négatif, et c'est tout son intérêt.
 #
 # ⚠️ Les deux ne se réconcilient PAS et ne doivent pas être présentés comme deux vues du même
-# nombre. `adr-0028-addendum-kpi-a-renforcer §5 ter` écarte le solde AU TITRE DU DELTA DE KPI,
+# nombre. `adr-0028-dashboard-papa-agregat-unique (Amendement 2) §5 ter` écarte le solde AU TITRE DU DELTA DE KPI,
 # précisément parce qu'il contredirait la sparkline voisine. Ce qui est servi ici ne remplace aucun
 # KPI : c'est une vue autonome, à charge pour la carte de nommer la différence.
 

@@ -892,7 +892,7 @@ def mark_quiz_seen(db: Session, student_id: int, quiz_id: int) -> None:
     """Marque le quiz ouvert (idempotent). 404 si le quiz n'est pas jouable.
 
     Idempotent par la ligne, patron `mindmaps.service.mark_seen`. C'est le geste qui éteint le
-    témoin de navigation Quiz (`adr-0030-addendum-temoin-quiz`).
+    témoin de navigation Quiz (`adr-0030-temoins-nouveaute-navigation` (Amendement 4)).
     """
     if quiz_id not in servable_quiz_ids(db):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Quiz introuvable.")
@@ -913,7 +913,7 @@ def mark_quiz_seen(db: Session, student_id: int, quiz_id: int) -> None:
 def new_quizzes_count(db: Session, student_id: int) -> int:
     """Quiz jouables JAMAIS OUVERTS — témoin de navigation.
 
-    `adr-0030 §3`, amendé par `adr-0030-addendum-temoin-quiz.md`.
+    `adr-0030 §3`, amendé par `adr-0030-temoins-nouveaute-navigation.md` (Amendement 4).
 
     🔴 **`QuizAttempt` N'APPARAÎT PAS ICI, et c'est la borne 1 de l'addendum.** Compter les quiz
     « pas encore passés » ferait un compteur qui meurt du TRAVAIL et grossit quand Massimo ne vient

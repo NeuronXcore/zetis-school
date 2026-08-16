@@ -65,7 +65,7 @@ class GenerateCouncilRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     period: str | None = None
-    # Portée matière (`adr-0020-addendum-portee-matiere`). `None` = conseil GLOBAL, comportement
+    # Portée matière (`adr-0020-conseil-de-classe-ia` (Amendement 1)). `None` = conseil GLOBAL, comportement
     # historique inchangé.
     #
     # ⚠️ `extra="forbid"` rejette les champs NON DÉCLARÉS : ajouter un champ déclaré et optionnel

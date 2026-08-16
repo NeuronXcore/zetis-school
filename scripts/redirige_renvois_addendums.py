@@ -45,24 +45,59 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fusion_addendums import rang  # noqa: E402
 
 EXTENSIONS = (".md", ".py", ".ts", ".tsx", ".sh")
-EXCLUS = ("apps/", "packages/", "scripts/")
+
+# 🔴 `scripts/` est exclu POUR TOUJOURS, et ce n'est pas un oubli : `ORDRE_DECLARE`
+# (`fusion_addendums.py`) est une TABLE DE NOMS SUPPRIMÉS — c'est le registre de l'ordre
+# retenu, et le réécrire détruirait ce qu'il consigne. Ce fichier-ci en cite aussi dans sa
+# propre documentation, pour la même raison.
+#
+# `apps/` et `packages/` y ont figuré du 2026-08-16 au 2026-08-16, le temps d'un chantier :
+# le rangement du registre était mono-chantier et n'avait pas le droit de toucher au code
+# applicatif. Les 54 renvois qui y sont restés ont été repris juste après — dont **un qui
+# rendait un test ROUGE**, cf. le docstring de `reecrire()`.
+#
+# `TROUBLESHOOTING.md` est exclu pour la même raison que `scripts/` : c'est un JOURNAL DE
+# PIÈGES, et l'entrée qui explique celui-ci **cite un nom supprimé en exemple**. Le rediriger
+# donnerait « un renvoi écrit `adr-0024-zetis-galaxy-progression.md (Amendement 3)` ne contient
+# aucune occurrence de ADR-0024 » — une phrase qui ne démontre plus rien.
+EXCLUS = ("scripts/", "TROUBLESHOOTING.md")
 RE_RENVOI = re.compile(r"(docs/decisions/)?(adr-(\d{4})-addendum-[a-z0-9\-]+)(\.md)?")
 # Un renvoi déjà redirigé porte sa mention juste après ; on ne la repose pas.
 RE_DEJA = re.compile(r"\A`?\s*\(Amendement \d+\)")
 
 
-def carte() -> tuple[dict[str, str], dict[str, int]]:
+def carte(revision: str | None = None) -> tuple[dict[str, str], dict[str, int]]:
     """(nom d'addendum → nom du parent, nom d'addendum → numéro d'amendement).
 
     Reconstruite depuis git : les fichiers d'addendum n'existent plus sur disque.
+
+    🔴 **Sans `revision`, ce script ne vit qu'une seule fois.** Il lisait les suppressions
+    dans `git diff` — l'ARBRE DE TRAVAIL contre `HEAD` — donc uniquement tant que la fusion
+    n'était pas commitée. Une fois le chantier mergé, la carte rend **zéro addendum** et le
+    script redirige **zéro renvoi** en annonçant fièrement qu'il a fini. Mesuré le 2026-08-16,
+    au moment de reprendre les renvois laissés dans `apps/` et `packages/`.
+
+    Passer `--depuis <revision>` (le commit qui a supprimé les fichiers) le rend rejouable
+    indéfiniment. Sans argument, l'ancien comportement est conservé : utile pendant la session
+    qui supprime, inutile après.
     """
-    supprimes = [
-        p for p in subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=D", "--", "docs/decisions"],
-            capture_output=True, text=True, check=True,
-        ).stdout.split()
-        if "addendum" in p
-    ]
+    if revision:
+        supprimes = [
+            p for p in subprocess.run(
+                ["git", "show", "--name-only", "--diff-filter=D", "--format=",
+                 revision, "--", "docs/decisions"],
+                capture_output=True, text=True, check=True,
+            ).stdout.split()
+            if "addendum" in p
+        ]
+    else:
+        supprimes = [
+            p for p in subprocess.run(
+                ["git", "diff", "--name-only", "--diff-filter=D", "--", "docs/decisions"],
+                capture_output=True, text=True, check=True,
+            ).stdout.split()
+            if "addendum" in p
+        ]
     # Le parent d'un numéro est le seul `adr-XXXX-*.md` qui subsiste.
     parents = {
         m.group(1): p.name
@@ -74,20 +109,24 @@ def carte() -> tuple[dict[str, str], dict[str, int]]:
     for chemin in supprimes:
         par_id[re.match(r"adr-(\d{4})", Path(chemin).name).group(1)].append(chemin)
 
+    # Où relire le contenu d'un fichier supprimé : dans `HEAD` s'il vient d'être effacé
+    # de l'arbre, dans le PARENT de la révision si c'est elle qui l'a supprimé.
+    source = f"{revision}^" if revision else "HEAD"
+
     vers_parent, numero = {}, {}
     for id_, chemins in par_id.items():
         # Même clé de tri que la fusion : les numéros d'amendement coïncident.
-        faux = [type("A", (), {"chemin": Path(c), "date": _date_git(c)})() for c in chemins]
+        faux = [type("A", (), {"chemin": Path(c), "date": _date_git(c, source)})() for c in chemins]
         for n, a in enumerate(sorted(faux, key=rang), 1):
             vers_parent[a.chemin.name] = parents[id_]
             numero[a.chemin.name] = n
     return vers_parent, numero
 
 
-def _date_git(chemin: str) -> str | None:
+def _date_git(chemin: str, source: str = "HEAD") -> str | None:
     """La date du bloc de statut, relue dans la version git du fichier supprimé."""
     contenu = subprocess.run(
-        ["git", "show", f"HEAD:{chemin}"], capture_output=True, text=True
+        ["git", "show", f"{source}:{chemin}"], capture_output=True, text=True
     ).stdout
     lignes = contenu.splitlines()
     for i, l in enumerate(lignes):
@@ -154,6 +193,15 @@ def reecrire(
         sortie.append(texte[i:debut])
         sortie.append((m.group(1) or "") + cible)
         i = fin
+
+        # 🔴 Un renvoi entre GUILLEMETS est une VALEUR, pas de la prose. La mention
+        # « (Amendement N) » entrerait DANS la chaîne et serait consommée comme partie du
+        # chemin. Mesuré : `apps/backend/app/tests/test_news_doctrine.py` passe cette valeur
+        # à `is_file()` — la mention y produisait un test toujours rouge, mais qui avait l'air
+        # réparé. Le backtick délimite de la prose, le guillemet délimite une donnée.
+        if texte[debut - 1 : debut] in ('"', "'") and suite[:1] in ('"', "'"):
+            continue
+
         # Si un backtick ferme immédiatement, la mention se pose après lui.
         if suite.startswith("`"):
             sortie.append("`")
@@ -166,9 +214,22 @@ def reecrire(
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
+    ap.add_argument(
+        "--depuis", metavar="REVISION",
+        help="commit qui a supprimé les addendums (ex. 807c7a2). Sans lui, les suppressions "
+             "sont lues dans l'arbre de travail — donc RIEN une fois le chantier commité.",
+    )
     args = ap.parse_args()
 
-    vers_parent, numero = carte()
+    vers_parent, numero = carte(args.depuis)
+    if not vers_parent:
+        print(
+            "Aucun addendum supprimé trouvé.\n"
+            "→ Si le chantier de fusion est déjà commité, passer `--depuis <revision>` : "
+            "sans lui, le script lit l'arbre de travail et ne voit rien.",
+            file=sys.stderr,
+        )
+        return 1
     print(f"{len(vers_parent)} addendums supprimés, redirigés vers {len(set(vers_parent.values()))} parents\n")
 
     fichiers = subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.split()
@@ -189,7 +250,9 @@ def main() -> int:
         par_fichier[f] = n
         zone = ("docs/decisions" if f.startswith("docs/decisions/")
                 else "docs/" if f.startswith("docs/")
-                else "prompts/" if f.startswith("prompts/") else "racine")
+                else "prompts/" if f.startswith("prompts/")
+                else "apps/ + packages/ (CODE)" if f.startswith(("apps/", "packages/"))
+                else "racine")
         par_zone[zone] += n
         if args.write:
             p.write_text(neuf, encoding="utf-8")

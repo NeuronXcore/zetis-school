@@ -35,7 +35,7 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     // `diagnostic`, dix avec `matieres`/`eli5`/`quiz` le 2026-08-15) et un nom qui compte se périme
     // sans rougir.
     //
-    // Les trois derniers sont nommés par leurs addenda — `adr-0030-addendum-temoin-matieres`
+    // Les trois derniers sont nommés par leurs addenda — `adr-0030-temoins-nouveaute-navigation` (Amendement 2)
     // (qui porte aussi les bornes transverses B1–B4), `-eli5` et `-quiz` — et **aucun** n'a demandé
     // de dérogation : ils meurent tous d'un REGARD. C'est ce qui les sépare de `diagnostic`.
     const withBadge = Object.fromEntries(
@@ -60,7 +60,7 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     // celui de Diagnostic meurt du TRAVAIL — il compte les diagnostics relus que Massimo n'a pas
     // passés, donc il grossit quand Massimo ne vient pas. C'est la colonne interdite de
     // l'ADR-0030 §1, ouverte par décision du commanditaire après objection et réaffirmation
-    // (`docs/decisions/adr-0030-addendum-temoin-diagnostic.md`).
+    // (`docs/decisions/adr-0030-temoins-nouveaute-navigation.md` (Amendement 1)).
     //
     // Sans cette assertion, la prochaine session lirait sept témoins d'apparence homogène et en
     // conclurait qu'un compteur de non-faits est recevable. Le verrou backend
@@ -98,7 +98,7 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("donne à ELI5 un témoin ADOSSÉ À UNE VUE (adr-0030-addendum-temoin-eli5)", () => {
+  it("donne à ELI5 un témoin ADOSSÉ À UNE VUE (adr-0030-temoins-nouveaute-navigation (Amendement 3))", () => {
     // ~~« laisse ELI5 SANS témoin, et ce n'est pas un oubli »~~ — INVERSÉ le 2026-08-15.
     //
     // L'ancienne raison est gardée, et elle reste VRAIE : « ELI5 a bien un `new_count`, mais c'est
@@ -114,7 +114,7 @@ describe("sidebar Massimo — témoins de nouveauté", () => {
     expect(MASSIMO_NAV.find((item) => item.to === "/eli5")?.newsKey).toBe("eli5");
   });
 
-  it("donne à Quiz un témoin qui naît d'une PRODUCTION (adr-0030-addendum-temoin-quiz)", () => {
+  it("donne à Quiz un témoin qui naît d'une PRODUCTION (adr-0030-temoins-nouveaute-navigation (Amendement 4))", () => {
     // ~~« laisse Quiz SANS témoin : il n'y a aucun moment ça arrive »~~ — INVERSÉ le 2026-08-15,
     // au troisième cran d'une chaîne de motifs qu'il faut lire en entier :
     //

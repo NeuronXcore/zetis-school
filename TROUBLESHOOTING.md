@@ -4,6 +4,81 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Chantier `chore/renvois-addendums-code` — la dette du registre, et ce qu'elle cachait — 2026-08-16
+
+### 🔴 Un test était ROUGE sur `main`, et rien dans la chaîne ne pouvait le voir
+
+**Symptôme** : `test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme`
+(`app/tests/test_news_doctrine.py:182`) échouait sur `main` depuis le merge du rangement du
+registre — **découvert par lecture, pas par une alerte**.
+
+```
+AssertionError: La dérogation de « diagnostic » cite
+« adr-0030-addendum-temoin-diagnostic.md », qui n'existe pas.
+```
+
+**Cause** : le test fait `(racine / document).is_file()` sur une valeur du dict `DEROGATIONS`, qui
+nommait un fichier d'addendum. La fusion l'a supprimé.
+
+**Pourquoi personne ne l'a vu**, et c'est le vrai enseignement — **trois filets ont laissé passer,
+chacun pour une raison valable** :
+
+1. `check_adr_refs.sh` était **vert** : il ne teste que `ADR-\d{4}`, jamais un chemin.
+2. La PR était **verte** : le dépôt n'a aucune CI ; seul GitGuardian s'exécute.
+3. La clôture disait *« aucun test lancé — aucune ligne de code applicatif »*, ce qui était
+   **vrai**. Mais un test **lisait le registre** : le critère « ai-je touché du code ? » ne dit
+   rien sur « ai-je touché ce qu'un test observe ? ».
+
+**Parade** : ne pas déduire de « chantier documentaire » que la suite est hors d'atteinte. Avant de
+clore un chantier qui **supprime ou renomme des fichiers**, même de documentation, chercher qui les
+nomme dans du code exécuté :
+
+```bash
+grep -rnE '"[^"]*adr-[0-9]{4}[^"]*"' --include='*.py' --include='*.ts' --include='*.tsx' apps packages
+```
+
+### 🔴 `redirige_renvois_addendums.py` ne pouvait servir qu'une fois
+
+**Symptôme** : relancé après le merge pour finir les 54 renvois de `apps/`+`packages/`, le script
+annonçait `0 renvoi(s) redirigé(s)` — l'air d'avoir fini, en n'ayant rien fait.
+
+**Cause** : `carte()` lisait `git diff --diff-filter=D`, c'est-à-dire l'**arbre de travail contre
+`HEAD`**. Une fois la fusion commitée, il n'y a plus aucune suppression en attente : la carte est
+vide, et un dictionnaire vide ne fait échouer aucune boucle.
+
+**Parade** : `--depuis <revision>` lit les suppressions dans un commit
+(`git show --diff-filter=D`), et le contenu des fichiers disparus dans son **parent** (`<rev>^`).
+Le script **sort en 1 avec un message explicite** quand la carte est vide, au lieu de rendre un
+rapport à zéro qui ressemble à un succès.
+
+### 🔴 Une redirection mécanique casse un littéral de chaîne — et le test reste rouge en ayant l'air réparé
+
+**Symptôme** (mesuré avant d'écrire, en simulant) : le script aurait produit
+
+```python
+"diagnostic": "adr-0030-temoins-nouveaute-navigation.md (Amendement 1)",
+```
+
+La mention se pose après le **backtick fermant** ; ici le délimiteur est un **guillemet**, donc elle
+entrait **dans** la chaîne. `is_file()` cherchait alors un fichier nommé
+`…navigation.md (Amendement 1)` : le test serait resté rouge, mais avec un renvoi d'apparence
+correcte — le pire des deux mondes.
+
+**Parade** : dans `reecrire()`, un renvoi encadré de guillemets (`"` ou `'`) reçoit le nom du parent
+**seul**, sans mention. **Le backtick délimite de la prose, le guillemet délimite une donnée.**
+
+⚠️ **Corollaire** : sur les 54 renvois, **53 étaient des commentaires** et un seul était exécuté —
+et c'est précisément celui-là qui portait la régression. Le compte rassurant (« ce ne sont que des
+commentaires ») était faux d'exactement une unité.
+
+### ⚠️ `TROUBLESHOOTING.md` doit être exclu du balayage qu'il documente
+
+Ce fichier **cite des noms supprimés en exemple** — c'est ce qui rend les pièges lisibles. Le
+rediriger donnerait *« un renvoi écrit `adr-0024-zetis-galaxy-progression.md (Amendement 3)` ne
+contient aucune occurrence de ADR-0024 »*, une phrase qui ne démontre plus rien. Il est dans
+`EXCLUS`, avec `scripts/` et pour la même raison : **un registre de noms morts n'est pas une liste
+de liens cassés.**
+
 ## Chantier `chore/registre-adr` — un ADR = un fichier — 2026-08-16
 
 ### 🔴 `check_adr_refs.sh` ne teste QUE `ADR-\d{4}`, jamais un chemin de fichier
