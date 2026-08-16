@@ -17,6 +17,25 @@ refs: ["0060"]
 l'`adr-0060` classe en cas 2 et que le `WORKFLOW.md` §2 étape 6 énonce déjà :
 *« la PR est la porte de revue matérialisée, **avant** que le code n'entre dans `main` »*.
 
+> 🔴 **LE MOYEN N'EXISTE PAS — constaté le 2026-08-17, au moment de poser le geste.**
+> La protection de branche est **indisponible sur un dépôt privé en plan gratuit**. Les deux API
+> répondent **403** avec le même message :
+>
+> ```
+> GET repos/…/branches/main/protection  → 403 Upgrade to GitHub Pro or make this repository public
+> GET repos/…/rulesets                  → 403 (idem)
+> ```
+>
+> **La décision reste juste ; elle est simplement inapplicable en l'état.** Elle n'est donc pas
+> abandonnée : le blocage est **circonstanciel**, pas doctrinal — le §Suivi porte les trois
+> conditions qui la débloqueraient.
+>
+> **Corrigé EN PLACE et non par addendum**, conformément à l'`adr-0060` : cet ADR est `propose`,
+> **cité par aucun autre**, et **personne n'a pu appliquer sa règle**. Un addendum aurait figé la
+> trace d'une décision que rien n'a jamais exécutée. **Ce qui est conservé, c'est le motif de
+> l'erreur** — et il est sur moi : *j'ai décidé d'un réglage sans vérifier qu'il était disponible.*
+> Le read-before-code du cadrage a porté sur la **doctrine**, jamais sur la **faisabilité**.
+
 > **Pourquoi un ADR alors que la CI n'en a pas demandé.** Poser `.github/workflows/ci.yml` était une
 > **application** (cas 2) : la règle existait, on la faisait respecter. Activer une *required check*
 > est autre chose — ça ne s'annule pas en un commit (**c'est un réglage GitHub, pas un fichier**) et
@@ -161,9 +180,36 @@ protection de branche (revue obligatoire, historique linéaire, signature des co
 
 ## Suivi
 
-- **Le geste**, à faire une fois : *Settings → Branches → Add branch ruleset* (ou *Branch protection
-  rule*) sur `main` → *Require status checks to pass* → cocher les **trois** jobs, laisser
-  GitGuardian et *up to date* décochés, laisser *Do not allow bypassing* décoché.
+### 🔴 Le geste est BLOQUÉ — les trois conditions qui le débloqueraient
+
+| Condition | Coût | Verdict |
+|---|---|---|
+| **GitHub Pro** | ~4 $/mois | débloque la protection sur les dépôts privés. **La voie la plus courte.** À mettre en face de ce qui a motivé cet ADR : une suite rouge a atteint `main` **une fois** le 2026-08-16 |
+| **Rendre le dépôt public** | zéro | 🔴 **EXCLU.** Le dépôt porte les données de Massimo et la doctrine de `CLAUDE.md` — sa vie privée n'est pas négociable contre un réglage de CI |
+| **Une organisation GitHub Team** | ~4 $/utilisateur/mois | débloque aussi, mais ajoute une couche d'administration pour un dépôt à **un** contributeur |
+
+### Ce qui tient le rôle en attendant — et ce que ça ne couvre pas
+
+| Dispositif | Ce qu'il fait | Sa faille |
+|---|---|---|
+| `hooks/pre-push` | refuse le push si une suite est rouge | **local** ; `--no-verify` le contourne ; installé seulement là où le `ln -sf` a été fait |
+| `.github/workflows/ci.yml` | affiche les trois checks sur chaque PR | **n'empêche rien** — c'est exactement ce que cet ADR devait corriger |
+
+⚠️ **Le trou est donc entier, et il est nommé** : un merge reste possible sur du rouge, à la seule
+condition de ne pas regarder. C'est la situation du 2026-08-16.
+
+### Quand le geste redevient possible
+
+- *Settings → Branches → Add branch ruleset* sur `main` → *Require status checks to pass* → cocher
+  les **trois** jobs, laisser GitGuardian et *up to date* décochés, laisser *Do not allow bypassing*
+  décoché.
 - **La vérification qu'il a mordu** : ouvrir une PR volontairement rouge et constater que *Merge*
   est refusé. `fix/observation-sorties` fournit ce cas sans rien fabriquer.
 - **Rouvrir le §4** (branche à jour) le jour où le dépôt a plus d'un contributeur.
+
+### La leçon, qui vaut au-delà de cet ADR
+
+🔴 **Un ADR qui décide d'un RÉGLAGE doit vérifier que le réglage EXISTE, avant de l'écrire.** Une
+commande d'API en lecture aurait suffi, et aurait coûté dix secondes au cadrage. Le read-before-code
+s'applique aux **moyens** autant qu'au code — c'est le premier ADR de ce registre à décider quelque
+chose que le dépôt ne pouvait pas faire.

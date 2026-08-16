@@ -65,16 +65,23 @@ porte **6** tests rouges (`6 failed | 5 passed`), pas 3 comme écrit plus bas de
 
 #### ▶ PROCHAIN PAS
 
-✅ **Le lot `main` est commité et poussé** (`3372750`). Il ne reste que le geste, et il est à toi.
+🔴 **LE GESTE EST IMPOSSIBLE — constaté le 2026-08-17.** La protection de branche n'existe pas sur
+un **dépôt privé en plan gratuit** : `branches/main/protection` et `rulesets` répondent tous deux
+**403** (*« Upgrade to GitHub Pro or make this repository public »*).
 
-1. **Relire l'ADR-0061**, et surtout ses §2 (le bypass) et §4 (la branche à jour) — ce sont les deux
-   endroits où j'ai tranché **contre** la version la plus stricte, avec des motifs qui se discutent.
-2. 🔴 **LE GESTE** : *Settings → Branches* → *Require status checks to pass* → cocher les **trois**
-   jobs (`backend — pytest`, `frontends — vitest`, `verrous du dépôt`). Laisser GitGuardian,
-   *up to date* et *Do not allow bypassing* **décochés**. **Rien dans Git ne dira si c'est fait.**
-3. **Vérifier qu'il mord** : ouvrir une PR depuis `fix/observation-sorties` et constater que *Merge*
-   est refusé. ⚠️ Elle est basée sur `0141b62` et **très en retard** — il faudra la remettre à jour
-   d'abord, ce qui est de toute façon dû.
+**L'ADR-0061 a été corrigé EN PLACE** (et non par addendum : il est `propose` et cité par aucun
+autre ADR — `adr-0060`). Il reste **juste et proposé** ; seul son moyen manque. Son §Suivi porte les
+trois conditions qui le débloqueraient, et **ce qui tient le rôle en attendant**.
+
+1. **Trancher la voie** — la plus courte est **GitHub Pro** (~4 $/mois). Rendre le dépôt public est
+   **exclu** : il porte les données de Massimo. Une organisation Team débloque aussi, au prix d'une
+   administration pour **un** contributeur.
+2. ⚠️ **En attendant, le trou est ENTIER et il est nommé** : un merge sur du rouge reste possible,
+   à la seule condition de ne pas regarder. C'est exactement la situation du 2026-08-16. Le hook est
+   local et contournable ; la CI **affiche** sans empêcher.
+3. 🔴 **La leçon, qui vaut au-delà** : *un ADR qui décide d'un RÉGLAGE doit vérifier que le réglage
+   EXISTE avant de l'écrire.* Une commande d'API en lecture aurait suffi. Le read-before-code
+   s'applique aux **moyens** autant qu'au code.
 
 ✅ **~~Le chantier d'application de l'ADR-0060~~ — FAIT** (PR #140, squash `2105ba9`).
 
