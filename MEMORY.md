@@ -6,20 +6,22 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — Le registre ADR est rangé (`chore/registre-adr`, 2026-08-16)
+### ✅ CHANTIER MERGÉ — Le registre ADR est rangé (PR #136, squash `807c7a2`, 2026-08-16)
 
 **Aucune ligne de code applicatif.** Chantier de **rangement** au sens ADR-0060 **cas 1** : rien n'y
 est décidé, on remet le registre au réel. Aucun ADR produit — l'`adr-0033` créé ici enregistre un
 **abandon**, il ne décide rien.
 
-**Branche** `chore/registre-adr`, **base `9bde6c4`** (vérifié : `git merge-base main HEAD`).
-**COMPLET, commité, poussé — [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136)
-OUVERTE**, `MERGEABLE`, 146 fichiers.
-Pour les têtes : `git log --oneline main..HEAD`.
+**Mergé en squash le 2026-08-16** : [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136),
+**146 fichiers**, sur `main` en **un seul commit** — `807c7a2`. Base du chantier : `9bde6c4`.
+Le squash a bien absorbé `d9b4a0a` (l'outillage des cinq scripts, commité par la session
+*précédente* et relu dans aucune des deux) : il n'arrive **pas** sur `main` comme commit distinct.
 
-🔴 **À MERGER EN SQUASH.** La PR porte **trois** commits, dont `d9b4a0a` — l'outillage des cinq
-scripts, commité par la session *précédente* et relu dans aucune des deux. Sans squash il arrive
-sur `main` comme commit distinct.
+⚠️ **`chore/registre-adr` n'est PAS supprimée** — ni en local, ni sur `origin`. Son contenu est
+entièrement dans le squash ; elle ne porte plus rien d'unique et peut partir à tout moment.
+
+**État vérifié sur `main`** : `main` == `origin/main` == `807c7a2` · copie de travail propre ·
+`check_adr_refs.sh` **vert, 60 numéros** · 60 fichiers ADR, **0 addendum** dans l'arbre.
 
 #### ✅ FAIT
 
@@ -158,16 +160,24 @@ sabordé (ADR-0033 retiré) → **code 1**, restauré → **code 0**.
 
 #### ▶ PROCHAIN PAS
 
-1. **Relire la [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136)**, et en priorité
-   `docs/decisions/adr-0033-indicateur-autonomie-massimo.md` — **le seul texte du chantier qui ne
-   sorte pas d'un script**. Tout le reste est mécanique et rejouable à l'identique.
-2. **Merger en squash**, puis revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branche
-   supprimée, et remettre cette section au réel.
-3. Puis, au choix : les **54 renvois de `apps/`+`packages/`** (le plus court — retirer `apps/` et
-   `packages/` de la constante `EXCLUS` de `redirige_renvois_addendums.py`), ou le chantier
-   d'**application de l'ADR-0060** à `WORKFLOW.md` et aux commandes.
-4. `SOCLE.md` et le déplacement des ADR de surface étaient **explicitement hors périmètre** de cette
-   session — ils attendent leur propre chantier.
+Le chantier est **clos et mergé**. Ce qui suit attend, par ordre de coût croissant :
+
+1. **Les 54 renvois morts de `apps/`+`packages/`** — le plus court : retirer `apps/` et `packages/`
+   de la constante `EXCLUS` de `scripts/redirige_renvois_addendums.py`, relancer à blanc, relire,
+   appliquer. ⚠️ C'est du **code applicatif** : chantier `chore/` à part, avec sa branche.
+2. **L'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`, `ouverture.md`
+   et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1 également, donc **sans ADR**.
+3. **`SOCLE.md`** et le déplacement des ADR de surface — **explicitement hors périmètre** du
+   chantier registre, ils attendent le leur.
+4. Les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
+   (🔴 3 tests rouges par construction, **ne doit pas partir seule**).
+
+⚠️ **Une question de convention reste ouverte, et elle se reposera à chaque rangement** : ce
+chantier n'a **aucune entrée `CHANGELOG.md`** (rien de livrable côté produit), comme la session de
+méthode ADR-0060 avant lui. Le **contrôle 3 de l'élagage** (`/cloture` §1bis) exige pourtant une
+entrée avant de supprimer une section. Deux clôtures de suite l'ont contourné en le signalant : soit
+le contrôle admet une exception pour les sessions sans code, soit ces sessions écrivent au
+`CHANGELOG`. **Non tranché.**
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
 base **n'a pas été touchée** · aucune migration · les deux branches parquées restent locales ·
