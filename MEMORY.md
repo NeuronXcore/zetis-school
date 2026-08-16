@@ -65,26 +65,37 @@ porte **6** tests rouges (`6 failed | 5 passed`), pas 3 comme écrit plus bas de
 
 #### ▶ PROCHAIN PAS
 
+✅ **Le lot `main` est commité et poussé** (`3372750`). Il ne reste que le geste, et il est à toi.
+
 1. **Relire l'ADR-0061**, et surtout ses §2 (le bypass) et §4 (la branche à jour) — ce sont les deux
    endroits où j'ai tranché **contre** la version la plus stricte, avec des motifs qui se discutent.
-2. **Committer le lot `main`** (un seul commit).
-3. **Le geste** : *Settings → Branches* → *Require status checks to pass* → cocher les **trois**
-   jobs. Laisser GitGuardian, *up to date* et *Do not allow bypassing* **décochés**.
-4. **Vérifier qu'il mord** : ouvrir une PR depuis `fix/observation-sorties` et constater que *Merge*
+2. 🔴 **LE GESTE** : *Settings → Branches* → *Require status checks to pass* → cocher les **trois**
+   jobs (`backend — pytest`, `frontends — vitest`, `verrous du dépôt`). Laisser GitGuardian,
+   *up to date* et *Do not allow bypassing* **décochés**. **Rien dans Git ne dira si c'est fait.**
+3. **Vérifier qu'il mord** : ouvrir une PR depuis `fix/observation-sorties` et constater que *Merge*
    est refusé. ⚠️ Elle est basée sur `0141b62` et **très en retard** — il faudra la remettre à jour
    d'abord, ce qui est de toute façon dû.
-5. Puis le chantier d'**application de l'ADR-0060** aux fichiers de méthode.
+
+✅ **~~Le chantier d'application de l'ADR-0060~~ — FAIT** (PR #140, squash `2105ba9`).
 
 ---
 
-### ✅ CHANTIER COMPLET — L'ADR-0060 est appliqué (`chore/appliquer-adr-0060`, 2026-08-17)
+### ✅ CHANTIER MERGÉ — L'ADR-0060 est appliqué (PR #140, squash `2105ba9`, 2026-08-17)
 
 **Rangement** au sens ADR-0060 **cas 1** — aucun ADR. **Aucune ligne de code applicatif.**
 Il met les fichiers de méthode au réel : ils portaient encore l'ancienne doctrine, un jour après
 que l'ADR-0060 l'ait remplacée.
 
-**Branche** `chore/appliquer-adr-0060`, **base `3372750`** (vérifié : `git merge-base main HEAD`).
-**COMPLET, NON COMMITÉ.** Pour les têtes : `git log --oneline main..HEAD`.
+**Mergé en squash le 2026-08-17** : [PR #140](https://github.com/NeuronXcore/zetis-school/pull/140),
+9 fichiers, un seul commit d'origine. Base du chantier : `3372750`.
+
+**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `2105ba9` · copie propre · **le
+balayage ne rend plus que l'interdit lui-même** (`reprise.md:69`) — le dépôt ne porte plus qu'une
+doctrine. CI verte sur la PR (les 3 jobs).
+
+⚠️ **`chore/appliquer-adr-0060` n'est PAS supprimée.** Avant de la supprimer, comparer à
+**`2105ba9`**, PAS à la tête de `main` — le piège s'est présenté **quatre fois** les 16 et 17 août,
+et il est désormais écrit au `WORKFLOW.md` §2 étape 6.
 
 #### 🔴 CE QU'IL A TROUVÉ — deux instructions FAUSSES, pas seulement périmées
 
@@ -213,15 +224,12 @@ disant**, et non réclamer un ADR. Personne ne l'a encore fait.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff** — **9 fichiers** (6 de méthode + `TROUBLESHOOTING`, `CHANGELOG`, `MEMORY`),
-   aucun sous `apps/` ni `packages/`. Le point à relire en
-   priorité : `docs/WORKFLOW.md` §2 étape 1, qui remplace la phrase-souche du dépôt
-   (*« chaque décision est écrite avant la moindre ligne »*) par les quatre cas.
-2. **Commit → push → PR → merge en squash**, puis l'étape **4bis**.
-3. 🔴 **Le geste de l'ADR-0061 attend toujours** — voir la section CADRAGE ci-dessus, **qui reste
+Le chantier est **clos et mergé**. La méthode dit désormais ce qu'elle décide.
+
+1. 🔴 **Le geste de l'ADR-0061 attend toujours** — voir la section CADRAGE ci-dessus, **qui reste
    vivante** : trois cases à cocher dans *Settings → Branches*, et rien dans Git ne dira si c'est
-   fait.
-4. Puis, par ordre de valeur :
+   fait. **C'est le seul travail encore dû par l'humain seul.**
+2. Puis, par ordre de valeur :
    - **balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
      des frères, et la CI ne les dira que s'ils touchent un service ;
    - **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis quatre chantiers ;
