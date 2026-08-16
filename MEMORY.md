@@ -6,15 +6,25 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — Le verrou avant le push (`fix/hook-pre-push`, 2026-08-16)
+### ✅ CHANTIER MERGÉ — Le verrou avant le push (PR #138, squash `e4e3083`, 2026-08-16)
 
 **Application** au sens ADR-0060 **cas 2** — aucun ADR, mais **citation obligatoire** de la règle
 exécutée : `docs/WORKFLOW.md` §2 étape 4, *« toi : tu lances les tests (jamais confiance au "c'est
 vert") […] c'est la seule étape non délégable »*.
 
-**Branche** `fix/hook-pre-push`, **base `591eb45`** (vérifié : `git merge-base main HEAD`).
-**COMPLET, NON COMMITÉ** — l'humain vérifie le diff puis committe.
-Pour les têtes : `git log --oneline main..HEAD`.
+**Mergé en squash le 2026-08-16** : [PR #138](https://github.com/NeuronXcore/zetis-school/pull/138),
+6 fichiers, un seul commit d'origine. Base du chantier : `591eb45`.
+
+**Vérifié sur `main` APRÈS le merge** : `main` == `origin/main` == `e4e3083` · copie propre ·
+`hooks/pre-push` en **`100755`** dans l'arbre (un hook versionné en `100644` s'installe sans erreur
+et ne s'exécute jamais) · le lien `.git/hooks/pre-push -> ../../hooks/pre-push` est en place.
+
+🔴 **Le hook s'est exercé sur son propre push** avant le merge — première mise à l'épreuve réelle,
+verte, avec les trois suites lancées et le rappel affiché.
+
+⚠️ **`fix/hook-pre-push` n'est PAS supprimée** (local + `origin`). Avant de la supprimer, comparer à
+**`e4e3083`**, PAS à la tête de `main` — qui avance avec la 4bis et fait paraître un écart qui n'en
+est pas un. Le piège s'est présenté sur les #136 et #137.
 
 > 🔴 **Pourquoi cas 2 et pas cas 3** — la question s'est posée, et elle mérite d'être relue avant
 > d'être rouverte. Le §2 étape 4 dit que lancer les tests est « non délégable » : un hook qui les
@@ -173,23 +183,26 @@ fait sortir le hook en **code 1** avec la faute, son fichier et sa ligne — pui
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff** — **2 créés** (`hooks/pre-push`, `hooks/README.md`) et **4 modifiés**
-   (`TROUBLESHOOTING.md`, `CHANGELOG.md`, `PROJECT_STRUCTURE.md`, ce fichier).
-   **Aucun fichier de `apps/` ni `packages/`** — vérifié : `git diff --name-only apps packages`
-   est vide, le sabotage du hook a bien été restauré.
-2. ⚠️ **Le `ln -sf` est déjà posé sur CETTE machine.** Il n'a pas à être relancé ici ; il le devra
-   sur toute autre. Vérification : `ls -l .git/hooks/pre-push`.
-3. **Commit → push → PR → merge en squash**, puis l'étape **4bis**.
-   🔴 Le push de ce chantier **fera tourner le hook sur lui-même** — première mise à l'épreuve réelle.
-4. Puis, par ordre de valeur :
-   - 🔴 **une vraie CI** — le hook l'atténue, il ne la remplace pas (local, contournable) ;
-   - **l'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`,
-     `ouverture.md`, `CLAUDE.md` — et **y porter au passage** la mention du hook (§2 étape 4) et la
-     règle du `CHANGELOG` tranchée par l'usage ;
-   - **`SOCLE.md`** et le déplacement des ADR de surface ;
-   - les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
-     (🔴 **3 tests rouges par construction** — elle ne doit pas partir seule, et son push **exigera
-     `--no-verify`**, ce qui est exactement le cas prévu par l'échappatoire).
+Le chantier est **clos et mergé**. La journée a bouclé sur elle-même : la **#136** a introduit une
+régression, la **#137** l'a réparée, la **#138** a posé le filet qui l'aurait attrapée.
+
+Ce qui attend, par ordre de valeur :
+
+1. 🔴 **Une vraie CI.** Le hook l'**atténue**, il ne la remplace pas : il est local, ne tourne que
+   là où le `ln -sf` a été posé, et `--no-verify` le contourne. `.github/workflows/` n'existe
+   toujours pas. **C'est la seule dette de la journée qui ne soit pas du confort.**
+2. **L'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`, `ouverture.md`
+   et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1, **sans ADR**. Y porter au
+   passage **trois choses écrites nulle part d'officiel** :
+   - la mention du hook au §2 étape 4 (la règle et son outil s'ignorent aujourd'hui) ;
+   - la règle du `CHANGELOG` tranchée par l'usage — *une entrée si un comportement change, pas si
+     des fichiers bougent* ;
+   - la parade de suppression de branche — **comparer au squash, jamais à la tête de `main`**.
+3. **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis trois chantiers.
+4. Les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
+   (🔴 **3 tests rouges par construction** — elle ne doit pas partir seule, et son push **exigera
+   `--no-verify`**, exactement le cas prévu par l'échappatoire. Ce sera sa première mise à
+   l'épreuve).
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
 base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · le hook n'est installé
