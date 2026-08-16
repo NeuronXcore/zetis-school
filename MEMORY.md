@@ -126,9 +126,17 @@ a coupé ce constat en deux, et **les deux moitiés étaient fausses différemme
 **Remontées de l'ADR-0059 (élagué ce jour — les quatre contrôles passent : ADR ✅,
 `TROUBLESHOOTING.md` §ADR-0059 ✅, `CHANGELOG.md` 0.93.0 ✅) :**
 
-- 🔴 **La qualité du décodage glouton n'a jamais été JUGÉE sur une vraie voix** — seulement sur une
-  voix de synthèse, qui articule trop bien. Repli si dégradation : `beam_size=2`, **pas** 5.
-  *C'était le « premier pas ouvert » de la clôture précédente ; il l'est toujours.*
+- 🔴 **La qualité du décodage glouton n'a toujours PAS été jugée sur une vraie voix** — mais le
+  banc existe désormais (`scripts/bench_stt_beam.py`) et une mesure intermédiaire a été faite.
+  **Sur 68 narrations Piper avec leur texte exact (1507 mots)** : beam 1 = **13,3 %** de mots faux,
+  beam 2 = **12,7 %**, beam 5 = **12,4 %** ; beam 1 et 2 divergent sur **22 des 68**.
+  🔴 **Cela a corrigé une affirmation FAUSSE qui était dans `stt/provider.py`** — *« transcription
+  identique au mot près »*, écrite sur la foi d'**un** énoncé de 4,3 s.
+  ⚠️ **Cela ne tranche pas le réglage** : c'est de la voix de synthèse, exactement ce que la dette
+  exclut, et le taux absolu n'est pas un WER (la référence est ce que Piper a *reçu* à dire, pas ce
+  qu'il a *prononcé*). Seule la comparaison relative tient. **Ce qui reste appartient à un humain** :
+  enregistrer 5–10 énoncés de Massimo, écrire ce qu'il a dit, relancer le banc. Repli si
+  dégradation : `beam_size=2`, **jamais** 5.
 - ⚠️ **`CHAT_RAG_MAX_DISTANCE=0.45` n'est pas calibré**, et **son rôle a grandi avec le §19** :
   sans notion résolue la recherche porte sur toutes les matières, ce seuil devient le seul
   garde-fou. À surveiller en premier si ZETIS s'ancre à côté.

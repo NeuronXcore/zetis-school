@@ -139,15 +139,30 @@ class FasterWhisperProvider:
             # 🔴 **MESURE du 2026-08-15, et elle dément la prévision.** Sur cette machine, énoncé
             # de 4,3 s, modèle `small`/int8/CPU, meilleur de 3 passes :
             #     beam=5 (défaut) → 1,23 s     beam=1 (ici) → 1,00 s
-            # Soit **~20 %, pas « 2 à 3 fois »** comme l'annonçait le cadrage. La transcription
-            # est **identique au mot près**. Le gain est réel et gratuit, mais il est petit : le
-            # goulot de la chaîne est ailleurs (le moteur de génération, mesuré à **9,4 s** sur le
-            # même tour). Écrit ici pour que personne ne rouvre ce réglage en espérant y trouver
-            # des secondes qui n'y sont pas.
+            # Soit **~20 %, pas « 2 à 3 fois »** comme l'annonçait le cadrage. Le gain est réel et
+            # gratuit, mais il est petit : le goulot de la chaîne est ailleurs (le moteur de
+            # génération, mesuré à **9,4 s** sur le même tour). Écrit ici pour que personne ne
+            # rouvre ce réglage en espérant y trouver des secondes qui n'y sont pas.
+            #
+            # 🔴 ~~« La transcription est identique au mot près. »~~ **FAUX, corrigé le 2026-08-15.**
+            # Cette phrase reposait sur **UN** énoncé de 4,3 s. Mesuré depuis sur **68** énoncés
+            # avec leur texte exact (`scripts/bench_stt_beam.py`) : beam 1 et beam 2 rendent un
+            # texte différent sur **22 d'entre eux**, et beam 1 est le moins bon des trois —
+            # 13,3 % de mots faux, contre 12,7 % (beam 2) et 12,4 % (beam 5).
+            #
+            # ⚠️ **Ce chiffre ne tranche PAS le réglage, et il ne doit pas servir à le trancher.**
+            # Le corpus est fait de narrations **Piper**, donc d'une voix de synthèse — que ce
+            # commentaire disait déjà ne pas être un test. Il établit une seule chose : l'écart
+            # entre les réglages **existe**, là où on le croyait nul. Sur une vraie voix il sera
+            # probablement plus grand, jamais plus petit.
+            #
+            # ⚠️ Et le taux absolu n'est pas un WER de Whisper : la référence est ce que Piper a
+            # reçu à dire, pas ce qu'il a réellement prononcé. Une mauvaise synthèse d'« hypoténuse »
+            # compte comme une faute de transcription. Seule la comparaison RELATIVE tient — les
+            # trois réglages ont entendu exactement le même son.
             #
             # ⚠️ Si la qualité se dégrade à l'oreille sur de vraies phrases de Massimo — jamais
-            # sur une voix de synthèse, qui articule trop bien pour être un test — le repli est
-            # `beam_size=2`, pas le retour à 5.
+            # sur une voix de synthèse — le repli est `beam_size=2`, pas le retour à 5.
             #
             # `condition_on_previous_text=False` : le conditionnement sur le texte précédent n'a
             # aucun sens sur un énoncé ISOLÉ (chaque dictée est indépendante) et il est une source

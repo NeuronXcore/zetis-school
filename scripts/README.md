@@ -9,7 +9,8 @@ Scripts utilitaires (setup, seed DB, backups).
 | `bench_llm.py` | compare vitesse et qualité des moteurs sur les vrais prompts (ADR-0008) |
 | `reorder_decisions.py` | remet `DECISIONS.md` en ordre |
 | `purge_chat_verbatim.py` | efface les mots dictés restés dans `ai_jobs` (ADR-0059 §18) |
-| `check_migration_drift.py` | mesure l'écart entre la révision d'une base et la tête du dépôt |
+| `check_migration_drift.py` | mesure l’écart entre la révision d’une base et la tête du dépôt |
+| `bench_stt_beam.py` | compare les réglages de décodage de la dictée sur les mêmes énoncés |
 
 ## `purge_chat_verbatim.py` — à passer sur chaque base
 
@@ -225,3 +226,48 @@ ne dit rien sur une seconde tête qui vient d'arriver sur `main`.
 > ⚠️ Il n'y a **aucune CI dans ce dépôt** (`.github/workflows/` n'existe pas). « Mettre ça en CI »
 > n'était pas une option : le verrou vit donc dans la suite de tests, que l'humain lance, et le
 > script se lance à la main. Le jour où une CI existera, les deux s'y branchent tels quels.
+
+## `bench_stt_beam.py` — juger le décodage glouton de la dictée
+
+**La dette qu'il sert** : `stt/provider.py` décode en **glouton** (`beam_size=1`) depuis
+l'ADR-0059, et la qualité n'avait été jugée que sur une voix de **synthèse** — qui articule trop
+bien pour être un test. Ce script compare plusieurs réglages sur les mêmes énoncés.
+
+```bash
+python scripts/bench_stt_beam.py ~/dictees-massimo/          # un dossier
+python scripts/bench_stt_beam.py voix.m4a --beams 1 2 5 --passes 3
+```
+
+Poser à côté de chaque audio un `.txt` **du même nom** contenant ce qui a été dit. Sans lui, le
+script voit que deux réglages diffèrent mais ne peut pas dire lequel a raison — et il le dit,
+plutôt que de laisser croire à un verdict. Sortie : `0` accord de beam 1 et 2 · `1` divergence ·
+`2` rien à mesurer.
+
+### Ce qui a été mesuré le 2026-08-15 — et ce que ça ne règle pas
+
+Corpus de **68 narrations de capsules** avec leur texte exact (1507 mots de référence) :
+
+| réglage | mots faux | taux |
+|---|---|---|
+| beam 1 — production | 200 | **13,3 %** |
+| beam 2 — le repli | 192 | **12,7 %** |
+| beam 5 — l'ancien défaut | 187 | **12,4 %** |
+
+🔴 **Cela corrige une affirmation qui était dans le code** : *« la transcription est identique au
+mot près »*, écrite sur la foi d'**un** énoncé de 4,3 s. Beam 1 et beam 2 divergent sur **22 des
+68**, et beam 1 est le moins bon des trois. L'écart entre réglages **existe**, là où on le croyait
+nul.
+
+⚠️ **Cela ne tranche PAS le réglage.** Le corpus est de la voix **Piper** — exactement ce que la
+dette exclut. Le résultat dit seulement que la question mérite d'être posée sur une vraie voix, où
+l'écart sera probablement plus grand, jamais plus petit.
+
+⚠️ **Le taux absolu n'est pas un WER de Whisper** : la référence est ce que Piper a *reçu* à dire,
+pas ce qu'il a *prononcé*. Une mauvaise synthèse d'« hypoténuse » compte comme une faute de
+transcription — d'où un taux élevé, et d'où le fait que seules les colonnes **entre elles** sont
+comparables : les trois réglages ont entendu le même son.
+
+**Ce qui reste à faire, et qui n'appartient qu'à un humain** : enregistrer 5 à 10 énoncés de
+Massimo — son téléphone, sa pièce, des mots de collège — écrire ce qu'il a dit, relancer. Il
+n'existe aucun enregistrement humain dans ce dépôt : les `.wav` de `storage/` sont des narrations
+Piper, et les jobs de dictée ne gardent que la **taille** de l'audio, jamais le son.
