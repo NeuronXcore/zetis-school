@@ -1,3 +1,14 @@
+---
+id: "0050"
+titre: "Le plan de préparation"
+type: surface
+statut: accepte
+date: 2026-08-10
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0017", "0018", "0024", "0025", "0049"]
+---
 # ADR-0050 — Le plan de préparation
 
 ## Statut
@@ -18,7 +29,7 @@ recommandation. C'était une décision de **produit**, pas de technique : elle t
 l'ADR-0025 sur le seul objet du dépôt où la preuve serait **disponible**. Elle ne se rediscute pas
 ici : on la **relit**.
 
-> Ce chantier est le **§8 rôle 1 de l'ADR-0025**, dont l'`adr-0025-addendum-lecon-a-apprendre`
+> Ce chantier est le **§8 rôle 1 de l'ADR-0025**, dont l'`adr-0025-agenda-scolaire` (Amendement 3)
 > §14.6 a écrit l'ordonnancement : il vient **après** le couplage 2, jamais avant, *« ses étapes
 > sont lire la fiche · mini-quiz · réviser les cartes du chapitre »*. Le couplage 2 a été livré le
 > 2026-08-10 (`adr-0049`, squash `117b632`). **La dépendance est levée le jour même.**

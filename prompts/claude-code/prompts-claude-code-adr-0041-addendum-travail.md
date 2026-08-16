@@ -1,7 +1,7 @@
 # Prompt — La ligne « Travail » dit ce qu'elle a produit (addendum ADR-0041)
 
 > **Une seule session.** Aucune migration, aucun endpoint neuf, aucun appel réseau supplémentaire.
-> Lis d'abord : `docs/decisions/adr-0041-addendum-le-travail-dit-ce-qu-il-a-produit.md`,
+> Lis d'abord : `docs/decisions/adr-0041-tout-ce-qui-produit-se-voit.md` (Amendement 1),
 > la spec `docs/frontend-papa/page-journal.md` `[0041-A]`, la maquette
 > `docs/frontend-papa/mockup/mockup-papa-journal-travail-v1.html`.
 

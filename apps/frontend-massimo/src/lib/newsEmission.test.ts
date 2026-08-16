@@ -168,7 +168,7 @@ describe("émission de NEWS_CHANGED_EVENT", () => {
       mindmaps: "lib/mindmaps.ts::markMindmapSeen",
       // ⚠️ EXCEPTION NOMMÉE : le témoin du diagnostic meurt du TRAVAIL, donc son extinction est
       // SERVEUR (la passation) et n'a aucun émetteur client. C'est la seule entrée légitime de
-      // cette forme — `adr-0030-addendum-temoin-diagnostic.md`.
+      // cette forme — `adr-0030-temoins-nouveaute-navigation.md` (Amendement 1).
       diagnostic: "serveur (passation) — exception nommée, meurt du travail",
     };
     expect(Object.keys(EMETTEURS).sort()).toEqual(Object.keys(EMPTY_NEWS).sort());

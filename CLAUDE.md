@@ -111,7 +111,9 @@ Utiliser uniquement `.env.example` pour documenter les variables d’environneme
 Le process de travail par chantier est décrit dans **`docs/WORKFLOW.md`** — source unique. À ne pas dupliquer ici. En résumé :
 
 - **Mono-chantier** : une seule branche / un seul chantier actif à la fois ; un hors-périmètre explicite dans chaque prompt. La dérive (« tant qu’on y est… ») est interdite : Claude Code s’arrête au bord du périmètre.
-- **Rituel de décision** : `mockup → spec → ADR → prompt`. Une décision figée dans un ADR ne se rediscute pas — Claude Code la **relit**, il ne la rouvre pas.
+- **Rituel de décision — mais d’abord, QUEL CAS ?** L’**ADR-0060** pose quatre cas dans un **ordre**, et la première réponse « oui » tranche : **rangement** (rien n’est décidé) → *aucun ADR* · **application** (la règle existe déjà) → *aucun ADR, mais on **cite** celui qu’on exécute* · **décision neuve** (une migration, ou l’annulation coûte plus d’un commit) → *ADR **AVANT** le code* · **surface** (rendu, libellé, gabarit) → *ADR **APRÈS** l’écran regardé*. ⚠️ **Le cas 2 est celui qu’on rate** : un chantier qui ne fait qu’exécuter une règle existante n’a pas besoin d’ADR — en écrire un fabrique une décision là où il n’y a qu’une dette.
+- **Dans le cas 3 seulement**, le rituel complet s’applique : `mockup → spec → ADR → prompt`, dans une session de cadrage à part. Une décision figée dans un ADR ne se rediscute pas — Claude Code la **relit**, il ne la rouvre pas.
+- 🔴 **`DECISIONS.md` est GÉNÉRÉ** (`scripts/gen_decisions_index.py`) — ne jamais l’éditer à la main. Écrire l’ADR, puis régénérer front-matter et index.
 - **Mémoire** : la conversation est volatile, le **dépôt** est permanent. Tout ce qui doit survivre à une fin de session s’écrit dans le repo :
   - `MEMORY.md` = raisonnement (fait / en cours / à faire / décisions actives / prochain pas), écrit pour un lecteur **sans contexte** ;
   - Git = état du code ;
@@ -121,7 +123,8 @@ Le process de travail par chantier est décrit dans **`docs/WORKFLOW.md`** — s
 
 Raccourcis Claude Code (`.claude/commands/`) :
 
-- **`/ouverture`** — nouveau chantier, depuis un `main` propre : vérifie que le cadrage **existe vraiment** (le fichier ADR, pas seulement sa ligne dans `DECISIONS.md`), crée `feat/<chantier>`, et fait poser **périmètre et hors-périmètre** avant la moindre ligne. **Ne committe pas.** S’arrête si un ADR manque — c’est arrivé le 2026-08-01.
+- **`/cadrage`** — 🔴 **cas 3 uniquement.** Écrit l’ADR sur `main`, sans une ligne de code, puis régénère l’index. S’arrête si le chantier n’est pas une décision neuve.
+- **`/ouverture`** — 🔴 **cas 3 uniquement, elle aussi.** Vérifie que le cadrage **existe vraiment** (le fichier ADR, pas seulement sa ligne d’index), crée `feat/<chantier>`, et fait poser **périmètre et hors-périmètre** avant la moindre ligne. **Ne committe pas.** S’arrête si un ADR manque — c’est arrivé le 2026-08-01. ⚠️ **Ne pas l’appeler pour un rangement, une application ou une surface** : elle exigerait un ADR qui ne doit pas exister, et bloquerait un chantier légitime — c’est arrivé le 2026-08-16. Ces chantiers-là partent **directement sur leur branche** (`chore/`, `fix/`, `feat/`), périmètre et hors-périmètre posés dans le premier message.
 - **`/slice <prompt>`** — exécution d’une slice, dans la cage du `WORKFLOW.md §2.3` : graphify, **read-before-code qui rend un RAPPORT de ce qui était faux**, stop-on-blocker, hors-périmètre, non-régression (un test modifié pour passer = régression masquée). **Elle porte la discipline ; le prompt ne porte plus que le chantier.** Le prompt de slice se colle juste après.
 - **`/cloture`** — fin de session (encore lucide) : met à jour `MEMORY.md` (+ `TROUBLESHOOTING.md` / `ARCHITECTURE.md` si nécessaire), remet la carte Graphify à jour, et rend la checklist 9 points. **Ne committe pas** : l’humain vérifie (tests, diff) puis committe. ⚠️ Après le merge, revenir remettre `MEMORY.md` au réel (étape **4bis**, `docs/WORKFLOW.md §5`).
 - **`/reprise`** — nouvelle session, contexte perdu : réoriente via Graphify, relit `MEMORY.md` et `git log`, reprend au « prochain pas » **sans recoder l’existant ni re-décider**.

@@ -1,6 +1,6 @@
 """Analyse d'UNE matière — l'évidence nommée derrière les compteurs du dashboard.
 
-Sert le panneau qui se déplie sous la carte « Où agir » (`adr-0028-addendum-analyse-par-matiere`).
+Sert le panneau qui se déplie sous la carte « Où agir » (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1)).
 L'agrégat du dashboard sait dire « 8 notions à renforcer » ; il ne sait pas dire **lesquelles**.
 C'est le seul manque que ce module comble.
 

@@ -836,7 +836,7 @@ is_consolidation   # re-tour de consolidation (2e passage même jour) — détec
 Un re-tour est le 2ᵉ passage de la **même carte le même jour**, sans effet sur la planification : le
 compter doublerait une révision qui n'a eu lieu qu'une fois. Appliqué par
 `dashboard/service.py::_review_attempts` (vue « Révisions » de la carte mémoire, addendum
-`adr-0028-addendum-memoire-quatre-vues`). Sur la base de dev, l'écart est de **1 sur 38**.
+`adr-0028-dashboard-papa-agregat-unique` (Amendement 3)). Sur la base de dev, l'écart est de **1 sur 38**.
 
 ### DocumentSource
 

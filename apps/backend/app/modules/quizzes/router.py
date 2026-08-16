@@ -174,7 +174,7 @@ def student_quiz_seen(quiz_id: int, db: Session = Depends(get_db)) -> Response:
 
     🔴 Distincte de `POST /quizzes/{id}/attempts` : commencer une tentative est du TRAVAIL, ouvrir
     est un REGARD. C'est le second qui éteint le témoin, et jamais le premier
-    (`adr-0030-addendum-temoin-quiz`, borne 1). Idempotente.
+    (`adr-0030-temoins-nouveaute-navigation` (Amendement 4), borne 1). Idempotente.
     """
     service.mark_quiz_seen(db, get_default_student(db).id, quiz_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

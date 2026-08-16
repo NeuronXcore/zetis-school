@@ -1,3 +1,14 @@
+---
+id: "0013"
+titre: "Génération et cycle de vie des cartes de révision (SRS)"
+type: mesure
+statut: accepte
+date: 2026-07-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0008", "0009", "0010", "0011", "0012"]
+---
 # ADR-0013 — Génération et cycle de vie des cartes de révision (SRS)
 
 ## Statut

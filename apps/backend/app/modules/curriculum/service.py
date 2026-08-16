@@ -1330,7 +1330,7 @@ def mark_lesson_seen(db: Session, student_id: int, lesson_id: int) -> None:
     doivent vivre ou tomber ensemble.
 
     ⚠️ **Depuis le 2026-08-15, c'est aussi le geste qui éteint le témoin de navigation Matières**
-    (`adr-0030-addendum-temoin-matieres`, borne 5). Déplacer ou conditionner cet appel éteint le
+    (`adr-0030-temoins-nouveaute-navigation` (Amendement 2), borne 5). Déplacer ou conditionner cet appel éteint le
     badge ; `new_matieres_count` ci-dessous est son miroir en lecture.
     """
     existing = db.scalar(
@@ -1366,7 +1366,7 @@ def _active_year_or_none(db: Session) -> SchoolYear | None:
 def new_matieres_count(db: Session, student_id: int) -> int:
     """Cours validés de l'année active JAMAIS OUVERTS — témoin de navigation.
 
-    `adr-0030 §3`, amendé par `adr-0030-addendum-temoin-matieres.md`. Le motif d'origine
+    `adr-0030 §3`, amendé par `adr-0030-temoins-nouveaute-navigation.md` (Amendement 2). Le motif d'origine
     (« Matières est un hub, un badge ici doublerait les autres ») rangeait le **cours** avec ses
     **dérivés** : fiche, capsule, mindmap et carte SRS sont produites *à partir* d'un cours validé
     (`adr-0011`) — le cours est l'original, et c'est le seul objet dont l'arrivée n'avait aucune

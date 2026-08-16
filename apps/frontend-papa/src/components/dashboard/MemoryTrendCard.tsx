@@ -537,7 +537,7 @@ function RetentionView({
 /** Vue « Solde » — le seul endroit du dashboard où une PERTE est visible.
  *
  *  ⚠️ Elle lit `skill_mastery_history`, pas les stocks reconstruits, et les deux ne se réconcilient
- *  pas. `adr-0028-addendum-kpi-a-renforcer §5 ter` avait écarté ce solde AU TITRE DU DELTA DE KPI,
+ *  pas. `adr-0028-dashboard-papa-agregat-unique (Amendement 2) §5 ter` avait écarté ce solde AU TITRE DU DELTA DE KPI,
  *  parce qu'il aurait contredit la sparkline dessinée à trois millimètres de lui. Ici il est une vue
  *  autonome, nommée, dont la note dit qu'elle ne compte pas comme le KPI. Le §5 ter n'est pas
  *  révoqué : il est borné à ce qu'il visait. */

@@ -41,9 +41,14 @@ et dis-moi laquelle des **trois** tu appliques.
 > pour lui.** Une session de cadrage vit sur `main`, ne livre rien, et produit **deux lots qui ne
 > vont pas au même endroit** (`WORKFLOW.md §2bis`) :
 >
+> ⚠️ **Il ne concerne que le cas 3 de l'`adr-0060`** (décision neuve). Un **rangement** (cas 1) et
+> une **application** (cas 2) n'ont **pas de session de cadrage** — ils se clôturent comme un
+> chantier FINI ou EN COURS, jamais dans cette colonne. Une **surface** (cas 4) écrit son ADR
+> **après** l'écran : sa clôture le porte, mais ce n'est pas un cadrage non plus.
+>
 > | Lot | Où | Quand |
 > |---|---|---|
-> | ADR + `DECISIONS.md` + `MEMORY.md` + `BACKLOG.md` | **`main`** | **avant** `/ouverture` |
+> | ADR + `DECISIONS.md` **régénéré** + `MEMORY.md` + `BACKLOG.md` | **`main`** | **avant** `/ouverture` |
 > | spec + maquettes + prompts | la **branche** | c'est `/ouverture` qui la crée et rend la commande |
 >
 > ⚠️ **L'ordre n'est pas décoratif** : `/ouverture` **s'arrête** s'il voit `DECISIONS.md` modifié
@@ -117,9 +122,17 @@ et dis-moi laquelle des **trois** tu appliques.
    | `docs/frontend-*/page-*.md` | l'écran concerné change de comportement |
 
 4. **Ne touche PAS** : `ROADMAP.md`, `CLAUDE.md`.
-   `CHANGELOG.md` **seulement** si cette session termine une slice livrable — mais alors, fais-le.
+   ⚠️ `CLAUDE.md` est hors de la **clôture**, pas intouchable : un chantier qui **applique une
+   décision aux fichiers de méthode** le corrige — c'est arrivé le 2026-08-17.
+   `CHANGELOG.md` : 🔴 **une entrée si un COMPORTEMENT change, pas si des fichiers bougent.**
+   Critère tranché **par l'usage** après quatre clôtures qui l'avaient contourné : un rangement de
+   documentation n'en a pas ; le même rangement qui **corrige une régression** en a une. Il ne
+   s'agit donc pas de « slice livrable » — un chantier d'outillage peut en mériter une.
+   ⚠️ **Ce critère commande le contrôle 3 de l'élagage** (1bis) : sans entrée `CHANGELOG`, une
+   section de `MEMORY.md` ne peut pas être supprimée.
    `DECISIONS.md` est normalement déjà à jour (il s'écrit au **cadrage**, pas à la clôture) :
-   vérifie-le, ne le réécris pas.
+   vérifie-le, ne le réécris pas. 🔴 **Il est GÉNÉRÉ** (`scripts/gen_decisions_index.py`) — s'il
+   diverge, on **relance le script**, on ne recopie pas une ligne.
    ⚠️ **Sauf en session de CADRAGE, où c'est exactement l'inverse** : c'est cette session-là qui
    l'écrit. Vérifie alors que la ligne d'index existe **et** que le fichier ADR qu'elle nomme existe
    pour de bon — *une ligne d'index n'est pas une décision, c'est un renvoi vers une décision*

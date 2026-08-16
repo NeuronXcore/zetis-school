@@ -50,7 +50,7 @@ export function HomeAgendaBanner() {
         .then((rows) => setUpcoming(bannerUpcoming(rows)))
         .catch(() => setUpcoming([])),
     ])
-      // 🔴 CE BANDEAU NE MARQUE PLUS L'AGENDA VU — `adr-0025-addendum-le-regard-vit-a-l-agenda`
+      // 🔴 CE BANDEAU NE MARQUE PLUS L'AGENDA VU — `adr-0025-agenda-scolaire` (Amendement 7)
       // (2026-08-15), qui RÉVOQUE le second point d'écriture du §12.3.
       //
       // Il le faisait ici, dans ce `finally`. Massimo atterrissant sur l'Accueil, le témoin de

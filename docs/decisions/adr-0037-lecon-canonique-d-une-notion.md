@@ -1,3 +1,14 @@
+---
+id: "0037"
+titre: "« La leçon d'une notion » : trois règles, trois réponses, un substrat"
+type: architecture
+statut: propose
+date: 2026-08-03
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0024", "0031", "0032", "0035", "0036"]
+---
 # ADR-0037 — « La leçon d'une notion » : trois règles, trois réponses, un substrat
 
 ## Statut

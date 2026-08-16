@@ -15,7 +15,7 @@ Lance d'abord `graphify update .`, puis lis, dans cet ordre, avant toute ligne d
 
 1. `CLAUDE.md` (règles générales + dérogation cloud `curriculum_*` déjà en vigueur) ;
 2. `docs/decisions/adr-0009-referentiel-programme-scolaire.md` §1–§3 **et son addendum
-   `adr-0009-addendum-cours-canonique.md` en entier** — c'est la spécification de cette
+   `adr-0009-referentiel-programme-scolaire.md` (Amendement 1) en entier** — c'est la spécification de cette
    étape (§B du addendum = le modèle exact de `lesson_skills`, §C = le contrat de
    résolution que cette table doit servir, §E = le rattachement migration) ;
 3. `DATA_MODEL.md` (sections `Lesson`, `Skill`, `LearningObjective`, « Relations clés »),

@@ -29,10 +29,14 @@ zetis/
 ├── .env.example
 ├── docker-compose.yml · .prod.yml · .example.yml
 ├── package.json             # workspace pnpm
+├── .github/workflows/       # CI — les 3 suites + les verrous du dépôt, à chaque PR
 ├── .claude/                 # outillage Claude Code
 │   ├── commands/            # /cloture, /reprise…
 │   ├── launch.json          # serveurs de dev appairés (backend + front, CORS)
 │   └── settings.json · settings.local.json
+├── hooks/                   # hooks git VERSIONNÉS — installés par lien, une fois par clone
+│   ├── pre-push             # refuse un push si les trois suites ne sont pas vertes
+│   └── README.md            # installation, motif, et ce que le hook ne fait PAS
 ├── apps/
 │   ├── frontend-massimo/    # interface enfant (React + Vite)
 │   │   ├── index.html · vite.config.ts · package.json

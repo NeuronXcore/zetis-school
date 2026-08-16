@@ -1,3 +1,14 @@
+---
+id: "0005"
+titre: "Capsules IA progressives"
+type: surface
+statut: accepte
+date: null
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: []
+---
 # ADR-0005 — Capsules IA progressives
 
 ## Statut

@@ -13,8 +13,8 @@ que le figeage n'a rien changé à ce qui s'affiche.
 Protocole d'exécution : **`/slice`** (graphify, read-before-code avec rapport, stop-on-blocker,
 hors-périmètre, non-régression). Il ne se répète pas ici.
 
-Décisions, à lire **avant** : `docs/decisions/adr-0034-addendum-tri-et-filtre-du-journal.md` (ce qui
-est livré), `docs/decisions/adr-0034-addendum-regime-et-destination.md` (ce qui est **révoqué et ce
+Décisions, à lire **avant** : `docs/decisions/adr-0034-journal-production-et-veto.md` (Amendement 2) (ce qui
+est livré), `docs/decisions/adr-0034-journal-production-et-veto.md` (Amendement 1) (ce qui est **révoqué et ce
 qui ne l'est pas** — §5 de l'addendum de ce chantier), `docs/decisions/adr-0037-lecon-canonique-d-une-notion.md`
 (le résolveur unique). Spec : `docs/frontend-papa/page-journal.md`.
 

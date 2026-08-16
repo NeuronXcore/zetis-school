@@ -1,3 +1,14 @@
+---
+id: "0055"
+titre: "Les deux étapes qui manquent"
+type: surface
+statut: propose
+date: 2026-08-14
+pr: 125
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0015", "0054"]
+---
 # ADR-0055 — Les deux étapes qui manquent
 
 ## Statut

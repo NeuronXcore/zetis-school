@@ -27,7 +27,7 @@
   **Constat read-before-code** : il dit ce que l'ADR-0025 §11 avait d'incomplet ;
 - `docs/decisions/adr-0025-agenda-scolaire.md` **§11 couplage 2** — l'invariant, qui ne se rouvre
   pas : *ne jamais avancer les cartes SRS* ;
-- `docs/decisions/adr-0025-addendum-lecon-a-apprendre.md` **§14.6** — l'interdiction du bouton mort,
+- `docs/decisions/adr-0025-agenda-scolaire.md` (Amendement 3) **§14.6** — l'interdiction du bouton mort,
   que ce chantier lève **en construisant ce qu'elle protégeait** ;
 - `docs/frontend-massimo/page-revision.md` — les passages marqués **`[0049]`**, dont le
   §« Hors périmètre V1 » **amendé** (l'objection *blocked practice* est répondue, pas effacée) ;
@@ -260,5 +260,5 @@ n'est pas celui du viewport. **Mesure dans le DOM**, et regarde sur un vrai écr
 - `/cloture`, puis **l'humain vérifie et committe**.
 - ⚠️ **Après le merge : étape 4bis** (`docs/WORKFLOW.md §5`) — remettre `MEMORY.md` au réel **et
   éteindre l'annonce « à faire »** partout où ce chantier était promis : `DECISIONS.md`,
-  `adr-0025-addendum-lecon-a-apprendre.md` §14.6 (*« livré à 0 % »* devient faux), et le
+  `adr-0025-agenda-scolaire.md` (Amendement 3) §14.6 (*« livré à 0 % »* devient faux), et le
   §« Hors périmètre V1 » de `page-revision.md`.

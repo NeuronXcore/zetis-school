@@ -1,3 +1,14 @@
+---
+id: "0052"
+titre: "La mindmap prend la place qu'elle demande"
+type: surface
+statut: propose
+date: 2026-08-12
+pr: 117
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0016", "0024"]
+---
 # ADR-0052 — La mindmap prend la place qu'elle demande
 
 ## Statut

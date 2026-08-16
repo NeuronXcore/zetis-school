@@ -1,3 +1,14 @@
+---
+id: "0014"
+titre: "Moteur de quiz unifié (formats, correction, doctrine de validation)"
+type: architecture
+statut: accepte
+date: 2026-07-05
+pr: null
+revoque: []        # à remplir à la main — voir annexes/rapport-revocations.md
+revoque_par: []
+refs: ["0011"]
+---
 # ADR-0014 — Moteur de quiz unifié (formats, correction, doctrine de validation)
 
 ## Statut
