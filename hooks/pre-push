@@ -1,0 +1,99 @@
+#!/bin/sh
+# Refuse un `git push` si les trois suites ne sont pas vertes.
+#
+# ╭─ CE QU'IL EST, ET CE QU'IL N'EST PAS ─────────────────────────────────────╮
+# │ Il EXÉCUTE une règle qui existe déjà — `docs/WORKFLOW.md` §2, étape 4 :   │
+# │   « toi : tu lances les tests (jamais confiance au "c'est vert"), tu      │
+# │     relis le diff, tu vérifies que le périmètre a tenu. C'est la seule    │
+# │     étape non délégable. »                                                │
+# │                                                                           │
+# │ 🔴 IL N'AUTOMATISE QU'UN TIERS DE CETTE ÉTAPE. Relire le diff et vérifier │
+# │ le périmètre restent entièrement à l'humain, et un push vert ne dit RIEN  │
+# │ sur ces deux-là. Ne pas lire son ✅ comme « l'étape 4 est faite ».        │
+# ╰───────────────────────────────────────────────────────────────────────────╯
+#
+# Pourquoi il existe (2026-08-16, motif mesuré et non supposé) : le rangement du
+# registre (PR #136) a supprimé 46 fichiers de documentation, et l'un d'eux était
+# nommé dans un littéral de `test_news_doctrine.py` passé à `is_file()`. **La suite
+# backend est restée ROUGE sur `main` pendant une heure, entre deux PR vertes.**
+# Trois filets ont laissé passer : `check_adr_refs.sh` ne teste que `ADR-\d{4}`
+# jamais un chemin, le dépôt n'a AUCUNE CI, et la clôture disait « aucune ligne de
+# code applicatif » — vrai, mais un test lisait le registre.
+#
+# Fichier VERSIONNÉ (`hooks/pre-push`) : il se relit, se diffe et survit à un
+# reclone. Installation, une fois par clone :
+#
+#     ln -sf ../../hooks/pre-push .git/hooks/pre-push
+#
+# ⚠️ **Volontairement PAS via `git config core.hooksPath`** : ce réglage remplace
+# tout `.git/hooks/`, et éteindrait le `pre-commit` local qui nettoie les
+# `.DS_Store` — un hook dont l'en-tête justifie explicitement de ne pas être
+# versionné. Un lien n'oblige aucune des deux décisions à céder.
+#
+# Échappatoire assumée : `git push --no-verify`. Elle existe pour les cas où la
+# branche PORTE le rouge à dessein (`fix/observation-sorties` a trois tests rouges
+# par construction, ils décrivent un défaut non corrigé). L'utiliser doit être un
+# geste conscient, pas une habitude.
+
+set -u
+
+RACINE=$(git rev-parse --show-toplevel) || exit 1
+cd "$RACINE" || exit 1
+
+# --- Ne rien lancer pour une suppression de branche --------------------------
+# git alimente stdin avec « <ref locale> <sha local> <ref distante> <sha distant> ».
+# Une suppression porte un sha local tout à zéro : y jouer 40 s de tests serait
+# absurde. Si TOUTES les lignes sont des suppressions, on sort.
+zero='0000000000000000000000000000000000000000'
+a_pousser=0
+while read -r _ sha_local _ _; do
+  [ "$sha_local" = "$zero" ] || a_pousser=1
+done
+if [ "$a_pousser" -eq 0 ]; then
+  echo "pre-push : suppression de branche seule — aucune suite lancée."
+  exit 0
+fi
+
+echec=0
+rouge() { printf '\033[31m%s\033[0m\n' "$1"; }
+vert()  { printf '\033[32m%s\033[0m\n' "$1"; }
+
+# --- Une suite ---------------------------------------------------------------
+# 🔴 Un outil ABSENT est un ÉCHEC, jamais un saut. Un hook qui passe au vert
+# parce qu'il n'a pas pu mesurer est strictement pire que pas de hook : il
+# transforme « je ne sais pas » en « c'est bon ».
+suite() {
+  nom=$1; dossier=$2; binaire=$3; shift 3
+  printf '  %-18s ' "$nom"
+  if [ ! -x "$dossier/$binaire" ] && ! command -v "$binaire" >/dev/null 2>&1; then
+    rouge "OUTIL ABSENT ($binaire) — impossible de mesurer"
+    echec=1
+    return
+  fi
+  sortie=$(cd "$dossier" && "$@" 2>&1)
+  if [ $? -eq 0 ]; then
+    vert "$(printf '%s' "$sortie" | grep -Eo '[0-9]+ (passed|tests?)' | tail -1)"
+  else
+    rouge 'ROUGE'
+    printf '%s\n' "$sortie" | tail -25 | sed 's/^/      /'
+    echec=1
+  fi
+}
+
+echo 'pre-push : les trois suites (≈ 40 s) — "git push --no-verify" pour passer outre.'
+
+suite 'backend'  "$RACINE/apps/backend"          '.venv/bin/python' .venv/bin/python -m pytest -q
+suite 'massimo'  "$RACINE/apps/frontend-massimo" 'npx'              npx vitest run --reporter=dot
+suite 'papa'     "$RACINE/apps/frontend-papa"    'npx'              npx vitest run --reporter=dot
+
+if [ "$echec" -ne 0 ]; then
+  echo
+  rouge 'PUSH REFUSÉ — une suite est rouge, ou n’a pas pu être mesurée.'
+  echo  '  Réparer, ou assumer explicitement : git push --no-verify'
+  exit 1
+fi
+
+echo
+vert 'Les trois suites sont vertes.'
+echo '  ⚠️ Le diff et le périmètre, eux, ne sont PAS vérifiés — WORKFLOW.md §2 étape 4.'
+exit 0
