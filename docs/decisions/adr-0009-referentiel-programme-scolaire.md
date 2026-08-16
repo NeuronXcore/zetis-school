@@ -262,7 +262,7 @@ maths cycle 4 avec repères annuels / SVT sans repères). Scorage humain
 (Papa, BO 2020 + repères 2019 ouverts, pré-analyse assistant validée),
 synthétisé dans le tableau ci-dessous. Les sorties brutes des runs sont
 archivées de façon versionnée dans
-`docs/decisions/annexes/adr-0009-bench-t4-curriculum-2026-07-03.md`
+`docs/decisions/annexes/bench-t4-curriculum-2026-07-03.md`
 (`scratchpad/` étant git-ignoré) — pièce de référence de cette décision, à ne
 plus régénérer (tout re-run futur : `--out` daté).
 
