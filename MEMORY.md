@@ -6,15 +6,22 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER COMPLET — La CI, et les deux défauts qu'elle a trouvés (`fix/ci-github-actions`, 2026-08-16)
+### ✅ CHANTIER MERGÉ — La CI, et les deux défauts qu'elle a trouvés (PR #139, squash `314f336`, 2026-08-16)
 
 **Application** au sens ADR-0060 **cas 2** — aucun ADR. Règle exécutée : `docs/WORKFLOW.md` §2
 étape 6, *« la PR est la porte de revue matérialisée, **avant** que le code n'entre dans `main` »*.
 
-**Branche** `fix/ci-github-actions`, **base `3598566`** (vérifié : `git merge-base main HEAD`).
-**COMPLET — commité et poussé, [PR #139](https://github.com/NeuronXcore/zetis-school/pull/139)
-OUVERTE et VERTE.** La clôture ajoute un dernier commit.
-Pour les têtes : `git log --oneline main..HEAD`.
+**Mergé en squash le 2026-08-16** : [PR #139](https://github.com/NeuronXcore/zetis-school/pull/139),
+7 fichiers. Base du chantier : `3598566`.
+
+**Vérifié APRÈS le merge** : `main` == `origin/main` == `314f336` · copie propre · **la CI a tourné
+sur `main`, déclenchée par `push`, et elle est VERTE** (run `31959418150`). Les **deux** triggers
+sont donc éprouvés — `pull_request` l'avait été trois fois sur la branche, `push` ne l'avait jamais
+été.
+
+⚠️ **`fix/ci-github-actions` n'est PAS supprimée** (local + `origin`). Avant de la supprimer,
+comparer à **`314f336`**, PAS à la tête de `main` : le piège s'est présenté sur les #136, #137
+et #138, à l'identique les trois fois.
 
 #### 🔴 CE QU'ELLE A TROUVÉ EN ARRIVANT — deux tests verts pour la mauvaise raison
 
@@ -176,24 +183,24 @@ premier défaut du dépôt dont la vérification est **structurellement hors de 
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff.** Deux commits déjà poussés (la CI + les deux correctifs de tests), plus
-   celui de cette clôture. Le point à relire en priorité :
-   `apps/backend/app/tests/test_auth.py` — la fixture y surcharge **`get_db` seulement**, et ce
-   choix est la décision active n°2.
-2. **Merger la PR #139 en squash**, puis l'étape **4bis**.
-3. Puis, par ordre de valeur :
-   - 🔴 **Activer une *required check*** — c'est le geste qui transforme la CI en verrou. **Cas 3
-     ADR-0060 : il demande son ADR**, parce qu'il change qui peut merger et ne s'annule pas en un
-     commit ;
-   - **balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
-     des frères, et la CI ne les dira que s'ils touchent un service ;
-   - **l'application de l'ADR-0060** à `WORKFLOW.md`, `cadrage.md`, `ouverture.md`, `CLAUDE.md`,
-     en y portant **quatre** choses écrites nulle part d'officiel : la mention du hook ET de la CI
-     au §2, la règle du `CHANGELOG`, la parade « comparer au squash jamais à `main` », et la preuve
-     d'autonomie par coupure de service ;
-   - **`SOCLE.md`** et le déplacement des ADR de surface ;
-   - les deux branches parquées, dont `fix/observation-sorties` (3 tests rouges par construction —
-     son push exigera `--no-verify`, et **la CI la rendra rouge sur sa PR**, ce qui est correct).
+Le chantier est **clos et mergé**, et l'arc des quatre chantiers du 2026-08-16 est terminé :
+la **#136** a introduit une régression, la **#137** l'a réparée, la **#138** a posé le filet local,
+la **#139** a posé le filet distant — **et ce dernier a immédiatement trouvé deux défauts que les
+trois précédents n'avaient pas vus.**
+
+Par ordre de valeur :
+- 🔴 **Activer une *required check*** — c'est le geste qui transforme la CI en verrou. **Cas 3
+  ADR-0060 : il demande son ADR**, parce qu'il change qui peut merger et ne s'annule pas en un
+  commit ;
+- **balayer les autres `TestClient(app)` hors fixture** — le défaut de `test_auth.py` peut avoir
+  des frères, et la CI ne les dira que s'ils touchent un service ;
+- **l'application de l'ADR-0060** à `WORKFLOW.md`, `cadrage.md`, `ouverture.md`, `CLAUDE.md`,
+  en y portant **quatre** choses écrites nulle part d'officiel : la mention du hook ET de la CI
+  au §2, la règle du `CHANGELOG`, la parade « comparer au squash jamais à `main` », et la preuve
+  d'autonomie par coupure de service ;
+- **`SOCLE.md`** et le déplacement des ADR de surface ;
+- les deux branches parquées, dont `fix/observation-sorties` (3 tests rouges par construction —
+  son push exigera `--no-verify`, et **la CI la rendra rouge sur sa PR**, ce qui est correct).
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
 base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · un venv de contrôle
