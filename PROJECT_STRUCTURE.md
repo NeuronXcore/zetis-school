@@ -29,6 +29,7 @@ zetis/
 ├── .env.example
 ├── docker-compose.yml · .prod.yml · .example.yml
 ├── package.json             # workspace pnpm
+├── .github/workflows/       # CI — les 3 suites + les verrous du dépôt, à chaque PR
 ├── .claude/                 # outillage Claude Code
 │   ├── commands/            # /cloture, /reprise…
 │   ├── launch.json          # serveurs de dev appairés (backend + front, CORS)

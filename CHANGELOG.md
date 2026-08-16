@@ -1,5 +1,24 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.97.0 — Une CI, et les deux défauts qu'elle a trouvés en arrivant
+
+Rien ne change pour Massimo ni pour Papa. En revanche, la suite de tests devient enfin **jouable
+par quiconque clone le dépôt** — ce qu'elle n'était pas.
+
+- **`.github/workflows/ci.yml`** — les trois suites et les verrous du dépôt à chaque PR, sans aucun
+  service. Le job `verrous` rejoue `check_adr_refs.sh`, la syntaxe du hook, l'absence de backtick
+  hors commentaire et le mode `100755`.
+- 🔴 **Deux tests d'authentification exigeaient un vrai PostgreSQL.** `test_auth.py` construisait
+  son `TestClient` au niveau module, sans fixture : `get_db` n'était pas surchargé. Ils étaient
+  verts sur la machine de développement **parce que `docker compose` y tourne**, et rouges partout
+  ailleurs. Ils tournent désormais sur SQLite en mémoire, comme les 1382 autres.
+- 🔴 **Un test de voix cassait sous Node 20.** Il mêlait le `Blob` de jsdom et le `Response`
+  d'undici ; vert sous Node 24 (la machine de dev), rouge sous le plancher que `engines.node`
+  annonce. Corrigé par un corps en `Uint8Array` — **prouvé par la CI seule**, aucun Node 20
+  n'existant en local.
+- ⚠️ **La CI ne bloque rien.** Sans *required check*, un rouge se voit mais n'empêche pas le merge.
+  Activer ce réglage change qui peut merger : c'est une décision, laissée à l'humain.
+
 ## 0.96.0 — Un verrou avant le push
 
 Rien ne change pour Massimo ni pour Papa. Le dépôt gagne le garde-fou dont l'absence avait laissé

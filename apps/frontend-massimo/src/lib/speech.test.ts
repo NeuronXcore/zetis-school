@@ -43,8 +43,23 @@ describe("speak (voix backend Piper)", () => {
 
   it("récupère l'audio TTS et le joue si le son est activé", async () => {
     vi.mocked(isSoundEnabled).mockReturnValue(true);
+    // 🔴 Corps en `Uint8Array`, PAS en `Blob` — et ce n'est pas un détail de style.
+    //
+    // `new Response(new Blob(…))` mélange deux implémentations : le `Blob` vient de jsdom, le
+    // `Response` vient d'undici. Sous **Node 20**, undici appelle `object.stream()` sur le corps
+    // et le `Blob` de jsdom ne l'expose pas → `TypeError: object.stream is not a function`.
+    // Sous Node 24 les globales s'alignent et le test passe. Il était donc vert en local
+    // (Node 24) et ROUGE en CI (Node 20, le plancher que `engines.node` annonce) — révélé par la
+    // première CI, le 2026-08-16.
+    //
+    // Un `Uint8Array` est un `BufferSource` : undici le consomme sans passer par jsdom, quelle que
+    // soit la version. `res.blob()` rend ensuite un vrai `Blob`, et `URL.createObjectURL` est
+    // stubé plus haut — l'identité de l'objet n'entre dans aucune assertion.
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }), { status: 200 }),
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "content-type": "audio/wav" },
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
     stubAudio();

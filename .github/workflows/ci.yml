@@ -1,0 +1,126 @@
+# CI — les trois suites et les verrous du dépôt, à chaque PR.
+#
+# ╭─ CE QU'ELLE EST, ET CE QU'ELLE N'EST PAS ─────────────────────────────────╮
+# │ Elle EXÉCUTE une règle qui existe déjà — `docs/WORKFLOW.md` §2 étape 6 :  │
+# │   « la PR est la porte de revue matérialisée, AVANT que le code n'entre   │
+# │     dans main. »                                                          │
+# │                                                                           │
+# │ 🔴 ELLE NE BLOQUE RIEN PAR ELLE-MÊME. Un check rouge se voit sur la PR    │
+# │ mais n'empêche pas le merge tant qu'aucune *required check* n'est activée │
+# │ dans les réglages du dépôt. Ce réglage-là ne s'annule pas en un commit et │
+# │ change qui peut merger : c'est une DÉCISION (ADR-0060 cas 3), pas ce      │
+# │ chantier-ci. Volontairement laissé à l'humain.                            │
+# ╰───────────────────────────────────────────────────────────────────────────╯
+#
+# Pourquoi elle existe, et le motif est mesuré : le 2026-08-16, la PR #136 a été
+# mergée VERTE alors que la suite backend était ROUGE — un fichier de doc supprimé
+# était nommé dans un littéral passé à `is_file()`. Rien ne l'a vu : le verrou de
+# références ne teste que `ADR-\d{4}` jamais un chemin, et il n'y avait aucune CI.
+# `hooks/pre-push` a posé un premier filet, mais il est LOCAL et contournable par
+# `--no-verify` : il ne protège que les machines où le lien a été installé.
+#
+# ⚠️ Dépôt PRIVÉ : chaque run consomme des minutes GitHub Actions. D'où
+# `concurrency` (un push qui en remplace un autre annule le précédent) et des
+# caches sur pip et le store pnpm.
+#
+# 🔴 AUCUN SERVICE n'est nécessaire, et c'est vérifié : la suite backend tourne sur
+# SQLite en mémoire (`conftest.py` : `create_engine("sqlite://", …)`) et une fixture
+# `autouse` INTERDIT toute connexion Redis. Ni Postgres, ni Redis, ni MinIO.
+#
+# 🔴 Les extras `stt` et `tts` ne sont PAS installés, et c'est mesuré : la suite
+# passe à 1384 tests dans un venv neuf ne portant que `.[dev]` — `faster_whisper`
+# et `piper` absents. Le vert local ne le prouvait pas (ils y sont installés).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Un nouveau push sur la même réf annule le run précédent : sur un dépôt privé,
+# les minutes se paient.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend — pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Le plancher du projet est 3.11 (`requires-python`), la machine de dev
+          # tourne en 3.12 : on mesure ce qui est réellement utilisé.
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/backend/pyproject.toml
+
+      - name: Installer le backend (dev seulement, sans stt/tts)
+        working-directory: apps/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: pytest
+        working-directory: apps/backend
+        run: python -m pytest -q
+
+  frontends:
+    name: frontends — vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # La version vient de `packageManager` dans package.json (pnpm@9.12.0) :
+        # ne pas la répéter ici, elle divergerait en silence.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'   # `engines.node: >=20`
+          cache: pnpm
+
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+
+      - name: vitest — frontend Massimo
+        run: pnpm --filter @zetis/frontend-massimo exec vitest run --reporter=dot
+
+      - name: vitest — frontend Papa
+        run: pnpm --filter @zetis/frontend-papa exec vitest run --reporter=dot
+
+  verrous:
+    name: verrous du dépôt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check_adr_refs.sh — tout ADR-00XX cité doit exister
+        run: bash scripts/check_adr_refs.sh
+
+      - name: hooks/pre-push — syntaxe, et aucune substitution accidentelle
+        # 🔴 Un hook n'a pas de suite de tests. Le seul contrôle mécanique possible
+        # est celui-ci, et il vient d'un vrai incident : des backticks dans une
+        # chaîne à guillemets DOUBLES s'exécutent — la première version du hook
+        # aurait lancé `git push --no-verify` depuis le hook de push.
+        run: |
+          sh -n hooks/pre-push
+          if grep -n '`' hooks/pre-push | grep -qv '^[0-9]*:#'; then
+            echo "🔴 backtick hors commentaire dans hooks/pre-push — substitution de commande"
+            grep -n '`' hooks/pre-push | grep -v '^[0-9]*:#'
+            exit 1
+          fi
+
+      - name: hooks/pre-push est exécutable (100755)
+        # Un hook versionné en 100644 s'installe sans erreur et ne s'exécute jamais.
+        run: |
+          mode=$(git ls-files -s hooks/pre-push | cut -d' ' -f1)
+          [ "$mode" = "100755" ] || { echo "🔴 hooks/pre-push est en $mode, attendu 100755"; exit 1; }
