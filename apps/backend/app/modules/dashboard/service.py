@@ -631,7 +631,7 @@ def _reading(
                         #
                         # Le comptage reste celui des fragiles — il est juste, et c'est la mesure
                         # la plus fournie. C'est la CIBLE qui change : le panneau d'analyse est le
-                        # seul endroit qui les nomme (`adr-0028-addendum-analyse-par-matiere` §6).
+                        # seul endroit qui les nomme (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1) §6).
                         "href": f"/?subject={subject['slug']}&panel=ou-agir",
                     },
                 }

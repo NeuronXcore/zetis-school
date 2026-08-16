@@ -1,5 +1,25 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.95.0 — Le registre devient un seul fichier par décision, et un test rouge sort de l'ombre
+
+Rien ne change pour Massimo ni pour Papa : c'est du rangement, et une régression qu'il a révélée.
+
+- **Un ADR = un fichier.** Les 46 addendums deviennent des `## Amendement N` de leur parent, avec
+  un tableau récapitulatif en tête. Le registre passe de **105 à 60 fichiers**, `DECISIONS.md` de
+  **1180 à 89 lignes** — un index qui renvoie, au lieu d'un second exemplaire de chaque décision.
+  Les numéros ne bougent pas ; aucun renvoi `ADR-00XX` ne casse.
+- **L'ordre des amendements ne suit plus le nom de fichier** mais le rang que chaque document
+  déclare lui-même. Le tri alphabétique plaçait le **révoquant avant le révoqué** sur quatre
+  groupes de dates ex-æquo.
+- **`ADR-0033` existe enfin**, en statut *Abandonné* : cité par cinq documents et sans fichier
+  depuis toujours, il refermait un trou que le verrou signalait à chaque passage.
+- 🔴 **Une régression corrigée, qu'aucun filet n'avait vue.** Supprimer les fichiers d'addendum a
+  rendu **rouge** un test qui vérifie qu'une dérogation cite un ADR existant. Le verrou de
+  références était vert (il ne teste que `ADR-00XX`, jamais un chemin), la PR était verte (le dépôt
+  n'a pas de CI), et la clôture disait « aucun test lancé, aucune ligne de code » — c'était vrai,
+  mais un test **lisait le registre**. Les **233 renvois** vers des fichiers supprimés sont
+  redirigés, code applicatif compris.
+
 ## 0.94.0 — Trois témoins de plus, et un regard qui change de place
 
 Quatre entrées de la barre de Massimo n'annonçaient rien quand quelque chose arrivait pour lui.

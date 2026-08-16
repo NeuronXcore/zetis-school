@@ -8,7 +8,7 @@ Create Date: 2026-08-15
 sœurs sur la même tête donnent deux têtes Alembic, silencieusement, et l'entrypoint de production
 fait `upgrade head` au démarrage.
 
-Table de vue (`adr-0030-addendum-temoin-quiz.md`), calque de `mindmap_views`.
+Table de vue (`adr-0030-temoins-nouveaute-navigation.md` (Amendement 4)), calque de `mindmap_views`.
 
 🔴 **« Ouvert », jamais « passé ».** Le témoin qui en vit meurt de l'OUVERTURE. La forme
 INTERDITE — compter les quiz non passés — était gratuite : `QuizAttempt.completed_at` existe

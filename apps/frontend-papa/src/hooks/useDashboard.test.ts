@@ -13,7 +13,7 @@ import { useDashboard } from "./useDashboard";
 //
 // Ce fichier garde UNE propriété, et elle est mécanique : **un patch FUSIONNE dans l'URL courante
 // au lieu de la remplacer**. C'est ce qui permettra au panneau d'analyse d'écrire `subject` et
-// `panel` ensemble (`adr-0028-addendum-analyse-par-matiere` §3), en UN seul appel.
+// `panel` ensemble (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1) §3), en UN seul appel.
 //
 // 🔴 Ce que ces tests NE peuvent PAS garder, et qu'il faut savoir avant d'écrire la slice C :
 // **deux appels successifs à `patchParams` dans le même tick en perdent toujours un.** Ce n'est

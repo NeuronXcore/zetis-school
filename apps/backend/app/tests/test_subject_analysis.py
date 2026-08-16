@@ -1,4 +1,4 @@
-"""Analyse d'une matière (`adr-0028-addendum-analyse-par-matiere`) : un test par invariant.
+"""Analyse d'une matière (`adr-0028-dashboard-papa-agregat-unique` (Amendement 1)) : un test par invariant.
 
 Ce que ces tests protègent tient en une phrase : **le panneau ne peut pas contredire les surfaces
 qui existent déjà.** Il nomme les notions que l'agrégat compte, et il les compte comme `/lacunes`

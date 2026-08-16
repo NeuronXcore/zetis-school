@@ -55,7 +55,7 @@ FORBIDDEN_TOKENS = (
 #: ⚠️ **Une entrée ici est une DÉROGATION, pas une configuration.** N'en ajouter une qu'avec un
 #: ADR qui la nomme — sinon ce dictionnaire devient la porte de sortie du verrou qu'il borne.
 DEROGATIONS = {
-    "diagnostic": "adr-0030-addendum-temoin-diagnostic.md",
+    "diagnostic": "adr-0030-temoins-nouveaute-navigation.md",
 }
 
 
@@ -629,7 +629,7 @@ def test_le_temoin_quiz_meurt_de_l_OUVERTURE_et_pas_deux_fois(client_db) -> None
 
 
 def test_le_temoin_quiz_ignore_les_TENTATIVES(client_db) -> None:
-    """🔴 BORNE 1 de `adr-0030-addendum-temoin-quiz` — le compteur ne regarde jamais `QuizAttempt`.
+    """🔴 BORNE 1 de `adr-0030-temoins-nouveaute-navigation` (Amendement 4) — le compteur ne regarde jamais `QuizAttempt`.
 
     Un quiz PASSÉ mais jamais marqué ouvert reste compté ; un quiz OUVERT et jamais passé ne l'est
     plus. C'est exactement l'inverse de ce que ferait un compteur d'arriéré, et c'est ce qui

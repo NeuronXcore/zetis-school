@@ -8,7 +8,7 @@ L'`adr-0030 §2` refusait un badge de navigation à ELI5 parce que son seul comp
 le `new_count` de `student_notions_summary`, est un critère de RÉCENCE (fenêtre de 7 jours sur
 `Lesson.created_at`) : il décroît par le temps, pas par le regard. La règle n'est pas contournée
 ici — elle est **payée**. Cette table est la trace de vue qui manquait
-(`adr-0030-addendum-temoin-eli5.md`).
+(`adr-0030-temoins-nouveaute-navigation.md` (Amendement 3)).
 
 Calque de `mindmap_views` : unicité `(student_id, skill_id)`, un horodatage, **aucun compteur
 d'ouvertures**. Combien de fois Massimo a redemandé la même explication n'est pas une information
@@ -40,7 +40,7 @@ leçon validée par Papa.
 `eli5_views` est **neuve et lue par le seul témoin** — aucun autre calcul n'en dépend, donc ce
 point zéro ne fausse rien. C'est exactement ce qui n'est PAS vrai pour Matières, dont la trace
 `lesson_views` est lue par la fiabilité du diagnostic et le Cahier de bord : ce témoin-là n'a
-volontairement aucun point zéro (`adr-0030-addendum-temoin-matieres`, borne 6).
+volontairement aucun point zéro (`adr-0030-temoins-nouveaute-navigation` (Amendement 2), borne 6).
 """
 
 from typing import Sequence, Union

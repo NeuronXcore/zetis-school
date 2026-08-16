@@ -40,7 +40,7 @@ from app.modules.quizzes import service as quizzes_service
 #:
 #: 🔴 **`diagnostic` est une EXCEPTION NOMMÉE, et la seule.** Il meurt du TRAVAIL, pas d'un
 #: regard — colonne interdite de l'`adr-0030 §1`, ouverte par décision du commanditaire
-#: (`adr-0030-addendum-temoin-diagnostic.md`). ⚠️ Il **passe** le test du §1 (aucune date ne le
+#: (`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1)). ⚠️ Il **passe** le test du §1 (aucune date ne le
 #: fait bouger) : ce n'est donc pas ce test qui l'a autorisé, c'est la décision. Ne pas en
 #: déduire qu'un compteur de non-faits est désormais recevable ici — `test_news_doctrine.py`
 #: porte le verrou qui l'interdit à tous les autres.
@@ -48,7 +48,7 @@ from app.modules.quizzes import service as quizzes_service
 #: ✅ **Les trois entrées ajoutées le 2026-08-15** (`matieres`, `eli5`, `quiz`) **meurent d'un
 #: REGARD et n'ont demandé AUCUNE dérogation** — `DEROGATIONS` vaut toujours `{"diagnostic"}`.
 #: C'est ce qui les distingue, et c'est la preuve que cet élargissement n'a pas ouvert la porte
-#: (borne B1 de `adr-0030-addendum-temoin-matieres.md`).
+#: (borne B1 de `adr-0030-temoins-nouveaute-navigation.md` (Amendement 2)).
 NEWS_SOURCES = {
     "agenda": agenda_service.new_agenda_count,
     "matieres": curriculum_service.new_matieres_count,

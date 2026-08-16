@@ -76,7 +76,7 @@ def mark_skill_seen(db: Session, student_id: int, skill_id: int) -> None:
     `mindmaps.service.mark_seen`, à la lettre — combien de fois Massimo a redemandé une explication
     n'est pas une information de navigation.
 
-    C'est le geste qui éteint le témoin de l'entrée ELI5 (`adr-0030-addendum-temoin-eli5`).
+    C'est le geste qui éteint le témoin de l'entrée ELI5 (`adr-0030-temoins-nouveaute-navigation` (Amendement 3)).
     """
     _skill_and_subject(db, skill_id)  # 404 réutilisé, jamais réécrit
     existing = db.scalar(
@@ -99,7 +99,7 @@ def new_eli5_count(db: Session, student_id: int) -> int:
     """Notions ELI5-éligibles que ZETIS n'a JAMAIS expliquées — témoin de navigation.
 
     `adr-0030 §2`, dont la RÈGLE reste vraie et dont seule la CONSÉQUENCE est amendée par
-    `adr-0030-addendum-temoin-eli5.md` : on n'a pas réutilisé le compteur de récence, on a créé la
+    `adr-0030-temoins-nouveaute-navigation.md` (Amendement 3) : on n'a pas réutilisé le compteur de récence, on a créé la
     trace de vue qui manquait. Le §2 en sort renforcé — « la récence ne suffit pas » devient « alors
     on paie la table ».
 

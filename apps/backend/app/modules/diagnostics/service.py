@@ -333,7 +333,7 @@ def new_diagnostics_count(db: Session, student_id: int) -> int:
     **REGARD** — et jamais ce qui est **DÛ**, qui ne meurt que du **travail** et grossit quand
     Massimo ne vient pas. Celui-ci meurt du travail : il tombe dans la colonne interdite, et il
     y est **par décision du commanditaire**, prise après que l'objection lui a été exposée et
-    réaffirmée (`adr-0030-addendum-temoin-diagnostic.md`).
+    réaffirmée (`adr-0030-temoins-nouveaute-navigation.md` (Amendement 1)).
 
     ⚠️ **Il traverse les cinq verrous de `test_news_doctrine.py` sans en faire rougir un seul** :
     ils testent le **temps** (« une échéance change-t-elle ce nombre ? »), or aucune date n'entre

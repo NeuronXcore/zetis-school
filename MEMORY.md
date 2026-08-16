@@ -6,86 +6,94 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ CHANTIER MERGÉ — Le registre ADR est rangé (PR #136, squash `807c7a2`, 2026-08-16)
+### ✅ CHANTIER COMPLET — Les renvois du code applicatif (`chore/renvois-addendums-code`, 2026-08-16)
 
-**Aucune ligne de code applicatif.** Chantier de **rangement** au sens ADR-0060 **cas 1** : rien n'y
-est décidé, on remet le registre au réel. Aucun ADR produit — l'`adr-0033` créé ici enregistre un
-**abandon**, il ne décide rien.
+**Rangement** au sens ADR-0060 **cas 1** — aucun ADR. Il solde la dette laissée par le rangement du
+registre (PR #136, squash `807c7a2`), **et il a découvert que cette dette cachait une régression.**
 
-**Mergé en squash le 2026-08-16** : [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136),
-**146 fichiers**, sur `main` en **un seul commit** — `807c7a2`. Base du chantier : `9bde6c4`.
-Le squash a bien absorbé `d9b4a0a` (l'outillage des cinq scripts, commité par la session
-*précédente* et relu dans aucune des deux) : il n'arrive **pas** sur `main` comme commit distinct.
+**Branche** `chore/renvois-addendums-code`, **base `cdf7c2f`** (vérifié : `git merge-base main HEAD`).
+**COMPLET, NON COMMITÉ** — l'humain vérifie le diff puis committe.
+Pour les têtes : `git log --oneline main..HEAD`.
 
-⚠️ **`chore/registre-adr` n'est PAS supprimée** — ni en local, ni sur `origin`. Son contenu est
-entièrement dans le squash ; elle ne porte plus rien d'unique et peut partir à tout moment.
+#### 🔴 CE QU'IL A RÉVÉLÉ — un test était ROUGE sur `main`
 
-**État vérifié sur `main`** : `main` == `origin/main` == `807c7a2` · copie de travail propre ·
-`check_adr_refs.sh` **vert, 60 numéros** · 60 fichiers ADR, **0 addendum** dans l'arbre.
+`test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme`
+(`apps/backend/app/tests/test_news_doctrine.py:182`) échouait **depuis le merge de la PR #136**. Il
+fait `is_file()` sur une valeur du dict `DEROGATIONS`, qui nommait un fichier d'addendum supprimé
+par la fusion.
+
+**Trois filets ont laissé passer, chacun pour une raison valable** — c'est le vrai enseignement :
+
+1. `check_adr_refs.sh` était **vert** : il ne teste que `ADR-\d{4}`, jamais un chemin.
+2. La PR était **verte** : le dépôt n'a **aucune CI** ; seul GitGuardian s'exécute.
+3. La clôture disait *« aucun test lancé — aucune ligne de code applicatif »*, ce qui était **vrai**.
+   Mais un test **lisait le registre**. 🔴 **Le critère « ai-je touché du code ? » ne dit rien sur
+   « ai-je touché ce qu'un test observe ? »** — à opposer à tout futur chantier documentaire.
 
 #### ✅ FAIT
 
-| Résultat | Chiffre |
-|---|---|
-| Fichiers ADR | **105 → 60** (46 addendums absorbés dans 21 parents, 0 échec) |
-| `DECISIONS.md` | **1180 → 89 lignes** — un index qui renvoie, au lieu de recopier |
-| Front-matter YAML | **60/60** (58 posés ici, `adr-0060` l'avait déjà, `adr-0033` créé ensuite) |
-| Renvois redirigés | **179** dans 59 fichiers |
-| `check_adr_refs.sh` | **VERT**, 60 numéros — et sabordé-vérifié rouge |
-
-Quatre scripts, tous **idempotents** (relancés à blanc : `0 posé`, `0 redirigé`, `89 → 89`) :
-`fusion_addendums.py` → `gen_frontmatter.py` → `gen_decisions_index.py` →
-`redirige_renvois_addendums.py` (**nouveau**, écrit ici).
-
-**`adr-0033-indicateur-autonomie-massimo.md`** créé en statut **Abandonné** : le sujet — une surface
-**chez l'enfant** montrant l'autonomie de ZETIS (confirmé par le commanditaire) — a été rendu
-illégal par `0032` §6, `0034` §9, `0035` §8 et `0041` §12, qui convergent sur l'invariant **V1**.
-**Le numéro reste réservé, jamais réattribué.**
+- **Les 54 renvois de `apps/` + `packages/` sont redirigés** (34 fichiers). Il ne reste **aucun**
+  renvoi mort involontaire dans le dépôt.
+- **53 étaient des commentaires, UN était exécuté** — et c'est celui-là qui portait la régression.
+  Le compte rassurant (« ce ne sont que des commentaires ») était faux d'exactement une unité.
+- **`redirige_renvois_addendums.py` devient rejouable** : `--depuis <revision>`.
+- **Preuve d'innocuité mécanique, pas déclarative** : AST comparé avant/après (docstrings retirées)
+  sur les 24 fichiers Python, code hors commentaires sur les 10 TS/TSX. **Trois fichiers seulement
+  diffèrent** — `test_news_doctrine.py` (la correction) et deux où seuls des **noms de tests**
+  changent. Aucun autre comportement modifié.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Un ADR = un fichier.** Les addendums sont des `## Amendement N` de leur parent, avec un tableau
-   récapitulatif en tête. Ne pas recréer de fichier `adr-XXXX-addendum-*.md`.
-2. **Les numéros ne changent jamais**, aucun renvoi `ADR-00XX` ne casse.
-3. **L'ordre des amendements ne suit PAS le nom de fichier.** Il vient de `ORDRE_DECLARE`
-   (`scripts/fusion_addendums.py`), où chaque rang est celui que le document **déclare lui-même**,
-   citation en commentaire. Un futur ex-æquo non déclaré est **signalé** par le script.
-4. **Aucun statut n'est promu automatiquement** — *livré* est un fait, *ratifié* est un geste humain
-   (`annexes/statuts-en-attente-2026-08-06.md`). Les 18 « Proposé » le restent.
-5. **`DECISIONS.md` est GÉNÉRÉ.** Ne plus l'éditer à la main : `gen_decisions_index.py` l'écrase.
-   ⚠️ Ceci **tranche la contradiction** que la session de méthode avait laissée ouverte entre
-   « le cadrage écrit la ligne d'index » et « l'index se régénère ». **C'est la régénération qui
-   gagne** — l'ADR-0060 est désormais dans l'index (ligne 36), la dette est close.
-6. **Le rapport de révocations vit sous `docs/decisions/annexes/`**, plus dans `docs/`.
+1. 🔴 **Le backtick délimite de la PROSE, le guillemet délimite une DONNÉE.** Un renvoi entre
+   guillemets reçoit le nom du parent **seul**, sans `(Amendement N)` : la mention entrerait dans la
+   chaîne et serait consommée comme partie du chemin. Garde écrite dans `reecrire()`.
+2. 🔴 **`carte()` sans `--depuis` ne voit RIEN une fois le chantier commité.** Elle lisait
+   `git diff` — l'arbre de travail. Le script **sort en 1** avec un message explicite quand la carte
+   est vide, au lieu de rendre un rapport à zéro qui ressemble à un succès.
+3. **`scripts/` et `TROUBLESHOOTING.md` sont exclus POUR TOUJOURS** du balayage. Ils **citent des
+   noms supprimés à dessein** — `ORDRE_DECLARE` est le registre de l'ordre retenu, et l'entrée de
+   `TROUBLESHOOTING` a besoin d'un vrai nom mort pour démontrer quoi que ce soit. **Un registre de
+   noms morts n'est pas une liste de liens cassés.**
+4. **Une session sans code applicatif peut casser un test.** Avant de clore un chantier qui supprime
+   ou renomme des fichiers, même de documentation :
+   `grep -rnE '"[^"]*adr-[0-9]{4}[^"]*"' --include='*.py' --include='*.ts' --include='*.tsx' apps packages`
 
-#### 🧾 DETTES OUVERTES — nées de ce chantier
+#### 🧾 DETTES OUVERTES
 
-- 🔴 **54 renvois morts dans `apps/` et `packages/`** (34 fichiers) : ils désignent des fichiers
-  d'addendum supprimés. **Laissés volontairement** — code applicatif, hors périmètre mono-chantier.
-  🔴 **`check_adr_refs.sh` reste VERT dessus** : il ne teste que `ADR-\d{4}`, **jamais un chemin**.
-  C'est une classe entière de casse qu'aucun garde-fou du dépôt ne voit. **Premier candidat pour la
-  session suivante** : `python3 scripts/redirige_renvois_addendums.py` en retirant `apps/` et
-  `packages/` de la constante `EXCLUS`.
-- ⚠️ **30 renvois « morts » restent À DESSEIN hors de `apps/`+`packages/`** : **29 dans `scripts/`**
-  — `ORDRE_DECLARE` est la table des noms supprimés, c'est le registre de l'ordre retenu, les
-  réécrire détruirait ce qu'ils consignent — et **1 dans `TROUBLESHOOTING.md`**, l'exemple qui rend
-  le piège lisible. Ce ne sont pas des renvois, ce sont des **citations de noms disparus**. Un
-  balayage futur les comptera : ne pas les « réparer ».
-- ⚠️ **`revoque:` et `revoque_par:` sont VIDES sur les 60.** 27 fichiers ont des candidats dans
+**Nées de ce chantier :**
+
+- ⚠️ **31 renvois « morts » subsistent À DESSEIN** — compté, pas estimé : **26** dans
+  `fusion_addendums.py` (`ORDRE_DECLARE`, le registre de l'ordre retenu), **2** dans
+  `redirige_renvois_addendums.py` (les exemples de son docstring), **2** dans `TROUBLESHOOTING.md`
+  (l'exemple du piège **et le message d'erreur de pytest recopié verbatim** — c'est la preuve du
+  test rouge, elle ne se paraphrase pas), **1** dans `scripts/README.md`.
+  Un balayage futur les comptera : **ne pas les « réparer »**.
+- ⚠️ **Deux fichiers de test voient leur LIBELLÉ changer** (`navigation.test.ts`,
+  `HomeAgendaBanner.test.tsx`) : les `it("… (adr-XXXX-addendum-…)")` portent maintenant le nom du
+  parent et son amendement. Ce qu'ils **assertent** n'a pas bougé, seulement ce qu'ils affichent.
+- ⚠️ **Le dépôt n'a toujours AUCUNE CI** (`.github/workflows/` n'existe pas). C'est ce qui a permis
+  de merger une suite rouge. Aucun chantier n'est ouvert là-dessus.
+
+**Remontées du rangement du registre (PR #136 — élagué ce jour ; les quatre contrôles passent :
+`adr-0033` ✅, `TROUBLESHOOTING.md` §`chore/registre-adr` ✅, `CHANGELOG.md` 0.95.0 ✅) :**
+
+- ✅ **~~54 renvois morts dans `apps/`+`packages/`~~ — SOLDÉS par ce chantier.**
+- ✅ **~~Question de convention `CHANGELOG` / contrôle 3~~ — TRANCHÉE PAR L'USAGE** : le rangement
+  seul n'avait pas d'entrée, celui-ci en a une (0.95.0) **parce qu'il corrige une régression**. Le
+  critère qui a servi : *une entrée si un comportement change, pas si des fichiers bougent.*
+  Écrit ici parce que ce n'est **pas** dans le `WORKFLOW.md` — à y porter si la règle convient.
+- ⚠️ **`revoque:` et `revoque_par:` sont VIDES sur les 60 ADR.** 27 fichiers ont des candidats dans
   `docs/decisions/annexes/rapport-revocations.md` — extraits mécaniquement, **à confirmer à la
   main**. Le script ne remplit jamais ce champ, et c'est voulu.
 - ⚠️ **QUATRE ADR portent DEUX formes** (`## Addendum` d'origine + `## Amendement N`) : **0009,
-  0015, 0028, 0041** — compté dans les fichiers, pas déduit. ⚠️ Le docstring de
-  `fusion_addendums.py` en annonce **neuf** (0006, 0007, 0008, 0009, 0013, 0015, 0028, 0038, 0041) :
-  cette liste-là décrit les ADR qui portaient **déjà** un `## Addendum` inline avant la fusion, pas
-  ceux qui finissent avec les deux formes. Les cinq autres n'avaient aucun fichier d'addendum
-  séparé (0006, 0007, 0008, 0013), ou n'ont que la forme neuve (0038). À renuméroter à la main si
-  on veut ; le script ne touche pas à l'existant.
+  0015, 0028, 0041** — compté dans les fichiers. ⚠️ Le docstring de `fusion_addendums.py` en annonce
+  **neuf** : cette liste-là décrit les ADR qui portaient **déjà** un `## Addendum` inline avant la
+  fusion, pas ceux qui finissent avec les deux formes.
 - ⚠️ **Le `§13 ·` des H1 d'addendum a disparu** du titre d'amendement (`RE_PREFIXE_TITRE` le retire).
   Il **survit dans le corps** (`### 13.1` → `#### 13.1`), donc les renvois « ADR-0025 §13 » résolvent
   toujours. `verifier()` ne l'attrape pas : les titres sont sa seule catégorie exemptée.
-- ⚠️ **`graphify update .` a exigé `--force`** (16348 → 16339 nœuds) : il refuse toute baisse de
-  nœuds, même entièrement expliquée par des suppressions voulues.
+- ⚠️ **`graphify update .` refuse toute baisse du nombre de nœuds**, même entièrement expliquée par
+  des suppressions voulues → `--force`, après avoir vérifié que la baisse s'explique.
 - ⚠️ **`type: mesure` sur l'`adr-0033` abandonné** vient de la table préparée dans
   `gen_frontmatter.py` **avant** que le sort du sujet soit connu. Conservée à dessein, discutable.
 
@@ -149,40 +157,49 @@ illégal par `0032` §6, `0034` §9, `0035` §8 et `0041` §12, qui convergent s
 
 #### 🧪 TESTS
 
-🔴 **Aucun test n'a été lancé de la session** — aucune ligne de code applicatif produite. Les suites
-sont **non relancées depuis `dd9ecfe`** (dernier commit de code du dépôt). Les chiffres 1381 / 807 /
-814 traînent depuis deux clôtures et **ne disent rien** de l'état actuel.
+✅ **Les trois suites ont été lancées après les modifications de ce chantier**, et les chiffres qui
+suivent en viennent — ce ne sont pas des estimations :
 
-**Ce qui a servi de vérification à la place**, et qui est du fait mesuré, pas une estimation :
-les 4 scripts relancés à blanc ne réécrivent rien · les 46 numéros d'amendement calculés par la
-redirection **égalent** les en-têtes `## Amendement N` écrits par la fusion · `check_adr_refs.sh`
-sabordé (ADR-0033 retiré) → **code 1**, restauré → **code 0**.
+| Suite | Résultat |
+|---|---|
+| backend (`pytest`) | **1384 passed** en 24,5 s |
+| frontend-massimo (`vitest`) | **807 passed**, 75 fichiers |
+| frontend-papa (`vitest`) | **814 passed**, 75 fichiers |
+
+🔴 **Le backend est passé de 1381 à 1384** parce que les chiffres précédents dataient de deux
+clôtures ; et surtout, `test_toute_derogation_est_adossee_a_un_ADR_qui_la_nomme` **était rouge avant
+ce chantier** et ne l'est plus. C'est la seule assertion dont le résultat change.
+
+⚠️ **`npx tsc --noEmit` n'a PAS été relancé.** Le diff ne touche que des commentaires et des
+libellés de tests, et les suites `vitest` compilent le TS qu'elles exercent — mais c'est un
+raisonnement, pas une mesure.
 
 #### ▶ PROCHAIN PAS
 
-Le chantier est **clos et mergé**. Ce qui suit attend, par ordre de coût croissant :
-
-1. **Les 54 renvois morts de `apps/`+`packages/`** — le plus court : retirer `apps/` et `packages/`
-   de la constante `EXCLUS` de `scripts/redirige_renvois_addendums.py`, relancer à blanc, relire,
-   appliquer. ⚠️ C'est du **code applicatif** : chantier `chore/` à part, avec sa branche.
-2. **L'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`, `ouverture.md`
-   et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1 également, donc **sans ADR**.
-3. **`SOCLE.md`** et le déplacement des ADR de surface — **explicitement hors périmètre** du
-   chantier registre, ils attendent le leur.
-4. Les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
-   (🔴 3 tests rouges par construction, **ne doit pas partir seule**).
-
-⚠️ **Une question de convention reste ouverte, et elle se reposera à chaque rangement** : ce
-chantier n'a **aucune entrée `CHANGELOG.md`** (rien de livrable côté produit), comme la session de
-méthode ADR-0060 avant lui. Le **contrôle 3 de l'élagage** (`/cloture` §1bis) exige pourtant une
-entrée avant de supprimer une section. Deux clôtures de suite l'ont contourné en le signalant : soit
-le contrôle admet une exception pour les sessions sans code, soit ces sessions écrivent au
-`CHANGELOG`. **Non tranché.**
+1. **Vérifier le diff** — 38 fichiers, dont **un seul changement de comportement** :
+   `apps/backend/app/tests/test_news_doctrine.py`, une valeur de `DEROGATIONS`. Tout le reste est
+   commentaire ou libellé, prouvé par comparaison d'AST.
+2. **Commit → push → PR → merge en squash**, puis l'étape **4bis** (`WORKFLOW.md §5`).
+3. Puis, au choix :
+   - **l'application de l'ADR-0060** à `WORKFLOW.md` (§2/§2bis/§6.1/§7), `cadrage.md`,
+     `ouverture.md` et `CLAUDE.md`, qui disent tous encore l'ancienne doctrine. Cas 1, **sans ADR** ;
+   - **`SOCLE.md`** et le déplacement des ADR de surface, hors périmètre depuis deux chantiers ;
+   - les deux branches parquées : `fix/diagnostics-roles` (verte) et `fix/observation-sorties`
+     (🔴 **3 tests rouges par construction**, elle **ne doit pas partir seule**).
 
 **Résidus de cette clôture**, qui ne vivent nulle part ailleurs : aucun serveur de dev lancé · la
-base **n'a pas été touchée** · aucune migration · les deux branches parquées restent locales ·
-`MEMORY.md` porte toujours **~1200 lignes de sections « ⬆️ REMONTÉ »** pour ~200 d'actif —
-**troisième clôture consécutive à le constater**, et ce serait une session à part entière.
+base **n'a pas été touchée** · aucune migration · `tsc --noEmit` non relancé · `MEMORY.md` porte
+**environ sept fois plus de sections « ⬆️ REMONTÉ » que d'actif** — se mesure d'une commande, et
+**pas en dur ici** : un compte de lignes écrit dans le fichier qu'il compte s'invalide en
+s'écrivant, exactement comme une tête de branche (`WORKFLOW.md §5`). Je m'y suis fait prendre en le
+posant.
+
+```bash
+echo "actif $(( $(grep -n '^## ⬆️ REMONTÉ' MEMORY.md | head -1 | cut -d: -f1) - 1 )) / total $(wc -l < MEMORY.md)"
+```
+
+**Quatrième clôture consécutive à le constater sans le traiter** — ce serait une session à part
+entière.
 
 ---
 
