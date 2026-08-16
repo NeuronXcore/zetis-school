@@ -101,8 +101,15 @@ trois conditions qui le débloqueraient, et **ce qui tient le rôle en attendant
 
 | Chantier | PR | Squash | Branche |
 |---|---|---|---|
-| Les 3 dernières routes sans rôle | [#141](https://github.com/NeuronXcore/zetis-school/pull/141) | `b29a985` | `fix/diagnostics-roles` — **NON supprimée** |
-| Les 4 sorties de passation | [#142](https://github.com/NeuronXcore/zetis-school/pull/142) | `40eb4a8` | `fix/observation-sorties` — **NON supprimée** |
+| Les 3 dernières routes sans rôle | [#141](https://github.com/NeuronXcore/zetis-school/pull/141) | `b29a985` | `fix/diagnostics-roles` — ✅ **supprimée** (locale + distante) |
+| Les 4 sorties de passation | [#142](https://github.com/NeuronXcore/zetis-school/pull/142) | `40eb4a8` | `fix/observation-sorties` — ✅ **supprimée** (locale + distante) |
+
+🔴 **Avant de supprimer, comparer au SQUASH — jamais à la tête de `main`** (`WORKFLOW.md` §2 étape 6).
+Fait par `patch-id` : `731dcb1c…` des deux côtés pour #141, `9f9edfc3…` pour #142, base `a5d4016`.
+⚠️ **Le premier passage de cette vérification a rendu ✅ sur DEUX comparaisons VIDES** — zsh n'avait
+pas découpé les paires, et `[ "" = "" ]` répond vrai. *Une comparaison qui ne mesure rien conclut à
+l'identité.* Toute vérification avant destruction doit **refuser un résultat vide**, pas seulement
+comparer les deux résultats.
 
 **ADR-0060 cas 2 (application)** pour les deux : on exécute l'ADR-0002, l'ADR-0043 et l'ADR-0048.
 **Aucun ADR neuf**, et c'était le bon appel — aucune décision n'a été rouverte.
@@ -169,7 +176,8 @@ Suites sur le `main` mergé : **1391 / 843 / 814**, CI verte sur `40eb4a8`.
 - ~~Deux branches parquées, aucune poussée, `fix/observation-sorties` rouge par construction~~ →
   **les deux sont MERGÉES** : `fix/diagnostics-roles` (PR #141, `b29a985`) et
   `fix/observation-sorties` (PR #142, `40eb4a8`). Les 6 rouges sont réparés.
-  ⚠️ Les **branches distantes existent encore** — non supprimées, volontairement.
+  ✅ **Les deux branches sont supprimées**, locales et distantes, après comparaison au squash.
+  Il ne reste **rien** de ce chantier hors de `main`.
 
 ### 🔴 TOUJOURS OUVERT — méthode
 
