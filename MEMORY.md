@@ -13,8 +13,13 @@ est décidé, on remet le registre au réel. Aucun ADR produit — l'`adr-0033` 
 **abandon**, il ne décide rien.
 
 **Branche** `chore/registre-adr`, **base `9bde6c4`** (vérifié : `git merge-base main HEAD`).
-**COMPLET mais NON COMMITÉ** — l'humain vérifie le diff puis committe.
+**COMPLET, commité, poussé — [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136)
+OUVERTE**, `MERGEABLE`, 146 fichiers.
 Pour les têtes : `git log --oneline main..HEAD`.
+
+🔴 **À MERGER EN SQUASH.** La PR porte **trois** commits, dont `d9b4a0a` — l'outillage des cinq
+scripts, commité par la session *précédente* et relu dans aucune des deux. Sans squash il arrive
+sur `main` comme commit distinct.
 
 #### ✅ FAIT
 
@@ -153,11 +158,13 @@ sabordé (ADR-0033 retiré) → **code 1**, restauré → **code 0**.
 
 #### ▶ PROCHAIN PAS
 
-1. **Vérifier le diff** (139 fichiers, dont 59 ADR régénérés et l'`adr-0033` que j'ai rédigé à la
-   main — c'est le seul texte du chantier qui ne sorte pas d'un script).
-2. **Commit → push → PR → merge**, puis revenir faire l'étape **4bis** (`WORKFLOW.md §5`) :
-   squash, n° de PR, branche supprimée.
-3. Puis, au choix : les **54 renvois de `apps/`+`packages/`** (le plus court), ou le chantier
+1. **Relire la [PR #136](https://github.com/NeuronXcore/zetis-school/pull/136)**, et en priorité
+   `docs/decisions/adr-0033-indicateur-autonomie-massimo.md` — **le seul texte du chantier qui ne
+   sorte pas d'un script**. Tout le reste est mécanique et rejouable à l'identique.
+2. **Merger en squash**, puis revenir faire l'étape **4bis** (`WORKFLOW.md §5`) : squash, branche
+   supprimée, et remettre cette section au réel.
+3. Puis, au choix : les **54 renvois de `apps/`+`packages/`** (le plus court — retirer `apps/` et
+   `packages/` de la constante `EXCLUS` de `redirige_renvois_addendums.py`), ou le chantier
    d'**application de l'ADR-0060** à `WORKFLOW.md` et aux commandes.
 4. `SOCLE.md` et le déplacement des ADR de surface étaient **explicitement hors périmètre** de cette
    session — ils attendent leur propre chantier.
