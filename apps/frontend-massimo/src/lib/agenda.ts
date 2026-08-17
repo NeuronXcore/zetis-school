@@ -86,9 +86,19 @@ export async function fetchLateAlert(): Promise<AgendaLateAlert | null> {
 
 /** `POST /late-alert/seen` — le toast a été montré. Rien d'autre aujourd'hui.
  *
+ *  🔴 **`itemId` est OBLIGATOIRE, et le type doit l'imposer — le commentaire ne suffisait pas.**
+ *  Il a été optionnel quelques minutes : le serveur retombait alors sur son recalcul, mais rien
+ *  n'empêchait un appelant futur de l'omettre, et TypeScript l'acceptait sans broncher. Un
+ *  commentaire qui explique pourquoi un argument compte n'est pas une contrainte ; une signature
+ *  en est une.
+ *
+ *  ⚠️ Le champ reste **optionnel sur le fil** (`item_id: int | None`) : un bundle en cache d'avant
+ *  ce correctif n'en envoie aucun, et le serveur doit continuer de le servir en recalculant.
+ *  Obligatoire ici, tolérant là-bas — les deux vont ensemble.
+ *
  *  Échec silencieux, comme `markAgendaSeen` : rater l'accusé laisse une alerte de trop dans la
  *  journée, ce qui est sans gravité. Une erreur technique sur l'écran d'un enfant ne l'est pas. */
-export async function markLateAlertSeen(itemId?: number): Promise<void> {
+export async function markLateAlertSeen(itemId: number): Promise<void> {
   try {
     // 🔴 **L'échéance montrée voyage avec l'accusé**, et ce n'est pas décoratif : sans elle, le
     // serveur ne peut avancer son plancher que jusqu'à aujourd'hui, ce qui **brûle toute la
@@ -97,7 +107,7 @@ export async function markLateAlertSeen(itemId?: number): Promise<void> {
     await fetch(`${BASE}/late-alert/seen`, {
       method: "POST",
       headers: { ...headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId ?? null }),
+      body: JSON.stringify({ item_id: itemId }),
     });
   } catch {
     // réseau indisponible : au pire une alerte de plus aujourd'hui

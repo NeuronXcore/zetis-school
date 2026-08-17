@@ -1722,3 +1722,54 @@ def test_un_accuse_REJOUE_en_retard_ne_rouvre_pas_une_fenetre_close(
     assert papa.get(ALERTE).json() is None, (
         "Le plancher a reculé : une échéance déjà signalée est revenue dans la fenêtre."
     )
+
+
+def test_un_accuse_SANS_echeance_fait_quand_meme_avancer_le_plancher(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 Le mode de dégradation avait changé de nature — trouvé par relecture paire.
+
+    `item_id` est optionnel de bout en bout, et un **bundle JS en cache d'avant le correctif**
+    n'en envoie aucun : c'est le cas ordinaire juste après une mise en ligne. Sans recalcul
+    serveur, le plancher restait immobile et le même toast revenait **tous les jours,
+    indéfiniment** — un mois plus tard il était encore là.
+
+    C'est précisément ce que le §D12 écarte : *« un enfant qui n'arrive pas à rattraper ne verra
+    pas le même toast tous les jours »*. Avant le correctif du plancher, rater un accusé coûtait
+    *une alerte de trop dans la journée* ; il coûtait ensuite *la même, pour toujours*. La
+    dégradation avait empiré sans que rien ne le signale.
+    """
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=5)).isoformat(), label="exposé SVT")
+    _create_parent_item(papa, due_on=(today - timedelta(days=2)).isoformat(), label="contrôle")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    assert papa.get(ALERTE).json()["label"] == "exposé SVT"
+    # Le vieux client : accusé au corps vide, aucune échéance nommée.
+    assert papa.post(f"{ALERTE}/seen").status_code == 204
+
+    _rouvrir_la_journee(SessionLocal)
+    suivante = papa.get(ALERTE).json()
+    assert suivante is not None and suivante["label"] == "contrôle", (
+        "Le plancher n'a pas bougé : le même toast reviendrait tous les jours, sans fin."
+    )
+
+
+def test_un_id_ETRANGER_ne_deplace_pas_le_plancher_au_hasard(papa: TestClient, client_db) -> None:
+    """L'`id` vient du client : il est revalidé, jamais cru. Un `id` qui n'appartient pas à l'élève
+    — ou qui n'existe pas — retombe sur le recalcul serveur, pas sur un plancher déplacé au
+    hasard, qui perdrait exactement ce que le correctif répare."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=5)).isoformat(), label="exposé SVT")
+    _create_parent_item(papa, due_on=(today - timedelta(days=2)).isoformat(), label="contrôle")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    assert papa.get(ALERTE).json()["label"] == "exposé SVT"
+    papa.post(f"{ALERTE}/seen", json={"item_id": 999_999})  # inexistant
+
+    _rouvrir_la_journee(SessionLocal)
+    assert papa.get(ALERTE).json()["label"] == "contrôle"

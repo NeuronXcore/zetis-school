@@ -67,7 +67,7 @@ export interface UseAgenda {
    *  fois par jour. C'est le serveur qui tranche : le client ne calcule aucun retard. */
   lateAlert: AgendaLateAlert | null;
   /** Accuse réception de l'alerte. Appelé par le toast, une fois RÉELLEMENT affiché. */
-  markLateAlertSeen: (itemId?: number) => void;
+  markLateAlertSeen: (itemId: number) => void;
   sections: AgendaSections;
   /** Les étapes du plan, GROUPÉES PAR ÉCHÉANCE (ADR-0050 Décision 2 ter).
    *
@@ -232,7 +232,7 @@ export function useAgenda(): UseAgenda {
 
   /** Accuse réception de l'alerte, et l'efface localement pour que le toast ne remonte pas si la
    *  page se re-rend. Le serveur, lui, ne la resservira plus de la journée. */
-  const accuserAlerte = useCallback((itemId?: number) => {
+  const accuserAlerte = useCallback((itemId: number) => {
     void markLateAlertSeen(itemId);
     setLateAlert(null);
   }, []);

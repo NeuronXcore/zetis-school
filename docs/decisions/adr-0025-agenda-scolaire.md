@@ -2966,6 +2966,39 @@ le plancher **ne recule jamais** : un accusé rejoué en retard — réseau lent
 doit pas rouvrir une fenêtre close, sinon une échéance déjà signalée reviendrait. Cette garde-là
 n'avait **aucun test** : le sabotage qui la retire est resté vert, et le verrou a été écrit après.
 
+##### 🔴 Et le correctif avait changé le MODE DE DÉGRADATION, sans que rien ne le dise
+
+Seconde trouvaille de la même relecture paire, sur le correctif lui-même. `item_id` étant
+**optionnel de bout en bout**, un accusé au corps vide ne faisait plus avancer le plancher :
+
+| | |
+|---|---|
+| il ouvre sa page le 8, le 9, le 10 | → **exposé SVT**, **exposé SVT**, **exposé SVT** |
+| un mois plus tard | → **exposé SVT** |
+
+🔴 **La dégradation avait empiré en silence.** Avant le correctif du plancher, rater un accusé
+coûtait *une alerte de trop dans la journée* — documenté et assumé. Après, il coûtait *la même,
+tous les jours, sans fin* : exactement ce que la borne 2 du §D12 écarte (*« un enfant qui n'arrive
+pas à rattraper ne verra pas le même toast tous les jours »*). **Une correction avait déplacé le
+défaut au lieu de le supprimer**, et aucun test ne regardait ce chemin-là.
+
+⚠️ **Ce n'était pas théorique** : un **bundle JS en cache d'avant le correctif** n'envoie aucun
+`item_id` — c'est le cas ordinaire juste après une mise en ligne.
+
+**Fermé des deux côtés, parce qu'aucun ne suffit seul :**
+
+1. **Le serveur RECALCULE** quand le client n'a rien dit — il rejoue la requête de `late_alert()`,
+   *la même fonction*, et avance le plancher au lendemain de ce qu'elle désigne. Un vieux bundle se
+   répare donc tout seul, et un `id` étranger ou inexistant retombe sur ce recalcul plutôt que sur
+   un plancher déplacé au hasard.
+2. **La signature client rend l'argument OBLIGATOIRE.** Le commentaire disait déjà pourquoi l'`id`
+   comptait ; **le commentaire le savait, le type ne l'imposait pas**. Vérifié en le sabotant : le
+   compilateur rend maintenant `Expected 1 arguments, but got 0`.
+
+⚠️ **Obligatoire côté client, tolérant sur le fil** (`item_id: int | None`) : les deux vont
+ensemble. L'un empêche les appelants futurs de l'omettre, l'autre laisse le serveur réparer les
+anciens.
+
 ##### Deux défauts que seuls l'écran et un verrou existant ont attrapés
 
 **a) Le toast s'auto-annulait.** Son accusé de réception remet l'alerte à `null` côté hook ; le
