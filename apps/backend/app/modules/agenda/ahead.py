@@ -344,15 +344,31 @@ def mark_late_alert_seen(
     enfant ne l'est pas. Même contrat que `markAgendaSeen`.
     """
     today = today_local()
+    # 🔴 **LU AVANT TOUTE ÉCRITURE.** La règle « pas deux fois le même jour » vit dans
+    # `late_alert()`, pas ici : sans cette lecture, un accusé REJOUÉ relance le recalcul avec le
+    # plancher **déjà avancé** par le premier, et avale l'échéance suivante — qui n'a jamais été
+    # montrée. C'est le défaut de la veille, revenu par la porte ouverte pour le réparer.
+    #
+    # ⚠️ L'ordre est la correction : `agenda_late_alert_on` est écrit plus bas, et le tester après
+    # reviendrait à interroger la valeur qu'on vient soi-même de poser.
+    deja_accuse = (
+        student.agenda_late_alert_on is not None and student.agenda_late_alert_on >= today
+    )
     item = db.get(AgendaItem, item_id) if item_id is not None else None
     if item is not None and item.student_id != student.id:
         item = None  # id étranger : on ne le croit pas, et on retombe sur le recalcul
-    if item is None:
+    if item is None and not deja_accuse:
         # 🔴 **Le serveur RECALCULE plutôt que de ne rien faire.** Ne rien avancer laisserait le
         # plancher immobile, donc **le même toast tous les jours, indéfiniment** — exactement ce
         # que le §D12 écarte (*« un enfant qui n'arrive pas à rattraper ne verra pas le même toast
         # tous les jours »*). Ce n'est pas théorique : un bundle JS **en cache d'avant ce
         # correctif** n'envoie aucun `item_id`, et c'est le cas juste après une mise en ligne.
+        #
+        # ⚠️ **Le PREMIER accusé du jour seulement.** Les suivants sont inertes sur ce chemin :
+        # avec `item_id`, la garde anti-recul absorbe déjà le doublon (`lendemain > plancher` est
+        # faux au second passage) ; sans lui, le recalcul repartirait du plancher déjà avancé.
+        # Asymétrie qui rendait le défaut vicieux : la population qui a besoin du recalcul — les
+        # bundles en cache — est exactement celle qui poste sans `item_id`.
         item = _echeance_a_signaler(db, student=student, today=today)
     student.agenda_late_alert_on = today
     if item is not None:

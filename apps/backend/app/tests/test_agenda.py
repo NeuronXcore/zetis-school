@@ -1773,3 +1773,43 @@ def test_un_id_ETRANGER_ne_deplace_pas_le_plancher_au_hasard(papa: TestClient, c
 
     _rouvrir_la_journee(SessionLocal)
     assert papa.get(ALERTE).json()["label"] == "contrôle"
+
+
+def test_un_accuse_DUPLIQUE_sans_echeance_n_avale_pas_la_suivante(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 Le défaut d'hier, revenu par la porte ouverte pour le réparer — troisième trouvaille
+    de la relecture paire.
+
+    La règle « pas deux fois le même jour » vit dans `late_alert()`, pas dans l'accusé. Un accusé
+    **rejoué sans `item_id`** relance donc `_echeance_a_signaler()` avec le plancher **déjà
+    avancé** par le premier — et avale l'échéance suivante, qui n'a jamais été montrée.
+
+    ⚠️ **Avec `item_id`, la garde anti-recul absorbe le doublon** (`lendemain > plancher` est faux
+    au second passage) : le trou n'existe QUE sur le chemin du recalcul.
+
+    ⚠️ **Et l'asymétrie le rend vicieux** : la population qui a besoin du recalcul — les bundles en
+    cache — est exactement celle qui poste sans `item_id`. Le mécanisme de réparation ne se
+    déclenchait que là où il pouvait nuire.
+
+    ⚠️ Le doublon n'est pas un cas de laboratoire : React réinvoque les effets en double en
+    développement (deux fois documenté dans ce module), et un réessai réseau le produit en prod.
+    """
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=5)).isoformat(), label="exposé SVT")
+    _create_parent_item(papa, due_on=(today - timedelta(days=2)).isoformat(), label="contrôle")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    assert papa.get(ALERTE).json()["label"] == "exposé SVT"
+    # Le vieux bundle accuse DEUX fois — effet réinvoqué, ou réessai réseau.
+    papa.post(f"{ALERTE}/seen")
+    papa.post(f"{ALERTE}/seen")
+
+    _rouvrir_la_journee(SessionLocal)
+    suivante = papa.get(ALERTE).json()
+    assert suivante is not None and suivante["label"] == "contrôle", (
+        "Le second accusé a recalculé avec le plancher déjà avancé et avalé le contrôle : il n'a "
+        "jamais été montré, et ne le sera plus."
+    )

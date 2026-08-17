@@ -2999,6 +2999,38 @@ défaut au lieu de le supprimer**, et aucun test ne regardait ce chemin-là.
 ensemble. L'un empêche les appelants futurs de l'omettre, l'autre laisse le serveur réparer les
 anciens.
 
+##### 🔴 Et le défaut est revenu par la porte ouverte pour le réparer
+
+Troisième trouvaille de la même relecture. La règle « pas deux fois le même jour » vit dans
+`late_alert()`, **pas dans l'accusé**. Un accusé **rejoué sans `item_id`** relançait donc le
+recalcul avec le plancher **déjà avancé** par le premier — et avalait l'échéance suivante, jamais
+montrée. *Le même défaut que la veille, avec un déclencheur différent.*
+
+| Doublon **avec** `item_id` | Doublon **sans** `item_id` |
+|---|---|
+| 8 → exposé · 9 → contrôle · 10 → — | 8 → exposé · 9 → **—** · 10 → — |
+
+⚠️ **La garde anti-recul absorbe le doublon quand l'`id` est là** (`lendemain > plancher` est faux
+au second passage) : le trou n'existait **que** sur le chemin du recalcul.
+
+🔴 **Et l'asymétrie le rendait vicieux** : la population qui a besoin du recalcul — les bundles en
+cache — est **exactement** celle qui poste sans `item_id`. Le mécanisme de réparation ne se
+déclenchait donc que là où il pouvait nuire.
+
+⚠️ **Le doublon n'est pas un cas de laboratoire** : React réinvoque les effets en double en
+développement — ce module le documente deux fois pour d'autres raisons — et un réessai réseau le
+produit en production.
+
+**Correction : l'état se lit AVANT d'être écrasé.** Le premier accusé du jour répare un vieux
+bundle ; les suivants sont inertes sur ce chemin. L'ordre **est** la correction — tester
+`agenda_late_alert_on` après l'avoir écrit reviendrait à interroger la valeur qu'on vient soi-même
+de poser.
+
+> **Ce que ces trois trouvailles disent du dispositif de test.** Les trois défauts ont la même
+> forme : *un cas à deux* que les tests n'exerçaient qu'à un. Deux échéances dans la fenêtre, deux
+> accusés le même jour, deux versions du client. Un test qui n'exerce qu'un exemplaire de ce qui
+> peut arriver en double ne teste pas la règle, il teste le cas facile.
+
 ##### Deux défauts que seuls l'écran et un verrou existant ont attrapés
 
 **a) Le toast s'auto-annulait.** Son accusé de réception remet l'alerte à `null` côté hook ; le
