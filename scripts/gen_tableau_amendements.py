@@ -22,6 +22,8 @@ jamais l'ancien tableau pour en déduire quoi que ce soit.
 │ 3. Un titre à l'intérieur d'un bloc de code n'est JAMAIS lu comme une      │
 │    section (le corpus en contient : blocs ```txt à lignes en #).           │
 │ 4. Zéro fichier trouvé est une ERREUR, jamais un succès silencieux.        │
+│ 5. Un fichier portant des marqueurs de fusion non résolus est REFUSÉ :     │
+│    c'est deux documents superposés, pas un document.                       │
 ╰───────────────────────────────────────────────────────────────────────────╯
 
 🔴 **La colonne « Révoque » ne se déduit PAS des mots du texte.** Elle l'a été, et elle
@@ -53,6 +55,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from adr_lib import _classer_statut  # noqa: E402
 
 RE_FENCE = re.compile(r"^\s*(```|~~~)")
+
+# Marqueurs laissés par une fusion non résolue. Le `=======` doit être EXACT : une
+# ligne de soulignement Setext (`====`) est du markdown parfaitement légitime.
+RE_MARQUEUR_CONFLIT = re.compile(r"^(<{7} |={7}$|>{7} |\|{7} )")
 
 # `## Amendement 8 — Le passé se raconte, et la matière prend la couleur — 2026-08-17`
 # La date est facultative dans le motif pour pouvoir DIRE qu'elle manque, plutôt que de
@@ -343,6 +349,20 @@ def traiter(chemin: Path) -> tuple[str | None, list[str], list[Amendement]]:
     """Rend (contenu neuf ou None si inchangé, fautes, amendements)."""
     original = chemin.read_text(encoding="utf-8")
     lignes = original.splitlines()
+
+    # 🔴 Un fichier en cours de fusion n'est pas un document : c'est deux documents
+    # superposés, dont un humain n'a pas encore dit lequel gagne. Écrire dedans
+    # écraserait une résolution en cours.
+    #
+    # Ce n'est pas une précaution théorique. Le 2026-08-17, une autre session fusionnait
+    # cette branche dans `feat/agenda-v2` pendant que je tournais : `adr-0025` portait ses
+    # marqueurs, et le script a produit une sortie **sans broncher** — il ne réécrit que le
+    # bloc du tableau, si bien que le `>>>>>>>` survivait tranquillement en dessous.
+    conflits = [i + 1 for i, l in enumerate(lignes)
+                if RE_MARQUEUR_CONFLIT.match(l)]
+    if conflits:
+        apercu = ", ".join(str(n) for n in conflits[:6])
+        return (None, [f"marqueur(s) de conflit Git — ligne(s) {apercu}"], [])
 
     zone = bornes_bloc(lignes)
     if zone is None:

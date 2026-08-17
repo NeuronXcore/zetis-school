@@ -44,6 +44,10 @@ décisions structurantes puis fait exécuter le Lot 1 dans la foulée, vérifié
 >
 > *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 >
+> ⚠️ *Note tenue à la main — elle est **sous** la ligne de mention, donc **hors du bloc régénéré** :
+> le script ne la touchera jamais, et elle survivra à toutes les régénérations. À maintenir soi-même,
+> juste en dessous d'une phrase qui dit « ne pas éditer à la main » — c'est un choix, pas un oubli.*
+>
 > ⚠️ *Les lignes **8 et 9 ont d'abord été écrites à la main**, et il faut savoir pourquoi : entre la
 > fusion des addendums (2026-08-16) et la création de ce script (2026-08-17), **aucun outil ne
 > pouvait produire ce tableau** — `fusion_addendums.py` itérait sur des fichiers d'addendum qui
