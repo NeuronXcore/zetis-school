@@ -71,8 +71,10 @@ chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
   apparaître dans « Ce que tu as travaillé ».
 - Le bouton « voir N autres » sous « En retard » **grossit quand Massimo ne vient pas** — signalé
   par la relecture paire, **maintenu** par le commanditaire (argument d'emplacement et de fugacité).
-- Branche locale `claude/festive-kilby-0eafd7` + son worktree : **contenu intégralement absorbé**
-  (mesuré), mais la branche reste une **référence trompeuse** — il lui manque le garde anti-conflit.
+- ✅ Worktree `claude/festive-kilby-0eafd7` et sa branche **supprimés** (2026-08-17). Vérifié avant :
+  **zéro ligne** de sa branche n'était absente de `main` — le seul fichier divergent (`adr-0025`)
+  l'était dans l'autre sens. ⚠️ Elle était devenue une **référence trompeuse** : `18c4929` n'a
+  jamais porté le garde anti-conflit, pris directement sur `feat/agenda-v2`.
 
 #### ▶ PROCHAIN PAS
 
