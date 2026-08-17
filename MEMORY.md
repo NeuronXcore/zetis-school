@@ -45,7 +45,7 @@ Contrôle : `git diff main <branche> --stat` doit être **vide**.
 
 ---
 
-### 🟡 EN COURS — la CI instable : deux causes soldées, deux restantes (branche `fix/ci-instable`)
+### 🟡 MERGÉ mais INACHEVÉ — la CI instable : deux causes soldées, deux restantes (2026-08-17, PR #145, squash `0ad3679`)
 
 **Reproduit** avec `scripts/ci-like.sh` (Node 20 + Linux + 2 CPU, conteneur). Ni la charge ni le
 parallélisme ne suffisaient : 5 suites complètes à 2 workers sur machine saturée, **920/920
@@ -75,7 +75,10 @@ Le test `DiagnosticPage.observation` que la CI avait fait tomber reste, lui auss
 
 #### ▶ PROCHAIN PAS
 
-Relancer `scripts/ci-like.sh 6`, capturer le détail des deux restants, puis conclure.
+**Relancer `scripts/ci-like.sh 6`** et capturer le détail des deux restants. ⚠️ **Ne pas lire le
+vert de la PR #145 comme une guérison** : la CI y est passée du premier coup, mais elle était déjà
+passée au second essai hier sur du code inchangé. *Un run vert n'a jamais rien prouvé ici* — c'est
+le sujet même du chantier. La seule mesure qui vaut est celle du conteneur.
 
 ---
 
