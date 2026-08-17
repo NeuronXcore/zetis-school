@@ -6,7 +6,7 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### 🟡 EN COURS — Massimo ne lit plus « Erreur 500 » (branche `fix/erreurs-lisibles`, base `4001594`)
+### ✅ MERGÉ — Massimo ne lit plus « Erreur 500 » (2026-08-17, PR #144, squash `1178a68`)
 
 **Aucun ADR** : cas 2 de l'`adr-0060` — *application* d'une règle déjà écrite dans le `CLAUDE.md`
 (« Massimo ne doit pas voir : […] les informations techniques »). En écrire un fabriquerait une
@@ -20,7 +20,10 @@ interface adulte, le détail technique y est utile.
 `AtelierIncomplet` 422). Verrou `src/erreurs-lisibles.test.ts` + sabotage joué (1 rouge, le bon).
 `lib/missionSteps.test.ts` créé — la fonction n'avait **aucun** test.
 
-Suites : backend **1425**, Massimo **920**, Papa **814**, UI **28**. `tsc -b` vert.
+Suites : backend **1425**, Massimo **920**, Papa **814**, UI **28**. `tsc -b` vert. Branche
+supprimée (locale et distante). ⚠️ Le contenu a été vérifié **dans `main`** avant le `-D` : un
+squash n'est pas un ancêtre, `git branch -d` refuse, et « absorbée » ne veut pas dire « absorbé ».
+Contrôle : `git diff main <branche> --stat` doit être **vide**.
 
 #### 🔴 CE QUI COMPTE
 
@@ -32,10 +35,41 @@ Suites : backend **1425**, Massimo **920**, Papa **814**, UI **28**. `tsc -b` ve
   Encore *un cas à DEUX exercé à UN* — le cinquième en deux jours.
 - ⚠️ **`tsc -b` ne part pas de la racine** (aucun `tsconfig.json` racine) : il rend `TS5083` **et
   sort en code 0**. Se placer dans le paquet. Détail dans `TROUBLESHOOTING.md`.
+- ℹ️ Il reste **4 occurrences** de `instanceof Error` dans `frontend-massimo` — **toutes en prose**
+  (3 dans l'en-tête du verrou, 1 dans le docstring de `DiagnosticPage`). Zéro dans le code exécuté.
+  Un `git grep` brut en compte donc 4 : ce n'est pas une régression.
 
 #### ▶ PROCHAIN PAS
 
-Relire le diff, lancer les suites, committer, pousser, PR, merger. **Rien d'autre n'est en vol.**
+**Aucun sur ce chantier — il est clos.** Le candidat suivant est la dette de flakiness ci-dessous.
+
+---
+
+### 🔴 OUVERT — la suite Massimo est INSTABLE sur la CI (découvert le 2026-08-17)
+
+**Un rouge puis un vert sur le SHA identique** (`281e620`, re-run sans un caractère de changement).
+Ce n'est donc pas un défaut de code : c'est une course.
+
+| Run | Commit | Test tombé |
+|---|---|---|
+| 14 h 29 | `b2b10bc` — **un commit de maquette HTML** | `AtelierPage` › « un finish RÉUSSI ouvre la fiche » |
+| 15 h 19 | `281e620` | `DiagnosticPage.observation` › « champ de vision » |
+
+**Deux tests, deux runs, deux commits incapables de les causer.** Jamais reproduit en local : 3
+suites complètes + 5 passages du fichier fautif, toutes vertes.
+
+🔴 **Cause diagnostiquée pour le PREMIER seulement** — `findByRole` rend la main dès que le nœud
+entre dans le DOM, alors que le `useEffect` qui remonte le message est un effet **passif**, planifié
+*après* le commit React. Sur 2 cœurs chargés, le MutationObserver gagne. *Le test attend le nœud au
+lieu d'attendre l'effet.* Correction pressentie, **non appliquée** :
+`await waitFor(() => expect(remonter).toHaveBeenCalled())`, à prouver par sabotage.
+
+⚠️ **Le second n'est PAS diagnostiqué** (`findByTestId` qui expire, peut-être le délai de 1 s par
+défaut sous charge). Le corriger sans l'avoir reproduit serait de la devinette — c'est pourquoi
+aucun des deux n'a été touché dans la PR #144.
+
+🔴 **Pourquoi ça presse** : la *required check* est active depuis ce matin. Une suite qui rougit au
+hasard apprend très vite à relancer sans lire — et c'est ainsi qu'un vrai rouge passe.
 
 ---
 
@@ -129,8 +163,8 @@ Première fois depuis sept merges. Trois observations, aucune bloquante :
 
 1. 🔴 **Trancher la voie de la *required check*** (`## ⬆️ REMONTÉ` plus bas) — le trou est entier et
    nommé : un merge sur du rouge reste possible, et cette session vient précisément d'en faire un.
-2. ~~Les 38 occurrences du motif à branche morte~~ — **PRIS** le 2026-08-17, branche
-   `fix/erreurs-lisibles` (section en tête). Il y en avait **35**, pas 38.
+2. ~~Les 38 occurrences du motif à branche morte~~ — **MERGÉ** le 2026-08-17 (PR #144, squash
+   `1178a68`). Il y en avait **35**, pas 38.
 
 ---
 
@@ -214,7 +248,7 @@ tient, son argument principal non : à rouvrir sciemment, pas par entraînement.
 - **`gen_frontmatter.py` écrit un `pr:` FAUX** dès qu'un ADR **cite** une PR dans sa prose : `RE_PR`
   attrape le premier `PR #\d+` du texte. Contourné une fois à la main ; **le défaut est entier**.
 - ✅ ~~38 occurrences du motif à branche morte dans `frontend-massimo`~~ — **CLOS** le 2026-08-17
-  (branche `fix/erreurs-lisibles`). Elles étaient **35**. ⚠️ **Le motif reste entier dans
+  (PR #144, squash `1178a68`). Elles étaient **35**. ⚠️ **Le motif reste entier dans
   `frontend-papa` : 113 occurrences**, laissées sciemment (interface adulte).
 - **Aucun lint dans ZETIS** — ni job CI, ni `ruff`. Vérifié : il n'a jamais existé.
 - **La matrice `Permissions` d'`API_SPEC.md` est à trous** (`/relecture`, `/mes-resultats/*`). Une
