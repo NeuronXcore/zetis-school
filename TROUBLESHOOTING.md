@@ -4,6 +4,51 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Coordination entre sessions — deux instruments qui ne disent pas ce qu'on croit — 2026-08-17
+
+### 🔴 Un bloc ```bash affiché porte un bouton « Run » — c'est une commande ARMÉE, pas une illustration
+
+Deux fois dans la même session, un `git push` est parti « tout seul » quatre minutes après un
+commit. J'ai mesuré le reflog (`update by push` = depuis ce clone), interrogé une session paire,
+et bâti une alerte sur une session concurrente. **La cause était dans mon propre message** : j'avais
+écrit `git push origin HEAD:main` dans un bloc ```bash — auquel l'application ajoute un bouton
+« Run » — puis demandé « veux-tu que je le pousse ? ». Le commanditaire a cliqué, puis répondu.
+
+**Deux règles, et la seconde vaut au-delà de ce cas :**
+
+- **Ne jamais faire suivre un bloc exécutable d'une question dont la réponse conditionne le
+  lancement.** Sous un bouton déjà armé, la question est décorative. Elle va **avant** le bloc — ou
+  le bloc n'existe pas.
+- **Épingler le périmètre DANS le bloc** : `git push origin <sha>:refs/heads/<branche>`, jamais
+  `HEAD:main`. Avec une référence nue, **ce qui part est déterminé par l'instant du CLIC, pas par
+  l'instant de la vérification** — et entre les deux, n'importe qui peut committer.
+
+⚠️ **Ce que `git reflog` sait et ne sait pas** : `update by push` dit qu'un push est parti **de ce
+clone**, jamais **qui** l'a lancé — toutes les sessions et l'humain partagent le compte. Et il est
+**muet** sur un push venu d'un autre clone. Instrument solide pour ce qu'il montre, silencieux sur
+le reste : ne pas le présenter comme s'il tranchait tout.
+
+⚠️ **Le discriminant qui tranche vraiment** : une commande qui a réellement poussé imprime sa ligne
+de transfert (`a1b2c3d..e4f5a6b  HEAD -> main`) ; une qui n'a rien fait imprime « Everything
+up-to-date ». C'est cette sortie-là, pas le reflog, qui distingue ses propres pushs de ceux des
+autres.
+
+### 🔴 `ListAgents` ne se liste JAMAIS soi-même — la vue est incomplète par construction
+
+Deux sessions y voyaient chacune **six pairs** : sept sessions au total, et **aucune des deux
+n'avait la liste complète**. J'en avais tiré « tu es la seule démarrée dans cette fenêtre, donc
+c'est toi » — et je me suis trompé de coupable.
+
+⚠️ Ce n'est pas l'observation qu'il faut corriger, c'est la conclusion : `ListAgents` sert à savoir
+**qui contacter**, jamais à établir qu'une liste est close.
+
+⚠️ **L'ancienneté de démarrage ne dit rien de l'activité maintenant** : une session lancée il y a
+deux jours peut agir à la seconde. Écarter des candidats sur leur date de démarrage n'est pas un
+raisonnement.
+
+⚠️ **Une même session peut réapparaître sous un autre nom** après redémarrage (socket différent,
+même chantier). La session que j'interrogeais comme tierce était celle que j'accusais.
+
 ## Agenda v2 — quatre défauts d'une même forme, zéro trouvé par les tests — 2026-08-17 *(PR #143, squash `b0f5d37`)*
 
 ### ⚠️ Le hook `pre-push` annonçait une SUPPRESSION quand il n'y avait rien à pousser
