@@ -6,6 +6,80 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+### ✅ MERGÉ — l'agenda répond à trois questions (2026-08-17, PR #143, squash `b0f5d37`)
+
+Amendements **8 et 9** de l'ADR-0025, implémentés de bout en bout. **Trois migrations** :
+`a8d76627dc51`, `a86333999bf0`, `a8a71c84f86e`.
+
+🔴 **NE PAS RÉ-IMPLÉMENTER.** Ce qui existe désormais : vue **mois** + bande · le passé qui se
+**raconte** (matières, notions, formes — aucun nombre) · teinte = matière, silhouette = nature ·
+aperçu au survol · **trois registres** présent → futur → passé, avec des rails dont la teinte vient
+du **calendrier** · bloc **« Prendre de l'avance »** ancré sur la prochaine échéance (`/agenda/ahead`,
+un appel pour cinq sources) · badge **« En retard »** animé · **alerte éphémère** à l'ouverture
+(`/agenda/late-alert`).
+
+#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+
+- **QUATRE révocations du §7 dans la même journée** : le mot « en retard » (§D17), l'ambre des
+  cellules (§D18), l'ordre qui met le passé en dernier (§D1), le titre en badge (§D9). Ce qui reste
+  du §7 est énuméré au **§D9** : aucun rouge, aucun compteur d'arriéré, aucun total, aucune série,
+  aucun réceptacle — et **la grille reste STATIQUE**.
+- **Le §4 est BORNÉ, pas révoqué** : la bande et la grille n'accueillent aucune carte SRS ni
+  mission ; le bloc « Prendre de l'avance » ne porte **aucune date**.
+  `test_dated_surfaces_never_contain_missions_or_srs_cards` est l'autorité — **s'il faut le
+  modifier, c'est que la frontière a bougé**.
+- **Jamais une marque PAR ITEM** pour l'alerte : trois scalaires par élève. Une marque par item,
+  jointe à `done_at`, fabriquerait « vu le 12, jamais fait », lisible côté Papa.
+- **En vue mois sur iPhone**, le bloc du futur reste sous la ligne de flottaison. Arbitrage
+  assumé : une cible tactile atteignable vaut mieux qu'une section visible.
+
+#### 🔴 CE QUI COMPTE — quatre défauts, et aucun trouvé par les tests
+
+Le mécanisme d'alerte a eu **quatre défauts réels**, tous de la **même forme : un cas à DEUX que
+les tests n'exerçaient qu'à UN.**
+
+| # | cas à deux | trouvé par |
+|---|---|---|
+| 1 | deux échéances dans la fenêtre | relecture paire |
+| 2 | deux versions du client (bundle en cache) | relecture paire |
+| 3 | deux accusés le même jour | relecture paire |
+| 4 | deux échéances **à la même date** | une **capture d'écran** |
+
+🔴 **Aucun trouvé par la suite de tests, verte à chaque étape — ni par la CI, verte aussi.** Et
+**deux des quatre étaient dans le correctif du précédent** : un correctif déplace le défaut aussi
+souvent qu'il le supprime, et il **change le mode de dégradation**, ce que personne ne re-teste.
+
+⚠️ **Trois de mes propres verrous sont restés VERTS sous sabotage** avant d'être refaits : le
+verrou de quantités (neutralisé par `response_model`, qui filtre la sortie), la garde anti-recul,
+et l'ancrage d'une keyframe (`\b` ne s'arrête pas à un tiret). À chaque fois je vérifiais une
+**déclaration**, pas un **effet**.
+
+⚠️ **Quatre défauts n'ont été vus qu'À L'ÉCRAN** : le toast qui sortait par le haut (469 px de haut,
+`top` à −149), le fond dérivant qui n'animait rien (déphasage nul), le libellé qui nommait un
+chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
+
+#### 🧾 DETTES OUVERTES
+
+- 🔴 **Les trois migrations ne sont PAS en prod.** Elles y sont désormais légitimes (elles sont sur
+  `main`). ⚠️ Monter `alembic/` sinon l'image fige ses migrations ; la variable est
+  **`ZETIS_DATABASE_URL`**, `DATABASE_URL` est ignorée EN SILENCE.
+- ⚠️ **La relecture visuelle complète n'a pas eu lieu** avant le merge — le commanditaire a vu des
+  captures, pas la page entière aux deux largeurs. **Septième fois** que ce gate saute.
+- **O3** vacances : aucune source de donnée (`SchoolYear` n'a que `starts_on`/`ends_on`).
+- **O4** mindmaps et capsules n'émettent aucun `learning_event` : elles ne peuvent jamais
+  apparaître dans « Ce que tu as travaillé ».
+- Le bouton « voir N autres » sous « En retard » **grossit quand Massimo ne vient pas** — signalé
+  par la relecture paire, **maintenu** par le commanditaire (argument d'emplacement et de fugacité).
+- Branche locale `claude/festive-kilby-0eafd7` + son worktree : **contenu intégralement absorbé**
+  (mesuré), mais la branche reste une **référence trompeuse** — il lui manque le garde anti-conflit.
+
+#### ▶ PROCHAIN PAS
+
+Poser les **trois migrations en prod**, puis regarder la page en vrai, aux deux largeurs.
+
+---
+
+
 ### 🧭 CADRAGE — ADR-0061, la *required check* (2026-08-16, sur `main`)
 
 **Aucune ligne de code.** Session de **cadrage** : elle vit sur `main`, ne livre rien, et écrit une
