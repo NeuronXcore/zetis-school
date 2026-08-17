@@ -4,6 +4,53 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/ci-instable` — deux horloges qui n'ont pas la même origine — 2026-08-17
+
+### 🔴 La CI rougissait au hasard : `pump()` repartait de zéro, le composant du temps RÉEL
+
+`HeaderGalaxy` avance sa construction avec `now - startedAt`, où `startedAt` est le
+`performance.now()` du montage. Le `pump()` de son test fabriquait un `now` **reparti de zéro** :
+l'écart valait donc *moins tout ce que le processus avait vécu avant ce fichier*. La construction
+ne finissait jamais, l'état restait `growing`, et `pump(60)` n'y changeait rien.
+
+**Pourquoi invisible en local** : avec 16 workers, ce fichier démarre dans la première seconde et
+60 images de 200 ms couvrent l'écart. Sur les 2 cœurs de la CI, il démarre bien plus tard.
+
+**Preuve, pas déduction** — faire avancer l'horloge réelle de 10 s avant le fichier reproduit
+l'échec sur macOS, au mot près :
+
+```js
+beforeAll(() => { const t = Date.now(); while (Date.now() - t < 10000) {} });
+```
+
+Correctif : `let clock = performance.now()` dans `pump`. ⚠️ **Deux horloges qui ne partagent pas
+leur origine ne se comparent pas** — vrai bien au-delà de ce fichier.
+
+### 🔴 `getByText` sur une puce qui vient d'une promesse
+
+`glisser()` (aide d'`AtelierPage.test.tsx`) cherchait sa puce en **synchrone**, alors que les
+candidats viennent de `fetchCandidates`. Le bouton attendu juste avant, lui, appartient au gabarit
+et est là tout de suite : le test attendait donc **la mauvaise chose**. L'asymétrie était visible
+dans le fichier même — un test voisin faisait `await screen.findByText(…)` avant de glisser.
+Corriger l'**aide** plutôt que ses appelants ferme la classe entière.
+
+### ⚠️ Reproduire l'instabilité : `scripts/ci-like.sh`
+
+Ni la charge ni le parallélisme ne suffisent — mesuré : 5 suites complètes à 2 workers sur une
+machine saturée, **920/920 vertes**. Ce qui compte est **Node 20 + Linux**, donc un conteneur.
+
+🔴 **Trois faux instruments avant le bon**, et chacun rendait un résultat rassurant :
+`--poolOptions.*` n'existe plus en vitest 4 (six « verts » sans un seul test lancé) · `--minWorkers`
+non plus · les `node_modules` de macOS ne démarrent pas sous Linux (`@rollup/rollup-linux-arm64-gnu`
+introuvable). D'où le contrôle « RIEN MESURÉ » dans le script : *l'absence de « FAIL » ne prouve
+rien.*
+
+### ⚠️ Le conteneur peut se faire tuer (code 137)
+
+8 passages d'affilée = OOM. Rester à 4–6.
+
+---
+
 ## `fix/erreurs-lisibles` — une branche morte, et le test qui croyait l'exercer — 2026-08-17
 
 ### 🔴 `e instanceof Error ? e.message : "<phrase gentille>"` — la phrase gentille n'est JAMAIS lue

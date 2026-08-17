@@ -88,9 +88,22 @@ let reducedMotion = false;
 let frames: FrameRequestCallback[] = [];
 let rafCalls = 0;
 
-/** Fait avancer la boucle image par image, sous notre contrôle. */
+/** Fait avancer la boucle image par image, sous notre contrôle.
+ *
+ * 🔴 **L'origine est l'horloge RÉELLE, jamais zéro** — corrigé le 2026-08-17, et c'est la cause
+ * de la CI instable. `HeaderGalaxy` mesure l'avancement par `now - startedAt`, où `startedAt` est
+ * le `performance.now()` du montage. Un `now` reparti de zéro rend donc un écart **négatif** de
+ * tout ce que le processus a vécu avant ce fichier : la construction ne finit jamais, l'état reste
+ * `growing`, et `pump(60)` n'y change rien.
+ *
+ * Ce n'était pas visible en local — avec 16 workers, ce fichier démarre dans la première seconde
+ * et 60 images de 200 ms suffisent à couvrir l'écart. Sur les 2 cœurs de la CI, il démarre bien
+ * plus tard et les mêmes 60 images ne rattrapent plus rien. **Mesuré, pas supposé** : faire
+ * avancer l'horloge réelle de 10 s avant ce fichier reproduit l'échec ici, à l'identique.
+ *
+ * ⚠️ Deux horloges qui ne partagent pas leur origine ne se comparent pas. */
 function pump(times: number, msPerFrame = 200) {
-  let clock = 0;
+  let clock = performance.now();
   for (let i = 0; i < times && frames.length > 0; i += 1) {
     const next = frames.shift() as FrameRequestCallback;
     clock += msPerFrame;

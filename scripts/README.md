@@ -17,6 +17,7 @@ Scripts utilitaires (setup, seed DB, backups).
 | `gen_decisions_index.py` | régénère `DECISIONS.md` — un index, pas une seconde copie |
 | `redirige_renvois_addendums.py` | redirige vers son parent tout renvoi désignant un addendum supprimé |
 | `check_adr_refs.sh` | verrou : tout `ADR-00XX` cité doit correspondre à un fichier |
+| `ci-like.sh` | rejoue la suite Massimo **dans les conditions de la CI** (Node 20, Linux, 2 CPU), en boucle |
 
 ## Le registre ADR — six scripts, un ordre imposé
 
