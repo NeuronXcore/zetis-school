@@ -52,7 +52,8 @@ export function RevisionPage() {
         if (alive) setSummary(data);
       })
       .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : "Chargement impossible");
+        console.warn("[revision] chargement des decks", e); // trace devtools (diagnostic)
+        if (alive) setError("Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨");
       })
       .finally(() => {
         if (alive) setLoading(false);

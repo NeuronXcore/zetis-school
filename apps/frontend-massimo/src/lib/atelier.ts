@@ -19,21 +19,43 @@ function headers(json = false): HeadersInit {
   };
 }
 
+/** *« Il manque encore quelque chose pour que ta fiche soit finie. »* — le 422 de `finish`, écrit
+ *  **par le serveur, pour Massimo**, et son docstring le dit : *« le 422 n'est pas un échec
+ *  technique à masquer […] l'écran doit le traduire en langage d'enfant »*.
+ *
+ *  🔴 **Le type EST la frontière.** Tant que `asJson` levait un `Error` nu, l'écran affichait
+ *  `e.message` — cette phrase-là quand c'était un 422, `Erreur 500` le reste du temps. Un seul
+ *  canal pour deux natures de message. Même correction que `MissionRefus` dans `lib/missions.ts`. */
+export class AtelierIncomplet extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AtelierIncomplet";
+  }
+}
+
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = `Erreur ${res.status}`;
+    let duServeur = false;
     try {
       const body = (await res.json()) as { detail?: unknown };
-      // Le 422 de `finish` porte un objet (`message` + `champs`), pas une chaîne : l'écran doit
-      // pouvoir dire CE QUI manque plutôt qu'« Erreur 422 ».
-      if (typeof body.detail === "string") detail = body.detail;
-      else if (body.detail && typeof body.detail === "object") {
+      // Le 422 de `finish` porte un objet (`message` + `champs`), pas une chaîne.
+      if (typeof body.detail === "string") {
+        detail = body.detail;
+        duServeur = true;
+      } else if (body.detail && typeof body.detail === "object") {
         const d = body.detail as { message?: string };
-        if (d.message) detail = d.message;
+        if (d.message) {
+          detail = d.message;
+          duServeur = true;
+        }
       }
     } catch {
       /* réponse non-JSON : message générique */
     }
+    // ⚠️ **422 SEULEMENT** — le seul code dont le dépôt a écrit noir sur blanc que sa phrase
+    // s'adresse à l'enfant. Le reste part en console.
+    if (res.status === 422 && duServeur) throw new AtelierIncomplet(detail);
     throw new Error(detail);
   }
   return (await res.json()) as T;

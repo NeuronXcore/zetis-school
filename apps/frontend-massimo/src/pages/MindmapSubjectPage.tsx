@@ -19,6 +19,10 @@ import {
 // Écrans 2 (liste des cartes d'une matière) + 3 (la carte interactive). À l'ouverture d'une carte :
 // POST /seen. Aucune logique métier : le serveur ne sert que le validé et évalue la reconstruction.
 
+/** Ce que Massimo lit quand une carte refuse de s'ouvrir — par son adresse ou depuis la liste,
+ *  c'est le même geste manqué, donc la même phrase. */
+const CARTE_FERMEE = "Cette carte n'a pas voulu s'ouvrir. Réessaie dans un instant ✨";
+
 export function MindmapSubjectPage() {
   const { slug = "", mindmapId } = useParams();
   const location = useLocation();
@@ -58,7 +62,10 @@ export function MindmapSubjectPage() {
     setError(null);
     fetchMindmapsIndex()
       .then((data) => alive && setIndex(data))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"));
+      .catch((e) => {
+        console.warn("[mindmap] index des cartes", e); // trace devtools (diagnostic)
+        if (alive) setError("Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨");
+      });
     return () => {
       alive = false;
     };
@@ -79,7 +86,10 @@ export function MindmapSubjectPage() {
     setFicheOpen(false);
     Promise.all([fetchMindmap(Number(mindmapId)), markMindmapSeen(Number(mindmapId))])
       .then(([mm]) => alive && setDetail(mm))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Carte indisponible"))
+      .catch((e) => {
+        console.warn("[mindmap] carte atteinte par son adresse", e); // trace devtools (diagnostic)
+        if (alive) setError(CARTE_FERMEE);
+      })
       .finally(() => alive && setDetailLoading(false));
     return () => {
       alive = false;
@@ -105,7 +115,8 @@ export function MindmapSubjectPage() {
         const [mm] = await Promise.all([fetchMindmap(item.id), markMindmapSeen(item.id)]);
         setDetail(mm);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Carte indisponible");
+        console.warn("[mindmap] ouverture d'une carte", e); // trace devtools (diagnostic)
+        setError(CARTE_FERMEE);
         setOpenId(null);
       } finally {
         setDetailLoading(false);

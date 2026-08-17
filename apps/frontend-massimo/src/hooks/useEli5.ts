@@ -235,7 +235,8 @@ export function useEli5(): UseEli5 {
         if (active) setSkills(list);
       })
       .catch((e: unknown) => {
-        if (active) setError(e instanceof Error ? e.message : "Erreur de chargement");
+        console.warn("[eli5] chargement des notions", e); // trace devtools (diagnostic)
+        if (active) setError("La liste des notions n'a pas voulu se charger. Réessaie dans un instant ✨");
       });
     // fetchDueReviews() reste appelée ici — non pour une liste autonome (retirée),
     // mais pour nourrir les chips « à réviser ». Échec silencieux : pas de chips SRS.
@@ -293,7 +294,8 @@ export function useEli5(): UseEli5 {
       })
       .catch((e) => {
         if (runId !== runIdRef.current) return;
-        setError(e instanceof Error ? e.message : "Erreur");
+        console.warn("[eli5] génération de l'explication", e); // trace devtools (diagnostic)
+        setError("ZETIS n'a pas réussi à préparer l'explication. Réessaie dans un instant ✨");
         setStatus("idle");
       });
   }, []);
@@ -349,7 +351,10 @@ export function useEli5(): UseEli5 {
       })
       .catch((e) => {
         if (runId !== runIdRef.current) return;
-        setError(e instanceof Error ? e.message : "Erreur");
+        console.warn("[eli5] évaluation de la réponse (reverse)", e); // trace devtools (diagnostic)
+        // Le fait qui compte : `answer` n'est pas vidé et le statut retombe sur « explained » —
+        // ce qu'il a écrit est TOUJOURS dans le champ. Sans cette phrase, rien ne le lui dit.
+        setError("ZETIS n'a pas réussi à écouter ta réponse. Elle est toujours là — réessaie dans un instant ✨");
         setStatus("explained"); // on reste sur l'explication, l'élève peut réessayer
       });
   }, [currentSkillId, answer]);

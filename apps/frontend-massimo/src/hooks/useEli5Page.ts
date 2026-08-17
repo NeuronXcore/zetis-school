@@ -68,7 +68,8 @@ export function useEli5Page(status: Eli5Status): UseEli5Page {
         if (alive) setSummary(data.subjects);
       })
       .catch((e) => {
-        if (alive) setSummaryError(e instanceof Error ? e.message : "Chargement impossible");
+        console.warn("[eli5] chargement des matières", e); // trace devtools (diagnostic)
+        if (alive) setSummaryError("Tes matières n'ont pas voulu se charger. Réessaie dans un instant ✨");
       })
       .finally(() => {
         if (alive) setSummaryLoading(false);
@@ -97,9 +98,11 @@ export function useEli5Page(status: Eli5Status): UseEli5Page {
         })
         .catch((e) => {
           if (runId !== subjectRunRef.current) return;
-          // Dégradation douce : on garde l'écran matière avec le champ libre seul.
+          console.warn("[eli5] notions d'une matière", e); // trace devtools (diagnostic)
+          // Dégradation douce : on garde l'écran matière avec le champ libre seul — et la phrase
+          // le DIT, sinon l'enfant croit l'écran cassé alors qu'il peut encore tout y faire.
           setNotions([]);
-          setNotionsError(e instanceof Error ? e.message : "Notions indisponibles");
+          setNotionsError("La liste n'a pas voulu se charger. Tu peux quand même écrire ta notion ✨");
         })
         .finally(() => {
           if (runId === subjectRunRef.current) setNotionsLoading(false);

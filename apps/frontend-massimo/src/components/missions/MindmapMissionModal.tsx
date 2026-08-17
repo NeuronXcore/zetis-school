@@ -33,7 +33,10 @@ export function MindmapMissionModal({ mission, step, onStepDone, onClose }: Miss
         setDetail(d);
         void markMindmapSeen(id);
       })
-      .catch((e) => alive && setLoadError(e instanceof Error ? e.message : "Carte indisponible"));
+      .catch((e) => {
+        console.warn("[missions] carte de l'étape", e); // trace devtools (diagnostic)
+        if (alive) setLoadError("Cette carte n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
+      });
     return () => {
       alive = false;
     };
