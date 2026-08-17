@@ -6,44 +6,15 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-### ✅ MERGÉ — Massimo ne lit plus « Erreur 500 » (2026-08-17, PR #144, squash `1178a68`)
-
-**Aucun ADR** : cas 2 de l'`adr-0060` — *application* d'une règle déjà écrite dans le `CLAUDE.md`
-(« Massimo ne doit pas voir : […] les informations techniques »). En écrire un fabriquerait une
-décision là où il n'y avait qu'une dette. Périmètre : `apps/frontend-massimo` seul.
-Hors périmètre assumé : **`frontend-papa` porte le même motif 113 fois** et le garde — c'est une
-interface adulte, le détail technique y est utile.
-
-**Fait, et vérifié à l'écran** (backend forcé en 500, `/mindmaps` `/fiches` `/revision`) : les
-**35** sites du motif `e instanceof Error ? e.message : "…"` sont repris — phrase fixe à l'écran,
-`console.warn("[zone] …", e)` aux devtools. Deux canaux délibérés typés (`MissionRefus` 409,
-`AtelierIncomplet` 422). Verrou `src/erreurs-lisibles.test.ts` + sabotage joué (1 rouge, le bon).
-`lib/missionSteps.test.ts` créé — la fonction n'avait **aucun** test.
-
-Suites : backend **1425**, Massimo **920**, Papa **814**, UI **28**. `tsc -b` vert. Branche
-supprimée (locale et distante). ⚠️ Le contenu a été vérifié **dans `main`** avant le `-D` : un
-squash n'est pas un ancêtre, `git branch -d` refuse, et « absorbée » ne veut pas dire « absorbé ».
-Contrôle : `git diff main <branche> --stat` doit être **vide**.
-
-#### 🔴 CE QUI COMPTE
-
-- **« 38 occurrences » n'a jamais correspondu à rien.** Mesure : **39** avant la PR #142, qui en a
-  corrigé 3 → **35**. Le chiffre venait de la session qui venait d'en corriger trois et ne les avait
-  pas recomptées. *Un nombre écrit ici se remesure avant d'être cité.*
-- **Le test « un finish en 422 » ne testait pas le 422** : il levait un `Error` nu, parce que le
-  code ne distinguait pas les deux. Il croyait prouver le cas utile et prouvait aussi le nuisible.
-  Encore *un cas à DEUX exercé à UN* — le cinquième en deux jours.
-- ⚠️ **`tsc -b` ne part pas de la racine** (aucun `tsconfig.json` racine) : il rend `TS5083` **et
-  sort en code 0**. Se placer dans le paquet. Détail dans `TROUBLESHOOTING.md`.
-- ℹ️ Il reste **4 occurrences** de `instanceof Error` dans `frontend-massimo` — **toutes en prose**
-  (3 dans l'en-tête du verrou, 1 dans le docstring de `DiagnosticPage`). Zéro dans le code exécuté.
-  Un `git grep` brut en compte donc 4 : ce n'est pas une régression.
-
-#### ▶ PROCHAIN PAS
-
-**Aucun sur ce chantier — il est clos.** Le candidat suivant est la dette de flakiness ci-dessous.
-
----
+> **Où en est le dépôt, en trois lignes** (2026-08-17, fin de journée) — `main` est à jour, l'arbre
+> est propre, **aucune branche** locale ni distante, **aucune PR ouverte**. Quatre chantiers mergés
+> ce jour : l'agenda v2 (#143 `b0f5d37`), la *required check* (`4001594`), « Massimo ne lit plus
+> Erreur 500 » (#144 `1178a68`), la CI instable (#145 `0ad3679`). **Un seul reste inachevé** — le
+> dernier, ci-dessous.
+>
+> **Prod** : mesurée à la clôture, révision `a8a71c84f86e` = tête du dépôt, **zéro migration en
+> attente**. Aucune écriture faite, donc aucune sauvegarde nécessaire ; pile éteinte **sans `-v`**,
+> volumes intacts. Les chantiers de l'après-midi n'apportent aucune migration.
 
 ### 🟡 MERGÉ mais INACHEVÉ — la CI instable : deux causes soldées, deux restantes (2026-08-17, PR #145, squash `0ad3679`)
 
@@ -110,149 +81,39 @@ hasard apprend très vite à relancer sans lire — et c'est ainsi qu'un vrai ro
 
 ---
 
-### ✅ MERGÉ — l'agenda répond à trois questions (2026-08-17, PR #143, squash `b0f5d37`)
+## ⬆️ REMONTÉ de l'élagage du 2026-08-17 (soir) — trois chantiers clos
 
-Amendements **8 et 9** de l'ADR-0025, implémentés de bout en bout. **Trois migrations** :
-`a8d76627dc51`, `a86333999bf0`, `a8a71c84f86e`.
+> Retirés : **l'agenda v2** (PR #143, squash `b0f5d37`), **le tableau des amendements** (via #143),
+> **« Massimo ne lit plus Erreur 500 »** (PR #144, squash `1178a68`). Les quatre contrôles passent
+> pour les trois : ADR ✅ (`adr-0025` ; les deux autres sont des cas 1/2 sans ADR, à dessein),
+> `TROUBLESHOOTING.md` ✅, `CHANGELOG.md` ✅ (0.99.0 et 0.99.1). Voici ce qui restait **ouvert**.
 
-🔴 **NE PAS RÉ-IMPLÉMENTER.** Ce qui existe désormais : vue **mois** + bande · le passé qui se
-**raconte** (matières, notions, formes — aucun nombre) · teinte = matière, silhouette = nature ·
-aperçu au survol · **trois registres** présent → futur → passé, avec des rails dont la teinte vient
-du **calendrier** · bloc **« Prendre de l'avance »** ancré sur la prochaine échéance (`/agenda/ahead`,
-un appel pour cinq sources) · badge **« En retard »** animé · **alerte éphémère** à l'ouverture
-(`/agenda/late-alert`).
+### 🧾 DETTES SURVIVANTES de l'agenda v2
 
-#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
+- **O3 — vacances** : aucune source de donnée. `SchoolYear` ne porte que `starts_on`/`ends_on` ;
+  rien ne dit à ZETIS qu'une semaine est chômée.
+- **O4 — mindmaps et capsules n'émettent aucun `learning_event`** : elles ne peuvent donc **jamais**
+  apparaître dans « Ce que tu as travaillé », quel que soit le travail réellement fourni.
+- ⚠️ Le bouton **« voir N autres »** sous « En retard » **grossit quand Massimo ne vient pas** —
+  signalé par la relecture paire comme un compteur d'arriéré déguisé, **maintenu sciemment** par le
+  commanditaire (emplacement en bas, libellé fugace). Décision prise, pas un oubli.
+- ⚠️ **La relecture visuelle a sauté sept merges d'affilée** avant d'être enfin faite le
+  2026-08-17. Le gate n'existe toujours **nulle part** dans le process : rien ne l'exige.
 
-- **QUATRE révocations du §7 dans la même journée** : le mot « en retard » (§D17), l'ambre des
-  cellules (§D18), l'ordre qui met le passé en dernier (§D1), le titre en badge (§D9). Ce qui reste
-  du §7 est énuméré au **§D9** : aucun rouge, aucun compteur d'arriéré, aucun total, aucune série,
-  aucun réceptacle — et **la grille reste STATIQUE**.
-- **Le §4 est BORNÉ, pas révoqué** : la bande et la grille n'accueillent aucune carte SRS ni
-  mission ; le bloc « Prendre de l'avance » ne porte **aucune date**.
-  `test_dated_surfaces_never_contain_missions_or_srs_cards` est l'autorité — **s'il faut le
-  modifier, c'est que la frontière a bougé**.
-- **Jamais une marque PAR ITEM** pour l'alerte : trois scalaires par élève. Une marque par item,
-  jointe à `done_at`, fabriquerait « vu le 12, jamais fait », lisible côté Papa.
-- **En vue mois sur iPhone**, le bloc du futur reste sous la ligne de flottaison. Arbitrage
-  assumé : une cible tactile atteignable vaut mieux qu'une section visible.
+### 🧾 DETTES SURVIVANTES de « Erreur 500 »
 
-#### 🔴 CE QUI COMPTE — quatre défauts, et aucun trouvé par les tests
-
-Le mécanisme d'alerte a eu **quatre défauts réels**, tous de la **même forme : un cas à DEUX que
-les tests n'exerçaient qu'à UN.**
-
-| # | cas à deux | trouvé par |
-|---|---|---|
-| 1 | deux échéances dans la fenêtre | relecture paire |
-| 2 | deux versions du client (bundle en cache) | relecture paire |
-| 3 | deux accusés le même jour | relecture paire |
-| 4 | deux échéances **à la même date** | une **capture d'écran** |
-
-🔴 **Aucun trouvé par la suite de tests, verte à chaque étape — ni par la CI, verte aussi.** Et
-**deux des quatre étaient dans le correctif du précédent** : un correctif déplace le défaut aussi
-souvent qu'il le supprime, et il **change le mode de dégradation**, ce que personne ne re-teste.
-
-⚠️ **Trois de mes propres verrous sont restés VERTS sous sabotage** avant d'être refaits : le
-verrou de quantités (neutralisé par `response_model`, qui filtre la sortie), la garde anti-recul,
-et l'ancrage d'une keyframe (`\b` ne s'arrête pas à un tiret). À chaque fois je vérifiais une
-**déclaration**, pas un **effet**.
-
-⚠️ **Quatre défauts n'ont été vus qu'À L'ÉCRAN** : le toast qui sortait par le haut (469 px de haut,
-`top` à −149), le fond dérivant qui n'animait rien (déphasage nul), le libellé qui nommait un
-chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
-
-#### 🧾 DETTES OUVERTES
-
-- ✅ **Les trois migrations SONT POSÉES en prod** (2026-08-17) : `f9a0b1c2d3e4` → `a8a71c84f86e`.
-  Sauvegarde préalable `~/zetis-backups/zetis-prod-20260817-131748-avant-agenda-v2.sql` (636 K,
-  marqueur `dump complete` présent). Vérifié **par le schéma réel** — les trois colonnes existent
-  — et non par le `head` d'alembic ; contenu inchangé (476/119/0). Pile éteinte sans `-v`.
-- ⚠️ **La relecture visuelle complète n'a pas eu lieu** avant le merge — le commanditaire a vu des
-  captures, pas la page entière aux deux largeurs. **Septième fois** que ce gate saute.
-- **O3** vacances : aucune source de donnée (`SchoolYear` n'a que `starts_on`/`ends_on`).
-- **O4** mindmaps et capsules n'émettent aucun `learning_event` : elles ne peuvent jamais
-  apparaître dans « Ce que tu as travaillé ».
-- Le bouton « voir N autres » sous « En retard » **grossit quand Massimo ne vient pas** — signalé
-  par la relecture paire, **maintenu** par le commanditaire (argument d'emplacement et de fugacité).
-- ✅ Worktree `claude/festive-kilby-0eafd7` et sa branche **supprimés** (2026-08-17). Vérifié avant :
-  **zéro ligne** de sa branche n'était absente de `main` — le seul fichier divergent (`adr-0025`)
-  l'était dans l'autre sens. ⚠️ Elle était devenue une **référence trompeuse** : son dernier commit
-  n'a jamais porté le garde anti-conflit, pris directement dans son arbre de travail pour être
-  commité sur `feat/agenda-v2`. *(Le hash de ce commit ne figure pas ici : la branche étant
-  supprimée, il n'est plus atteignable et sera ramassé par le GC — une ligne qui le nommerait
-  deviendrait fausse.)*
-
-#### ✅ RELECTURE VISUELLE — FAITE le 2026-08-17
-
-La page a été regardée **aux deux largeurs**, dans les deux vues, du haut jusqu'au dernier registre.
-Première fois depuis sept merges. Trois observations, aucune bloquante :
-
-- le badge « En retard » **ne respire pas sur une capture** — une capture fige une animation ; le
-  mouvement a été mesuré séparément (`getAnimations()`, 3 s, ambre 50 % → 95 %) ;
-- **la bande est coupée à gauche sur iPhone** : elle s'ouvre aimantée sur aujourd'hui, donc le passé
-  est partiellement hors champ. Comportement voulu — s'ouvrir sur le rétroviseur serait pire ;
-- le contrôle du 14 n'apparaît plus dans « En retard » : **il a été coché** par le commanditaire.
-
-#### ▶ PROCHAIN PAS
-
-**Aucun sur ce chantier — il est clos.** Les deux candidats, par ordre de coût :
-
-1. 🔴 **Trancher la voie de la *required check*** (`## ⬆️ REMONTÉ` plus bas) — le trou est entier et
-   nommé : un merge sur du rouge reste possible, et cette session vient précisément d'en faire un.
-2. ~~Les 38 occurrences du motif à branche morte~~ — **MERGÉ** le 2026-08-17 (PR #144, squash
-   `1178a68`). Il y en avait **35**, pas 38.
+- ⚠️ **`frontend-papa` porte le même motif à branche morte 113 fois** et le garde — interface
+  adulte, le détail technique y est utile. *Hors périmètre assumé, pas un oubli.*
+- ℹ️ Un `git grep "instanceof Error"` sur `frontend-massimo` compte encore **4 lignes**, toutes en
+  **prose** (3 dans l'en-tête du verrou, 1 dans le docstring de `DiagnosticPage`). Zéro dans le
+  code exécuté : **ce n'est pas une régression**.
+- ⚠️ **`tsc -b` ne part pas de la racine** — aucun `tsconfig.json` racine, il rend `TS5083` **et
+  sort en code 0**. Se placer dans le paquet : `cd apps/frontend-massimo && ./node_modules/.bin/tsc
+  -b --force --noEmit`.
 
 ---
 
-
-### ✅ MERGÉ — le tableau des amendements redevient généré (2026-08-17, via PR #143)
-
-`scripts/gen_tableau_amendements.py`. **Aucun ADR** : cas 2 de l'`adr-0060` — application d'une
-règle qui existait déjà (un artefact généré ne s'édite pas), pas une décision neuve.
-
-**Le problème** : la fusion du 2026-08-16 (PR #136) a supprimé les fichiers d'addendum sur
-lesquels `fusion_addendums.py::tableau_amendements()` itérait. Pendant une journée, la mention
-« ne pas éditer à la main » a désigné un outil devenu **incapable** de tenir la promesse — et
-l'Amendement 8 de l'`adr-0025` a dû être écrit à la main.
-
-🔴 **NE PAS RÉ-IMPLÉMENTER.** Le générateur lit les sections `## Amendement N — <titre> — <date>`
-**là où elles sont**, dans le fichier parent, et réécrit le seul bloc entre `> ### Amendements`
-et la ligne de mention. Il refuse d'écrire si une section manque une date ou un statut, si la
-numérotation n'est pas contiguë, si zéro fichier est trouvé, ou si le fichier porte des
-**marqueurs de fusion** — ce dernier cas est arrivé pour de vrai, en pleine fusion.
-
-#### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
-
-- **La source de vérité est la SECTION, jamais le tableau.** Le tableau n'est qu'une vue.
-- **Le verrou CI (`--check`, job `verrous`) est ce qui rend la mention vraie** au lieu de pieuse.
-  Sans lui, un amendement écrit sans régénérer fait redériver le tableau en silence.
-- 🔴 **`REVOCATION_DECLAREE` demande une ligne par amendement neuf** — clé `adr-XXXX::<titre>`.
-  Rien à retenir : le rapport la réclame tout seul, et le verrou rougit tant qu'elle manque.
-  La détection par les mots a été retirée parce qu'elle **mentait sur 12 des 46 lignes**.
-
-#### 🔴 CE QUI COMPTE
-
-⚠️ **La colonne « Révoque » a été corrigée sur 12 lignes**, pas 9 : neuf sections écrivaient
-« Ne révoque rien » et étaient comptées `oui`, et **trois de plus qu'aucune formule ne repère** —
-`adr-0025` Amdt 5 (« amendé, pas révoqué »), `adr-0032` Amdt 1 et `adr-0015` Amdt 1, qui révoquent
-leur **propre brouillon**, pas le parent. C'est une modification de métadonnées de décision déjà
-relues : elle a été **arbitrée**, pas glissée.
-
-⚠️ **Une fence ` ``` ` orpheline a été supprimée dans `adr-0016`** (ligne 168, antérieure à la
-fusion, présente dès le commit d'origine). Elle faisait rendre **tout l'Amendement 1 comme un bloc
-de code** dans n'importe quel viewer markdown, et rendait le tableau de cet ADR non régénérable.
-
-🔴 **Trois fois dans la session, l'instrument de vérification était le fautif, pas le code** — un
-`glob` sur un répertoire vide parce que le `cwd` avait persisté entre appels Bash, un pilote de
-test appelant une signature de la veille, un motif `grep` incomplet. Chaque fois il **accusait**,
-et chaque fois le vérifier avant d'envoyer a évité une fausse alerte. Un outil qu'on n'interroge
-pas devient une source d'erreur qui a l'apparence d'une mesure.
-
----
-
-
-## ⬆️ REMONTÉ de l'élagage du 2026-08-17 — ce qui reste OUVERT
+## ⬆️ REMONTÉ de l'élagage du 2026-08-17 (matin) — ce qui reste OUVERT
 
 > Deux sections retirées : le **cadrage ADR-0061** (2026-08-16) et les **deux chantiers
 > `diagnostics`** (2026-08-16). Leurs récits sont dans Git, leurs décisions dans les ADR. Ce qui

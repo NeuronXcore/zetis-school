@@ -149,3 +149,25 @@ immobile d'emblée, aucune boucle armée.
 - Toujours afficher le bouton “Je continue”.
 - Toujours afficher où on en est : matière, mission, étape.
 - Les données analytiques détaillées restent côté Papa.
+
+## Ce que Massimo lit quand ça casse (2026-08-17)
+
+Règle **transverse à tous les écrans** — elle vit ici parce qu'elle n'appartient à aucune page.
+Elle applique le `CLAUDE.md` (« Massimo ne doit pas voir : […] les informations techniques »).
+
+- **Le message d'interface est FIXE**, écrit pour lui, et nomme ce qui n'a pas eu lieu :
+  *« Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨ »*.
+- **Le détail technique part en console** — `console.warn("[zone] ce qu'on tentait", e)`. Les deux
+  moitiés comptent : un message fixe qui jette l'erreur laisse qui débogue sans rien.
+- **Quand c'est vrai, la phrase porte le fait qui rassure** : *« Tes réponses sont bien là »*,
+  *« Ton travail est bien enregistré »*, *« Tu peux quand même écrire ta notion »*. Jamais une
+  consolation inventée — chacune correspond à un état réellement préservé.
+
+🔴 **Le motif `e instanceof Error ? e.message : "…"` est proscrit** : la phrase gentille y est la
+branche MORTE (`asJson` lève un vrai `Error`), et Massimo lisait donc `Erreur 500`. Verrou de
+dépôt : `apps/frontend-massimo/src/erreurs-lisibles.test.ts`.
+
+⚠️ **Deux exceptions, et elles sont typées** : le **409** d'une étape de mission non prouvée
+(`MissionRefus`) et le **422** d'une fiche incomplète (`AtelierIncomplet`). Là, c'est le serveur qui
+a écrit *pour lui* — ses propres docstrings le disent. Le type est la frontière, jamais le code HTTP
+lu à la volée.

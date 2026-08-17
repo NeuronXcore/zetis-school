@@ -1,5 +1,21 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.2 — La CI cesse de rougir au hasard (outillage)
+
+Aucun changement pour Massimo : deux lignes dans des aides de test. L'entrée existe parce que la
+**fiabilité du filet** change, et qu'un filet qui ment se contourne vite — sur un dépôt qui vient
+d'activer une *required check*, une suite qui rougit au hasard apprend à relancer sans lire.
+
+La cause : `HeaderGalaxy` mesure sa construction en temps réel (`performance.now()` du montage),
+tandis que son test fabriquait un temps **reparti de zéro**. Deux horloges sans origine commune.
+Selon que le fichier démarre tôt ou tard dans le run, l'écart suffisait ou pas — d'où le hasard.
+
+- `scripts/ci-like.sh` rejoue la suite **dans les conditions de la CI** (Node 20, Linux, 2 CPU) et
+  refuse de déclarer vert un passage qui n'a **rien compté**.
+- Mesure au même instrument : **4 passages rouges sur 4 → 2 sur 6.**
+
+⚠️ **Deux tests restent instables**, sans cause établie, volontairement non corrigés.
+
 ## 0.99.1 — Massimo ne lit plus « Erreur 500 »
 
 Quand quelque chose cassait, ZETIS lui montrait ce que la **machine** avait compris : `Erreur 500`,
