@@ -118,6 +118,8 @@ REVOCATION_DECLAREE: dict[str, bool] = {
     #   « **RÉVOQUE la Décision validée n°2 de l'Amendement 1** »
     "adr-0025::Le passé se raconte, et la matière prend la couleur": True,
     #   « **RÉVOQUE quatre décisions** … nommées une à une au §R »
+    "adr-0025::Trois questions, trois sections": True,
+    #   « **RÉVOQUE §D8** … et **BORNE §4 / §B7** sans les révoquer »
     "adr-0030::le témoin du Diagnostic, et l'exception assumée à « NOUVEAU jamais DÛ »": True,
     #   « **AMENDE l'`adr-0030` Décision 1** … et **RÉVOQUE** … »
     "adr-0032::ZETIS LEVELS : le réglage passe en tête, et il dit ce qu'il fait": True,
