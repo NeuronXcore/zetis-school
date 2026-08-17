@@ -240,6 +240,18 @@ def test_papa_rend_une_echeance_archivee(papa: TestClient) -> None:
 
 
 def test_band_asymmetry_past_traces_future_items(papa: TestClient) -> None:
+    """🔴 **Test INVERSÉ par l'ADR-0025 Amendement 8 §R3 (2026-08-17).**
+
+    Il asserait `day["fixed_items"] == []` sur un jour passé, au motif du §6 :
+    *« un jour passé n'a plus d'échéance à annoncer »*. Le commanditaire a révoqué cette
+    asymétrie — un jour passé annonce désormais ce que l'école demandait, sinon revenir sur le
+    samedi 15 août répond « Rien à rendre ce jour-là » alors qu'il y avait un devoir.
+
+    ⚠️ **L'asymétrie n'est PAS morte pour autant** : elle tenait deux choses, et une seule est
+    révoquée. `traces` reste `null` sur un jour à venir, et `plan_steps` reste `[]` sur un jour
+    passé (une étape qu'on ne peut plus faire est un reproche, pas une aide). Les deux sont
+    assertées ci-dessous — sans quoi la prochaine session les révoquerait par entraînement.
+    """
     today = today_local()
     _create_parent_item(papa, due_on=(today + timedelta(days=2)).isoformat())
     _create_parent_item(papa, due_on=(today - timedelta(days=2)).isoformat(), label="passé")
@@ -254,13 +266,16 @@ def test_band_asymmetry_past_traces_future_items(papa: TestClient) -> None:
     for day in band["days"]:
         day_date = date.fromisoformat(day["date"])
         if day_date > today:
-            # Un jour à venir n'a pas de passé : `null`, JAMAIS `0` (ADR-0024 §5 —
+            # PRÉSERVÉ : un jour à venir n'a pas de passé — `null`, JAMAIS `[]` (ADR-0024 §5 :
             # pas de réceptacle vide, donc pas de case à remplir dans le contrat).
             assert day["traces"] is None
         if day_date < today:
-            # Un jour passé n'a plus d'échéance à annoncer.
-            assert day["fixed_items"] == []
-        assert day["plan_steps"] == []  # Lot 2
+            # PRÉSERVÉ : aucune étape de plan sur un jour passé.
+            assert day["plan_steps"] == []
+
+    # RÉVOQUÉ : le jour passé porte maintenant son échéance.
+    passe = next(d for d in band["days"] if d["offset"] == -2)
+    assert [item["label"] for item in passe["fixed_items"]] == ["passé"]
 
 
 def test_band_is_sliding_not_calendar(papa: TestClient) -> None:
@@ -667,17 +682,28 @@ def test_upcoming_drops_done_and_dismissed(papa: TestClient) -> None:
 
 
 def test_traces_are_capped_and_count_natures_not_volume(papa: TestClient, client_db) -> None:
-    """Une rafale de révision vaut 1 (une nature), pas 12. Le plafond borne le tout — un
-    comptage grossier et généreux, surtout pas une mesure d'effort."""
+    """Une rafale de révision vaut UNE matière, pas 12. Un comptage grossier et généreux,
+    surtout pas une mesure d'effort.
+
+    🔴 **Adapté par l'Amendement 8 §D2** : `traces` était un `int`, c'est désormais la LISTE des
+    matières travaillées. La règle testée n'a pas changé d'un pouce — une rafale vaut 1 — mais
+    l'unité est passée du *nombre de natures* au *nom de la matière*, parce que trois points
+    verts ne disaient rien de ce qui avait été fait.
+    """
     _, SessionLocal = client_db
     db = SessionLocal()
     try:
         student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        # ⚠️ Le NOM est capturé DANS la session : après `db.close()`, l'instance est détachée et
+        # tout accès d'attribut lève `DetachedInstanceError`. Piège tombé à l'écriture.
+        subject_name = subject.name
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         for index in range(12):
             db.add(
                 m.LearningEvent(
                     student_id=student.id,
+                    subject_id=subject.id,
                     event_type="review_attempted",
                     created_at=yesterday + timedelta(minutes=index),
                 )
@@ -695,8 +721,86 @@ def test_traces_are_capped_and_count_natures_not_volume(papa: TestClient, client
     _as_massimo()
     band = papa.get(f"{STUDENT}/week").json()
     by_offset = {day["offset"]: day for day in band["days"]}
-    assert by_offset[-1]["traces"] == 1
-    assert by_offset[-2]["traces"] == 0  # « 0 » et « pas de donnée » sont le même état.
+    # Douze événements, UNE matière — le volume ne se voit pas, et c'est le point.
+    assert [t["name"] for t in by_offset[-1]["traces"]] == [subject_name]
+    # « [] » et « pas de donnée » sont le même état (§7) : le jour d'avant n'a rien eu.
+    assert by_offset[-2]["traces"] == []
+    # ⚠️ Aucune quantité ne doit jamais apparaître dans une trace.
+    assert set(by_offset[-1]["traces"][0]) == {"slug", "name", "color"}
+
+
+def test_traces_are_capped_by_setting(papa: TestClient, client_db) -> None:
+    """Le plafond survit au changement d'unité : il borne la hauteur de la cellule, pas l'effort."""
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        # ⚠️ Le test CRÉE ses matières au lieu de les emprunter à la fixture : la version
+        # empruntée se `skip`ait faute d'en trouver assez, et **un test sauté ne prouve rien**.
+        # Le plafond ne se vérifie qu'en le dépassant.
+        surplus = settings.agenda_traces_cap + 2
+        subject_ids = []
+        for index in range(surplus):
+            subject = m.Subject(name=f"Matière {index}", slug=f"matiere-test-{index}")
+            db.add(subject)
+            db.flush()
+            subject_ids.append(subject.id)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        for index, subject_id in enumerate(subject_ids):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject_id,
+                    event_type="quiz_attempted",
+                    created_at=yesterday + timedelta(minutes=index),
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
+
+    _as_massimo()
+    band = papa.get(f"{STUDENT}/week").json()
+    by_offset = {day["offset"]: day for day in band["days"]}
+    assert len(by_offset[-1]["traces"]) == settings.agenda_traces_cap
+
+
+def test_une_activite_sans_matiere_reste_une_trace(papa: TestClient, client_db) -> None:
+    """🔴 **Test-verrou né d'une MESURE, pas d'une intuition.**
+
+    La première écriture de `trace_subjects_by_day` filtrait `subject_id IS NOT NULL`, au motif
+    qu'une trace anonyme serait « un réceptacle déguisé ». Comptage sur la base de dev :
+    **44 des 48 `chat_tool_response` n'ont aucune matière**, et **1 jour travaillé sur 20**
+    perdait toute trace. C'était réintroduire, par la porte de derrière, le défaut même que
+    l'Amendement 8 corrige — une page qui sous-déclare ce que Massimo a fait.
+
+    ⚠️ Un réceptacle est une case **éteinte** qui attend d'être remplie ; ceci est une marque
+    **allumée** sans nom de matière. Les deux ne se ressemblent que sur le papier.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        db.add(
+            m.LearningEvent(
+                student_id=student.id,
+                subject_id=None,
+                event_type="chat_tool_response",
+                created_at=yesterday,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    _as_massimo()
+    band = papa.get(f"{STUDENT}/week").json()
+    trace = {day["offset"]: day for day in band["days"]}[-1]["traces"]
+    assert len(trace) == 1, "le jour ne disparaît pas"
+    assert trace[0]["slug"] is None and trace[0]["name"] is None
+    # Aucune couleur de repli : inventer une teinte inventerait une matière.
+    assert trace[0]["color"] is None
 
 
 # ── 9. Le watermark de nouveauté ne fuit nulle part (addendum §12.3) ─────────────
@@ -771,3 +875,657 @@ def test_only_massimo_writes_the_watermark(papa: TestClient) -> None:
 
     # Et la route n'existe pas sous le préfixe Papa.
     assert papa.post(f"{PILOT}/seen").status_code == 404
+
+
+# ── Amendement 8 — « Ce que tu as travaillé » : raconter sans jamais mesurer ─────
+
+
+# Les champs qui font d'un récit une mesure. Un seul suffit à transformer une surface d'enfant
+# en chronomètre — et c'est très exactement l'interdiction que l'Amendement 8 §R4 a BORNÉE
+# plutôt que levée : les natures et les matières remontent, jamais les quantités.
+CHAMPS_DE_MESURE = {"minutes", "xp", "time", "score_percent", "count", "duration", "total"}
+
+
+def test_day_traces_ne_sert_aucune_mesure(papa: TestClient, client_db) -> None:
+    """🔴 **Test-verrou sur le JSON SÉRIALISÉ, pas sur la définition du schéma.**
+
+    Un champ présent dans la réponse réseau est un champ exposé, quoi qu'en fasse l'UI. C'est la
+    même jurisprudence que `parent_note` : la frontière se vérifie sur ce qui sort du serveur.
+
+    ⚠️ Le danger précis qu'il garde : `activity.service.day_detail` rend exactement la même
+    question (« qu'a fait Massimo ce jour-là ? ») **avec** `time`, `minutes`, `xp` et
+    `score_percent`. Router cette route vers lui « en filtrant côté client » est le raccourci
+    qui se présentera un jour comme une simplification.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        skill = db.query(m.Skill).first()
+        # Capturés DANS la session (cf. piège du `DetachedInstanceError` plus haut).
+        subject_name, skill_name, skill_id = subject.name, skill.name, skill.id
+        hier = datetime.now(timezone.utc) - timedelta(days=1)
+        for event_type in ("lesson_viewed", "quiz_attempted", "review_attempted"):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject.id,
+                    skill_id=skill.id,
+                    event_type=event_type,
+                    created_at=hier,
+                    payload_json={"xp": 20, "score_percent": 80, "minutes": 12},
+                )
+            )
+        db.commit()
+        jour = (hier.date()).isoformat()
+    finally:
+        db.close()
+
+    _as_massimo()
+    reponse = papa.get(f"{STUDENT}/days/{jour}/traces")
+    assert reponse.status_code == 200
+    charge = reponse.json()
+
+    # Le payload d'origine PORTAIT xp / score_percent / minutes : la preuve que le filtre est
+    # bien celui du schéma, et pas un hasard de données pauvres.
+    brut = reponse.text
+    for champ in CHAMPS_DE_MESURE:
+        assert f'"{champ}"' not in brut, f"« {champ} » a fui dans la réponse élève"
+
+    assert charge["date"] == jour
+    matiere = charge["subjects"][0]
+    assert set(matiere) == {"slug", "name", "color", "notions", "forms"}
+    assert matiere["name"] == subject_name
+    # 🔴 `{id, name}` et non le nom seul : l'`id` est ce qui rend la notion CLIQUABLE
+    # (Amdt 8 §D10). Sans lui, le bloc racontait à Massimo ce qu'il avait fait sans lui
+    # laisser aucun moyen d'y revenir.
+    assert matiere["notions"] == [{"id": skill_id, "name": skill_name}]
+    # Ordre DOCTRINAL, jamais par fréquence : lire → s'exercer → consolider.
+    assert matiere["forms"] == ["Cours lu", "Quiz", "Révision SRS"]
+
+
+def test_day_traces_ne_compte_pas_le_volume(papa: TestClient, client_db) -> None:
+    """Douze révisions rendent UNE forme, pas douze. Le récit ne compte pas."""
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        hier = datetime.now(timezone.utc) - timedelta(days=1)
+        for index in range(12):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject.id,
+                    event_type="review_attempted",
+                    created_at=hier + timedelta(minutes=index),
+                )
+            )
+        db.commit()
+        jour = hier.date().isoformat()
+    finally:
+        db.close()
+
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/days/{jour}/traces").json()
+    assert charge["subjects"][0]["forms"] == ["Révision SRS"]
+
+
+def test_day_traces_ignore_la_navigation_et_les_coches(papa: TestClient, client_db) -> None:
+    """🔴 **Cocher un devoir ne fabrique JAMAIS une trace** (§3, préservé par l'Amdt 8 §B4).
+
+    Le filtre est `NON_WORK_EVENTS` et surtout pas `NON_ACTIVITY_EVENTS` : avec la seconde,
+    `login` et `page_viewed` compteraient, et **ouvrir la page allumerait une trace**.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        hier = datetime.now(timezone.utc) - timedelta(days=1)
+        for event_type in ("login", "page_viewed", "agenda_item_done", "agenda_item_created"):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject.id,
+                    event_type=event_type,
+                    created_at=hier,
+                )
+            )
+        db.commit()
+        jour = hier.date().isoformat()
+    finally:
+        db.close()
+
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/days/{jour}/traces").json()
+    assert charge["subjects"] == [], "naviguer et cocher ne sont pas du travail"
+
+
+def test_day_traces_sans_notion_rend_la_matiere_seule(papa: TestClient, client_db) -> None:
+    """La ligne de notion SAUTE quand l'événement n'en porte pas — la matière reste une réponse.
+
+    ⚠️ C'est le repli du constat §D2 : `Skill` n'a aucun `chapter_id`, donc on rend la NOTION ;
+    et un événement sans `skill_id` n'a même pas de notion. Il ne disparaît pas pour autant.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        hier = datetime.now(timezone.utc) - timedelta(days=1)
+        db.add(
+            m.LearningEvent(
+                student_id=student.id,
+                subject_id=subject.id,
+                skill_id=None,
+                event_type="fiche_viewed",
+                created_at=hier,
+            )
+        )
+        db.commit()
+        jour = hier.date().isoformat()
+    finally:
+        db.close()
+
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/days/{jour}/traces").json()
+    assert charge["subjects"][0]["notions"] == []
+    assert charge["subjects"][0]["forms"] == ["Fiche de révision"]
+
+
+def test_les_deux_evenements_de_chat_ne_font_qu_un_libelle(papa: TestClient, client_db) -> None:
+    """`chat_topic` et `chat_tool_response` rendent le MÊME libellé : il ne doit pas doubler.
+
+    Le dédoublonnage se fait sur le libellé, pas sur le type d'événement — c'est le piège que
+    ce test verrouille.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        hier = datetime.now(timezone.utc) - timedelta(days=1)
+        for event_type in ("chat_topic", "chat_tool_response"):
+            db.add(
+                m.LearningEvent(
+                    student_id=student.id,
+                    subject_id=subject.id,
+                    event_type=event_type,
+                    created_at=hier,
+                )
+            )
+        db.commit()
+        jour = hier.date().isoformat()
+    finally:
+        db.close()
+
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/days/{jour}/traces").json()
+    assert charge["subjects"][0]["forms"] == ["Conversation avec ZETIS"]
+
+
+def test_month_rend_le_mois_et_ses_bornes(papa: TestClient) -> None:
+    """La grille mois : 28 à 31 jours, et des bornes de navigation qui DISPARAISSENT (§14.6)."""
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/month", params={"anchor": "2026-02"}).json()
+    assert charge["anchor"] == "2026-02"
+    assert len(charge["days"]) == 28, "février 2026 : 28 jours, pas 42"
+    assert charge["days"][0]["date"] == "2026-02-01"
+    assert charge["days"][-1]["date"] == "2026-02-28"
+
+    # Loin dans le futur : plus de chevron avant. Loin dans le passé : plus de chevron arrière.
+    futur = papa.get(f"{STUDENT}/month", params={"anchor": "2030-01"}).json()
+    assert futur["next_anchor"] is None
+    passe = papa.get(f"{STUDENT}/month", params={"anchor": "2000-01"}).json()
+    assert passe["prev_anchor"] is None
+
+
+def test_month_garde_l_asymetrie_des_plans_sur_le_passe(papa: TestClient) -> None:
+    """La grille mois n'est pas une porte dérobée : les règles de la bande valent pour elle.
+
+    Un jour passé porte ses échéances (§R3) mais **jamais** d'étape de plan — une étape qu'on
+    ne peut plus faire est un reproche, pas une aide.
+    """
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="hier")
+
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/month", params={"anchor": today.strftime("%Y-%m")}).json()
+    par_date = {day["date"]: day for day in charge["days"]}
+    hier = par_date.get((today - timedelta(days=1)).isoformat())
+    if hier is not None:  # le 1er du mois, « hier » est dans le mois précédent
+        assert [i["label"] for i in hier["fixed_items"]] == ["hier"]
+        assert hier["plan_steps"] == []
+
+
+def test_month_ne_sert_pas_les_jours_des_mois_voisins(papa: TestClient) -> None:
+    """Les cellules d'alignement sont fabriquées CLIENT, et rendues totalement vides.
+
+    Les servir en gris importerait dans le champ de vision les trous d'un mois qu'on ne regarde
+    pas — et un jour gris à moitié éteint est exactement ce que le §7 refuse.
+    """
+    _as_massimo()
+    charge = papa.get(f"{STUDENT}/month", params={"anchor": "2026-08"}).json()
+    mois = {day["date"][:7] for day in charge["days"]}
+    assert mois == {"2026-08"}
+
+
+# ── 15. « Prendre de l'avance » — la troisième question (Amdt 9) ─────────────────
+#
+# 🔴 **Le bloc est ANCRÉ, pas inventorié.** Il part de la prochaine échéance et propose les gestes
+# qui la préparent. La forme alternative (quatre listes, une par source) a été écartée parce que
+# quatre listes de choses à faire GROSSISSENT quand Massimo ne vient pas — c'est la définition du
+# compteur d'arriéré que le §7 interdit. Ces tests verrouillent les deux moitiés : ce que le bloc
+# rend, et surtout ce qu'il ne rend jamais.
+
+AHEAD = f"{STUDENT}/ahead"
+
+#: Tout ce qu'un geste a le droit de porter. **Liste FERMÉE, et c'est le verrou** : un champ qui
+#: arrive sans passer par ici (`due_count`, `session_size`, `score`, `days_left`, `minutes`, `xp`)
+#: est une quantité qui a franchi la frontière.
+CLES_GESTE = {"kind", "detail", "mindmap_id", "skill_id"}
+CLES_ANCRE = {"item_id", "label", "kind", "due_on", "subject", "chapter_id", "lesson_id"}
+
+
+def _chapitre_avec_lecon(db, *, nom="Fractions", statut_lecon="validated"):
+    """Chapitre → leçon → notion, le minimum pour qu'un geste ait une cible."""
+    subject = db.query(m.Subject).first()
+    chapter = m.Chapter(name=nom)
+    db.add(chapter)
+    db.flush()
+    lesson = m.Lesson(
+        chapter_id=chapter.id, title=f"Cours — {nom}", status=statut_lecon, created_by="parent"
+    )
+    db.add(lesson)
+    db.flush()
+    skill = m.Skill(subject_id=subject.id, name=f"Notion {nom}", level="4e")
+    db.add(skill)
+    db.flush()
+    db.add(m.LessonSkill(lesson_id=lesson.id, skill_id=skill.id))
+    db.commit()
+    return chapter.id, lesson.id, skill.id
+
+
+def test_ahead_repond_meme_sans_echeance(papa: TestClient) -> None:
+    """🔴 Sans échéance à venir, le bloc RÉPOND — il ne disparaît pas.
+
+    C'est la leçon du toast muet du 2026-08-17 : un vide CONFIRMÉ est une réponse, un silence
+    n'en est pas une. Un bloc qui s'évapore se lit comme une panne.
+    """
+    _as_massimo()
+    charge = papa.get(AHEAD)
+    assert charge.status_code == 200, charge.text
+    assert charge.json()["anchor"] is None
+    # Et ce n'est pas un réceptacle (§B1) : pas de gestes fantômes sans cible.
+    assert charge.json()["gestes"] == []
+
+
+def test_ahead_ancre_sur_la_prochaine_echeance(papa: TestClient) -> None:
+    today = today_local()
+    _create_parent_item(papa, due_on=(today + timedelta(days=5)).isoformat(), label="loin")
+    _create_parent_item(papa, due_on=(today + timedelta(days=2)).isoformat(), label="proche")
+    # Aujourd'hui a déjà sa section « Aujourd'hui » : le bloc ne redit pas ce qui est au-dessus.
+    _create_parent_item(papa, due_on=today.isoformat(), label="aujourd'hui")
+
+    _as_massimo()
+    ancre = papa.get(AHEAD).json()["anchor"]
+    assert ancre["label"] == "proche"
+
+
+def test_ahead_donne_la_priorite_au_controle(papa: TestClient) -> None:
+    """Un contrôle se prépare sur plusieurs jours et ne se rattrape pas la veille — il prime,
+    même sur un devoir plus proche."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today + timedelta(days=1)).isoformat(), label="devoir")
+    _create_parent_item(
+        papa, due_on=(today + timedelta(days=6)).isoformat(), label="contrôle", kind="controle"
+    )
+
+    _as_massimo()
+    assert papa.get(AHEAD).json()["anchor"]["label"] == "contrôle"
+
+
+def test_ahead_ne_porte_AUCUNE_quantite(papa: TestClient, client_db) -> None:
+    """🔴 VERROU §D3 de l'Amendement 9 — aucun nombre, sur la RÉPONSE sérialisée.
+
+    Deux pièges sont documentés dans le code qu'ils concernent, et ce test les tient tous deux :
+    `due_count` est l'arriéré des cartes (`memory/schemas.py` dit lui-même de ne jamais le
+    montrer), et `days_left` est le décompte chiffré que §D8 a retiré de la page.
+
+    ⚠️ **Ce que ce verrou attrape, et ce qu'il n'attrape pas — vérifié par sabotage, et ma
+    première rédaction se trompait.** J'avais écrit qu'il tiendrait « un champ ajouté à un dict de
+    service ». C'est **faux** : `response_model` filtre la sortie, donc une quantité ajoutée au
+    dict de `ahead()` n'atteint jamais la réponse — sabotage joué, resté VERT. Le verrou porte
+    donc là où la fuite est réellement possible : **le schéma**. Sabotage rejoué en ajoutant
+    `days_left` à `AheadAnchorOut` — rouge. C'est la bonne frontière, mais il fallait la nommer
+    juste : un test qui ne dit pas ce qu'il garde finit par garder autre chose.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        chapter_id, _, _ = _chapitre_avec_lecon(db)
+    finally:
+        db.close()
+    _create_parent_item(
+        papa,
+        due_on=(today_local() + timedelta(days=3)).isoformat(),
+        label="contrôle de fractions",
+        kind="controle",
+        chapter_id=chapter_id,
+    )
+
+    _as_massimo()
+    charge = papa.get(AHEAD).json()
+    assert set(charge) == {"anchor", "gestes"}
+    assert set(charge["anchor"]) == CLES_ANCRE
+    for geste in charge["gestes"]:
+        assert set(geste) == CLES_GESTE, geste
+    corps = papa.get(AHEAD).text
+    for interdit in ("days_left", "due_count", "session_size", "count", "total", "score",
+                     "minutes", "xp", "mastery"):
+        assert interdit not in corps, interdit
+
+
+def test_ahead_ne_sert_un_geste_que_si_sa_cible_existe(papa: TestClient, client_db) -> None:
+    """🔴 §B6 — *« un bouton mort se lit comme une panne »*, et c'est le SERVEUR qui tranche.
+
+    Un chapitre sans mindmap, sans carte et sans mission ne doit produire aucune porte.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        chapter_id, _, _ = _chapitre_avec_lecon(db, nom="Chapitre nu")
+    finally:
+        db.close()
+    _create_parent_item(
+        papa,
+        due_on=(today_local() + timedelta(days=3)).isoformat(),
+        label="contrôle",
+        kind="controle",
+        chapter_id=chapter_id,
+    )
+
+    _as_massimo()
+    kinds = {g["kind"] for g in papa.get(AHEAD).json()["gestes"]}
+    assert "mindmap" not in kinds
+    assert "revision" not in kinds
+    assert "mission" not in kinds
+
+
+def test_ahead_sert_la_mindmap_DU_chapitre(papa: TestClient, client_db) -> None:
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        chapter_id, lesson_id, _ = _chapitre_avec_lecon(db)
+        autre_chapitre, autre_lecon, _ = _chapitre_avec_lecon(db, nom="Autre")
+        db.add(
+            m.Mindmap(
+                lesson_id=lesson_id,
+                validation_status="validated",
+                mindmap_json={"center": "Les fractions"},
+            )
+        )
+        db.add(
+            m.Mindmap(
+                lesson_id=autre_lecon,
+                validation_status="validated",
+                mindmap_json={"center": "Hors sujet"},
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+    _create_parent_item(
+        papa,
+        due_on=(today_local() + timedelta(days=3)).isoformat(),
+        label="contrôle",
+        kind="controle",
+        chapter_id=chapter_id,
+    )
+
+    _as_massimo()
+    gestes = {g["kind"]: g for g in papa.get(AHEAD).json()["gestes"]}
+    assert gestes["mindmap"]["detail"] == "Les fractions"
+    assert gestes["mindmap"]["mindmap_id"] is not None
+
+
+def test_ahead_renforce_une_notion_fragile_sans_jamais_dire_son_score(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 `to_reinforce` vit derrière `require_parent` et porte `severity` / `mastery_score` —
+    aucun de ces champs n'a le droit d'atteindre Massimo (ADR-0024 §5). On dérive donc du seul
+    statut `weak`, et on rend le NOM de la notion, jamais son état chiffré.
+
+    ⚠️ Une notion `solid` ne doit RIEN produire : sinon le geste ne dirait plus rien.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        chapter_id, _, skill_id = _chapitre_avec_lecon(db)
+        student = db.query(m.StudentProfile).first()
+        db.add(
+            m.SkillMastery(
+                student_id=student.id, skill_id=skill_id, status="solid", mastery_score=90.0
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+    _create_parent_item(
+        papa,
+        due_on=(today_local() + timedelta(days=3)).isoformat(),
+        label="contrôle",
+        kind="controle",
+        chapter_id=chapter_id,
+    )
+
+    _as_massimo()
+    assert "renforcer" not in {g["kind"] for g in papa.get(AHEAD).json()["gestes"]}
+
+    db = SessionLocal()
+    try:
+        maitrise = db.query(m.SkillMastery).filter_by(skill_id=skill_id).one()
+        maitrise.status = "weak"
+        db.commit()
+    finally:
+        db.close()
+
+    gestes = {g["kind"]: g for g in papa.get(AHEAD).json()["gestes"]}
+    assert gestes["renforcer"]["detail"] == "Notion Fractions"
+    assert gestes["renforcer"]["skill_id"] is not None
+    assert "90" not in papa.get(AHEAD).text
+
+
+def test_la_frontiere_du_paragraphe_4_passe_entre_ahead_et_les_surfaces_datees(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 **LE test de la frontière** (Amdt 9 §R/B1). Le §4 dit *« ZETIS ne se donne jamais
+    rendez-vous à lui-même »* — il est **borné**, pas révoqué.
+
+    Une mission a le droit d'apparaître dans `/ahead`, qui ne porte AUCUNE date. Elle n'a jamais
+    le droit d'apparaître dans `/week` ni dans `/month`, qui en portent.
+
+    ⚠️ Si ce test rougit, ce n'est pas lui qui a vieilli : c'est la frontière qui a été franchie.
+    Son frère `test_dated_surfaces_never_contain_missions_or_srs_cards` reste l'autorité sur la
+    moitié datée, et il n'a pas été touché.
+    """
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        chapter_id, _, skill_id = _chapitre_avec_lecon(db)
+        student = db.query(m.StudentProfile).first()
+        db.add(
+            # ⚠️ `Mission` n'a **pas** de colonne `chapter_id` : le chapitre est DÉRIVÉ de ses
+            # notions par `chapters_of_missions`. C'est pourquoi le geste filtre sur le dict de
+            # sortie de `list_missions`, jamais sur le modèle.
+            m.Mission(
+                student_id=student.id,
+                skill_id=skill_id,
+                title="Reprendre les fractions",
+                status="active",
+                validation_status="validated",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+    today = today_local()
+    _create_parent_item(
+        papa,
+        due_on=(today + timedelta(days=3)).isoformat(),
+        label="contrôle",
+        kind="controle",
+        chapter_id=chapter_id,
+    )
+
+    _as_massimo()
+    assert "Reprendre les fractions" in papa.get(AHEAD).text
+    assert "Reprendre les fractions" not in papa.get(f"{STUDENT}/week").text
+    assert "Reprendre les fractions" not in papa.get(
+        f"{STUDENT}/month", params={"anchor": today.strftime("%Y-%m")}
+    ).text
+
+
+# ── 16. L'alerte de retard à l'ouverture (Amdt 9 §D12) ──────────────────────────
+#
+# 🔴 **Trois règles, et chacune protège d'une dérive nommée dans l'ADR** : du NOUVEAU seulement
+# (sinon c'est une relance quotidienne), une fois par jour (sinon c'est une réclamation), une
+# échéance nommée sans nombre (sinon c'est le compteur d'arriéré du §7 — le seul interdit qui n'a
+# pas bougé de la journée).
+
+ALERTE = f"{STUDENT}/late-alert"
+
+
+def _profil(SessionLocal):
+    db = SessionLocal()
+    try:
+        return db.query(m.StudentProfile).first().id
+    finally:
+        db.close()
+
+
+def _poser_plancher(SessionLocal, jour) -> None:
+    db = SessionLocal()
+    try:
+        db.query(m.StudentProfile).first().agenda_late_alert_on = jour
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_la_premiere_visite_n_alerte_JAMAIS(papa: TestClient, client_db) -> None:
+    """🔴 Sans plancher, toute l'histoire scolaire deviendrait « nouvelle » d'un coup — et la
+    fonctionnalité s'inaugurerait par l'arriéré complet, l'inverse exact de ce qu'elle décide."""
+    _create_parent_item(
+        papa, due_on=(today_local() - timedelta(days=30)).isoformat(), label="très vieux"
+    )
+    _as_massimo()
+    assert papa.get(ALERTE).json() is None
+    # Le plancher est posé : le passé antérieur ne sera jamais signalé.
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        assert db.query(m.StudentProfile).first().agenda_late_alert_on == today_local()
+    finally:
+        db.close()
+
+
+def test_l_alerte_ne_signale_QUE_du_nouveau_retard(papa: TestClient, client_db) -> None:
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=10)).isoformat(), label="ancien")
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="récent")
+    _, SessionLocal = client_db
+    # Dernière alerte il y a trois jours : « ancien » était déjà en retard, « récent » non.
+    _poser_plancher(SessionLocal, today - timedelta(days=3))
+
+    _as_massimo()
+    alerte = papa.get(ALERTE).json()
+    assert alerte is not None
+    assert alerte["label"] == "récent"
+
+
+def test_l_alerte_ne_revient_pas_deux_fois_le_meme_jour(papa: TestClient, client_db) -> None:
+    """Le toast s'accuse, et la journée est close. Un enfant qui ouvre sa page cinq fois ne le
+    voit pas cinq fois."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="récent")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=3))
+
+    _as_massimo()
+    assert papa.get(ALERTE).json() is not None
+    assert papa.post(f"{ALERTE}/seen").status_code == 204
+    assert papa.get(ALERTE).json() is None
+
+
+def test_la_LECTURE_ne_consomme_pas_l_alerte(papa: TestClient, client_db) -> None:
+    """🔴 Marquer sur le GET escamoterait l'alerte à toute requête qui n'aboutit pas à l'écran —
+    et React réinvoque les effets en double en développement. Deux lectures de suite doivent
+    rendre la MÊME alerte tant que le client n'a pas accusé réception."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="récent")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=3))
+
+    _as_massimo()
+    assert papa.get(ALERTE).json()["label"] == "récent"
+    assert papa.get(ALERTE).json()["label"] == "récent"
+
+
+def test_une_echeance_FAITE_ou_masquee_n_alerte_pas(papa: TestClient, client_db) -> None:
+    today = today_local()
+    item = _create_parent_item(
+        papa, due_on=(today - timedelta(days=1)).isoformat(), label="fait hier"
+    )
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=3))
+
+    _as_massimo()
+    papa.post(f"{STUDENT}/items/{item['id']}/done")
+    assert papa.get(ALERTE).json() is None
+
+
+def test_l_alerte_ne_porte_AUCUN_nombre(papa: TestClient, client_db) -> None:
+    """🔴 VERROU §7 — le compteur d'arriéré est le SEUL interdit qui n'a pas bougé de la journée.
+
+    Trois échéances tombées : l'alerte en nomme UNE, et ne dit jamais combien il y en a. Pas de
+    `days_late` non plus — le toast NOMME le jour, il ne mesure pas l'écart ; « depuis 4 jours »
+    est un reproche chiffré.
+    """
+    today = today_local()
+    for n in (1, 2, 3):
+        _create_parent_item(
+            papa, due_on=(today - timedelta(days=n)).isoformat(), label=f"retard {n}"
+        )
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=5))
+
+    _as_massimo()
+    corps = papa.get(ALERTE)
+    assert set(corps.json()) == {"item_id", "label", "kind", "due_on", "subject"}
+    for interdit in ("count", "total", "days_late", "late_count", "remaining"):
+        assert interdit not in corps.text, interdit
+
+
+def test_le_filigrane_de_l_alerte_ne_fuit_par_AUCUNE_route(papa: TestClient, client_db) -> None:
+    """Symétrique exact de `agenda_last_seen_at` : la date de dernière alerte est une mécanique
+    interne. Servie à Papa, elle deviendrait « dernière fois qu'on lui a rappelé son retard » —
+    de la surveillance par la porte de service, ce que l'ADR-0025 condamne."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="récent")
+    _as_massimo()
+    papa.get(ALERTE)
+    corps = [
+        papa.get(f"{STUDENT}/week").text,
+        papa.get(f"{STUDENT}/ahead").text,
+        papa.get(f"{STUDENT}/items", params={"from": "2026-01-01", "to": "2026-12-31"}).text,
+    ]
+    app.dependency_overrides[get_current_user] = lambda: PAPA
+    corps.append(
+        papa.get(f"{PILOT}/items", params={"from": "2026-01-01", "to": "2026-12-31"}).text
+    )
+    for body in corps:
+        assert "late_alert" not in body
+        assert "agenda_late_alert_on" not in body

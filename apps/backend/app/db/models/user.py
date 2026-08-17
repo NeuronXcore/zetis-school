@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -39,3 +39,18 @@ class StudentProfile(Base, TimestampMixin):
     agenda_last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    # Jour où la dernière alerte de retard a été montrée (adr-0025 Amdt 9 §D12).
+    #
+    # 🔴 **UNE DATE PAR ÉLÈVE, et c'est le contournement d'un blocage écrit juste au-dessus.**
+    # Savoir « quel retard est NOUVEAU » demande naïvement une marque PAR ITEM — celle que le
+    # commentaire d'`agenda_last_seen_at` interdit, parce que jointe à `done_at` elle fabriquerait
+    # « vu le 12, jamais fait » : de la surveillance par la porte de service. Une seule date par
+    # élève suffit : « nouveau » = *une échéance dont la date est tombée depuis ce jour-là*, et
+    # « une fois par jour » se lit sur la même colonne. Rien par item, donc rien à dériver.
+    #
+    # ⚠️ `Date` et non `DateTime` : la borne est un JOUR (« pas deux fois le même jour »), et un
+    # horodatage inviterait à comparer des heures — donc à reconstituer un rythme de visite.
+    #
+    # Ne sort d'aucune route, exactement comme son voisin : test de non-fuite dans `test_agenda.py`.
+    agenda_late_alert_on: Mapped[date | None] = mapped_column(Date, nullable=True)

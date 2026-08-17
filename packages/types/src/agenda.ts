@@ -76,14 +76,43 @@ export interface AgendaPlanStep {
   done: boolean;
 }
 
+/** Une matière travaillée un jour donné (ADR-0025 Amdt 8 §D2).
+ *
+ *  🔴 **Remplace le `traces: number` d'origine, il ne s'y ajoute pas.** Le nombre ÉTAIT la phrase
+ *  à tuer — « tu as travaillé 3 fois » — et le laisser vivre à côté garantissait qu'une session
+ *  le réécrirait un jour. Trois points verts ne disent rien de ce qui a été fait.
+ *
+ *  ⚠️ **Aucune quantité ici, et il ne faut jamais en ajouter** : ni compte d'événements, ni
+ *  minutes, ni XP. Ce type dit *quelles matières*, le détail (notions, formes) se demande au
+ *  jour via `AgendaDayTraces`. */
+export interface AgendaTrace {
+  slug: string;
+  name: string;
+  /** `Subject.color` de la base — `null` possible. Le client retombe sur `subjectColorFor()`,
+   *  jamais sur du gris : c'est le défaut (e) que l'Amdt 8 corrige. */
+  color: string | null;
+}
+
 export interface AgendaDay {
   date: string;
-  /** −3 … +3 par rapport à l'ancre : le client n'a aucun calcul de date à faire. */
+  /** −3 … +10 par rapport à l'ancre : le client n'a aucun calcul de date à faire. */
   offset: number;
-  /** Jours passés SEULEMENT ; `null` sur un jour à venir — jamais `0` (un jour qui n'est pas
-   *  encore arrivé n'a pas de case vide, ADR-0024 §5). */
-  traces: number | null;
-  /** Jours à venir SEULEMENT ; `[]` sur un jour passé. L'asymétrie est calculée SERVEUR. */
+  /** Matières travaillées ce jour-là, plafonnées serveur (`agenda_traces_cap`).
+   *
+   *  `null` sur un jour à VENIR — jamais `[]` : un jour qui n'est pas encore arrivé n'a pas de
+   *  case vide (ADR-0024 §5). `[]` sur un jour passé sans activité, et **`[]` se rend comme
+   *  rien du tout** : un jour sans trace est visuellement identique à un jour hors plage (§7). */
+  traces: AgendaTrace[] | null;
+  /** Les échéances du jour — **passé COMPRIS depuis l'Amdt 8 §R3**.
+   *
+   *  🔴 L'asymétrie d'origine (`[]` sur le passé) est **révoquée** : un jour passé annonce ce que
+   *  l'école demandait. Elle était rejouée à DEUX endroits, serveur et client ; les deux sont
+   *  tombés dans le même geste.
+   *
+   *  ⚠️ `done` voyage toujours sur ces items, et c'est nécessaire — le panneau du jour en a
+   *  besoin. Mais **la grille mois ne doit JAMAIS le rendre** : la différence visible
+   *  coché/non-coché, répétée sur trente jours, EST le compteur d'arriéré qu'interdit le §7.
+   *  C'est une règle de RENDU, pas de contrat : le serveur ne peut pas la tenir à ta place. */
   fixed_items: AgendaItemStudent[];
   /** Les étapes qui tombent CE jour-là, toutes échéances confondues (ADR-0050).
    *
@@ -96,6 +125,64 @@ export interface AgendaDay {
 export interface AgendaWeek {
   anchor: string;
   days: AgendaDay[];
+}
+
+/** La grille mois (ADR-0025 Amdt 8 §D1) — 42 cellules, alignées LUNDI.
+ *
+ *  Même forme de jour que la bande : une seule primitive de rendu sert les deux vues.
+ *  ⚠️ `days` ne contient QUE les jours du mois demandé. Les cellules de complément (avant le 1er,
+ *  après le dernier) sont fabriquées **côté client** et rendues totalement vides, sans numéral —
+ *  afficher les jours voisins en gris importerait dans le champ de vision les trous d'un mois
+ *  qu'on ne regarde pas. */
+export interface AgendaMonth {
+  /** `YYYY-MM` du mois servi. */
+  anchor: string;
+  days: AgendaDay[];
+  /** Bornes de navigation, décidées SERVEUR (Amdt 8 §D1 / §B6).
+   *
+   *  🔴 Quand un voisin est `null`, le chevron correspondant **DISPARAÎT** — il n'est jamais
+   *  grisé : *« un bouton mort se lit comme une panne »* (§14.6). */
+  prev_anchor: string | null;
+  next_anchor: string | null;
+}
+
+/** Ce que Massimo a travaillé un jour donné (ADR-0025 Amdt 8 §D2 / §D5).
+ *
+ *  🔴 **Schéma DÉDIÉ, jamais dérivé du `DayDetailOut` de Papa.** Celui-ci transporte `time`,
+ *  `minutes`, `xp` et `score_percent` — quatre interdits d'un coup. « Le filtrer côté client »
+ *  est exactement la faute que l'en-tête de ce fichier interdit.
+ *
+ *  ⚠️ **Aucun nombre ne doit jamais entrer ici** : ni compte de cartes, ni durée, ni score, ni
+ *  total. Un test-verrou l'assert sur le JSON sérialisé. */
+export interface AgendaDayTraces {
+  date: string;
+  /** Dans l'ordre CHRONOLOGIQUE de première touche — le récit de sa journée, jamais un
+   *  classement. Trier par fréquence ou par volume, **c'est mesurer**. */
+  subjects: AgendaTraceDetail[];
+}
+
+/** Une notion travaillée : son nom pour la lire, son `id` pour y revenir (Amdt 8 §D10). */
+export interface AgendaNotionRef {
+  id: number;
+  name: string;
+}
+
+export interface AgendaTraceDetail extends AgendaTrace {
+  /** Les notions touchées, dédupliquées, **avec leur identifiant** (Amdt 8 §D10).
+   *
+   *  🔴 L'`id` est ce qui rend la notion CLIQUABLE : il ouvre sa panoplie réelle
+   *  (`fetchNotionPanel`), qui n'annonce que ce qui est disponible. Le contrat ne servait que le
+   *  nom, et le bloc racontait donc à Massimo ce qu'il avait fait sans moyen d'y revenir.
+   *
+   *  ⚠️ **« Notion » et non « chapitre », et c'est un CONSTAT, pas un choix de confort** :
+   *  `LearningEvent` porte `skill_id`, et `Skill` n'a aucun `chapter_id`. Il n'existe aucun
+   *  chemin événement → chapitre. `[]` quand l'événement n'a pas de notion — la ligne saute
+   *  alors dans l'UI, et la matière seule reste une réponse. */
+  notions: AgendaNotionRef[];
+  /** Les formes de travail (« Cours lu », « Quiz », « Révision SRS »…), dédupliquées, dans un
+   *  ORDRE DOCTRINAL FIXE côté serveur — jamais par fréquence. Libellés produits par
+   *  `label_for()`, déjà bienveillants par construction. */
+  forms: string[];
 }
 
 export interface AgendaUpcomingItem {
@@ -172,4 +259,68 @@ export interface AgendaItemPatch {
 export interface AgendaSettings {
   /** Verrou de phase (ADR-0025 §10). Bascule par un geste explicite de Papa, jamais calculée. */
   student_entry_enabled: boolean;
+}
+
+// ── « Prendre de l'avance » — la troisième question (ADR-0025 Amdt 9) ──────────────────────────
+
+/** Un geste proposé pour préparer l'échéance ancrée.
+ *
+ *  🔴 **Ni quantité, ni libellé, ni route.**
+ *  - *Quantité* : aucun compte de cartes, aucun score, aucune durée. Un test-verrou l'assert sur
+ *    le JSON — et il porte sur le **schéma serveur**, seul endroit où une fuite est possible
+ *    (`response_model` filtre tout ce qui n'y est pas déclaré).
+ *  - *Libellé* : la copie vit côté client, avec le vocabulaire du `CLAUDE.md`. `detail` est une
+ *    **donnée** (nom de notion, titre de mindmap), jamais une phrase.
+ *  - *Route* : la table de routage est `notionRoutes.ts`, et elle n'existe qu'une fois. */
+export interface AgendaAheadGeste {
+  kind: "plan" | "mindmap" | "revision" | "mission" | "renforcer";
+  /** Ce que le geste désigne : le nom de la notion fragile, le titre de la mindmap, celui de la
+   *  mission. `null` quand le geste n'a rien de plus précis à nommer. */
+  detail: string | null;
+  /** Pour ouvrir LA carte en reconstruction (`/mindmaps/reconstruire/:id`). */
+  mindmap_id: number | null;
+  /** Pour ouvrir la panoplie de la notion, comme les notions travaillées du panneau (§D10). */
+  skill_id: number | null;
+}
+
+/** L'échéance que le bloc prépare.
+ *
+ *  🔴 **Pas de `days_left`.** L'ancre NOMME son jour (« vendredi 21 ») ; elle ne le décompte pas.
+ *  §D8 avait retiré « Ce qui arrive » entre autres parce que `days_left` était *« le dernier
+ *  décompte chiffré de la page »* — le réintroduire viderait ce motif tout en gardant la
+ *  révocation. */
+export interface AgendaAheadAnchor {
+  item_id: number;
+  label: string;
+  kind: AgendaKind;
+  due_on: string;
+  subject: AgendaSubjectRef | null;
+  chapter_id: number | null;
+  lesson_id: number | null;
+}
+
+/** Le bloc entier, en UN appel réseau (cinq sources).
+ *
+ *  `anchor` à `null` n'est PAS une réponse vide : les gestes qui tiennent debout sans échéance
+ *  sont servis quand même. Un bloc qui disparaît se lit comme une panne. */
+export interface AgendaAhead {
+  anchor: AgendaAheadAnchor | null;
+  gestes: AgendaAheadGeste[];
+}
+
+/** L'échéance signalée à l'ouverture de la page (ADR-0025 Amdt 9 §D12), ou `null`.
+ *
+ *  🔴 **UNE échéance, aucun nombre.** Le compteur d'arriéré du §7 est le seul interdit qui n'a
+ *  pas bougé de la journée. Pas de `days_late` non plus : le toast NOMME le jour, il ne mesure
+ *  pas l'écart — « depuis 4 jours » est un reproche chiffré.
+ *
+ *  ⚠️ Servie seulement quand elle est **nouvelle** (une date tombée depuis la dernière alerte) et
+ *  **pas déjà montrée aujourd'hui**. Les deux conditions se lisent côté serveur sur UNE date par
+ *  élève — jamais une marque par item, qui dirait « vu le 12, jamais fait ». */
+export interface AgendaLateAlert {
+  item_id: number;
+  label: string;
+  kind: AgendaKind;
+  due_on: string;
+  subject: AgendaSubjectRef | null;
 }

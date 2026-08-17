@@ -22,6 +22,8 @@ from app.db.models import (
     AppSetting,
     LearningEvent,
     Lesson,
+    SchoolYear,
+    Skill,
     StudentProfile,
     Subject,
 )
@@ -30,11 +32,28 @@ from app.modules.memory.service import chapter_servable_counts
 from app.modules.activity.events import (
     EVENT_AGENDA_ITEM_CREATED,
     EVENT_AGENDA_ITEM_DONE,
+    EVENT_CHAT_DIFFICULTY_DECLARED,
+    EVENT_CHAT_TOOL_RESPONSE,
+    EVENT_CHAT_TOPIC,
+    EVENT_ELI5_REQUESTED,
+    EVENT_ELI5_REVERSE,
+    EVENT_FICHE_VIEWED,
+    EVENT_LESSON_VIEWED,
     EVENT_LOGIN,
+    EVENT_MISSION_COMPLETED,
+    EVENT_MISSION_STEP_VIEW,
     EVENT_PAGE_VIEWED,
+    EVENT_QUIZ_ATTEMPTED,
+    EVENT_REVIEW_ATTEMPTED,
     NON_WORK_EVENTS,
     log_learning_event,
 )
+
+# `label_for` vit dans `activity.service`, pas dans `activity.events` — et c'est une fonction
+# pure, sans accès DB. Aucun cycle : `activity.service` n'importe rien de `agenda`.
+# On la RÉUTILISE plutôt que de recopier la table des libellés : deux copies du même vocabulaire
+# divergeraient, exactement comme les deux copies de `NON_WORK_EVENTS` avaient divergé.
+from app.modules.activity.service import label_for
 from app.modules.activity.timeutils import local_day, range_bounds_utc, today_local
 
 # Événements qui ne comptent pas comme une « activité » d'un jour passé : la navigation n'est pas
@@ -56,6 +75,63 @@ _NON_TRACE_EVENTS = NON_WORK_EVENTS
 # surface qui sert à les anticiper ; (3) c'est le motif ci-dessus, mot pour mot.
 # Réversible — mais en donnant d'abord un `kind` à `UpcomingItemOut`, pas avant.
 UPCOMING_KINDS = ("controle", "rendu")
+
+# Combien de mois la grille peut avancer au-delà du mois courant (Amdt 8 §D1). Deux, et pas plus :
+# « ce qui arrive » a un horizon serveur de 21 jours et une étape de plan ne remonte que de
+# quelques jours avant son échéance. Plus loin, la grille serait vide par construction.
+MONTH_NAV_AHEAD = 2
+
+# L'ordre d'affichage des FORMES de travail (Amdt 8 §D2, règle 3). Doctrinal et FIXE : trier par
+# fréquence reviendrait à mesurer, ce que tout cet amendement existe pour éviter. L'ordre suit le
+# geste pédagogique — on lit, puis on fiche, puis on s'exerce, puis on consolide, puis on demande.
+# Un type absent de cette liste passe en fin, dans l'ordre du vocabulaire.
+FORM_ORDER = (
+    EVENT_LESSON_VIEWED,
+    EVENT_FICHE_VIEWED,
+    EVENT_QUIZ_ATTEMPTED,
+    EVENT_REVIEW_ATTEMPTED,
+    EVENT_ELI5_REQUESTED,
+    EVENT_ELI5_REVERSE,
+    EVENT_MISSION_STEP_VIEW,
+    EVENT_MISSION_COMPLETED,
+    # La conversation en dernier : c'est ce qu'on fait AUTOUR du travail. Les deux types de chat
+    # rendent le même libellé — le dédoublonnage se fait donc sur le libellé, pas sur le type.
+    EVENT_CHAT_TOPIC,
+    EVENT_CHAT_TOOL_RESPONSE,
+    EVENT_CHAT_DIFFICULTY_DECLARED,
+)
+
+
+def _add_months(day: date, delta: int) -> date:
+    """Le 1er du mois décalé de `delta`. Jamais `timedelta(days=30)` — un mois n'est pas 30 jours."""
+    total = (day.year * 12 + day.month - 1) + delta
+    return date(total // 12, total % 12 + 1, 1)
+
+
+def _end_of_month(first_of_month: date) -> date:
+    return _add_months(first_of_month, 1) - timedelta(days=1)
+
+
+def _school_year_floor(db: Session, *, today: date) -> date:
+    """Le premier mois navigable en arrière : le mois de début de l'année scolaire active.
+
+    L'année scolaire est l'unité naturelle du souvenir ; avant elle il n'y a rien à se rappeler,
+    et un mois vide qu'on peut atteindre est un cul-de-sac.
+
+    Repli sans année scolaire ou sans `starts_on` : le 1er septembre encadrant la date du jour.
+    ⚠️ Ce repli ne doit jamais rendre un mois POSTÉRIEUR au mois courant, sinon le chevron
+    arrière disparaîtrait alors qu'on est en septembre ou en octobre.
+    """
+    year = db.scalars(
+        select(SchoolYear)
+        .where(SchoolYear.status == "active", SchoolYear.starts_on.is_not(None))
+        .order_by(SchoolYear.starts_on.desc())
+        .limit(1)
+    ).first()
+    if year is not None and year.starts_on is not None:
+        return year.starts_on.replace(day=1)
+    rentree = date(today.year if today.month >= 9 else today.year - 1, 9, 1)
+    return min(rentree, today.replace(day=1))
 
 
 # --- Verrou de phase, réglable par Papa (ADR-0025 §10) ----------------------------------------
@@ -248,30 +324,187 @@ def _items_between(
     return list(db.scalars(query.order_by(AgendaItem.due_on, AgendaItem.id)).all())
 
 
-def traces_by_day(db: Session, *, student_id: int, first: date, last: date) -> dict[date, int]:
-    """Traces d'activité par jour Europe/Paris : **types d'activité distincts, plafonnés**.
+def trace_subjects_by_day(
+    db: Session, *, student_id: int, first: date, last: date
+) -> dict[date, list[dict]]:
+    """Les MATIÈRES travaillées chaque jour Europe/Paris, plafonnées (Amdt 8 §D2).
 
-    Arbitrage du point ouvert n°3 de l'ADR : un COMPTE de natures d'activité, pas un temps actif
-    reconstruit — mesurer l'effort réintroduirait exactement ce que la doctrine écarte. Une
-    rafale de révision vaut donc 1, pas 12 ; trois natures différentes plafonnent à 3.
+    🔴 **Remplace `traces_by_day`, qui rendait un COMPTE.** Le compte produisait « tu as travaillé
+    3 fois » — une phrase qui ne dit rien de ce qui a été fait, et c'est le défaut qui a déclenché
+    l'Amendement 8. On garde exactement la même mesure (des natures distinctes, plafonnées, jamais
+    un volume ni un temps) mais on la rend **nommée** : une rafale de douze cartes de maths reste
+    une seule matière, pas douze traces.
 
-    Rien n'est renvoyé pour un jour sans trace : `0` et « pas de donnée » sont le même état
+    Le plafond `agenda_traces_cap` survit et garde son rôle : borner la hauteur de la cellule.
+    Il ne borne plus un « effort » — il borne un affichage.
+
+    ⚠️ **`_NON_TRACE_EVENTS` (= `NON_WORK_EVENTS`) et jamais `NON_ACTIVITY_EVENTS`** : avec la
+    seconde, `login` et `page_viewed` compteraient, et **ouvrir la page allumerait une trace**.
+    Trois tests de non-régression gardent cette distinction ailleurs dans le dépôt.
+
+    Rien n'est renvoyé pour un jour sans trace : `[]` et « pas de donnée » restent le même état
     (§7), et le contrat ne doit pas laisser croire qu'il existe des cases à remplir.
     """
     start, end = range_bounds_utc(first, last)
     rows = db.execute(
-        select(LearningEvent.event_type, LearningEvent.created_at).where(
+        select(
+            # 🔴 **La matière se retrouve par la NOTION quand l'événement n'en porte pas.**
+            # Vu à l'écran le 2026-08-17 : le samedi 15 août rendait une ligne SANS nom de
+            # matière qui portait « Comparaison de fractions » et « Angles alternes-internes » —
+            # deux notions de maths. Certains émetteurs (le chat) posent `skill_id` sans
+            # `subject_id`, alors que `Skill.subject_id` existe et n'est pas nullable.
+            # Déclarer « sans matière » ce que la base sait rattacher était une perte gratuite.
+            func.coalesce(LearningEvent.subject_id, Skill.subject_id).label("subject_id"),
+            LearningEvent.created_at,
+        )
+        .outerjoin(Skill, Skill.id == LearningEvent.skill_id)
+        .where(
             LearningEvent.student_id == student_id,
             LearningEvent.created_at >= start,
             LearningEvent.created_at < end,
             LearningEvent.event_type.not_in(_NON_TRACE_EVENTS),
         )
     ).all()
-    kinds: dict[date, set[str]] = {}
-    for event_type, created_at in rows:
-        kinds.setdefault(local_day(created_at), set()).add(event_type)
+
+    subjects = subjects_index(db)
+    # `dict` et non `set` : l'ordre d'insertion EST l'ordre chronologique de première touche —
+    # le récit de la journée. Un `set` le perdrait et forcerait un tri, donc un classement.
+    seen: dict[date, dict[int | None, None]] = {}
+    for subject_id, created_at in sorted(rows, key=lambda r: r[1]):
+        seen.setdefault(local_day(created_at), {}).setdefault(subject_id, None)
+
     cap = settings.agenda_traces_cap
-    return {day: min(cap, len(types)) for day, types in kinds.items() if types}
+    out: dict[date, list[dict]] = {}
+    for day, ids in seen.items():
+        kept = [_trace_ref(subjects.get(sid) if sid is not None else None)
+                for sid in list(ids)[:cap]]
+        if kept:
+            out[day] = kept
+    return out
+
+
+def _trace_ref(subject: Subject | None) -> dict:
+    """La matière d'une trace — **trois champs, et pas l'`id`**.
+
+    `_subject_ref` en rend quatre parce qu'une échéance a besoin de l'`id` (filtres, saisie). Une
+    trace n'ouvre rien et ne se filtre pas : elle n'a aucun usage de l'identifiant. Le servir
+    quand même serait un champ exposé de plus, pour rien.
+
+    🔴 **Une activité SANS matière reste une trace, sous une identité neutre** (`slug = None`).
+    La première écriture de cette fonction la jetait, au motif qu'une trace anonyme serait « un
+    réceptacle déguisé ». **La mesure a démenti ce motif** : sur la base de dev, 44 des 48
+    `chat_tool_response` n'ont pas de matière, et **1 jour travaillé sur 20 disparaissait
+    entièrement** de l'agenda. C'est exactement le défaut qui a déclenché l'Amendement 8 — la
+    page qui sous-déclare ce que Massimo a fait — réintroduit par la porte de derrière.
+
+    ⚠️ Un réceptacle est une case **éteinte** qui attend d'être remplie ; un segment neutre est
+    une marque **allumée** qui dit « tu as travaillé, sur rien de classé ». Les deux ne se
+    ressemblent que sur le papier : l'un compte une absence, l'autre constate une présence.
+    """
+    if subject is None:
+        return {"slug": None, "name": None, "color": None}
+    return {"slug": subject.slug, "name": subject.name, "color": subject.color}
+
+
+def day_traces(db: Session, *, student_id: int, day: date) -> dict:
+    """Ce que Massimo a travaillé un jour donné : matières, notions, formes (Amdt 8 §D2).
+
+    🔴 **Ce qui remplace « tu as travaillé 3 fois ».** Trois points verts ne disaient rien de ce
+    qui avait été fait ; sur le samedi 15 août du commanditaire, l'écran affirmait « Rien à rendre
+    ce jour-là » puis se dédisait en note de bas de page, avec un nombre.
+
+    🔴 **Ne JAMAIS réutiliser `activity.service.day_detail` à la place.** Il est sous
+    `require_parent` et son `DayDetailOut` transporte `time`, `minutes`, `xp` et `score_percent` —
+    quatre interdits d'un coup. Le filtrer côté client est la faute que l'en-tête de
+    `schemas.py` interdit en toutes lettres.
+
+    ⚠️ **Aucune quantité ne doit jamais entrer dans ce retour.** Ni compte de cartes, ni durée, ni
+    score, ni total. Un test-verrou l'assert sur le JSON sérialisé — pas sur la définition du
+    schéma, parce que c'est la réponse réseau qui expose, pas la classe.
+
+    ⚠️ **« Notion » et non « chapitre », et c'est un constat** : `LearningEvent` porte `skill_id`,
+    et `Skill` n'a aucun `chapter_id`. Aucun chemin ne mène de l'événement au chapitre.
+    """
+    start, end = range_bounds_utc(day, day)
+    rows = db.execute(
+        select(
+            # Même repli que `trace_subjects_by_day` : la matière se retrouve par la notion.
+            # Les deux lectures DOIVENT s'accorder — la bande et le panneau racontent le même
+            # jour, et une divergence se lirait comme une panne.
+            func.coalesce(LearningEvent.subject_id, Skill.subject_id).label("subject_id"),
+            LearningEvent.skill_id,
+            LearningEvent.event_type,
+            LearningEvent.created_at,
+        )
+        .outerjoin(Skill, Skill.id == LearningEvent.skill_id)
+        .where(
+            LearningEvent.student_id == student_id,
+            LearningEvent.created_at >= start,
+            LearningEvent.created_at < end,
+            # La MÊME exclusion que `trace_subjects_by_day` — sans quoi le panneau raconterait
+            # une journée que la bande n'a pas comptée, et « tu t'es connecté » deviendrait un
+            # travail.
+            LearningEvent.event_type.not_in(_NON_TRACE_EVENTS),
+        )
+    ).all()
+    if not rows:
+        return {"date": day, "subjects": []}
+
+    subjects = subjects_index(db)
+    skills = {
+        row.id: row.name
+        for row in db.scalars(
+            select(Skill).where(
+                Skill.id.in_({r[1] for r in rows if r[1] is not None} or {0})
+            )
+        )
+    }
+
+    # Ordre chronologique de PREMIÈRE TOUCHE — le récit de sa journée, jamais un classement.
+    # Trier par nombre d'événements serait mesurer par la porte de derrière.
+    grouped: dict[int | None, dict] = {}
+    for subject_id, skill_id, event_type, _created in sorted(rows, key=lambda r: r[3]):
+        bucket = grouped.setdefault(
+            subject_id, {"notions": {}, "forms": {}}
+        )
+        if skill_id is not None and skill_id in skills:
+            # Indexé par `skill_id` et non par le NOM : c'est l'identifiant qui rend la notion
+            # cliquable (Amdt 8 §D10), et deux notions homonymes de matières différentes ne
+            # doivent pas fusionner. Le `dict` garde l'ordre de première touche.
+            bucket["notions"].setdefault(skill_id, skills[skill_id])
+        bucket["forms"].setdefault(event_type, None)
+
+    out = []
+    for subject_id, bucket in grouped.items():
+        # `None` ⇒ groupe neutre (`slug = None`) : une activité sans matière reste racontée.
+        # Cf. `_trace_ref` — la jeter faisait disparaître 1 jour travaillé sur 20.
+        subject = subjects.get(subject_id) if subject_id is not None else None
+        ordered = sorted(
+            bucket["forms"],
+            key=lambda t: FORM_ORDER.index(t) if t in FORM_ORDER else len(FORM_ORDER),
+        )
+        # ⚠️ **Dédoublonnage sur le LIBELLÉ, pas sur le type d'événement.** `chat_topic` et
+        # `chat_tool_response` rendent tous deux « Conversation avec ZETIS » : dédoublonner sur
+        # le type laisserait la même phrase deux fois dans la ligne. `dict` pour garder l'ordre.
+        labels: dict[str, None] = {}
+        for event_type in ordered:
+            # `label_for` rend déjà un vocabulaire bienveillant (« Cours lu », « Quiz »,
+            # « Révision SRS ») et un repli présentable pour un type inconnu : le journal
+            # accueillera d'autres producteurs que ceux d'aujourd'hui.
+            labels.setdefault(label_for(event_type), None)
+        out.append(
+            {
+                **_trace_ref(subject),
+                # `{id, name}` et non plus le nom seul : l'identifiant est ce qui permet à
+                # Massimo de REVENIR sur la notion (Amdt 8 §D10). Sans lui, le bloc racontait
+                # ce qu'il avait fait sans lui laisser aucun moyen d'y retourner.
+                "notions": [
+                    {"id": skill_id, "name": name} for skill_id, name in bucket["notions"].items()
+                ],
+                "forms": list(labels),
+            }
+        )
+    return {"date": day, "subjects": out}
 
 
 def plan_steps_by_day(
@@ -303,56 +536,123 @@ def plan_steps_by_day(
     return out
 
 
-def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
-    """Bande GLISSANTE de 7 jours (§6) : 3 jours avant l'ancre, l'ancre, 3 jours après.
+def _days_between(
+    db: Session, *, student_id: int, first: date, last: date, anchor: date
+) -> list[dict]:
+    """Les jours d'une fenêtre, dans la forme unique que partagent la bande et la grille mois.
 
-    Jamais alignée sur la semaine calendaire — celle-ci passerait de 6 jours d'horizon le lundi
-    à 0 le dimanche, et l'écran deviendrait un pur rétroviseur au pire moment.
-
-    **L'asymétrie passé/futur est calculée ici, jamais laissée au client** : un jour à venir n'a
-    pas de passé (`traces = null`, et surtout pas `0`), un jour passé n'a plus d'échéance à
-    annoncer (`fixed_items = []`).
+    Une seule composition pour deux vues (Amdt 8 §D1) : deux fabriques de jour finiraient par
+    diverger sur l'asymétrie, qui est justement ce qui vient de changer.
     """
     today = today_local()
-    anchor = anchor or today
-    first = anchor - timedelta(days=settings.agenda_band_days_before)
-    last = anchor + timedelta(days=settings.agenda_band_days_after)
-
     subjects = subjects_index(db)
-    # Une seule requête pour toute la bande ; le découpage par jour se fait en Python.
+    # Une seule requête pour toute la fenêtre ; le découpage par jour se fait en Python.
     items = _items_between(db, student_id=student_id, first=first, last=last)
     by_day: dict[date, list[AgendaItem]] = {}
     for item in items:
         by_day.setdefault(item.due_on, []).append(item)
-    traces = traces_by_day(db, student_id=student_id, first=first, last=min(last, today))
-    # Une seule résolution de servabilité pour toute la bande (ADR-0049 §2).
+    traces = trace_subjects_by_day(
+        db, student_id=student_id, first=first, last=min(last, today)
+    )
+    # Une seule résolution de servabilité pour toute la fenêtre (ADR-0049 §2).
     revisable = revisable_counts(db, student_id=student_id, items=items)
     steps_by_day = plan_steps_by_day(db, student_id=student_id, first=first, last=last)
 
-    days = []
-    for offset in range(-settings.agenda_band_days_before, settings.agenda_band_days_after + 1):
-        day = anchor + timedelta(days=offset)
+    days: list[dict] = []
+    day = first
+    while day <= last:
         past_or_today = day <= today
         future_or_today = day >= today
         days.append(
             {
                 "date": day,
-                "offset": offset,
-                "traces": traces.get(day, 0) if past_or_today else None,
-                "fixed_items": (
-                    [
-                        student_out(item, subjects, revisable=revisable)
-                        for item in by_day.get(day, [])
-                    ]
-                    if future_or_today
-                    else []
-                ),
-                # Le plan de préparation (ADR-0050). ⚠️ Jamais sur un jour PASSÉ : une étape
-                # qu'on ne peut plus faire n'est pas une aide, c'est un reproche (§7).
+                "offset": (day - anchor).days,
+                # `[]` sur un jour passé sans activité, `null` sur un jour à venir. Les deux se
+                # rendent identiquement — comme RIEN — mais le contrat garde la distinction : un
+                # jour à venir n'a pas de passé, il n'a pas non plus de passé vide.
+                "traces": traces.get(day, []) if past_or_today else None,
+                # 🔴 **PLUS D'ASYMÉTRIE ICI** (Amdt 8 §R3). Un jour passé annonce désormais ce que
+                # l'école demandait — c'était `[]`, et le §6 disait « un jour passé n'a plus
+                # d'échéance à annoncer ».
+                #
+                # ⚠️ `done` part avec l'item, et il le faut : le panneau du jour s'en sert. Mais
+                # **la grille ne doit jamais le rendre** — la différence visible coché/non-coché,
+                # répétée sur trente jours, EST le compteur d'arriéré du §7. Le serveur ne peut
+                # pas tenir cette règle à la place du client : elle est de RENDU.
+                "fixed_items": [
+                    student_out(item, subjects, revisable=revisable)
+                    for item in by_day.get(day, [])
+                ],
+                # Le plan de préparation (ADR-0050). ⚠️ **Toujours jamais sur un jour PASSÉ**, et
+                # l'Amendement 8 ne le rouvre pas : il a révoqué l'asymétrie des ÉCHÉANCES, pas
+                # celle des étapes. Une étape qu'on ne peut plus faire n'est pas une aide, c'est
+                # un reproche (§7).
                 "plan_steps": steps_by_day.get(day, []) if future_or_today else [],
             }
         )
-    return {"anchor": anchor, "days": days}
+        day += timedelta(days=1)
+    return days
+
+
+def week(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
+    """Bande GLISSANTE (§6) : `AGENDA_BAND_DAYS_BEFORE` avant l'ancre, l'ancre, `_AFTER` après.
+
+    ⚠️ Les valeurs sont **3 avant / 10 après — 14 colonnes** depuis le 2026-07-29, pas 3/3 : ce
+    docstring annonçait « 7 jours, 3 après » depuis l'élargissement, et il était faux.
+
+    Jamais alignée sur la semaine calendaire — celle-ci passerait de 6 jours d'horizon le lundi
+    à 0 le dimanche, et l'écran deviendrait un pur rétroviseur au pire moment. C'est ce que
+    `test_band_is_sliding_not_calendar` verrouille, et **l'Amendement 8 ne le rouvre pas** : la
+    grille mois est une SECONDE vue, la bande ne devient pas calendaire.
+    """
+    anchor = anchor or today_local()
+    return {
+        "anchor": anchor,
+        "days": _days_between(
+            db,
+            student_id=student_id,
+            first=anchor - timedelta(days=settings.agenda_band_days_before),
+            last=anchor + timedelta(days=settings.agenda_band_days_after),
+            anchor=anchor,
+        ),
+    }
+
+
+def month(db: Session, *, student_id: int, anchor: date | None = None) -> dict:
+    """La grille mois (Amdt 8 §D1) — le mois de l'ancre, du 1er au dernier jour.
+
+    **Ne rend QUE les jours du mois.** Les cellules de complément qui alignent la grille sur
+    lundi sont fabriquées côté client et rendues totalement vides : afficher les jours voisins en
+    gris importerait dans le champ de vision les trous d'un mois qu'on ne regarde pas.
+
+    ⚠️ **Effet de bord assumé et BORNÉ** : `plan_steps_by_day` compose et persiste les plans à la
+    lecture (`get_or_create_plan`). Sur un mois, cela peut faire naître les plans de toutes les
+    échéances du mois — c'est le même mécanisme que la bande, sur une fenêtre plus large, et il
+    reste idempotent. Ce qui serait fautif serait de le déclencher sur des mois qu'on ne regarde
+    pas : d'où des bornes de navigation serrées ci-dessous, et aucun préchargement.
+    """
+    today = today_local()
+    anchor = (anchor or today).replace(day=1)
+    last = _end_of_month(anchor)
+
+    # Bornes (§B6) : en arrière, le début de l'année scolaire ; en avant, mois courant + 2.
+    # Au-delà il n'y a structurellement rien à voir — « ce qui arrive » a un horizon de 21 jours
+    # et une étape de plan ne remonte que de quelques jours avant son échéance. Offrir la
+    # navigation vers le désert enseigne que la page est vide.
+    floor = _school_year_floor(db, today=today)
+    ceiling = _add_months(today.replace(day=1), MONTH_NAV_AHEAD)
+    previous = _add_months(anchor, -1)
+    following = _add_months(anchor, 1)
+
+    return {
+        "anchor": anchor.strftime("%Y-%m"),
+        "days": _days_between(
+            db, student_id=student_id, first=anchor, last=last, anchor=today
+        ),
+        # `None` ⇒ le chevron DISPARAÎT côté client, il n'est jamais grisé (§14.6).
+        "prev_anchor": previous.strftime("%Y-%m") if previous >= floor else None,
+        "next_anchor": following.strftime("%Y-%m") if following <= ceiling else None,
+    }
 
 
 def upcoming(db: Session, *, student_id: int) -> list[dict]:

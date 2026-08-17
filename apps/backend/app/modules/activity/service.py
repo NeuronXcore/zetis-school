@@ -23,6 +23,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import LearningEvent, Skill, Subject, XPEvent
 from app.modules.activity.events import (
+    EVENT_CHAT_DIFFICULTY_DECLARED,
+    EVENT_CHAT_TOOL_RESPONSE,
+    EVENT_CHAT_TOPIC,
     EVENT_ELI5_REQUESTED,
     EVENT_ELI5_REVERSE,
     EVENT_FICHE_VIEWED,
@@ -152,6 +155,17 @@ _LABELS = {
     EVENT_REVIEW_ATTEMPTED: "Révision SRS",
     EVENT_MISSION_COMPLETED: "Mission terminée",
     EVENT_MISSION_STEP_VIEW: "Étape de mission",
+    # 🔴 Les trois événements du chat, ajoutés par l'ADR-0025 Amdt 8. Ils existaient depuis
+    # l'ADR-0026 et tombaient sur le REPLI de `label_for`, qui rendait « Chat topic »,
+    # « Chat tool response », « Chat difficulty declared » — de l'anglais technique, acceptable
+    # tant que la table ne servait que le Cahier de bord de Papa.
+    #
+    # Elle sert désormais **une surface de Massimo** (« Ce que tu as travaillé »), et un enfant
+    # de treize ans n'a pas à lire le nom d'un type d'événement. Le vocabulaire suit la règle de
+    # la table : on décrit une ACTION, jamais un jugement.
+    EVENT_CHAT_TOPIC: "Conversation avec ZETIS",
+    EVENT_CHAT_TOOL_RESPONSE: "Conversation avec ZETIS",
+    EVENT_CHAT_DIFFICULTY_DECLARED: "Difficulté expliquée à ZETIS",
 }
 
 

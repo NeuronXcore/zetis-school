@@ -48,6 +48,26 @@ export { EmptyState } from "./components/empty-state";
 export { subjectIconFor } from "./lib/subjectIcons";
 // Couleur de matière : `Subject.color` fait autorité, ceci n'est qu'un repli déterministe.
 export { subjectColorFor } from "./lib/subjectColors";
+// Vocabulaire visuel de l'agenda de Massimo (ADR-0025 Amdt 8) — partagé PARCE QUE la bande et
+// la grille mois doivent rendre exactement le même signe. Deux copies divergeraient, et Massimo
+// apprendrait deux vocabulaires pour un seul objet.
+export {
+  AgendaGlyph,
+  AgendaTraceMark,
+  AGENDA_KIND_LABEL,
+  CADRE_A_VENIR,
+  CADRE_EN_RETARD,
+  REGISTRE_TEINTE,
+  type AgendaRegistre,
+  HACHURE_ENTAMEE,
+  HACHURE_SOLDE,
+  hachurePour,
+  journeeEntamee,
+  joursEnRetard,
+  journeeSoldee,
+  type AgendaGlyphProps,
+  type AgendaTraceMarkProps,
+} from "./components/agenda-glyph";
 export {
   SubjectFilterChips,
   type SubjectFilterChipsProps,

@@ -6,11 +6,110 @@
 > **fond** (routes, contrats, règles, états limites). En cas de divergence : la spec l'emporte
 > sur le fond, la maquette sur la forme.
 
+> ## 🔴 Cette spec décrit la page **v1**, qui est celle du code aujourd'hui
+>
+> **Une v2 est décidée mais PAS construite** — `adr-0025` **Amendement 8** (2026-08-17,
+> *« Le passé se raconte, et la matière prend la couleur »*), maquette
+> `mockup-page-agenda-v2.html`.
+>
+> Ce document n'est **volontairement pas** réécrit au futur : une spec qui décrit du code
+> inexistant est un piège — elle se lit comme un état des lieux et elle ment. Il sera mis au
+> réel **par la slice de code**, section par section, à mesure que chaque morceau existe.
+>
+> Ce que l'Amendement 8 change, et donc ce qui est **périmé ci-dessous** :
+>
+> | § de cette spec | Ce qui change |
+> |---|---|
+> | *1. Bande glissante* | une **seconde vue mois** apparaît, avec un sélecteur — **la bande reste le défaut** (Amdt 8 §D7), le choix est persisté. La bande passe en rangée **unique à défilement** au lieu de se replier en deux rangées de 7 ; le `✦` disparaît au profit d'un glyphe en contour |
+> | *1. Bande* — asymétrie passé/futur | un jour **passé porte désormais ses échéances** (Amdt 8 §R3) — **deux endroits à corriger**, serveur *et* rejeu client `AgendaWeekStrip.tsx:48` |
+> | *3. Item* | la teinte passe par `subjectColorFor()` et non `item.subject.color` brut ; `lecon` prend la silhouette `▬` au lieu du `◆` qu'elle partage aujourd'hui avec `controle` |
+> | *4. Ce qui arrive* | **section supprimée de `/agenda`** (Amdt 8 §D8, révoque §6). ⚠️ **Périmètre étroit** : `UpcomingCard.tsx`, `GET /api/student/agenda/upcoming` et `AgendaUpcomingItem` **sont conservés** — `SubjectSideRail`, `HomeAgendaBanner` et `useSubjectUpcoming` les consomment. Seuls la section et le champ `upcoming` de `useAgenda` partent |
+> | *5. À reprendre* | **conservée** — la grille refusant d'afficher l'état de complétion, c'est désormais la **seule** surface du rattrapage |
+> | *Données API* | `AgendaDay.traces` passe de `number` à `AgendaTrace[]` ; nouvelles routes `days/{date}/traces` et `month?anchor=` |
+> | *Le panneau du jour* | « tu as travaillé N fois » est **supprimé**, remplacé par « Ce que tu as travaillé » (matières, notions, formes — aucun nombre) |
+> | *En-tête* | sous-titre → **« Ce que ZETIS te demande, et ce que tu as travaillé. »**, précédé de l'avatar (Amdt 8 §D9). ⚠️ Change la **voix**, jamais la **source des dates** : le §4 (« ZETIS ne se donne jamais rendez-vous à lui-même ») reste entier, test-verrou compris |
+>
+> Disparaît aussi, sans figurer au sommaire ci-dessous : **« La suite »**, la section repliée par
+> défaut qui cachait tout ce qui va de J+2 à J+13 — les deux vues la rendent redondante.
+>
+> ### Amendement 9 — l'agenda répond à TROIS questions (2026-08-17)
+>
+> | Ordre | Question | Section | Rail |
+> |---|---|---|---|
+> | 1 | *présent* — qu'y a-t-il à faire | « Aujourd'hui », « Demain » | cyan (celui d'aujourd'hui) |
+> | 2 | *futur* — comment m'avancer | **« Prendre de l'avance »** | orange (`CADRE_A_VENIR`) |
+> | 3 | *passé* — qu'est-ce qui est en retard | badge **« En retard »** (animé) | ambre (`CADRE_EN_RETARD`) |
+>
+> 🔴 **L'ordre est présent → futur → passé**, et c'est la vraie décision : la première section est
+> celle que Massimo voit en ouvrant la page. ⚠️ Il a été présent → **passé** → futur pendant une
+> heure le 2026-08-17 : mesuré à l'écran, le bloc du futur commençait alors à **1050 px** dans une
+> fenêtre de 856 — entièrement sous la ligne de flottaison. Ce qui NE change pas : la page ne
+> s'ouvre jamais sur le retard.
+>
+> Chaque section porte un **rail de 2 px** dont la teinte vient du **calendrier** — aucune couleur
+> neuve, les deux moitiés de la page disent la même chose avec le même code. 🔴 Un rail, jamais un
+> aplat : un fond ambre permanent en bas de page serait le compteur d'arriéré du §7 obtenu par la
+> surface.
+>
+> **Vue mois — la grille a été compactée** (§D8) : carte 493 → **385 px**, cellule 62 → 48 **au
+> curseur seulement** (44,4 × 62 au doigt, chevrons 44 × 44 — plancher WCAG intact).
+>
+> 🔴 **« Demain » vide ne se rend plus** (§D11) — elle coûtait 60 px pour répéter une cellule déjà
+> vide dans le calendrier. ⚠️ **« Aujourd'hui » vide se rend TOUJOURS** : l'asymétrie est la
+> décision, pas un oubli, et un test la garde.
+>
+> Position de « Prendre de l'avance », mesurée :
+>
+> | Vue | Curseur (800 × 856) | iPhone (375 × 812) |
+> |---|---|---|
+> | **bande** (le défaut) | **602** ✅ | **649** ✅ |
+> | **mois** | **833** ✅ (était 1013) | **1006** ❌ |
+>
+> ⚠️ Sur iPhone en vue mois, le bloc reste sous la ligne de flottaison : le compactage est
+> conditionné au pointeur, et au doigt la carte fait 478 px. Arbitrage assumé — **une cible tactile
+> atteignable vaut mieux qu'une section visible**.
+>
+> Le bloc est **ancré** sur la prochaine échéance et propose les gestes qui la préparent (plan,
+> mindmap du chapitre, cartes du chapitre, mission de la notion, notion à renforcer). **Aucun
+> nombre** : l'ancre nomme son jour (« vendredi 21 »), elle ne le décompte pas. Un geste n'est
+> servi que si sa cible existe, et c'est le serveur qui tranche.
+>
+> ⚠️ **La phrase d'agenda vide** (« Ton agenda est vide… une révision, une mission, une notion »)
+> **a été retirée** : le bloc dit la même chose, avec des portes cliquables.
+>
+> 🔴 **« À reprendre » est devenu un badge « En retard » qui respire** (§D9, §D10) — même forme
+> que le badge du toast, 3 s ease-in-out, `motion-safe:`. C'est la **quatrième** révocation du §7
+> dans le même sens en une journée. Ce qui reste du §7 : aucun rouge, aucun compteur d'arriéré,
+> aucun total, aucune série, aucun réceptacle — et **la grille reste strictement statique**.
+>
+> 🔴 **Une alerte éphémère à l'ouverture** (§D12) — `GET /late-alert` + `POST /late-alert/seen`,
+> migration `a8d76627dc51`. Elle ne signale que du **NOUVEAU** retard, **une fois par jour**, et
+> nomme **UNE** échéance sans aucun nombre. Elle s'efface seule en 7 s.
+> ⚠️ Le déclencheur se lit sur **une seule date par élève** (`agenda_late_alert_on`) : jamais une
+> marque par item, qui dirait « vu le 12, jamais fait » — de la surveillance par la porte de
+> service. Cette colonne ne sort d'aucune route (test de non-fuite).
+>
+> ⚠️ Le §4 (*« ZETIS ne se donne jamais rendez-vous à lui-même »*) est **borné, pas révoqué** : la
+> bande et la grille n'accueillent toujours aucune carte SRS ni mission ; le bloc, lui, ne porte
+> aucune date. `test_dated_surfaces_never_contain_missions_or_srs_cards` reste vert **tel quel**.
+>
+> Ce que l'Amendement 8 **ne change pas**, et qui reste opposable tel qu'écrit plus bas :
+> le §7 « aucun réceptacle » (un jour sans trace ne rend rien), les interdits transverses
+> (aucun rouge, aucun total, aucune série), et le fait que **cocher un devoir ne fabrique
+> jamais une trace**.
+>
+> 🔴 **Sauf « en retard », et cette ligne disait le contraire.** Elle affirmait encore que le mot
+> restait interdit, alors que l'Amdt 8 §D17/§R6 l'autorise depuis le 2026-08-17 — badge ambre sur le
+> toast d'un jour passé non fait — et que §D18/§R7 colore les **cellules** de ces jours en ambre.
+> ⚠️ **Le rouge, lui, n'est PAS révoqué** : c'est le MOT qui a changé de statut, pas la couleur, et
+> la grille reste **statique** (trente cellules qui pulseraient seraient un stroboscope).
+
 ## Objectif
 
 Un lieu unique où Massimo voit ce que l'école lui demande, l'inscrit lui-même en quelques
 secondes, s'oriente sur une semaine glissante et anticipe les contrôles — **sans jamais lire
-un score, un retard ou un compteur** (ADR-0025 §7).
+un score ni un compteur** (ADR-0025 §7). ⚠️ « ni un retard » figurait ici : révoqué le 2026-08-17
+(Amdt 8 §D17/§R6), et le bandeau ci-dessus dit dans quelles bornes.
 
 L'agenda est la première **source exogène** du produit : ses dates viennent du collège, jamais
 de ZETIS (règle de datation, ADR-0025 §4).

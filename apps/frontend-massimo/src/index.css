@@ -365,3 +365,111 @@ body {
       0 0 28px 4px rgba(99, 102, 241, 0.6);
   }
 }
+
+/* ── Fond du toast « à reprendre » (ADR-0025 Amdt 8 §D16) ──────────────────────────────────────
+   Une trame ambre qui DÉRIVE lentement, dans la teinte du cadre.
+
+   🔴 **Une dérive, jamais un clignotement.** Un fond qui pulse est une alarme, et l'alarme est
+   très exactement le registre refusé quelques heures plus tôt quand le rouge et le mot « retard »
+   ont été écartés (§D14). Le mouvement est continu, à vitesse constante, sans pic d'intensité :
+   il attire l'œil sans presser l'enfant. 12 s par cycle — assez lent pour ne pas se remarquer
+   comme une animation.
+
+   ⚠️ **Posée en `motion-safe:` côté composant** → sous `prefers-reduced-motion`, la trame reste
+   mais cesse de bouger. Elle ne disparaît pas : c'est un signal, pas un ornement. */
+@keyframes agenda-reprendre-derive {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    /* 🔴 **LES DEUX COMPOSANTES SONT DE SIGNES OPPOSÉS, et c'est tout le sujet.**
+       La trame est un `repeating-linear-gradient(45deg, …)` : ses rayures sont perpendiculaires
+       à l'axe du dégradé. Déplacer le fond de (dx, dy) décale la phase de `dx·sin45 − dy·cos45`.
+
+       La première version écrivait `14px 14px` — même signe, donc translation **parallèle aux
+       rayures**, donc décalage de phase **exactement nul** : le motif se superposait à lui-même
+       et rien ne bougeait, jamais, sur aucune page. L'animation était déclarée, `running`, avec
+       la bonne durée — et parfaitement invisible.
+
+       ⚠️ **Aucun test de classe CSS n'aurait pu l'attraper** : la classe était juste, les
+       keyframes existaient, le navigateur les jouait. Seule l'arithmétique le dit, d'où le
+       verrou qui la rejoue dans `AgendaDayToast.test.tsx`.
+
+       (20, −20) → 28,28 px de phase, soit 4,04 périodes de 7 px : la couture au bouclage fait
+       0,28 px, invisible à 18 % d'opacité. */
+    background-position: 20px -20px;
+  }
+}
+
+/* ── Cadre du toast « en retard » (ADR-0025 Amdt 8 §D17) ───────────────────────────────────────
+   Le cadre RESPIRE — l'intensité de la bordure monte et redescend, lentement.
+
+   ⚠️ **3 s par cycle, et une amplitude faible (45 % → 85 %).** Un cadre qui clignote est un
+   stroboscope ; celui-ci se remarque sans presser. C'est le compromis retenu après que le
+   commanditaire a demandé d'animer le cadre en plus du fond, le 2026-08-17.
+
+   ⚠️ Posé en `motion-safe:` → sous `prefers-reduced-motion`, le cadre reste à son intensité
+   haute et cesse de respirer. Il ne disparaît pas : c'est un signal. */
+@keyframes agenda-retard-respire {
+  0%,
+  100% {
+    border-color: rgba(251, 191, 36, 0.45);
+    /* ⚠️ L'ombre portée sombre est RECOPIÉE dans les deux étapes : animer `box-shadow` remplace
+       la valeur de la classe `shadow-xl`, et l'omettre ferait perdre au toast sa profondeur —
+       il se collerait au calendrier. Le halo s'ajoute derrière elle, il ne la remplace pas. */
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.35),
+      0 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    border-color: rgba(251, 191, 36, 0.85);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.35),
+      0 0 22px -2px rgba(251, 191, 36, 0.4);
+  }
+}
+
+/* Le badge « En retard » du registre du PASSÉ respire (ADR-0025 Amdt 9 §D10).
+ *
+ * 🔴 **Keyframe DISTINCTE de celle du toast, et ce n'est pas un doublon.** `agenda-retard-respire`
+ * recopie l'ombre portée sombre de `shadow-xl` dans ses deux étapes — indispensable au toast, qui
+ * flotte au-dessus du calendrier, absurde sur un badge de trois centimètres carrés : il traînerait
+ * une ombre de panneau. Le halo, lui, est le même geste, en plus petit.
+ *
+ * ⚠️ **Trois bornes, et elles viennent du §D18** — l'animation est la marque de ce qu'on regarde,
+ * jamais de ce qu'on balaie :
+ *   · UN seul élément sur la page, jamais trente comme les cellules d'un mois ;
+ *   · 3 s, ease-in-out — une respiration, pas un clignotement ;
+ *   · amplitude faible (0,5 → 0,95 sur le cadre) : on accroche l'œil, on ne le harcèle pas.
+ * `motion-safe:` reste obligatoire côté classe : sous `prefers-reduced-motion`, rien ne bouge et
+ * le badge garde son cadre et son fond ambre — le signal survit sans le mouvement. */
+@keyframes agenda-retard-badge {
+  0%,
+  100% {
+    border-color: rgba(251, 191, 36, 0.5);
+    background-color: rgba(251, 191, 36, 0.12);
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    border-color: rgba(251, 191, 36, 0.95);
+    background-color: rgba(251, 191, 36, 0.28);
+    box-shadow: 0 0 12px -1px rgba(251, 191, 36, 0.45);
+  }
+}
+
+/* Entrée du toast d'alerte de retard (ADR-0025 Amdt 9 §D12).
+ *
+ * ⚠️ **Une entrée, pas une pulsation.** Le badge de section respire en boucle parce qu'il est
+ * permanent et qu'il doit rester repérable ; ce toast, lui, arrive et repart — l'animer en boucle
+ * ferait clignoter une alerte sur l'écran d'un enfant. Elle joue UNE fois, 320 ms, et c'est tout.
+ * `motion-safe:` côté classe : sous `prefers-reduced-motion`, le toast apparaît simplement. */
+@keyframes agenda-alerte-entree {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

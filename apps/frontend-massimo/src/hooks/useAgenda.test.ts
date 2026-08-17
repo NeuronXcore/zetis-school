@@ -4,12 +4,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchAgendaWeek = vi.fn();
 const fetchAgendaItems = vi.fn();
 const fetchAgendaUpcoming = vi.fn();
+const fetchAgendaAhead = vi.fn();
+const fetchLateAlert = vi.fn();
+const markLateAlertSeen = vi.fn();
 const markAgendaSeen = vi.fn();
 
 vi.mock("../lib/agenda", () => ({
   fetchAgendaWeek: () => fetchAgendaWeek(),
   fetchAgendaItems: (...args: unknown[]) => fetchAgendaItems(...args),
   fetchAgendaUpcoming: () => fetchAgendaUpcoming(),
+  fetchAgendaAhead: () => fetchAgendaAhead(),
+  fetchLateAlert: () => fetchLateAlert(),
+  markLateAlertSeen: () => markLateAlertSeen(),
   markAgendaSeen: () => markAgendaSeen(),
   setAgendaItemDone: vi.fn(),
   setAgendaPlanStepDone: vi.fn(),
@@ -23,6 +29,11 @@ beforeEach(() => {
   fetchAgendaWeek.mockReset().mockResolvedValue({ days: [] });
   fetchAgendaItems.mockReset().mockResolvedValue([]);
   fetchAgendaUpcoming.mockReset().mockResolvedValue([]);
+  // ⚠️ Sans ce mock, `load()` appelait `undefined()` : les tests restaient VERTS et le
+  // rejet remontait en « unhandled error » — un vert qui masque un appel cassé.
+  fetchAgendaAhead.mockReset().mockResolvedValue({ anchor: null, gestes: [] });
+  fetchLateAlert.mockReset().mockResolvedValue(null);
+  markLateAlertSeen.mockReset().mockResolvedValue(undefined);
   markAgendaSeen.mockReset().mockResolvedValue(undefined);
 });
 

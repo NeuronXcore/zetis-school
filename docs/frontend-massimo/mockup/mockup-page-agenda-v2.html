@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZETIS — Maquette Agenda v2 (Massimo) — le passé se raconte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════════════════════
+     MAQUETTE AGENDA v2 — support de décision pour l'amendement ADR-0025 n°8.
+
+     Ce fichier n'est pas une démo : c'est l'objet qu'on regarde pour trancher trois choses.
+       1. Les 4 silhouettes sont-elles distinguables à 9 px ? (écran « Formes »)
+       2. La teinte de matière survit-elle à la sémantique déjà occupée ? (écran « Mois »)
+       3. Le samedi 15 août raconte-t-il enfin quelque chose ? (écran « 15 août »)
+
+     Tokens repris VERBATIM de apps/frontend-massimo/src/index.css — la maquette et l'app
+     doivent enseigner les mêmes signes, sinon la maquette ment sur ce qu'on va construire.
+     ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+  :root {
+    /* Tokens ZETIS Massimo (index.css:9-47) */
+    --zetis-bg:        #0b1020;
+    --zetis-surface:   #131a2e;
+    --zetis-surface-2: #1b2440;
+    --zetis-border:    #27304d;
+    --zetis-text:      #e8ecf8;
+    --zetis-muted:     #8b95b5;
+    --zetis-accent:    #6366f1;
+    --zetis-accent-2:  #22d3ee;
+
+    /* Dérivés de la maquette */
+    --cell-weekend:    #0e1425;   /* entre bg et surface : une respiration, pas une fermeture */
+    --numeral-weekend: #6b7594;
+
+    /* Palette matière — packages/ui/src/lib/subjectColors.ts, valeurs exactes */
+    --m-maths:     #60a5fa;
+    --m-francais:  #f472b6;
+    --m-histgeo:   #fbbf24;
+    --m-svt:       #34d399;
+    --m-anglais:   #a78bfa;
+    --m-espagnol:  #fb923c;
+    --m-physique:  #22d3ee;
+    --m-techno:    #94a3b8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--zetis-bg);
+    color: var(--zetis-text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .neon-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .neon-backdrop::before, .neon-backdrop::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(110px); opacity: .28;
+  }
+  .neon-backdrop::before { width: 520px; height: 520px; top: -140px; left: -120px; background: var(--zetis-accent); }
+  .neon-backdrop::after  { width: 460px; height: 460px; bottom: -160px; right: -100px; background: var(--zetis-accent-2); opacity: .10; }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 720px; margin: 0 auto; padding: 26px 20px 80px;
+    min-height: 100vh;
+  }
+  .app.wide { max-width: 1180px; }
+
+  .wordmark {
+    font-family: "Syncopate", sans-serif; font-weight: 700;
+    font-size: 13px; letter-spacing: .35em; text-align: center; opacity: .9; margin-bottom: 14px;
+  }
+  .wordmark span { color: var(--zetis-accent-2); }
+
+  /* ── Navigation entre écrans (maquette seulement, n'existe pas dans l'app) ── */
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+    margin-bottom: 26px; padding-bottom: 18px; border-bottom: 1px solid var(--zetis-border);
+  }
+  .tabs button {
+    font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--zetis-surface); color: var(--zetis-muted);
+    border: 1px solid var(--zetis-border); border-radius: 999px; padding: 7px 13px;
+    transition: color .15s, border-color .15s;
+  }
+  .tabs button:hover { color: var(--zetis-text); }
+  .tabs button.on { color: var(--zetis-text); border-color: var(--zetis-accent-2); background: rgba(34,211,238,.08); }
+
+  .screen { display: none; }
+  .screen.on { display: block; }
+
+  .note {
+    font-size: 12.5px; line-height: 1.6; color: var(--zetis-muted);
+    background: rgba(99,102,241,.07); border: 1px solid rgba(99,102,241,.22);
+    border-radius: 14px; padding: 12px 14px; margin: 0 0 20px;
+  }
+  .note strong { color: var(--zetis-text); font-weight: 700; }
+  .note.warn { background: rgba(251,191,36,.06); border-color: rgba(251,191,36,.25); }
+
+  /* ══════════════════════ EN-TÊTE DE PAGE ══════════════════════ */
+  .page-title { font-size: 23px; font-weight: 800; margin-bottom: 4px; }
+  .page-sub   { color: var(--zetis-muted); font-size: 13.5px; margin-bottom: 18px; }
+
+  /* ── Sélecteur de vue [ 14 jours ] [ Mois ] : 44 px de haut (plancher tactile) ── */
+  .viewswitch {
+    display: inline-flex; padding: 3px; gap: 3px; margin-bottom: 14px;
+    background: var(--zetis-surface); border: 1px solid var(--zetis-border); border-radius: 14px;
+  }
+  .viewswitch button {
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    min-height: 38px; padding: 0 18px; border: 0; border-radius: 11px;
+    background: transparent; color: var(--zetis-muted); transition: color .15s, background .15s;
+  }
+  .viewswitch button.on { background: var(--zetis-surface-2); color: var(--zetis-text); }
+
+  /* ══════════════════════ GRILLE MOIS ══════════════════════ */
+  .month {
+    border: 1px solid var(--zetis-border); background: var(--zetis-surface);
+    border-radius: 24px; padding: 14px 12px 12px;
+  }
+  .month-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 4px 12px;
+  }
+  .month-label { font-size: 13px; font-weight: 700; letter-spacing: .05em; }
+  .month-label em { font-style: normal; color: var(--zetis-muted); font-weight: 600; }
+  .month-nav { display: flex; gap: 2px; }
+  /* 🔴 Aux bornes le chevron DISPARAÎT — il n'est jamais grisé (§14.6 : « un bouton mort se
+     lit comme une panne »). Ici les deux existent ; l'écran « Bornes » montre l'absence. */
+  .month-nav button {
+    font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+    width: 44px; height: 44px; display: grid; place-items: center;
+    background: transparent; border: 0; border-radius: 12px; color: var(--zetis-muted);
+    transition: color .15s, background .15s;
+  }
+  .month-nav button:hover { color: var(--zetis-text); background: rgba(255,255,255,.05); }
+  .month-nav .ghost { visibility: hidden; }
+
+  .dow {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--zetis-muted);
+    text-align: center; padding-bottom: 6px;
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+
+  /* 🔴 MESURÉ, PAS ESTIMÉ (2026-08-17). Le cadrage annonçait une cellule de 46 px à 375 px :
+     il comptait 375 − 40 (gouttière de `.app`) = 335, et OUBLIAIT la gouttière propre de la
+     carte mois. Le vrai calcul est 375 − 40 − 24 − 2 = 309, soit (309 − 12)/7 = **42,4 px**
+     — SOUS le plancher tactile de 44 × 44 (WCAG 2.1 AA, HIG 44 pt).
+     La carte mois réduit donc sa gouttière sous 420 px : 375 − 40 − 16 − 2 = 317,
+     soit (317 − 12)/7 = **43,6**… encore insuffisant. Il faut AUSSI tomber le gap à 1 px :
+     (317 − 6)/7 = **44,4 px**. Les deux réglages sont nécessaires, aucun ne suffit seul.
+     ⚠️ À reporter tel quel dans l'implémentation : c'est un plancher d'accessibilité, pas un
+     goût. La classe `.narrow` rejoue la même règle dans le cadre simulé de la maquette, où
+     un `@media` sur le viewport ne s'appliquerait pas. */
+  @media (max-width: 420px) {
+    .month { padding-left: 8px; padding-right: 8px; }
+    .grid, .dow { gap: 1px; }
+  }
+  .narrow .month { padding-left: 8px; padding-right: 8px; }
+  .narrow .grid, .narrow .dow { gap: 1px; }
+
+  /* La rangée de vacances : un filet CONTINU sous la semaine, jamais une décoration par
+     cellule. Les vacances sont une PÉRIODE, pas une propriété d'un jour. */
+  .weekrow { display: contents; }
+  .vacances-rail {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+    margin: -1px 0 3px; padding: 0 2px;
+  }
+  .vacances-rail .line { flex: 1; height: 1px; background: var(--zetis-border); }
+  .vacances-rail .tag {
+    font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--zetis-muted); opacity: .8; font-weight: 700;
+  }
+
+  .cell {
+    position: relative; min-height: 62px; border-radius: 12px;
+    border: 1px solid transparent; background: transparent;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 2px; cursor: pointer;
+    font: inherit; color: inherit; text-align: center;
+    transition: background .15s;
+  }
+  .cell:hover { background: rgba(255,255,255,.04); }
+  .cell.void { cursor: default; pointer-events: none; }        /* hors mois : RIEN, pas même le numéral */
+  .cell.weekend { background: var(--cell-weekend); }
+  .cell.weekend:hover { background: #121a2f; }
+
+  /* Aujourd'hui — verbatim de AgendaWeekStrip.tsx:61. Le cyan ne colore JAMAIS un glyphe :
+     il vit sur le numéral, la bordure et le halo. C'est ce qui le sépare de la
+     physique-chimie, qui porte exactement la même teinte. */
+  .cell.today {
+    border-color: rgba(34,211,238,.6);
+    background: rgba(34,211,238,.05);
+    box-shadow: 0 0 18px -6px rgba(34,211,238,.6);
+  }
+  .cell.today .num { color: var(--zetis-accent-2); }
+  /* Jour ouvert — cumulé, jamais substitué (AgendaWeekStrip.tsx:55-57). */
+  .cell.open { box-shadow: 0 0 0 2px rgba(255,255,255,.7); }
+  .cell.today.open { box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 0 18px -6px rgba(34,211,238,.6); }
+
+  .num { font-size: 13px; font-weight: 600; line-height: 16px; height: 16px; }
+  .cell.weekend .num { color: var(--numeral-weekend); }
+
+  /* REGISTRE HAUT — ce que l'école demande. Hauteur réservée : sans elle les rangées
+     sauteraient d'une semaine à l'autre. */
+  .r-top {
+    display: flex; align-items: center; justify-content: center; gap: 2px;
+    height: 12px; margin-top: 3px;
+  }
+  /* REGISTRE BAS — ce que tu as travaillé. opacity .55 : c'est de la mémoire, pas de
+     l'actionnable ; la trace ne crie jamais plus fort que la demande. */
+  .r-bot {
+    display: flex; align-items: center; justify-content: center; gap: 2px;
+    height: 6px; margin-top: 3px;
+  }
+  .r-bot .seg { width: 7px; height: 3px; border-radius: 2px; opacity: .55; }
+
+  /* Débordement : un point neutre. Il dit « il y en a d'autres », JAMAIS combien —
+     un « +2 » serait un compte. */
+  .more { width: 3px; height: 3px; border-radius: 50%; background: var(--zetis-muted); opacity: .6; }
+
+  /* ══════════════════════ BANDE 14 JOURS À DÉFILEMENT ══════════════════════ */
+  .strip-wrap {
+    border: 1px solid var(--zetis-border); background: var(--zetis-surface);
+    border-radius: 24px; padding: 12px 0 12px 12px; position: relative; overflow: hidden;
+  }
+  .strip {
+    display: flex; gap: 6px; overflow-x: auto; padding-right: 12px;
+    scroll-snap-type: x mandatory; scroll-padding-inline-start: 0;
+    scrollbar-width: thin; scrollbar-color: var(--zetis-border) transparent;
+  }
+  .strip::-webkit-scrollbar { height: 6px; }
+  .strip::-webkit-scrollbar-thumb { background: var(--zetis-border); border-radius: 3px; }
+  .strip .cell { min-width: 46px; flex: 0 0 46px; scroll-snap-align: center; min-height: 74px; }
+  .strip .dowlabel { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--zetis-muted); }
+  .fade-r {
+    position: absolute; top: 12px; bottom: 12px; right: 0; width: 34px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--zetis-surface));
+  }
+
+  /* ══════════════════════ PANNEAU DU JOUR ══════════════════════ */
+  .panel {
+    margin-top: 12px; border: 1px solid var(--zetis-border); background: var(--zetis-surface);
+    border-radius: 24px; padding: 16px;
+  }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .panel-day {
+    font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--zetis-accent-2);
+  }
+  /* ▴ et non ✕ : le geste de repli emprunte le vocabulaire de la page, jamais la forme du
+     geste destructeur. Cible 44×44, glyphe inchangé (défaut g). */
+  .fold {
+    font: inherit; font-size: 13px; cursor: pointer; background: transparent; border: 0;
+    color: var(--zetis-muted); width: 44px; height: 44px; margin: -14px -14px 0 0;
+    display: grid; place-items: center; border-radius: 12px;
+  }
+  .fold:hover { color: #fff; }
+
+  .block-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--zetis-accent-2); margin: 14px 0 8px;
+  }
+
+  /* Ligne de matière travaillée : filet gauche 3 px teinté matière + pictogramme + notion + formes */
+  .worked { display: flex; gap: 11px; padding: 9px 0 9px 11px; border-left: 3px solid; border-radius: 2px; }
+  .worked + .worked { margin-top: 2px; }
+  .worked .pic {
+    width: 26px; height: 26px; border-radius: 7px; flex: 0 0 26px;
+    display: grid; place-items: center; font-size: 15px;
+    background: rgba(255,255,255,.05);
+  }
+  /* 🔴 `display:block` sur les TROIS lignes, y compris `.how`. Sans lui, une matière SANS
+     notion (l'événement n'a pas de `skill_id`) rendait « Français Révision SRS » sur une
+     seule ligne : la forme de travail se lisait comme un morceau du nom de la matière.
+     Vu à l'écran le 2026-08-17. Le repli doit sauter la ligne du milieu, pas la fusionner. */
+  .worked .who  { display: block; font-size: 13.5px; font-weight: 700; line-height: 1.35; }
+  .worked .what { display: block; font-size: 13px; color: var(--zetis-text); opacity: .82; line-height: 1.4; }
+  .worked .how  { display: block; font-size: 11.5px; color: var(--zetis-muted); margin-top: 2px; }
+
+  /* Carte d'échéance */
+  .item {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--zetis-border); border-left-width: 4px; border-radius: 14px;
+    padding: 11px 12px; margin-top: 8px;
+  }
+  .item .glyphbox { flex: 0 0 14px; display: grid; place-items: center; }
+  .item .txt { min-width: 0; flex: 1; }
+  .item .title { font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .item .meta { font-size: 11.5px; color: var(--zetis-muted); margin-top: 2px; }
+  .item .box {
+    flex: 0 0 22px; width: 22px; height: 22px; border-radius: 7px;
+    border: 1.5px solid var(--zetis-border);
+  }
+
+  .prep { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px;
+          border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04);
+          font-size: 12.5px; margin-top: 7px; }
+  .prep .for { margin-left: auto; font-size: 11px; color: var(--zetis-muted); white-space: nowrap; }
+
+  .door {
+    display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 13px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    font-size: 13px; font-weight: 600; color: var(--zetis-accent-2); cursor: pointer;
+  }
+  .calm { font-size: 13px; color: var(--zetis-muted); margin-top: 12px; line-height: 1.55; }
+
+  /* ══════════════════════ PLANCHE DES FORMES ══════════════════════ */
+  .plate { border: 1px solid var(--zetis-border); background: var(--zetis-surface);
+           border-radius: 24px; padding: 20px; }
+  .plate h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+              color: var(--zetis-accent-2); margin: 0 0 4px; }
+  .plate .sub { font-size: 12px; color: var(--zetis-muted); margin-bottom: 16px; }
+  .plate + .plate { margin-top: 16px; }
+
+  table.forms { width: 100%; border-collapse: collapse; }
+  table.forms th, table.forms td {
+    padding: 9px 6px; text-align: center; font-size: 11.5px; font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  table.forms th { color: var(--zetis-muted); font-weight: 700; letter-spacing: .06em; }
+  table.forms td.lab { text-align: left; color: var(--zetis-text); white-space: nowrap; }
+  table.forms td.lab small { display: block; color: var(--zetis-muted); font-weight: 500; font-size: 10.5px; }
+
+  .swatchrow { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .swatch { text-align: center; }
+  .swatch .cap { font-size: 10px; color: var(--zetis-muted); margin-top: 6px; }
+  .sizes { display: flex; gap: 20px; align-items: flex-end; justify-content: center; padding: 10px 0; }
+  .sizes .col { text-align: center; }
+  .sizes .col .cap { font-size: 10px; color: var(--zetis-muted); margin-top: 8px; }
+  .sizes .row { display: flex; gap: 7px; align-items: center; justify-content: center; height: 16px; }
+
+  .deut { filter: url(#deuteranopia); }
+
+  /* ══════════════════════ CADRES D'APPAREIL ══════════════════════ */
+  .frames { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .frame { border: 1px solid var(--zetis-border); border-radius: 20px; padding: 14px;
+           background: rgba(255,255,255,.02); }
+  .frame .cap { font-size: 11px; color: var(--zetis-muted); text-align: center; margin-bottom: 10px;
+                letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+  /* Le cadre téléphone doit être HONNÊTE : 375 px de large exactement, et la gouttière
+     intérieure est celle de `.app` dans la vraie page (20 px), pas celle du cadre. Sans ça
+     la cellule mesurée dans la maquette serait plus large que dans l'app — et le plancher
+     tactile serait validé sur un chiffre faux. */
+  .frame.phone { width: 375px; padding: 14px 0; }
+  .frame.phone > .cap { padding: 0 20px; }
+  .frame.phone > #frame-phone { padding: 0 20px; }
+  .frame.desk  { width: 1024px; transform: scale(.58); transform-origin: top left; margin-right: -430px; }
+  .frame.desk .cell { min-height: 96px; }
+  .frame.desk .num { font-size: 15px; }
+  .frame.desk .r-top { height: 20px; gap: 4px; }
+  .frame.desk .r-bot { height: 8px; }
+  .frame.desk .r-bot .seg { width: 11px; height: 4px; }
+
+  .legend-inline { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 14px;
+                   font-size: 11.5px; color: var(--zetis-muted); }
+  .legend-inline span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+
+<!-- Filtre de simulation deutéranopie (matrice de Viénot) — écran « Daltonisme » -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="deuteranopia" color-interpolation-filters="linearRGB">
+      <feColorMatrix type="matrix" values="0.625 0.375 0 0 0
+                                           0.700 0.300 0 0 0
+                                           0     0.300 0.700 0 0
+                                           0     0     0 1 0"/>
+    </filter>
+  </defs>
+</svg>
+
+<div class="neon-backdrop"></div>
+
+<div class="app" id="app">
+  <div class="wordmark">ZET<span>I</span>S</div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <!-- ══════════════════ ÉCRAN 1 — MOIS ══════════════════ -->
+  <section class="screen" id="s-mois">
+    <div class="note">
+      <strong>La seconde vue — elle se demande, elle ne s'impose pas</strong> (§D7 : la bande est le
+      défaut). Elle répond à deux questions que la bande ne sait pas poser : <em>« où ça se situe ? »</em>
+      et <em>« qu'est-ce que j'ai fait ? »</em>.
+      <br><br>
+      <strong>Ce qu'il faut regarder ici.</strong> Le <strong>mardi 18</strong> (aujourd'hui) porte un
+      glyphe de <em>physique-chimie</em>, dont la teinte <code>#22d3ee</code> est <strong>exactement</strong>
+      celle du cyan « aujourd'hui ». Si les deux se confondent, la doctrine des canaux tombe.
+      Le <strong>lundi 31</strong> porte un contrôle de physique-chimie sur un jour ordinaire : même teinte,
+      sans halo. Le <strong>jeudi 13</strong> est un jour ouvré vide : il ne doit porter <em>rien du tout</em>,
+      pas une case grise. Le <strong>samedi 15</strong> est un week-end travaillé : son contenu doit avoir
+      exactement la même vivacité qu'un mardi.
+    </div>
+
+    <h1 class="page-title">Mon agenda</h1>
+    <p class="page-sub">Ce que l'école te demande, et ce que tu as travaillé.</p>
+
+    <div class="viewswitch">
+      <button>14 jours</button><button class="on">Mois</button>
+    </div>
+
+    <div id="mois-grid"></div>
+
+    <div class="legend-inline" id="legend-1"></div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 2 — SAMEDI 15 AOÛT ══════════════════ -->
+  <section class="screen" id="s-15">
+    <div class="note">
+      <strong>Le cas qui a déclenché le chantier.</strong> Aujourd'hui l'écran répond
+      « <em>Rien à rendre ce jour-là.</em> », puis, cinquante lignes plus bas et plus petit,
+      « <em>tu as travaillé 3&nbsp;fois</em> ». Ici le travail devient le <strong>corps</strong> du panneau,
+      et le nombre disparaît. Aucune minute, aucun XP, aucun horodatage, aucun total — et les
+      matières sont dans l'ordre où il les a vécues, pas triées par volume.
+    </div>
+
+    <h1 class="page-title">Mon agenda</h1>
+    <p class="page-sub">Ce que l'école te demande, et ce que tu as travaillé.</p>
+    <div class="viewswitch"><button>14 jours</button><button class="on">Mois</button></div>
+
+    <div id="mois-grid-15"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <p class="panel-day">samedi 15 août</p>
+        <button class="fold" title="Replier" aria-label="Replier le jour">▴</button>
+      </div>
+
+      <p class="block-label">Ce que tu as travaillé</p>
+
+      <div class="worked" style="border-color: var(--m-maths)">
+        <span class="pic">🔢</span>
+        <span>
+          <span class="who">Mathématiques</span>
+          <span class="what">Théorème de Pythagore</span>
+          <span class="how">Cours lu · Quiz</span>
+        </span>
+      </div>
+
+      <div class="worked" style="border-color: var(--m-svt)">
+        <span class="pic">🌱</span>
+        <span>
+          <span class="who">SVT</span>
+          <span class="what">La respiration cellulaire</span>
+          <span class="how">Fiche de révision</span>
+        </span>
+      </div>
+
+      <!-- Notion absente : la ligne saute, la matière seule reste une réponse.
+           C'est le repli propre quand l'événement n'a pas de skill_id. -->
+      <div class="worked" style="border-color: var(--m-francais)">
+        <span class="pic">✒️</span>
+        <span>
+          <span class="who">Français</span>
+          <span class="how">Révision SRS</span>
+        </span>
+      </div>
+
+      <div class="door">Reprendre une notion <span>→</span></div>
+    </div>
+
+    <div class="note warn" style="margin-top:20px">
+      <strong>Variante — le jour vraiment vide.</strong> Un jour passé sans échéance <em>et</em> sans trace
+      ne doit plus être un cul-de-sac. Registre repris de la page (<code>AgendaPage.tsx:298</code>),
+      pas inventé ; la porte mène à <code>/matieres</code>, jamais à une session de révision qui
+      pourrait ne servir aucune carte.
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <p class="panel-day">jeudi 13 août</p>
+        <button class="fold" title="Replier" aria-label="Replier le jour">▴</button>
+      </div>
+      <p class="calm">Ce jour-là, l'école ne demandait rien.</p>
+      <div class="door">Reprendre une notion <span>→</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 3 — JEUDI 27 (futur) ══════════════════ -->
+  <section class="screen" id="s-27">
+    <div class="note">
+      <strong>Un jour à venir.</strong> Quatre échéances tombent le 27 : la cellule en montre trois
+      plus un <strong>point neutre</strong> — « il y en a d'autres », jamais combien. Le bloc
+      « ✦ Ce jour-là, tu prépares » porte les étapes qui tombent ce jour-là pour une échéance
+      <em>ultérieure</em> — deux questions différentes, et elles ne coïncident jamais.
+      🔴 Aucune coche ici : l'étape se coche sous l'échéance qu'elle prépare.
+    </div>
+
+    <h1 class="page-title">Mon agenda</h1>
+    <p class="page-sub">Ce que l'école te demande, et ce que tu as travaillé.</p>
+    <div class="viewswitch"><button>14 jours</button><button class="on">Mois</button></div>
+
+    <div id="mois-grid-27"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <p class="panel-day">jeudi 27 août</p>
+        <button class="fold" title="Replier" aria-label="Replier le jour">▴</button>
+      </div>
+
+      <div class="item" style="border-left-color: var(--m-francais)">
+        <span class="glyphbox" data-glyph="rendu|--m-francais|filled|11"></span>
+        <span class="txt">
+          <span class="title" style="display:block">Exposé sur « Le Horla »</span>
+          <span class="meta">Français · à rendre</span>
+        </span>
+        <span class="box"></span>
+      </div>
+
+      <div class="item" style="border-left-color: var(--m-histgeo)">
+        <span class="glyphbox" data-glyph="controle|--m-histgeo|filled|11"></span>
+        <span class="txt">
+          <span class="title" style="display:block">La Révolution française</span>
+          <span class="meta">Histoire-géo · contrôle</span>
+        </span>
+        <span class="box"></span>
+      </div>
+
+      <div class="item" style="border-left-color: var(--m-maths)">
+        <span class="glyphbox" data-glyph="devoir|--m-maths|filled|11"></span>
+        <span class="txt">
+          <span class="title" style="display:block">Exercices 12 à 18 p. 74</span>
+          <span class="meta">Mathématiques · devoir</span>
+        </span>
+        <span class="box"></span>
+      </div>
+
+      <div class="item" style="border-left-color: var(--m-anglais)">
+        <span class="glyphbox" data-glyph="lecon|--m-anglais|filled|11"></span>
+        <span class="txt">
+          <span class="title" style="display:block">Irregular verbs, liste 3</span>
+          <span class="meta">Anglais · leçon à apprendre</span>
+        </span>
+        <span class="box"></span>
+      </div>
+
+      <p class="block-label">✦ Ce jour-là, tu prépares</p>
+      <div class="prep">
+        <span class="glyphbox" data-glyph="controle|--m-physique|outline|11"></span>
+        <span>🃏 Réviser ce chapitre</span>
+        <span class="for">pour Contrôle de physique-chimie · lun. 31</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 1 — BANDE (VUE PAR DÉFAUT) ══════════════════ -->
+  <section class="screen on" id="s-bande">
+    <div class="note">
+      <strong>C'est ce que Massimo voit en ouvrant <code>/agenda</code></strong> — arbitrage du
+      commanditaire du 2026-08-17 (ADR-0025 Amdt 8 §D7) : <strong>la bande est la vue par défaut</strong>,
+      le mois se demande. Les deux vues répondent à deux questions, et la question quotidienne
+      — <em>« et maintenant ? »</em> — se lit ici <strong>sans aucun geste</strong>. Le choix de vue est
+      persisté, donc réversible sans code.
+      <br><br>
+      <strong>L'alternative au repli en fausses semaines.</strong> Aujourd'hui, sous 1280 px, la bande
+      de 14 jours se replie en deux rangées de 7 — <em>qui ressemblent à des semaines sans en être</em> :
+      la première colonne est le jour que le hasard désigne, et elle change tous les jours.
+      Ici, une rangée unique qui défile, aimantée sur aujourd'hui. Un défilement dit honnêtement
+      « il y en a plus à droite » ; un pliage fabrique une fausse semaine.
+      <br><strong>Fais glisser la bande</strong> pour voir la troncature.
+      <br><br>
+      🔴 <strong>Et le bas de la page est vide.</strong> « Ce qui arrive » et « La suite » ont disparu
+      (§D8) : les contrôles et les rendus se repèrent désormais à leur silhouette
+      (<span id="sig-controle"></span>&nbsp;<span id="sig-rendu"></span>), sans liste et sans décompte.
+      ⚠️ La section quitte <code>/agenda</code>, <strong>pas le produit</strong> — elle vit toujours sur
+      le bandeau d'Accueil et sur les pages Matières, qui rendent le même composant.
+    </div>
+
+    <h1 class="page-title">Mon agenda</h1>
+    <p class="page-sub">Ce que l'école te demande, et ce que tu as travaillé.</p>
+    <div class="viewswitch"><button class="on">14 jours</button><button>Mois</button></div>
+
+    <div class="strip-wrap">
+      <div class="strip" id="bande"></div>
+      <div class="fade-r"></div>
+    </div>
+
+    <div class="note warn" style="margin-top:20px">
+      <strong>Le marqueur ✦ a disparu.</strong> Il portait à lui seul tout le signal du plan, à 10 px,
+      sans dire <em>quelle matière</em> — et sa boîte <code>h-3</code> était réservée sur les 14 colonnes
+      pour une marque qui s'allume sur deux jours. Le plan est désormais un glyphe en
+      <strong>contour</strong>, à la place, à la taille et à la teinte d'une vraie échéance.
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 5 — PLANCHE DES FORMES ══════════════════ -->
+  <section class="screen" id="s-formes">
+    <div class="note">
+      <strong>Le livrable réel de la session.</strong> Les quatre silhouettes doivent se distinguer
+      à 9 px, monochromes, sans compter sur la teinte. Si ce n'est pas le cas ici, rien de ce qui
+      précède ne tient. Rappel de la règle : <strong>teinte = matière</strong>,
+      <strong>silhouette = nature</strong>, <strong>plein/contour = échéance ou préparation</strong>.
+    </div>
+
+    <div class="plate">
+      <h3>Les quatre silhouettes</h3>
+      <p class="sub">Plein = l'échéance tombe ici (subi). Contour = tu prépares ici (choisi).</p>
+      <table class="forms" id="tbl-formes"></table>
+    </div>
+
+    <div class="plate">
+      <h3>Épreuve de taille</h3>
+      <p class="sub">9 px (téléphone) · 11 px (tablette) · 12 px (bureau) — sur <code>#131a2e</code>.</p>
+      <div class="sizes" id="sizes"></div>
+    </div>
+
+    <div class="plate">
+      <h3>Épreuve monochrome</h3>
+      <p class="sub">Contraste élevé / impression : la matière disparaît, la nature survit. Elle reste
+        dans l'<code>aria-label</code>, qui énumère les matières en toutes lettres.</p>
+      <div class="sizes" id="mono"></div>
+    </div>
+
+    <div class="plate">
+      <h3>Les huit teintes de matière</h3>
+      <p class="sub">Valeurs exactes de <code>packages/ui/src/lib/subjectColors.ts</code>. Toutes passent
+        le plancher 3:1 non-textuel sur <code>#131a2e</code>, <code>#94a3b8</code> compris.</p>
+      <div class="swatchrow" id="swatches"></div>
+    </div>
+
+    <div class="plate">
+      <h3>Le segment de trace</h3>
+      <p class="sub">7 × 3 px, teinté matière, <code>opacity .55</code>. Une barre plate ne peut se
+        confondre avec aucun des quatre glyphes — et elle est la seule chose du registre bas.</p>
+      <div class="sizes" id="traces"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 6 — DALTONISME ══════════════════ -->
+  <section class="screen" id="s-daltonisme">
+    <div class="note warn">
+      <strong>Le coût, vu et non cru.</strong> La palette des 8 matières <em>n'est pas sûre entre ses
+      propres membres</em> en deutéranopie : maths et physique-chimie convergent, SVT et histoire-géo
+      convergent, français et espagnol convergent. C'est un fait de la palette <strong>existante</strong>,
+      pas de cette proposition — mais la proposition en dépend davantage, donc il est posé ici.
+      <br><br><strong>La borne :</strong> dans la grille, la teinte <em>accélère</em>, elle n'identifie pas.
+      Ce qui est conséquent — <em>est-ce un contrôle&nbsp;?</em> — passe par la silhouette, entièrement
+      sûre. Le mode de défaillance est « il me faut un tap pour savoir si c'est maths ou physique »,
+      jamais « je perds une information ».
+    </div>
+
+    <div class="plate">
+      <h3>Vision typique</h3>
+      <div class="swatchrow" id="dalt-normal"></div>
+      <div class="sizes" style="margin-top:6px" id="dalt-normal-glyphs"></div>
+    </div>
+
+    <div class="plate deut">
+      <h3>Deutéranopie simulée</h3>
+      <div class="swatchrow" id="dalt-deut"></div>
+      <div class="sizes" style="margin-top:6px" id="dalt-deut-glyphs"></div>
+    </div>
+
+    <div class="plate deut">
+      <h3>La grille entière, en deutéranopie</h3>
+      <p class="sub">Le test qui compte : la structure reste-t-elle lisible ?</p>
+      <div id="mois-grid-deut"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 7 — DEUX APPAREILS ══════════════════ -->
+  <section class="screen" id="s-appareils">
+    <div class="note">
+      <strong>La cellule aux deux bouts.</strong> À 1024 px elle respire, les glyphes passent à 12 px.
+      À 375 px, c'est plus serré que prévu — et le chiffre ci-dessous est <strong>mesuré dans le DOM,
+      pas estimé</strong>.
+      <br><br>
+      🔴 <strong>Le cadrage annonçait 46 px : il était faux.</strong> Il comptait 375 − 40 (gouttière de
+      la page) et oubliait la gouttière propre de la carte mois — le vrai chiffre était
+      <strong>42,4 px</strong>, <em>sous</em> le plancher tactile de 44 × 44 (WCAG 2.1 AA, HIG 44 pt).
+      Il a fallu <strong>deux</strong> réglages pour repasser au-dessus, et aucun ne suffisait seul :
+      la carte mois tombe sa gouttière à 8 px sous 420 px, <em>et</em> la grille passe son gap de 2 px
+      à 1 px. À reporter tel quel dans l'implémentation — c'est un plancher d'accessibilité, pas un goût.
+      ADR-0024 §6 — <em>trois appareils, pas un</em>.
+    </div>
+    <div class="frames">
+      <div class="frame phone narrow">
+        <p class="cap">375 px — téléphone</p>
+        <div id="frame-phone"></div>
+        <p class="cap" style="margin:10px 0 0;text-transform:none;letter-spacing:0">
+          cellule mesurée : <strong id="mes-phone">…</strong> — plancher tactile 44 × 44
+        </p>
+      </div>
+      <div class="frame desk">
+        <p class="cap">1024 px — bureau</p>
+        <div id="frame-desk"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ÉCRAN 8 — BORNES ══════════════════ -->
+  <section class="screen" id="s-bornes">
+    <div class="note">
+      <strong>Aux bornes, le chevron disparaît — il n'est jamais grisé.</strong>
+      Règle du §14.6, citée deux fois dans le code : <em>« un bouton mort se lit comme une panne »</em>.
+      En arrière, la borne est le premier mois de l'année scolaire ; en avant, mois courant + 2
+      (au-delà, « Ce qui arrive » a un horizon de 21 jours et le plan de préparation ne remonte que
+      de quelques jours : il n'y a structurellement rien à voir, et offrir la navigation vers le
+      désert enseigne que la page est vide).
+    </div>
+    <div class="month" style="margin-bottom:16px">
+      <div class="month-head">
+        <span class="month-label">Septembre <em>2025</em></span>
+        <span class="month-nav"><button class="ghost">‹</button><button>›</button></span>
+      </div>
+      <p class="calm" style="margin:0 4px 4px">Premier mois de l'année scolaire — pas de chevron à gauche.</p>
+    </div>
+    <div class="month">
+      <div class="month-head">
+        <span class="month-label">Octobre <em>2026</em></span>
+        <span class="month-nav"><button>‹</button><button class="ghost">›</button></span>
+      </div>
+      <p class="calm" style="margin:0 4px 4px">Mois courant + 2 — pas de chevron à droite.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   1. LE SYSTÈME DE GLYPHES
+
+   Quatre silhouettes, choisies pour des signatures basse-fréquence maximalement éloignées :
+   rond / allongé / pointu-4 / pointu-3. Aucune ne dépend de la teinte.
+
+     devoir   ●  disque    — le plus fréquent, donc la forme la plus calme. Aucun angle,
+                             aucune pointe : un devoir ne menace pas.
+     lecon    ▬  barre     — une ligne à apprendre. L'ALLONGEMENT est le seul discriminant
+                             qui survive à tout : flou, petite taille, monochrome, daltonisme.
+     controle ◆  losange   — DÉJÀ enseigné par le dépôt (AgendaItemRow.tsx:114 rend « ◆ contrôle »).
+                             On ne réinvente pas un vocabulaire que Massimo connaît.
+     rendu    ▲  triangle  — une chose qu'on remet. Trois côtés contre quatre : la pointe
+                             unique se lit contre le losange même à 8 px.
+
+   Les TROIS types d'étape de plan (fiche / révision / quiz) FUSIONNENT ici en un simple état
+   de contour : la cellule doit dire qu'il y a de la préparation, en quelle matière, pour quelle
+   sorte d'échéance. Le grain fin (🗒️ / 🃏 / 🎯) existe déjà et reste dans le panneau.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+const SHAPES = {
+  devoir:   { w: 9,  h: 9,  draw: (s, f) => f
+                ? `<circle cx="4.5" cy="4.5" r="4.5"/>`
+                : `<circle cx="4.5" cy="4.5" r="3.9" fill="none" stroke-width="1.25"/>` },
+  lecon:    { w: 12, h: 9,  draw: (s, f) => f
+                ? `<rect x="0" y="2" width="12" height="5" rx="2.5"/>`
+                : `<rect x="0.7" y="2.7" width="10.6" height="3.6" rx="1.8" fill="none" stroke-width="1.25"/>` },
+  controle: { w: 10, h: 10, draw: (s, f) => f
+                ? `<polygon points="5,0 10,5 5,10 0,5"/>`
+                : `<polygon points="5,0.9 9.1,5 5,9.1 0.9,5" fill="none" stroke-width="1.25"/>` },
+  rendu:    { w: 10, h: 9,  draw: (s, f) => f
+                ? `<polygon points="5,0 10,9 0,9"/>`
+                : `<polygon points="5,1.1 9.1,8.4 0.9,8.4" fill="none" stroke-width="1.25" stroke-linejoin="round"/>` },
+};
+
+const KIND_LABEL = { devoir: "devoir", lecon: "leçon", controle: "contrôle", rendu: "à rendre" };
+
+/** Un glyphe : silhouette × teinte × plein|contour × taille (hauteur cible en px). */
+function glyph(kind, color, filled = true, size = 9) {
+  const s = SHAPES[kind];
+  const k = size / 9;                     // 9 px est la taille de référence (téléphone)
+  const w = (s.w * k).toFixed(2), h = (s.h * k).toFixed(2);
+  const paint = filled ? `fill="${color}"` : `fill="none" stroke="${color}"`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${s.w} ${s.h}" ${paint}
+            style="display:block;overflow:visible" aria-hidden="true">${s.draw(s, filled)}</svg>`;
+}
+
+/** Le segment de trace : 7 × 3, teinté matière, opacity .55. */
+function trace(color, k = 1) {
+  return `<span class="seg" style="background:${color};width:${7*k}px;height:${3*k}px"></span>`;
+}
+
+const C = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SUBJECTS = {
+  maths:    { var: "--m-maths",    name: "Mathématiques",   pic: "🔢" },
+  francais: { var: "--m-francais", name: "Français",        pic: "✒️" },
+  histgeo:  { var: "--m-histgeo",  name: "Histoire-géo",    pic: "🗺️" },
+  svt:      { var: "--m-svt",      name: "SVT",             pic: "🌱" },
+  anglais:  { var: "--m-anglais",  name: "Anglais",         pic: "🇬🇧" },
+  espagnol: { var: "--m-espagnol", name: "Espagnol",        pic: "🇪🇸" },
+  physique: { var: "--m-physique", name: "Physique-chimie", pic: "⚗️" },
+  techno:   { var: "--m-techno",   name: "Technologie",     pic: "⚙️" },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   2. LES DONNÉES DE LA MAQUETTE — août 2026, aujourd'hui = mardi 18.
+
+   `d` : échéances de l'école        → registre HAUT, glyphes PLEINS
+   `p` : étapes de préparation       → registre HAUT, glyphes en CONTOUR (silhouette + teinte
+                                        de l'échéance préparée)
+   `t` : matières travaillées ce jour → registre BAS, segments
+
+   🔴 Les jours PASSÉS portent désormais leurs échéances (`d`) : c'est la révocation de
+   l'asymétrie ADR-0025 §6. Et ils ne disent JAMAIS lesquelles étaient cochées — l'état
+   de complétion ne prend aucun canal dans la grille.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+const AOUT = {
+  5:  { t: ["maths"] },
+  7:  { t: ["anglais"] },
+  10: { t: ["svt"] },
+  11: { d: [["devoir","maths"]], t: ["maths"] },
+  12: { t: ["maths", "francais"] },
+  13: { },                                                   // jour ouvré VIDE : rien, jamais une case grise
+  14: { d: [["lecon","histgeo"]], t: ["histgeo"] },
+  15: { t: ["maths", "svt", "francais"] },                   // ← samedi travaillé, aucune échéance
+  17: { d: [["devoir","anglais"]], t: ["anglais"] },
+  18: { d: [["devoir","maths"], ["lecon","svt"]], t: ["maths"] },   // AUJOURD'HUI
+  19: { p: [["controle","maths"]] },
+  20: { d: [["devoir","francais"]], p: [["controle","maths"]] },
+  21: { d: [["lecon","svt"]] },
+  23: { p: [["controle","maths"]] },
+  24: { d: [["devoir","anglais"]], p: [["controle","maths"]] },
+  25: { d: [["controle","maths"]] },                          // ← ce que les contours préparaient
+  26: { d: [["devoir","techno"]] },
+  27: { d: [["rendu","francais"], ["controle","histgeo"], ["devoir","maths"], ["lecon","anglais"]],
+        p: [["controle","physique"]] },                       // 4 échéances → 3 glyphes + point neutre
+  28: { d: [["devoir","espagnol"]], p: [["controle","physique"]] },
+  30: { p: [["controle","physique"]] },
+  31: { d: [["controle","physique"]] },                       // ← cyan matière sur un jour ORDINAIRE
+};
+
+const TODAY = 18;
+const VACANCES_WEEK = 1;   // index de rangée (0 = semaine du 27/7) portant le filet « vacances »
+
+/* Août 2026 commence un SAMEDI (le 15 est un samedi, donné par le commanditaire).
+   Grille alignée LUNDI, 6 rangées de 7. */
+const FIRST_DOW = 5;       // 0 = lundi … 5 = samedi
+const NB_DAYS = 31;
+
+function buildMonth({ openDay = null, maxGlyphs = 3 } = {}) {
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const day = i - FIRST_DOW + 1;
+    cells.push(day >= 1 && day <= NB_DAYS ? day : null);
+  }
+
+  let html = `<div class="month">
+    <div class="month-head">
+      <span class="month-label">Août <em>2026</em></span>
+      <span class="month-nav"><button aria-label="Mois précédent">‹</button><button aria-label="Mois suivant">›</button></span>
+    </div>
+    <div class="dow"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+    <div class="grid">`;
+
+  for (let w = 0; w < 6; w++) {
+    if (w === VACANCES_WEEK) {
+      html += `<div class="vacances-rail"><span class="tag">vacances</span><span class="line"></span></div>`;
+    }
+    for (let c = 0; c < 7; c++) {
+      const day = cells[w * 7 + c];
+      if (day === null) { html += `<div class="cell void"></div>`; continue; }
+
+      const data = AOUT[day] || {};
+      const weekend = c >= 5;
+      const cls = ["cell"];
+      if (weekend) cls.push("weekend");
+      if (day === TODAY) cls.push("today");
+      if (day === openDay) cls.push("open");
+
+      /* Registre HAUT : échéances (pleines) puis préparations (contour), dans l'ordre
+         d'échéance — surtout PAS « contrôle d'abord », qui serait un tri par gravité,
+         donc une jauge d'urgence (ADR-0025 §6 l'interdit). */
+      const marks = [...(data.d || []).map(x => [...x, true]),
+                     ...(data.p || []).map(x => [...x, false])];
+      let top = marks.slice(0, maxGlyphs)
+        .map(([k, s, filled]) => glyph(k, C(SUBJECTS[s].var), filled)).join("");
+      if (marks.length > maxGlyphs) top += `<span class="more"></span>`;
+
+      const bot = (data.t || []).slice(0, 3).map(s => trace(C(SUBJECTS[s].var))).join("")
+                + ((data.t || []).length > 3 ? `<span class="more"></span>` : "");
+
+      /* L'aria-label énumère les matières EN TOUTES LETTRES : c'est la borne du coût
+         daltonien — la teinte accélère, elle n'identifie jamais seule. */
+      const said = [
+        ...marks.map(([k, s]) => `${SUBJECTS[s].name} ${KIND_LABEL[k]}`),
+        ...(data.t || []).map(s => `travaillé ${SUBJECTS[s].name}`),
+      ].join(", ");
+
+      html += `<button class="${cls.join(" ")}" aria-label="${day} août${said ? " — " + said : ""}">
+        <span class="num">${day}</span>
+        <span class="r-top">${top}</span>
+        <span class="r-bot">${bot}</span>
+      </button>`;
+    }
+  }
+  return html + `</div></div>`;
+}
+
+/* ── La bande 14 jours : 3 avant, aujourd'hui, 10 après — glissante, jamais calendaire ── */
+const DOW = ["lun","mar","mer","jeu","ven","sam","dim"];
+function buildStrip() {
+  let html = "";
+  for (let off = -3; off <= 10; off++) {
+    const day = TODAY + off;
+    const data = AOUT[day] || {};
+    const dow = (FIRST_DOW + day - 1) % 7;
+    const cls = ["cell"];
+    if (dow >= 5) cls.push("weekend");
+    if (off === 0) cls.push("today");
+
+    const marks = [...(data.d || []).map(x => [...x, true]), ...(data.p || []).map(x => [...x, false])];
+    let top = marks.slice(0, 3).map(([k, s, f]) => glyph(k, C(SUBJECTS[s].var), f)).join("");
+    if (marks.length > 3) top += `<span class="more"></span>`;
+    const bot = (data.t || []).slice(0, 3).map(s => trace(C(SUBJECTS[s].var))).join("");
+
+    html += `<button class="${cls.join(" ")}">
+      <span class="dowlabel">${DOW[dow]}</span>
+      <span class="num">${day}</span>
+      <span class="r-top">${top}</span>
+      <span class="r-bot">${bot}</span>
+    </button>`;
+  }
+  return html;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   3. RENDU
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+document.getElementById("mois-grid").innerHTML      = buildMonth();
+document.getElementById("mois-grid-15").innerHTML   = buildMonth({ openDay: 15 });
+document.getElementById("mois-grid-27").innerHTML   = buildMonth({ openDay: 27 });
+document.getElementById("mois-grid-deut").innerHTML = buildMonth();
+document.getElementById("frame-phone").innerHTML    = buildMonth();
+document.getElementById("frame-desk").innerHTML     = buildMonth({ maxGlyphs: 5 });
+document.getElementById("bande").innerHTML          = buildStrip();
+
+/* Les glyphes posés en attribut dans le HTML statique (panneau du jour). */
+document.querySelectorAll("[data-glyph]").forEach(el => {
+  const [kind, v, mode, size] = el.dataset.glyph.split("|");
+  el.innerHTML = glyph(kind, C(v), mode === "filled", Number(size));
+});
+
+/* Les deux silhouettes citées dans la note de la bande (§D8). */
+{
+  const sig = (kind, v) => `<span style="display:inline-flex;vertical-align:-1px">${glyph(kind, C(v), true, 11)}</span>`;
+  document.getElementById("sig-controle").innerHTML = sig("controle", "--m-histgeo");
+  document.getElementById("sig-rendu").innerHTML = sig("rendu", "--m-francais");
+}
+
+/* Légende de l'écran 1 */
+document.getElementById("legend-1").innerHTML = [
+  [glyph("devoir", C("--m-maths")), "devoir"],
+  [glyph("lecon", C("--m-svt")), "leçon à apprendre"],
+  [glyph("controle", C("--m-histgeo")), "contrôle"],
+  [glyph("rendu", C("--m-francais")), "à rendre"],
+  [glyph("controle", C("--m-maths"), false), "tu prépares (contour)"],
+  [trace(C("--m-anglais")), "tu as travaillé"],
+].map(([g, l]) => `<span>${g}${l}</span>`).join("");
+
+/* ── Planche : le tableau des 4 silhouettes × plein/contour × 8 teintes ── */
+{
+  const keys = Object.keys(SUBJECTS);
+  let html = `<tr><th></th>` + keys.map(k => `<th>${SUBJECTS[k].name.slice(0, 5)}</th>`).join("") + `</tr>`;
+  for (const [kind, lab] of [["devoir","Devoir"],["lecon","Leçon"],["controle","Contrôle"],["rendu","À rendre"]]) {
+    for (const filled of [true, false]) {
+      html += `<tr><td class="lab">${lab}<small>${filled ? "échéance (plein)" : "préparation (contour)"}</small></td>`
+        + keys.map(k => `<td><span style="display:inline-flex">${glyph(kind, C(SUBJECTS[k].var), filled)}</span></td>`).join("")
+        + `</tr>`;
+    }
+  }
+  document.getElementById("tbl-formes").innerHTML = html;
+}
+
+const KINDS = ["devoir", "lecon", "controle", "rendu"];
+
+/* Épreuve de taille : les 4 silhouettes à 9 / 11 / 12 px */
+document.getElementById("sizes").innerHTML = [9, 11, 12].map(size => `
+  <div class="col">
+    <div class="row">${KINDS.map(k => `<span style="display:inline-flex">${glyph(k, C("--m-maths"), true, size)}</span>`).join("")}</div>
+    <div class="row" style="margin-top:8px">${KINDS.map(k => `<span style="display:inline-flex">${glyph(k, C("--m-maths"), false, size)}</span>`).join("")}</div>
+    <p class="cap">${size} px</p>
+  </div>`).join("");
+
+/* Épreuve monochrome */
+document.getElementById("mono").innerHTML = [9, 11, 12].map(size => `
+  <div class="col">
+    <div class="row">${KINDS.map(k => `<span style="display:inline-flex">${glyph(k, "#e8ecf8", true, size)}</span>`).join("")}</div>
+    <div class="row" style="margin-top:8px">${KINDS.map(k => `<span style="display:inline-flex">${glyph(k, "#e8ecf8", false, size)}</span>`).join("")}</div>
+    <p class="cap">${size} px</p>
+  </div>`).join("");
+
+/* Les 8 teintes */
+const swatches = Object.entries(SUBJECTS).map(([k, s]) => `
+  <div class="swatch">
+    <div style="width:44px;height:44px;border-radius:12px;background:${C(s.var)}"></div>
+    <p class="cap">${s.name}<br>${C(s.var)}</p>
+  </div>`).join("");
+document.getElementById("swatches").innerHTML = swatches;
+document.getElementById("dalt-normal").innerHTML = swatches;
+document.getElementById("dalt-deut").innerHTML = swatches;
+
+/* Les glyphes de toutes les matières, pour l'épreuve daltonienne */
+const daltGlyphs = `<div class="col"><div class="row" style="gap:12px">`
+  + Object.values(SUBJECTS).map(s => glyph("controle", C(s.var), true, 12)).join("")
+  + `</div><p class="cap">contrôle — les 8 matières à 12 px</p></div>`;
+document.getElementById("dalt-normal-glyphs").innerHTML = daltGlyphs;
+document.getElementById("dalt-deut-glyphs").innerHTML = daltGlyphs;
+
+/* Segments de trace */
+document.getElementById("traces").innerHTML = `<div class="col"><div class="row" style="gap:6px">`
+  + Object.values(SUBJECTS).map(s => `<span class="seg" style="background:${C(s.var)};width:7px;height:3px;opacity:.55"></span>`).join("")
+  + `</div><p class="cap">à taille réelle</p></div>
+  <div class="col"><div class="row" style="gap:12px">`
+  + Object.values(SUBJECTS).map(s => `<span class="seg" style="background:${C(s.var)};width:21px;height:9px;border-radius:5px;opacity:.55"></span>`).join("")
+  + `</div><p class="cap">×3 — pour l'inspection</p></div>`;
+
+/* ── Navigation entre écrans ── */
+const SCREENS = [
+  ["s-bande",       "Bande (défaut)"],
+  ["s-mois",        "Mois"],
+  ["s-15",          "Samedi 15 août"],
+  ["s-27",          "Jeudi 27 (futur)"],
+  ["s-formes",      "Formes"],
+  ["s-daltonisme",  "Daltonisme"],
+  ["s-appareils",   "375 / 1024"],
+  ["s-bornes",      "Bornes"],
+];
+document.getElementById("tabs").innerHTML =
+  SCREENS.map(([id, label], i) => `<button data-go="${id}"${i === 0 ? ' class="on"' : ""}>${label}</button>`).join("");
+
+document.getElementById("tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-go]");
+  if (!btn) return;
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b === btn));
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === btn.dataset.go));
+  document.getElementById("app").classList.toggle("wide", btn.dataset.go === "s-appareils");
+  window.scrollTo(0, 0);
+  if (btn.dataset.go === "s-appareils") requestAnimationFrame(mesurerCellule);
+});
+
+/* Mesure affichée du cadre téléphone : le plancher tactile se VÉRIFIE, il ne s'estime pas.
+   C'est ce chiffre qui a démenti le cadrage (46 px annoncés, 42,4 px réels).
+   ⚠️ La mesure doit être prise QUAND L'ÉCRAN EST VISIBLE : un élément en `display:none`
+   rend 0 × 0, et le badge affichait fièrement « 0.0 × 0.0 ✕ » — une mesure fausse qui
+   accusait un design correct. D'où l'appel au changement d'écran, pas au chargement. */
+function mesurerCellule() {
+  const cell = document.querySelector("#frame-phone .cell:not(.void)");
+  const out = document.getElementById("mes-phone");
+  if (!cell || !out) return;
+  const b = cell.getBoundingClientRect();
+  if (b.width === 0) return;                     // écran masqué : ne rien écrire plutôt que mentir
+  const ok = b.width >= 44 && b.height >= 44;
+  out.textContent = `${b.width.toFixed(1)} × ${b.height.toFixed(1)} px ${ok ? "✓" : "✕"}`;
+  out.style.color = ok ? "#34d399" : "#fbbf24";
+}
+
+/* La bande s'ouvre aimantée sur aujourd'hui — pas au début. */
+requestAnimationFrame(() => {
+  const strip = document.getElementById("bande");
+  const today = strip.querySelector(".today");
+  if (today) strip.scrollLeft = today.offsetLeft - strip.clientWidth / 2 + today.clientWidth / 2;
+});
+</script>
+</body>
+</html>
