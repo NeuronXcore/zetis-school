@@ -17,24 +17,36 @@ refs: ["0060"]
 l'`adr-0060` classe en cas 2 et que le `WORKFLOW.md` §2 étape 6 énonce déjà :
 *« la PR est la porte de revue matérialisée, **avant** que le code n'entre dans `main` »*.
 
-> 🔴 **LE MOYEN N'EXISTE PAS — constaté le 2026-08-17, au moment de poser le geste.**
-> La protection de branche est **indisponible sur un dépôt privé en plan gratuit**. Les deux API
-> répondent **403** avec le même message :
+> ✅ **APPLIQUÉ le 2026-08-17 en fin de journée.** Les trois checks sont requis sur `main` :
+> `backend — pytest` · `frontends — vitest` · `verrous du dépôt`, `strict: false`,
+> `enforce_admins: false` — exactement les §1 à §4 ci-dessous.
 >
-> ```
-> GET repos/…/branches/main/protection  → 403 Upgrade to GitHub Pro or make this repository public
-> GET repos/…/rulesets                  → 403 (idem)
-> ```
+> ⚠️ **Ce qui a débloqué le geste n'est pas ce que cet ADR prévoyait.** Le §Suivi proposait GitHub
+> Pro, une organisation Team, ou de rendre le dépôt public — cette dernière étant **écartée** au
+> motif qu'il porte les données de Massimo. **Le commanditaire a choisi cette option-là**, en
+> connaissance de cause, et a basculé le dépôt en public le matin du 2026-08-17. La protection de
+> branche est gratuite sur un dépôt public : il n'y a eu ni abonnement, ni organisation.
 >
-> **La décision reste juste ; elle est simplement inapplicable en l'état.** Elle n'est donc pas
-> abandonnée : le blocage est **circonstanciel**, pas doctrinal — le §Suivi porte les trois
-> conditions qui la débloqueraient.
+> 🔴 **La contrepartie est réelle et n'est pas annulée par la décision de la prendre** : le prénom de
+> Massimo apparaît dans **818 fichiers suivis**, avec son niveau, ses matières et ses notions
+> fragiles. Aucun secret technique n'est exposé (ni `.env`, ni clé, ni base — le `.gitignore` a
+> tenu) ; ce qui l'est, c'est le **portrait scolaire nominatif d'un mineur**. C'est écrit ici pour
+> que la prochaine session le sache, pas pour rouvrir un arbitrage rendu.
 >
-> **Corrigé EN PLACE et non par addendum**, conformément à l'`adr-0060` : cet ADR est `propose`,
-> **cité par aucun autre**, et **personne n'a pu appliquer sa règle**. Un addendum aurait figé la
-> trace d'une décision que rien n'a jamais exécutée. **Ce qui est conservé, c'est le motif de
-> l'erreur** — et il est sur moi : *j'ai décidé d'un réglage sans vérifier qu'il était disponible.*
-> Le read-before-code du cadrage a porté sur la **doctrine**, jamais sur la **faisabilité**.
+> ⚠️ **La mesure du matin disait vrai, et le §Suivi aussi** : sur un dépôt **privé** en plan
+> gratuit, les deux API répondaient bien `403 Upgrade to GitHub Pro or make this repository public`.
+> Ce n'est pas la mesure qui était fausse, c'est la **contrainte** qui a bougé.
+>
+> ⚠️ **La preuve du geste reste indirecte, et il faut le dire** : l'endpoint de LECTURE
+> (`GET …/branches/main/protection`) répond **503** de façon persistante — une panne côté GitHub,
+> pas un refus. Les deux signaux dont on dispose sont la **réponse du PUT**, qui a rendu l'objet
+> complet avec les trois contextes, et `GET …/branches/main → protected: true`. **La preuve
+> comportementale viendra de la première PR rouge qui refusera de se merger** — c'est exactement ce
+> que le §Suivi annonçait, et personne ne la fabriquera exprès.
+>
+> **Ce qui est conservé de l'erreur d'origine**, parce qu'elle vaut au-delà de ce cas : *j'ai décidé
+> d'un réglage sans vérifier qu'il était disponible.* Le read-before-code du cadrage a porté sur la
+> **doctrine**, jamais sur la **faisabilité**. Une commande d'API en lecture aurait suffi.
 
 > **Pourquoi un ADR alors que la CI n'en a pas demandé.** Poser `.github/workflows/ci.yml` était une
 > **application** (cas 2) : la règle existait, on la faisait respecter. Activer une *required check*
@@ -180,23 +192,43 @@ protection de branche (revue obligatoire, historique linéaire, signature des co
 
 ## Suivi
 
-### 🔴 Le geste est BLOQUÉ — les trois conditions qui le débloqueraient
+### ✅ Le geste est POSÉ — et par la voie que ce tableau écartait
 
-| Condition | Coût | Verdict |
+| Condition | Coût | Ce qui s'est passé |
 |---|---|---|
-| **GitHub Pro** | ~4 $/mois | débloque la protection sur les dépôts privés. **La voie la plus courte.** À mettre en face de ce qui a motivé cet ADR : une suite rouge a atteint `main` **une fois** le 2026-08-16 |
-| **Rendre le dépôt public** | zéro | 🔴 **EXCLU.** Le dépôt porte les données de Massimo et la doctrine de `CLAUDE.md` — sa vie privée n'est pas négociable contre un réglage de CI |
-| **Une organisation GitHub Team** | ~4 $/utilisateur/mois | débloque aussi, mais ajoute une couche d'administration pour un dépôt à **un** contributeur |
+| **GitHub Pro** | ~4 $/mois | **non souscrit** — devenu inutile |
+| **Rendre le dépôt public** | zéro | ✅ **CHOISI par le commanditaire**, le matin du 2026-08-17, en connaissance de l'exclusion écrite ci-dessous |
+| **Une organisation GitHub Team** | ~4 $/utilisateur/mois | non retenue |
 
-### Ce qui tient le rôle en attendant — et ce que ça ne couvre pas
+> 🔴 **L'exclusion que ce tableau portait était : « le dépôt porte les données de Massimo et la
+> doctrine de `CLAUDE.md` — sa vie privée n'est pas négociable contre un réglage de CI ».**
+> Elle a été levée par le commanditaire, à qui elle appartenait. Ce qui est exposé, **mesuré et non
+> supposé** : le prénom de Massimo dans **818 fichiers suivis**, son niveau, ses matières, ses
+> notions fragiles. **Aucun secret technique** ne l'est — ni `.env`, ni clé, ni base : le
+> `.gitignore` a tenu.
+>
+> ⚠️ **Ce paragraphe n'est pas une réserve, c'est une trace.** L'arbitrage est rendu ; il ne se
+> rouvre pas. Mais un ADR qui aurait effacé son propre motif d'exclusion laisserait croire qu'il
+> n'y en avait jamais eu.
+
+### Ce qui tient le rôle EN PLUS de la protection
 
 | Dispositif | Ce qu'il fait | Sa faille |
 |---|---|---|
+| protection de branche | **refuse le merge** d'une PR dont l'un des trois checks est rouge | le propriétaire peut passer outre (§2), **et c'est voulu** |
 | `hooks/pre-push` | refuse le push si une suite est rouge | **local** ; `--no-verify` le contourne ; installé seulement là où le `ln -sf` a été fait |
-| `.github/workflows/ci.yml` | affiche les trois checks sur chaque PR | **n'empêche rien** — c'est exactement ce que cet ADR devait corriger |
+| `.github/workflows/ci.yml` | produit les trois checks que la protection exige | il **affiche** ; c'est la protection qui **empêche** |
 
-⚠️ **Le trou est donc entier, et il est nommé** : un merge reste possible sur du rouge, à la seule
-condition de ne pas regarder. C'est la situation du 2026-08-16.
+⚠️ **Deux réserves qui restent entières** :
+
+1. **Le §4 (« branche à jour » non exigée) reposait sur un motif qui a disparu** — *« un dépôt privé
+   où les minutes se paient »*. Les minutes d'un dépôt public sont gratuites. La décision **tient
+   quand même** (7 minutes de CI à chaque avancement de `main`, pour un bénéfice mince sur un dépôt
+   à un contributeur), mais son argument principal n'est plus celui-là. À rouvrir sciemment si on
+   veut l'exiger, pas par entraînement.
+2. **La preuve du geste est INDIRECTE.** L'endpoint de lecture répond `503` (panne GitHub, pas
+   refus) ; on dispose de la réponse du `PUT` et de `protected: true`. **La preuve comportementale
+   viendra de la première PR rouge qui refusera de se merger.**
 
 ### Quand le geste redevient possible
 

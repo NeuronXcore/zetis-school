@@ -154,20 +154,27 @@ pas devient une source d'erreur qui a l'apparence d'une mesure.
 > `diagnostics`** (2026-08-16). Leurs récits sont dans Git, leurs décisions dans les ADR. Ce qui
 > suit est **tout ce qui restait ouvert** — et le contrôle 4 de l'élagage l'a exhumé.
 
-### 🔴 UNE DÉCISION T'ATTEND — la *required check* est IMPOSSIBLE en l'état
+### ✅ La *required check* est ACTIVE — et le dépôt est devenu PUBLIC
 
-L'**ADR-0061** décide qu'une PR rouge ne doit pas pouvoir se merger. **Le réglage n'existe pas sur
-un dépôt privé en plan gratuit** : `branches/main/protection` et `rulesets` répondent tous deux
-**403** (*« Upgrade to GitHub Pro or make this repository public »*). L'ADR reste **juste et
-proposé** ; seul son moyen manque.
+L'**ADR-0061** est appliqué depuis le 2026-08-17 : `backend — pytest`, `frontends — vitest` et
+`verrous du dépôt` sont requis sur `main`, `strict: false`, bypass propriétaire conservé (§2).
 
-- La voie la plus courte est **GitHub Pro** (~4 $/mois). Rendre le dépôt **public est exclu** : il
-  porte les données de Massimo.
-- ⚠️ **En attendant, le trou est ENTIER** : un merge sur du rouge reste possible, à la seule
-  condition de ne pas regarder. Le hook `pre-push` est local et contournable ; la CI **affiche**
-  sans empêcher. *C'est exactement la situation dans laquelle cette session a mergé la PR #143.*
-- 🔴 **Le témoin prévu n'existe plus** : la PR qui devait fournir la preuve a été réparée puis
-  mergée, verte. *Un témoin qu'on répare cesse d'être un témoin.*
+🔴 **Ce qui l'a débloqué n'est pas ce que l'ADR prévoyait.** Le commanditaire a **basculé le dépôt
+en PUBLIC** le matin même — l'option que l'ADR écartait explicitement au motif des données de
+Massimo. La protection est gratuite sur un dépôt public : ni abonnement, ni organisation.
+
+⚠️ **Ce qui est exposé, mesuré** : le prénom de Massimo dans **818 fichiers suivis**, son niveau,
+ses matières, ses notions fragiles. **Aucun secret technique** — ni `.env`, ni clé, ni base.
+*Arbitrage rendu par le commanditaire, en connaissance de l'exclusion écrite. Ne pas le rouvrir ;
+le savoir.*
+
+⚠️ **La preuve est INDIRECTE** : l'endpoint de lecture répond `503` (panne GitHub, pas refus). On a
+la réponse du `PUT` et `protected: true`. **La preuve comportementale viendra de la première PR
+rouge qui refusera de se merger.**
+
+⚠️ **Le §4 de l'ADR (« branche à jour » non exigée) repose désormais sur un motif périmé** — il
+invoquait « un dépôt privé où les minutes se paient ». Elles sont gratuites maintenant. La décision
+tient, son argument principal non : à rouvrir sciemment, pas par entraînement.
 
 ### 🔴 TOUJOURS OUVERT — outillage
 
