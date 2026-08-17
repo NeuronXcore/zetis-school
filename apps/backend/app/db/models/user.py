@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -39,3 +39,47 @@ class StudentProfile(Base, TimestampMixin):
     agenda_last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    # Jour où la dernière alerte de retard a été montrée (adr-0025 Amdt 9 §D12).
+    #
+    # 🔴 **UNE DATE PAR ÉLÈVE, et c'est le contournement d'un blocage écrit juste au-dessus.**
+    # Savoir « quel retard est NOUVEAU » demande naïvement une marque PAR ITEM — celle que le
+    # commentaire d'`agenda_last_seen_at` interdit, parce que jointe à `done_at` elle fabriquerait
+    # « vu le 12, jamais fait » : de la surveillance par la porte de service. Une seule date par
+    # élève suffit : « nouveau » = *une échéance dont la date est tombée depuis ce jour-là*, et
+    # « une fois par jour » se lit sur la même colonne. Rien par item, donc rien à dériver.
+    #
+    # ⚠️ `Date` et non `DateTime` : la borne est un JOUR (« pas deux fois le même jour »), et un
+    # horodatage inviterait à comparer des heures — donc à reconstituer un rythme de visite.
+    #
+    # Ne sort d'aucune route, exactement comme son voisin : test de non-fuite dans `test_agenda.py`.
+    agenda_late_alert_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Bord BAS de la fenêtre d'alerte (adr-0025 Amdt 9 §D12, corrigé le 2026-08-17).
+    #
+    # 🔴 **Il en fallait DEUX, et une seule ne pouvait pas suffire.** `agenda_late_alert_on` répond
+    # « en ai-je déjà montré un aujourd'hui ? » ; celui-ci répond « à partir d'où je regarde ? ».
+    # Tant que la même colonne portait les deux, l'accusé de réception poussait le bord bas à
+    # `today` et **brûlait toute la fenêtre alors qu'UNE seule échéance en était sortie** : quand
+    # deux tombaient en retard pendant une absence, la seconde n'était jamais montrée et ne
+    # pouvait plus l'être — le plancher n'avance que. Un contrôle tombait en silence derrière un
+    # devoir plus ancien. Défaut trouvé par relecture paire, reproduit par un test.
+    #
+    # ⚠️ Reste UNE date par élève de plus, jamais une marque par item : rien ici ne dit « vu le 12,
+    # jamais fait ». La contrainte du commentaire d'`agenda_last_seen_at` est intacte.
+    agenda_late_alert_floor: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Départage du plancher, quand deux échéances tombent LE MÊME JOUR (adr-0025 Amdt 9 §D12).
+    #
+    # 🔴 **Une DATE seule ne peut pas les distinguer.** Montrer la première avançait le plancher au
+    # lendemain — donc par-dessus la seconde, jamais montrée et définitivement perdue. Le cas est
+    # ordinaire, pas tordu : un contrôle et sa leçon tombent le même jour, et c'est même la
+    # situation que le plan de préparation existe pour servir. Vu à l'écran le 2026-08-17, en
+    # voulant montrer un contrôle au commanditaire : il ne pouvait pas sortir.
+    #
+    # Le plancher est donc un COUPLE `(due_on, id)`, comme l'ordre de sortie lui-même.
+    #
+    # ⚠️ **Ce n'est toujours pas une marque par item** : UN identifiant par élève, celui du dernier
+    # alerté — pas un `seen_at` sur chaque échéance. Rien ne dit « vu le 12, jamais fait » de
+    # l'ensemble des devoirs, ce que le commentaire d'`agenda_last_seen_at` interdit.
+    agenda_late_alert_item_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

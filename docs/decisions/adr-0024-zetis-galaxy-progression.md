@@ -35,7 +35,7 @@ Accepté — 2026-07-28.
 > | 6 | 2026-08-01 | La page matière est un index de notions | Accepté | — |
 > | 7 | 2026-08-11 | La page matière porte l'effort de Massimo, et se range en onglets | Accepté | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

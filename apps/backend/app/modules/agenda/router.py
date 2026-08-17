@@ -13,17 +13,23 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.agenda import ahead as ahead_mod
 from app.modules.agenda import plan
 from app.modules.agenda import service
 from app.modules.agenda.schemas import (
+    AheadOut,
+    LateAlertOut,
+    LateAlertSeenRequest,
     AgendaItemParentCreate,
     AgendaItemParentPatch,
     AgendaItemPilotOut,
     AgendaItemStudentCreate,
     AgendaItemStudentOut,
     PlanStepOut,
+    AgendaDayTracesOut,
     AgendaItemStudentPatch,
     AgendaItemsParentCreate,
+    AgendaMonthOut,
     AgendaNoteRequest,
     AgendaSettingsOut,
     AgendaSettingsRequest,
@@ -51,14 +57,80 @@ router = APIRouter(
 def student_week(
     anchor: date | None = Query(default=None), db: Session = Depends(get_db)
 ) -> dict:
-    """Bande glissante de 7 jours centrée sur l'ancre (défaut : aujourd'hui)."""
+    """Bande glissante centrée sur l'ancre (défaut : aujourd'hui), 3 jours avant / 10 après."""
     return service.week(db, student_id=get_default_student(db).id, anchor=anchor)
+
+
+@student_router.get("/month", response_model=AgendaMonthOut)
+def student_month(
+    anchor: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+) -> dict:
+    """La grille mois (Amdt 8 §D1). `anchor` au format `AAAA-MM`, défaut : le mois courant.
+
+    Un mois hors bornes n'est pas une erreur : il se sert quand même. Ce sont les `prev_anchor` /
+    `next_anchor` qui bornent la NAVIGATION, et une URL tapée à la main n'a pas à provoquer un
+    500 chez un enfant.
+    """
+    parsed = date.fromisoformat(f"{anchor}-01") if anchor else None
+    return service.month(db, student_id=get_default_student(db).id, anchor=parsed)
+
+
+@student_router.get("/days/{day}/traces", response_model=AgendaDayTracesOut)
+def student_day_traces(day: date, db: Session = Depends(get_db)) -> dict:
+    """Ce que Massimo a travaillé ce jour-là : matières, notions, formes (Amdt 8 §D2).
+
+    🔴 **Route ÉLÈVE à schéma dédié.** Ne jamais la router vers
+    `activity.service.day_detail` : celui-ci sert `time`, `minutes`, `xp` et `score_percent`,
+    quatre interdits d'un coup, et « filtrer côté client » n'a jamais été une frontière.
+    """
+    return service.day_traces(db, student_id=get_default_student(db).id, day=day)
 
 
 @student_router.get("/upcoming", response_model=list[UpcomingItemOut])
 def student_upcoming(db: Session = Depends(get_db)) -> list[dict]:
     """Contrôles et rendus à venir : liste bornée, jamais une jauge d'urgence."""
     return service.upcoming(db, student_id=get_default_student(db).id)
+
+
+@student_router.get("/ahead", response_model=AheadOut)
+def student_ahead(db: Session = Depends(get_db)) -> dict:
+    """« Prendre de l'avance » : la prochaine échéance et les gestes qui la préparent (Amdt 9).
+
+    🔴 **Un appel, cinq sources.** Sans agrégat la page en ferait sept. Le patron est celui de
+    `news/summary` (un registre `clé → fonction`) — recopié, jamais greffé dessus : la doctrine
+    de `news` interdit d'y compter du **dû**.
+
+    ⚠️ **Ce bloc ne date rien.** Cartes et missions y apparaissent *sans échéance* ; la bande et
+    la grille, elles, n'en reçoivent jamais (§4, borné par l'Amdt 9 §R/B1).
+    """
+    return ahead_mod.ahead(db, student=get_default_student(db))
+
+
+@student_router.get("/late-alert", response_model=LateAlertOut | None)
+def student_late_alert(db: Session = Depends(get_db)) -> dict | None:
+    """L'alerte de retard à l'ouverture — **du NOUVEAU seulement, une fois par jour** (Amdt 9 §D12).
+
+    🔴 **La lecture ne consomme pas l'alerte** : c'est `POST /late-alert/seen` qui l'accuse, une
+    fois le toast réellement affiché. Marquer sur le GET la perdrait à toute requête qui n'aboutit
+    pas à l'écran — et React réinvoque les effets en double en développement.
+
+    ⚠️ **Un seul effet de bord en écriture, et il est borné** : au tout premier appel
+    (`agenda_late_alert_on` à `NULL`), le plancher se pose sur aujourd'hui **sans alerter**. Sans
+    lui, toute l'histoire scolaire deviendrait « nouvelle » d'un coup.
+    """
+    return ahead_mod.late_alert(db, student=get_default_student(db))
+
+
+@student_router.post("/late-alert/seen", status_code=status.HTTP_204_NO_CONTENT)
+def student_late_alert_seen(
+    req: LateAlertSeenRequest | None = None, db: Session = Depends(get_db)
+) -> None:
+    """Le toast a été montré. Rien d'autre aujourd'hui, et le plancher avance **juste après
+    l'échéance montrée** — jamais jusqu'à aujourd'hui, ce qui perdrait les autres."""
+    ahead_mod.mark_late_alert_seen(
+        db, student=get_default_student(db), item_id=req.item_id if req else None
+    )
 
 
 @student_router.get("/items", response_model=list[AgendaItemStudentOut])

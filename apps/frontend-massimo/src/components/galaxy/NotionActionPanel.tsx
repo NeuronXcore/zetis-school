@@ -16,20 +16,30 @@ import { notionRouteFor } from "../../lib/notionRoutes";
 export interface NotionActionPanelProps {
   notion: GalaxyNotion;
   onClose: () => void;
+  /** Où Massimo revient après l'activité. Défaut `/galaxy`.
+   *
+   *  🔴 **Le `returnTo` était codé en dur ICI**, alors que le commentaire d'à côté affirmait
+   *  qu'il était « dit à l'appel ». Il ne l'était pas : la constante `"/galaxy"` était en dur
+   *  dans le corps du composant. Le défaut ne s'est vu qu'en ouvrant ce panneau depuis
+   *  `/agenda` (Amdt 8 §D10) — Massimo partait faire un ELI5 depuis son agenda et se
+   *  retrouvait dans la galaxie, sans avoir jamais demandé à y aller. */
+  returnTo?: string;
 }
 
-export function NotionActionPanel({ notion, onClose }: NotionActionPanelProps) {
+export function NotionActionPanel({
+  notion,
+  onClose,
+  returnTo = "/galaxy",
+}: NotionActionPanelProps) {
   const { open, busy } = useOpenNotionAction();
   const style = starStyle(notion.status);
 
-  // Le `returnTo` était codé en dur dans la closure ; il est maintenant DIT à l'appel — c'est
-  // ce qui permet à la page matière de renvoyer vers elle-même plutôt que vers la galaxie.
   const routeContext = {
     skillId: notion.skill_id,
     name: notion.name,
     subjectSlug: notion.subject_slug,
     subjectName: notion.subject_name,
-    returnTo: "/galaxy",
+    returnTo,
   };
 
   return (

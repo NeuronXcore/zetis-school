@@ -7,6 +7,7 @@ l'assert sur le JSON sérialisé, pas sur la définition du schéma.
 """
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,27 @@ class SubjectRef(BaseModel):
     id: int
     slug: str
     name: str
+    color: str | None = None
+
+
+class TraceRef(BaseModel):
+    """Matière d'une TRACE d'activité — trois champs, et surtout **pas d'`id`**.
+
+    `SubjectRef` en porte un parce qu'une échéance se filtre et se saisit. Une trace n'ouvre rien
+    et ne se filtre pas : servir son identifiant serait un champ exposé de plus, pour rien.
+
+    ⚠️ **Aucune quantité ne doit jamais entrer ici** — ni compte d'événements, ni durée. Ce type
+    dit *quelles matières*, pas *combien*.
+
+    🔴 `slug` et `name` sont **nullables** : une activité peut n'avoir aucune matière (le chat,
+    surtout). La trace existe quand même, sous une identité neutre — la jeter faisait disparaître
+    **1 jour travaillé sur 20** sur la base de dev, soit le défaut même que l'Amendement 8
+    corrige. Côté client : segment gris muet dans la grille, ligne sans nom de matière dans le
+    panneau. Jamais une couleur de repli par hachage, qui inventerait une matière.
+    """
+
+    slug: str | None = None
+    name: str | None = None
     color: str | None = None
 
 
@@ -92,14 +114,21 @@ class AgendaDayOut(BaseModel):
     """Un jour de la bande glissante. L'asymétrie passé/futur est calculée SERVEUR (§6)."""
 
     date: date
-    # Décalage en jours par rapport à l'ancre : -3..+3. Le client n'a aucun calcul de date à faire.
+    # Décalage en jours par rapport à l'ancre. Le client n'a aucun calcul de date à faire.
     offset: int
-    # Jours PASSÉS (et aujourd'hui) uniquement, `null` sinon — jamais `0` sur un jour à venir :
+    # Jours PASSÉS (et aujourd'hui) uniquement, `null` sinon — jamais `[]` sur un jour à venir :
     # un jour qui n'est pas encore arrivé n'a pas de case vide (§7, ADR-0024 §5).
-    # `traces = 0` et « journée sans donnée » sont LE MÊME état côté contrat.
-    traces: int | None
-    # Jours à VENIR (et aujourd'hui) uniquement, `[]` sinon : un jour passé n'a plus d'échéance
-    # à annoncer.
+    # `traces = []` et « journée sans donnée » sont LE MÊME état côté contrat.
+    #
+    # 🔴 Était `int | None` jusqu'à l'Amendement 8 : le nombre produisait « tu as travaillé
+    # 3 fois », une phrase qui ne dit rien de ce qui a été fait. REMPLACÉ, jamais complété — le
+    # laisser vivre à côté garantissait qu'une session le réécrirait.
+    traces: list[TraceRef] | None
+    # 🔴 Jours passés COMPRIS depuis l'Amendement 8 (§R3) : l'asymétrie est révoquée, un jour
+    # passé annonce ce que l'école demandait.
+    #
+    # ⚠️ `done` voyage toujours ici, et c'est nécessaire (le panneau du jour s'en sert) — mais la
+    # GRILLE ne doit jamais le rendre. Règle de rendu, pas de contrat.
     fixed_items: list[AgendaItemStudentOut]
     # Le plan de préparation (ADR-0050), enfin rempli — le champ était au contrat et mort depuis
     # le Lot 1. Les étapes d'un jour, toutes échéances confondues.
@@ -113,6 +142,65 @@ class AgendaDayOut(BaseModel):
 class AgendaWeekOut(BaseModel):
     anchor: date
     days: list[AgendaDayOut]
+
+
+class AgendaMonthOut(BaseModel):
+    """La grille mois (Amdt 8 §D1) — même forme de jour que la bande, une seule primitive.
+
+    `days` ne contient QUE les jours du mois : les cellules de complément qui alignent la grille
+    sur lundi sont fabriquées côté client et rendues **totalement vides, sans numéral**.
+    """
+
+    anchor: str  # "AAAA-MM"
+    days: list[AgendaDayOut]
+    # 🔴 `None` ⇒ le chevron DISPARAÎT côté client, il n'est jamais grisé (§14.6 :
+    # « un bouton mort se lit comme une panne »).
+    prev_anchor: str | None
+    next_anchor: str | None
+
+
+class NotionRefOut(BaseModel):
+    """Une notion travaillée — son `id` autant que son nom (Amdt 8 §D10).
+
+    🔴 **L'`id` n'est pas décoratif : c'est lui qui rend la notion cliquable.** Le schéma ne
+    servait que le nom, et le bloc « Ce que tu as travaillé » racontait donc à Massimo ce qu'il
+    avait fait **sans lui laisser aucun moyen d'y revenir**. Le client s'en sert pour ouvrir la
+    panoplie réelle de la notion (`GET /api/student/galaxy/notion/{skill_id}`), qui n'annonce
+    que ce qui est disponible — donc jamais un bouton mort (§14.6).
+    """
+
+    id: int
+    name: str
+
+
+class TraceDetailOut(TraceRef):
+    """Une matière travaillée, avec ses notions et ses formes de travail (Amdt 8 §D2)."""
+
+    # ⚠️ **Notion et non chapitre**, et c'est un CONSTAT : `LearningEvent` porte `skill_id`,
+    # et `Skill` n'a aucun `chapter_id` — aucun chemin ne mène au chapitre.
+    # `[]` quand l'événement n'a pas de notion : la ligne saute dans l'UI, et la matière seule
+    # reste une réponse.
+    notions: list[NotionRefOut] = []
+    # « Cours lu », « Quiz », « Révision SRS »… produits par `label_for()`, dans un ORDRE
+    # DOCTRINAL FIXE côté service — jamais par fréquence, trier par fréquence c'est mesurer.
+    forms: list[str] = []
+
+
+class AgendaDayTracesOut(BaseModel):
+    """Ce que Massimo a travaillé un jour donné — **schéma DÉDIÉ** (Amdt 8 §D5).
+
+    🔴 **Jamais dérivé du `DayDetailOut` de Papa**, qui transporte `time`, `minutes`, `xp` et
+    `score_percent`. Le filtrer côté client est précisément la faute que l'en-tête de ce fichier
+    interdit : un champ présent dans la réponse réseau est un champ exposé, quoi qu'en fasse l'UI.
+
+    ⚠️ **AUCUN champ de quantité ne doit jamais être ajouté ici** : pas de `minutes`, pas de `xp`,
+    pas de `time`, pas de `score_percent`, pas de `count`. Un test-verrou l'assert sur le JSON
+    sérialisé — et il le fait sur la RÉPONSE, pas sur cette classe.
+    """
+
+    date: date
+    # Ordre CHRONOLOGIQUE de première touche : le récit de sa journée, pas un classement.
+    subjects: list[TraceDetailOut]
 
 
 class UpcomingItemOut(BaseModel):
@@ -131,6 +219,82 @@ class UpcomingItemOut(BaseModel):
     # ADR-0050 : vrai SI ET SEULEMENT SI le plan a au moins une étape. Un `has_plan` optimiste
     # ferait apparaître un « ✦ » qui n'ouvre rien — le bouton mort du §14.6.
     has_plan: bool
+
+
+class LateAlertOut(BaseModel):
+    """L'échéance signalée à l'ouverture de la page, ou rien (Amdt 9 §D12).
+
+    🔴 **UNE échéance, aucun nombre.** Le compteur d'arriéré du §7 est le seul interdit qui n'a
+    pas bougé de la journée : pas de `total`, pas de `count`, pas de `days_late`.
+    ⚠️ Pas de `days_late` non plus : le toast NOMME le jour, il ne mesure pas l'écart. Un « depuis
+    4 jours » est un reproche chiffré.
+    """
+
+    item_id: int
+    label: str
+    kind: str
+    due_on: date
+    subject: SubjectRef | None
+
+
+class LateAlertSeenRequest(BaseModel):
+    """Quelle échéance le toast a réellement montrée (Amdt 9 §D12, corrigé le 2026-08-17).
+
+    🔴 **Sans elle, le plancher ne peut avancer que jusqu'à aujourd'hui**, ce qui brûle la fenêtre
+    entière alors qu'une seule échéance en est sortie. L'`id` est **revalidé côté serveur** —
+    appartenance à l'élève — jamais pris pour argent comptant.
+
+    Optionnel : un accusé sans corps applique seulement la règle « pas deux fois le même jour ».
+    """
+
+    item_id: int | None = None
+
+
+class AheadGesteOut(BaseModel):
+    """Un geste pour prendre de l'avance (Amdt 9 §D6).
+
+    🔴 **Aucune quantité, aucun libellé, aucune route.**
+    - *Quantité* : ni compte de cartes, ni score, ni durée — un test-verrou l'assert sur le JSON.
+    - *Libellé* : la copie de cette page vit côté client, avec le vocabulaire du `CLAUDE.md`.
+      `detail` est une **donnée** (nom de notion, titre de mindmap), pas une phrase.
+    - *Route* : la table de routage est `notionRoutes.ts`, et elle n'existe qu'une fois — la
+      recopier ici en ferait un second jeu, qui divergerait au premier correctif.
+    """
+
+    kind: Literal["plan", "mindmap", "revision", "mission", "renforcer"]
+    detail: str | None = None
+    mindmap_id: int | None = None
+    skill_id: int | None = None
+
+
+class AheadAnchorOut(BaseModel):
+    """L'échéance que le bloc prépare.
+
+    🔴 **Pas de `days_left`.** L'ancre NOMME son jour (le client rend « vendredi 21 ») ; elle ne
+    le décompte pas. §D8 avait retiré « Ce qui arrive » entre autres parce que `days_left` était
+    *« le dernier décompte chiffré de la page »* — le réintroduire ici viderait ce motif tout en
+    gardant la révocation.
+    """
+
+    item_id: int
+    label: str
+    kind: str
+    due_on: date
+    subject: SubjectRef | None
+    chapter_id: int | None
+    lesson_id: int | None
+
+
+class AheadOut(BaseModel):
+    """« Prendre de l'avance » — un seul appel pour cinq sources (Amdt 9 §D6).
+
+    `anchor` à `None` n'est PAS une réponse vide : les gestes qui tiennent debout sans échéance
+    (réviser, une mission, une mindmap) sont servis quand même. Un bloc qui disparaît se lit
+    comme une panne.
+    """
+
+    anchor: AheadAnchorOut | None
+    gestes: list[AheadGesteOut]
 
 
 class AgendaItemStudentCreate(BaseModel):

@@ -35,10 +35,10 @@ ADR-0011 §G (l'autorité et le veto) et l'ADR-0031 (l'exécution en lot et le j
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-04 | L'état de ZETIS se lit sans ouvrir les Paramètres | Accepté | oui |
+> | 1 | 2026-08-04 | L'état de ZETIS se lit sans ouvrir les Paramètres | Accepté | — |
 > | 2 | 2026-08-04 | ZETIS LEVELS : le réglage passe en tête, et il dit ce qu'il fait | Accepté | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

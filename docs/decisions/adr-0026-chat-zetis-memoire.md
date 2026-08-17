@@ -39,7 +39,7 @@ commanditaire avant toute slice.
 > |---|---|---|---|---|
 > | 1 | 2026-08-02 | Le retour de demande se ferme dans le chat (`announced_at`) | Proposé | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

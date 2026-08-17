@@ -9,7 +9,10 @@ import { type ReactNode } from "react";
 // Voir `lib/pageTitle.ts`.
 interface PageHeaderProps {
   title: ReactNode;
-  subtitle?: string;
+  /** `ReactNode` et non `string` depuis le 2026-08-17 : `/agenda` y place l'avatar de ZETIS
+   *  devant son sous-titre. Élargissement sûr — `ReactNode` contient `string`, et les dix pages
+   *  qui passent une chaîne restent valides sans y toucher. */
+  subtitle?: ReactNode;
   right?: ReactNode;
 }
 
@@ -18,7 +21,9 @@ export function PageHeader({ title, subtitle, right }: PageHeaderProps) {
     <div className="mb-6 flex items-start justify-between gap-4">
       <div>
         <h1 className="text-2xl font-bold">{title}</h1>
-        {subtitle && <p className="mt-1 text-zetis-muted">{subtitle}</p>}
+        {subtitle && (
+          <p className="mt-1 flex items-center gap-2 text-zetis-muted">{subtitle}</p>
+        )}
       </div>
       {right}
     </div>

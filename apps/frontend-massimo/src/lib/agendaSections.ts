@@ -26,6 +26,21 @@ import { subjectRouteFor } from "./notionRoutes";
  *  Massimo ouvre est son geste, pas une dette qui pousse sous ses yeux. */
 export const RESUME_MAX = 3;
 
+/** Ce que dit un jour SANS rien — ni échéance, ni trace (ADR-0025 Amdt 8 §D15).
+ *
+ *  🔴 **Une seule phrase, au passé comme à venir, et UN SEUL endroit où elle est écrite.**
+ *  Elle vivait en double, formulée différemment selon la surface et selon le temps :
+ *  « Ce jour-là, l'école ne demandait rien. » au passé, « Rien de noté pour ce jour. » à venir,
+ *  chacune recopiée dans le panneau ET dans le toast. Deux surfaces qui répondent la même
+ *  question doivent la dire pareil — et le seul moyen de le garantir est de n'avoir qu'une
+ *  source.
+ *
+ *  ⚠️ **« l'école » a été écarté** (commanditaire, 2026-08-17) : depuis le §D9, c'est ZETIS qui
+ *  parle sur cette page, et le toast mélangeait donc deux voix — « Ce que ZETIS te demandait »
+ *  en titre, « l'école ne demandait rien » deux lignes plus bas. « Rien de prévu » n'attribue la
+ *  demande à personne. */
+export const JOUR_VIDE = "Rien de prévu ce jour-là.";
+
 export function isoDay(day: Date): string {
   const month = `${day.getMonth() + 1}`.padStart(2, "0");
   const date = `${day.getDate()}`.padStart(2, "0");

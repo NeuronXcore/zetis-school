@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { type AgendaItemStudent, type AgendaPlanStep } from "@zetis/types";
+import { subjectColorFor } from "@zetis/ui";
 import { subjectIconFor } from "../../lib/subjectIcons";
 import {
   originLabel,
@@ -64,15 +65,30 @@ export function AgendaItemRow({
   // un deck sans chapitre.
   const revisionState =
     item.revisable_cards > 0 && !planPorteLaRevision ? revisionSessionState(item) : null;
+  // La teinte de matière, avec son repli. `undefined` (et non du gris) quand l'item n'a AUCUNE
+  // matière : la bordure retombe alors sur la couleur de bordure de la carte, ce qui est juste —
+  // il n'y a rien à identifier.
+  const teinte = item.subject
+    ? subjectColorFor(item.subject.slug, item.subject.color)
+    : undefined;
   return (
     <div
       id={`agenda-item-${item.id}`}
-      style={{ borderLeftColor: item.subject?.color ?? undefined }}
-      className={`flex items-start gap-3 rounded-2xl border border-l-2 p-3 transition-colors ${
+      // 🔴 **`subjectColorFor()`, jamais `item.subject.color` BRUT** (ADR-0025 Amdt 8 §D6-e).
+      // `Subject.color` est `nullable` en base, et le repli du dépôt — palette par slug, puis
+      // hachage déterministe — existe exactement pour ce cas. La ligne lisait le champ brut :
+      // une matière sans couleur retombait sur `border-l-zetis-border`, du gris. L'agenda était
+      // **la seule surface du produit à perdre silencieusement l'identité de matière**, que le
+      // donut, le nuage et la Galaxy conservent tous.
+      //
+      // ⚠️ Et `border-l-4`, pas `border-l-2` : sur une carte `rounded-2xl`, l'arc des coins
+      // mangeait l'essentiel du filet — il ne restait qu'une trentaine de pixels visibles.
+      style={{ borderLeftColor: teinte }}
+      className={`flex items-start gap-3 rounded-2xl border border-l-4 p-3 transition-colors motion-reduce:transition-none ${
         tone === "resume"
           ? "border-amber-400/25 bg-amber-400/5"
           : "border-zetis-border bg-zetis-surface"
-      } ${item.done ? "opacity-55" : ""} ${item.subject?.color ? "" : "border-l-zetis-border"}`}
+      } ${item.done ? "opacity-55" : ""}`}
     >
       <button
         type="button"
@@ -121,9 +137,14 @@ export function AgendaItemRow({
               de l'émeraude d'à côté (oklch 181 vs 165, même clarté, même chroma), les deux badges
               de 10 px étaient indiscernables — et l'émeraude porte un sens que Massimo apprend
               sans explication, « ça vient de papa ». L'indigo est à 110°. */}
+          {/* 🔴 **`▬` et non `◆`** (Amdt 8 §D4). Ce badge et celui du contrôle rendaient le
+              MÊME glyphe `◆`, séparés uniquement par la teinte, à 10 px — le conflit central de
+              l'amendement, en miniature, et il était en production depuis le 2026-08-10.
+              Le commentaire sur l'indigo ci-dessus reste vrai et n'est pas contredit : on
+              AJOUTE une forme, on ne retire pas la teinte. */}
           {item.kind === "lecon" && (
             <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-400/40">
-              ◆ leçon
+              ▬ leçon
             </span>
           )}
           {showDate && <span>{shortDayLabel(item.due_on)}</span>}
@@ -283,7 +304,12 @@ export function AgendaItemRow({
           onClick={onDismiss}
           aria-label="Masquer"
           title="Masquer"
-          className="shrink-0 rounded-lg px-1.5 py-0.5 text-xs text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
+          // 🔴 **44 × 44** (Amdt 8 §D6-f). Ce bouton **archive un item** et mesurait ~20 × 18 px,
+          // sous le plancher tactile de WCAG 2.1 AA / HIG 44 pt. C'est très probablement par lui
+          // que deux devoirs de la base de dev sont partis le 2026-08-09.
+          // La zone grandit, **le glyphe ne bouge pas** : `-m-3` reprend le débord pour que la
+          // carte garde sa densité.
+          className="-m-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs text-zetis-muted transition-colors hover:text-white motion-reduce:transition-none"
         >
           ✕
         </button>

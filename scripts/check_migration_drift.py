@@ -42,8 +42,14 @@ Sur la production — elle n'est joignable que depuis le réseau du compose, et 
     docker compose -f docker-compose.prod.yml up -d postgres
     docker compose -f docker-compose.prod.yml run --rm --no-deps \\
       -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \\
-      -v "$PWD/scripts:/scripts:ro" \\
-      --entrypoint python backend /scripts/check_migration_drift.py
+      -v "$PWD/scripts:/repo/scripts:ro" \\
+      --entrypoint python backend /repo/scripts/check_migration_drift.py
+
+🔴 **`/repo/scripts`, jamais `/scripts`.** Ce fichier déduit la racine du dépôt de SA PROPRE
+position (`__file__.parent.parent`). Monté à `/scripts/`, il cherche `/apps/backend/alembic` —
+que personne ne monte — et s'arrête sur `CommandError: Path doesn't exist`. La commande écrite
+ici était fausse jusqu'au 2026-08-17 : **l'outil qui mesure la dérive ne pouvait pas se lancer
+depuis sa propre documentation**.
 
 🔴 **Le montage de `alembic/` n'est pas un confort.** L'image fige les migrations du jour de son
 build (`COPY apps/backend`) : sans lui, ce script comparerait la base à une tête **périmée** et

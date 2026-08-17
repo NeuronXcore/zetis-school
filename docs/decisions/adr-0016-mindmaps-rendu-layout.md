@@ -30,7 +30,7 @@ Accepté — 2026-07-05
 > |---|---|---|---|---|
 > | 1 | 2026-07-27 | Pilotage Papa : aperçu fidèle, brique de canvas partagée, cycle de vie éditorial | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 
@@ -165,7 +165,6 @@ const { nodes, edges } = toReactFlow(laid);  // positions → RF (nœuds custom 
   client ».
 - **Ajouter la ligne `adr-0016` à l'index `DECISIONS.md`.**
 - Renvoi `adr-0015` (fiches, sœur) ; ajouter « mindmap » à la lignée de dérivés de `adr-0011`.
-```
 
 ---
 

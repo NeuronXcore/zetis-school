@@ -37,7 +37,7 @@ traçabilité `lesson_id`/`lesson_title` constituent le contrat que le chantier
 > | 2 | 2026-07-28 | Provenance de la validation | Accepté | — |
 > | 3 | 2026-08-02 | L'autorité monte d'un cran : `parent_rule` et le veto paresseux | Proposé | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

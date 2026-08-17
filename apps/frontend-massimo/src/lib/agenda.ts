@@ -9,7 +9,11 @@
 //
 // `parent_note` n'existe pas dans ces réponses : le serveur sert un schéma séparé.
 import {
+  type AgendaAhead,
+  type AgendaDayTraces,
+  type AgendaLateAlert,
   type AgendaItemStudent,
+  type AgendaMonth,
   type AgendaPlanStep,
   type AgendaUpcomingItem,
   type AgendaWeek,
@@ -38,13 +42,84 @@ async function asJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Bande glissante : 3 jours avant aujourd'hui, aujourd'hui, 3 jours après.
- *  L'asymétrie passé/futur est calculée SERVEUR — ce module ne recompose rien. */
+/** Bande glissante : 3 jours avant aujourd'hui, aujourd'hui, 10 après.
+ *  Ce qui reste asymétrique est calculé SERVEUR — ce module ne recompose rien. */
 export async function fetchAgendaWeek(): Promise<AgendaWeek> {
   return asJson(await fetch(`${BASE}/week`, { headers: headers() }));
 }
 
-/** Contrôles et rendus à venir, déjà bornés serveur (horizon et nombre). */
+/** La grille mois (ADR-0025 Amdt 8 §D1). `anchor` au format `AAAA-MM`, défaut : le mois courant.
+ *
+ *  Ne rend QUE les jours du mois : les cellules d'alignement sur lundi sont fabriquées ici, et
+ *  rendues **totalement vides, sans numéral**. */
+export async function fetchAgendaMonth(anchor?: string): Promise<AgendaMonth> {
+  const query = anchor ? `?${new URLSearchParams({ anchor })}` : "";
+  return asJson(await fetch(`${BASE}/month${query}`, { headers: headers() }));
+}
+
+/** Ce que Massimo a travaillé un jour donné : matières, notions, formes (Amdt 8 §D2).
+ *
+ *  🔴 Route ÉLÈVE à schéma dédié. Ne jamais la remplacer par `/api/parent/activity/days/{day}`,
+ *  qui sert `time`, `minutes`, `xp` et `score_percent` — quatre interdits d'un coup. */
+export async function fetchAgendaDayTraces(day: string): Promise<AgendaDayTraces> {
+  return asJson(await fetch(`${BASE}/days/${day}/traces`, { headers: headers() }));
+}
+
+/** `GET /ahead` — « Prendre de l'avance » (Amdt 9 §D6).
+ *
+ *  UN appel pour cinq sources. Sans lui, la page en ferait sept au montage.
+ *
+ *  ⚠️ **Ne jamais le greffer sur `news/summary`** : la doctrine de `news` interdit d'y compter du
+ *  DÛ — un témoin de nouveauté meurt d'un regard, une dette grossit quand Massimo ne vient pas. */
+export async function fetchAgendaAhead(): Promise<AgendaAhead> {
+  return asJson(await fetch(`${BASE}/ahead`, { headers: headers() }));
+}
+
+/** `GET /late-alert` — l'échéance à signaler à l'ouverture, ou `null` (Amdt 9 §D12).
+ *
+ *  🔴 **Lire ne consomme pas** : c'est `markLateAlertSeen()` qui accuse réception, une fois le
+ *  toast RÉELLEMENT affiché. Sans cette séparation, un effet réinvoqué en double (React en
+ *  développement) escamoterait l'alerte. */
+export async function fetchLateAlert(): Promise<AgendaLateAlert | null> {
+  return asJson(await fetch(`${BASE}/late-alert`, { headers: headers() }));
+}
+
+/** `POST /late-alert/seen` — le toast a été montré. Rien d'autre aujourd'hui.
+ *
+ *  🔴 **`itemId` est OBLIGATOIRE, et le type doit l'imposer — le commentaire ne suffisait pas.**
+ *  Il a été optionnel quelques minutes : le serveur retombait alors sur son recalcul, mais rien
+ *  n'empêchait un appelant futur de l'omettre, et TypeScript l'acceptait sans broncher. Un
+ *  commentaire qui explique pourquoi un argument compte n'est pas une contrainte ; une signature
+ *  en est une.
+ *
+ *  ⚠️ Le champ reste **optionnel sur le fil** (`item_id: int | None`) : un bundle en cache d'avant
+ *  ce correctif n'en envoie aucun, et le serveur doit continuer de le servir en recalculant.
+ *  Obligatoire ici, tolérant là-bas — les deux vont ensemble.
+ *
+ *  Échec silencieux, comme `markAgendaSeen` : rater l'accusé laisse une alerte de trop dans la
+ *  journée, ce qui est sans gravité. Une erreur technique sur l'écran d'un enfant ne l'est pas. */
+export async function markLateAlertSeen(itemId: number): Promise<void> {
+  try {
+    // 🔴 **L'échéance montrée voyage avec l'accusé**, et ce n'est pas décoratif : sans elle, le
+    // serveur ne peut avancer son plancher que jusqu'à aujourd'hui, ce qui **brûle toute la
+    // fenêtre** alors qu'une seule échéance en est sortie. Les autres seraient perdues
+    // définitivement. L'`id` est revalidé côté serveur — il n'est jamais cru sur parole.
+    await fetch(`${BASE}/late-alert/seen`, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId }),
+    });
+  } catch {
+    // réseau indisponible : au pire une alerte de plus aujourd'hui
+  }
+}
+
+/** Contrôles et rendus à venir, déjà bornés serveur (horizon et nombre).
+ *
+ *  ⚠️ **La page `/agenda` n'en est plus consommatrice** depuis l'Amdt 8 §D8 : la section
+ *  « Ce qui arrive » a été retirée. Cette fonction reste **vivante et utilisée** par le bandeau
+ *  d'Accueil (`HomeAgendaBanner`) et par les pages Matières (`useSubjectUpcoming`). Ne pas la
+ *  supprimer en croyant nettoyer du mort : la route a trois appelants, deux ont survécu. */
 export async function fetchAgendaUpcoming(): Promise<AgendaUpcomingItem[]> {
   return asJson(await fetch(`${BASE}/upcoming`, { headers: headers() }));
 }

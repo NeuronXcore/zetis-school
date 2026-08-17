@@ -39,7 +39,7 @@ Proposé — 2026-08-06.
 > |---|---|---|---|---|
 > | 1 | 2026-08-09 | ADR-0041 addendum — Un travail dit ce qu'il a produit | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 
