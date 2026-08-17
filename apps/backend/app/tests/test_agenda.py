@@ -1407,9 +1407,17 @@ def _profil(SessionLocal):
 
 
 def _poser_plancher(SessionLocal, jour) -> None:
+    """Pose le bord bas de la fenêtre, et rouvre la porte du jour.
+
+    ⚠️ **Deux colonnes depuis le 2026-08-17** : `agenda_late_alert_floor` dit *à partir d'où on
+    regarde*, `agenda_late_alert_on` dit *en a-t-on déjà montré un aujourd'hui*. Les confondre
+    coûtait des échéances perdues — c'est le défaut que ce fichier verrouille plus bas.
+    """
     db = SessionLocal()
     try:
-        db.query(m.StudentProfile).first().agenda_late_alert_on = jour
+        profil = db.query(m.StudentProfile).first()
+        profil.agenda_late_alert_floor = jour
+        profil.agenda_late_alert_on = None
         db.commit()
     finally:
         db.close()
@@ -1427,7 +1435,7 @@ def test_la_premiere_visite_n_alerte_JAMAIS(papa: TestClient, client_db) -> None
     _, SessionLocal = client_db
     db = SessionLocal()
     try:
-        assert db.query(m.StudentProfile).first().agenda_late_alert_on == today_local()
+        assert db.query(m.StudentProfile).first().agenda_late_alert_floor == today_local()
     finally:
         db.close()
 
@@ -1456,7 +1464,7 @@ def test_l_alerte_ne_revient_pas_deux_fois_le_meme_jour(papa: TestClient, client
 
     _as_massimo()
     assert papa.get(ALERTE).json() is not None
-    assert papa.post(f"{ALERTE}/seen").status_code == 204
+    assert papa.post(f"{ALERTE}/seen", json={"item_id": None}).status_code == 204
     assert papa.get(ALERTE).json() is None
 
 
@@ -1529,3 +1537,188 @@ def test_le_filigrane_de_l_alerte_ne_fuit_par_AUCUNE_route(papa: TestClient, cli
     for body in corps:
         assert "late_alert" not in body
         assert "agenda_late_alert_on" not in body
+
+
+# ── 16 bis. La BORNE de la fenêtre d'alerte — le cas sur lequel j'ai raisonné seul ──
+#
+# 🔴 Les tests du §16 encadrent la fenêtre (une échéance ancienne, une récente) mais **ne touchent
+# jamais sa borne**. Or c'est exactement là que se joue le choix `>=` contre `>` :
+#
+#   `due_on >= agenda_late_alert_on`
+#
+# Raisonnement d'origine : une échéance due LE JOUR MÊME de la dernière alerte n'était pas encore
+# en retard ce jour-là (`due_on < today` était faux), donc l'exclure la rendrait invisible **pour
+# toujours** — un trou d'une journée dans le filet. Écrit puis testé par la même main, ce qui est
+# le pire ordre. Ces trois tests sont écrits pour le CASSER.
+
+
+def test_borne_une_echeance_due_LE_JOUR_de_la_derniere_alerte_est_signalee(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 LE cas limite. Le 14, ZETIS alerte ; une échéance est due le 14 — pas encore en retard.
+    Le 15, elle l'est. Si la fenêtre partait de `> alerte`, elle ne serait signalée JAMAIS."""
+    today = today_local()
+    veille = today - timedelta(days=1)
+    _create_parent_item(papa, due_on=veille.isoformat(), label="due le jour de l'alerte")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, veille)  # dernière alerte le même jour que l'échéance
+
+    _as_massimo()
+    alerte = papa.get(ALERTE).json()
+    assert alerte is not None, (
+        "Trou d'une journée : une échéance due le jour de la dernière alerte n'était pas encore "
+        "en retard ce jour-là, et ne le deviendrait jamais aux yeux du filtre."
+    )
+    assert alerte["label"] == "due le jour de l'alerte"
+
+
+def test_borne_une_echeance_ANTERIEURE_a_la_derniere_alerte_ne_revient_pas(
+    papa: TestClient, client_db
+) -> None:
+    """L'autre bord, celui qui empêche la relance. Un enfant qui n'arrive pas à rattraper ne doit
+    pas revoir la même alerte."""
+    today = today_local()
+    _create_parent_item(
+        papa, due_on=(today - timedelta(days=5)).isoformat(), label="déjà signalée"
+    )
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=4))  # alerte APRÈS l'échéance
+
+    _as_massimo()
+    assert papa.get(ALERTE).json() is None
+
+
+def test_une_echeance_PLUS_RECENTE_rouvre_le_droit_a_une_alerte(
+    papa: TestClient, client_db
+) -> None:
+    """Le mécanisme complet, sur deux jours : on signale, la journée se ferme, puis une NOUVELLE
+    échéance tombe. Elle doit être signalée — sinon « nouveau seulement » deviendrait « une seule
+    fois, jamais plus »."""
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=3)).isoformat(), label="première")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=4))
+
+    # ⚠️ Les DEUX échéances se créent tant qu'on est encore Papa : `_create_parent_item` passe par
+    # la route de pilotage, qui répond 403 à Massimo. Ma première version créait la seconde après
+    # `_as_massimo()` et échouait sur ce 403 — un rouge qui ne disait rien du code testé.
+    _create_parent_item(papa, due_on=(today - timedelta(days=1)).isoformat(), label="seconde")
+
+    _as_massimo()
+    premiere = papa.get(ALERTE).json()
+    assert premiere["label"] == "première"
+    papa.post(f"{ALERTE}/seen", json={"item_id": premiere["item_id"]})
+    assert papa.get(ALERTE).json() is None, "la journée est close"
+
+    # Le lendemain : seule la porte du jour se rouvre, le plancher reste là où l'accusé l'a mis.
+    _rouvrir_la_journee(SessionLocal)
+    assert papa.get(ALERTE).json()["label"] == "seconde"
+
+
+def _rouvrir_la_journee(SessionLocal) -> None:
+    """Simule le lendemain SANS toucher au plancher — c'est tout l'objet du correctif."""
+    db = SessionLocal()
+    try:
+        db.query(m.StudentProfile).first().agenda_late_alert_on = None
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_DEUX_echeances_dans_la_MEME_fenetre_ne_doivent_pas_en_perdre_une(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 DÉFAUT TROUVÉ PAR RELECTURE PAIRE, le 2026-08-17 — aucun de mes tests ne pouvait le voir.
+
+    `late_alert()` sert **une** échéance (`.limit(1)`) mais `mark_late_alert_seen()` brûle **toute
+    la fenêtre** en poussant le plancher à `today`. Quand deux échéances tombent en retard dans le
+    même intervalle — Massimo ne revient pas de la semaine — la seconde n'est jamais montrée, et
+    ne le sera **plus jamais**.
+
+    ⚠️ Le contrat écrit dans la docstring de `late_alert()` promet l'inverse : *« une échéance dont
+    la date est tombée depuis la dernière alerte »*. Les deux le sont. C'est donc un défaut, pas
+    un arbitrage — et il frappe en priorité le type que `PRIORITAIRES` met en tête partout
+    ailleurs : un contrôle tombe en silence derrière un devoir plus ancien.
+
+    ⚠️ **Pourquoi mes quatre tests étaient aveugles** : tous n'ont qu'UNE échéance dans la fenêtre.
+    Celui qui en a deux (`..._QUE_du_nouveau_retard`) place la seconde HORS fenêtre — il vérifie
+    l'exclusion, jamais la concurrence. Le cas « deux dedans » n'existait nulle part.
+    """
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=5)).isoformat(), label="exposé SVT")
+    _create_parent_item(
+        papa,
+        due_on=(today - timedelta(days=2)).isoformat(),
+        label="contrôle de maths",
+        kind="controle",
+    )
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    premiere = papa.get(ALERTE).json()
+    assert premiere["label"] == "exposé SVT"
+    papa.post(f"{ALERTE}/seen", json={"item_id": premiere["item_id"]})
+
+    # ⚠️ **Ma première version de ce test TRICHAIT** : elle rejouait « les jours suivants » en
+    # RECULANT le plancher, ce que la réalité ne fait jamais — le plancher n'avance que. Elle
+    # rouvrait donc la fenêtre à la main et passait au vert sur le code fautif.
+    #
+    # L'assertion honnête ne dépend pas du temps qui passe : après l'accusé, le contrôle est-il
+    # ENCORE dans la fenêtre que le prochain appel regardera ? Le plancher étant désormais le seul
+    # bord bas, il suffit de le comparer à l'échéance qui n'a pas été montrée.
+    db = SessionLocal()
+    try:
+        plancher = db.query(m.StudentProfile).first().agenda_late_alert_floor
+    finally:
+        db.close()
+    controle = today - timedelta(days=2)
+    assert controle >= plancher, (
+        f"Le contrôle de maths (dû le {controle}) est passé SOUS le plancher ({plancher}) sans "
+        "avoir été montré : l'accusé de réception a brûlé toute la fenêtre alors qu'une seule "
+        "échéance en était sortie. Aucun jour futur ne pourra le rattraper — le plancher n'avance "
+        "que. Le contrat de `late_alert()` promet pourtant « une échéance dont la date est tombée "
+        "depuis la dernière alerte »."
+    )
+    # Et il ne suffit pas qu'il soit atteignable : le lendemain, il doit SORTIR.
+    _rouvrir_la_journee(SessionLocal)
+    assert papa.get(ALERTE).json()["label"] == "contrôle de maths"
+
+
+def test_un_accuse_REJOUE_en_retard_ne_rouvre_pas_une_fenetre_close(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 Verrou de la garde anti-recul — écrit APRÈS un sabotage resté vert.
+
+    En remplaçant `if lendemain > plancher` par `if True`, tous les tests passaient encore : la
+    garde n'était vérifiée nulle part. Le scénario qui la met en défaut est réel — un accusé de
+    réception qui arrive en double ou en retard (réseau lent, onglet rouvert) :
+
+    1. jour 1, l'exposé est signalé et accusé → le plancher passe au lendemain de l'exposé ;
+    2. jour 2, le contrôle est signalé et accusé → le plancher passe au lendemain du contrôle ;
+    3. l'accusé du jour 1 arrive **enfin**. Sans la garde, le plancher RECULE, et le contrôle —
+       déjà montré — repasse dans la fenêtre. Massimo le revoit, ce que le §D12 interdit
+       explicitement : *« une échéance déjà signalée ne revient jamais »*.
+    """
+    today = today_local()
+    _create_parent_item(papa, due_on=(today - timedelta(days=5)).isoformat(), label="exposé SVT")
+    _create_parent_item(papa, due_on=(today - timedelta(days=2)).isoformat(), label="contrôle")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    expose = papa.get(ALERTE).json()
+    papa.post(f"{ALERTE}/seen", json={"item_id": expose["item_id"]})
+
+    _rouvrir_la_journee(SessionLocal)
+    controle = papa.get(ALERTE).json()
+    assert controle["label"] == "contrôle"
+    papa.post(f"{ALERTE}/seen", json={"item_id": controle["item_id"]})
+
+    # L'accusé retardataire du PREMIER toast arrive maintenant.
+    papa.post(f"{ALERTE}/seen", json={"item_id": expose["item_id"]})
+
+    _rouvrir_la_journee(SessionLocal)
+    assert papa.get(ALERTE).json() is None, (
+        "Le plancher a reculé : une échéance déjà signalée est revenue dans la fenêtre."
+    )

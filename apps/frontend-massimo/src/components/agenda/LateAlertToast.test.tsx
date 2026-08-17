@@ -69,6 +69,16 @@ describe("LateAlertToast", () => {
     expect(container.firstElementChild).toBeNull();
   });
 
+  it("🔴 l'accusé PORTE l'échéance montrée — sans elle, les autres sont perdues", () => {
+    // Défaut trouvé par relecture paire le 2026-08-17 : le serveur avançait son plancher jusqu'à
+    // aujourd'hui, brûlant toute la fenêtre alors qu'UNE seule échéance en était sortie. Quand
+    // deux tombent en retard pendant une absence, la seconde n'était jamais montrée — et un
+    // contrôle pouvait tomber en silence derrière un devoir plus ancien.
+    const onShown = vi.fn();
+    toast({ onShown });
+    expect(onShown).toHaveBeenCalledWith(7);
+  });
+
   it("l'accusé de réception part UNE fois, au montage — pas à chaque rendu", () => {
     // Marquer plusieurs fois est inoffensif côté serveur, mais un accusé relancé à chaque rendu
     // signalerait que l'effet dépend d'une identité de fonction qui change : la boucle suivante

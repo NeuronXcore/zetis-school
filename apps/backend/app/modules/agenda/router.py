@@ -19,6 +19,7 @@ from app.modules.agenda import service
 from app.modules.agenda.schemas import (
     AheadOut,
     LateAlertOut,
+    LateAlertSeenRequest,
     AgendaItemParentCreate,
     AgendaItemParentPatch,
     AgendaItemPilotOut,
@@ -122,9 +123,14 @@ def student_late_alert(db: Session = Depends(get_db)) -> dict | None:
 
 
 @student_router.post("/late-alert/seen", status_code=status.HTTP_204_NO_CONTENT)
-def student_late_alert_seen(db: Session = Depends(get_db)) -> None:
-    """Le toast a été montré. Rien aujourd'hui, et le plancher du « nouveau » avance."""
-    ahead_mod.mark_late_alert_seen(db, student=get_default_student(db))
+def student_late_alert_seen(
+    req: LateAlertSeenRequest | None = None, db: Session = Depends(get_db)
+) -> None:
+    """Le toast a été montré. Rien d'autre aujourd'hui, et le plancher avance **juste après
+    l'échéance montrée** — jamais jusqu'à aujourd'hui, ce qui perdrait les autres."""
+    ahead_mod.mark_late_alert_seen(
+        db, student=get_default_student(db), item_id=req.item_id if req else None
+    )
 
 
 @student_router.get("/items", response_model=list[AgendaItemStudentOut])

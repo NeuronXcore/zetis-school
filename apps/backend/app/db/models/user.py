@@ -54,3 +54,17 @@ class StudentProfile(Base, TimestampMixin):
     #
     # Ne sort d'aucune route, exactement comme son voisin : test de non-fuite dans `test_agenda.py`.
     agenda_late_alert_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Bord BAS de la fenêtre d'alerte (adr-0025 Amdt 9 §D12, corrigé le 2026-08-17).
+    #
+    # 🔴 **Il en fallait DEUX, et une seule ne pouvait pas suffire.** `agenda_late_alert_on` répond
+    # « en ai-je déjà montré un aujourd'hui ? » ; celui-ci répond « à partir d'où je regarde ? ».
+    # Tant que la même colonne portait les deux, l'accusé de réception poussait le bord bas à
+    # `today` et **brûlait toute la fenêtre alors qu'UNE seule échéance en était sortie** : quand
+    # deux tombaient en retard pendant une absence, la seconde n'était jamais montrée et ne
+    # pouvait plus l'être — le plancher n'avance que. Un contrôle tombait en silence derrière un
+    # devoir plus ancien. Défaut trouvé par relecture paire, reproduit par un test.
+    #
+    # ⚠️ Reste UNE date par élève de plus, jamais une marque par item : rien ici ne dit « vu le 12,
+    # jamais fait ». La contrainte du commentaire d'`agenda_last_seen_at` est intacte.
+    agenda_late_alert_floor: Mapped[date | None] = mapped_column(Date, nullable=True)

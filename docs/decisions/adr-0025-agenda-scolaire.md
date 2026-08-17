@@ -2914,6 +2914,58 @@ effet de bord — et elle est bornée ci-dessous.
 4. **`motion-safe:`** sur toute apparition animée, comme partout ailleurs (§D10, §D16).
 5. **Une porte, pas un reproche** : il mène à l'échéance, il ne qualifie pas Massimo.
 
+##### 🔴 Le défaut central, trouvé par RELECTURE PAIRE — une échéance sur deux disparaissait
+
+Une session paire a relu ce mécanisme sur ma demande, et a trouvé ce qu'aucun de mes tests ne
+pouvait voir. **`late_alert()` sert UNE échéance ; `mark_late_alert_seen()` brûlait TOUTE la
+fenêtre** en poussant le plancher à `today`.
+
+Conséquence, sur un scénario ordinaire — Massimo ne revient pas de la semaine :
+
+| | |
+|---|---|
+| plancher au 1ᵉʳ août, exposé SVT dû le 2, contrôle de maths dû le 5 | |
+| il ouvre sa page le 8 | → **exposé SVT** |
+| il revient le 9, le 10, le 31 | → **rien** |
+
+Le **contrôle** — le type que `PRIORITAIRES` met en tête partout ailleurs — tombait en silence
+derrière un devoir plus ancien, et ne pouvait plus jamais ressortir : **le plancher n'avance que**.
+
+⚠️ **C'était un défaut et non un arbitrage**, et c'est le contrat écrit qui le dit : la docstring
+promet *« une échéance dont la date est tombée depuis la dernière alerte »*. Le 5 août est bien
+tombé depuis le 1ᵉʳ.
+
+⚠️ **Pourquoi mes quatre tests étaient aveugles** : tous n'avaient qu'UNE échéance dans la fenêtre.
+Celui qui en avait deux plaçait la seconde HORS fenêtre — il vérifiait l'exclusion, jamais la
+concurrence. Le cas « deux dedans » n'existait nulle part.
+
+⚠️ **Et ma première tentative de test TRICHAIT** : elle rejouait « les jours suivants » en
+**reculant** le plancher, ce que la réalité ne fait jamais. Elle passait au vert sur le code
+fautif. L'assertion honnête ne dépend pas du temps qui passe : *après l'accusé, l'échéance non
+montrée est-elle encore au-dessus du plancher ?*
+
+**La correction, tranchée par le commanditaire** : il fallait **deux dates par élève**, pas une.
+
+| Colonne | Répond à |
+|---|---|
+| `agenda_late_alert_on` | « en ai-je déjà montré un **aujourd'hui** ? » |
+| `agenda_late_alert_floor` | « **à partir d'où** je regarde ? » |
+
+L'accusé avance le plancher au **lendemain de l'échéance montrée**, jamais jusqu'à aujourd'hui.
+Chaque échéance est donc montrée **au plus une fois**, et **aucune n'est perdue**.
+
+🔴 **La contrainte de granularité est intacte** : deux dates par élève, jamais une marque par item.
+Rien ne dit « vu le 12, jamais fait ».
+
+⚠️ **Contrepartie assumée, arbitrée par le commanditaire** : avec dix retards accumulés, Massimo
+verra un toast par jour pendant dix jours — mais **chacun sur une échéance différente**, jamais
+deux fois la même. C'est la borne 2 du §D12 qui tient : le toast ne relance pas.
+
+⚠️ **L'`item_id` voyage avec l'accusé et est REVALIDÉ côté serveur** (appartenance à l'élève). Et
+le plancher **ne recule jamais** : un accusé rejoué en retard — réseau lent, onglet rouvert — ne
+doit pas rouvrir une fenêtre close, sinon une échéance déjà signalée reviendrait. Cette garde-là
+n'avait **aucun test** : le sabotage qui la retire est resté vert, et le verrou a été écrit après.
+
 ##### Deux défauts que seuls l'écran et un verrou existant ont attrapés
 
 **a) Le toast s'auto-annulait.** Son accusé de réception remet l'alerte à `null` côté hook ; le

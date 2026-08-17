@@ -239,7 +239,7 @@ GESTES = {
 def late_alert(db: Session, *, student: StudentProfile) -> dict | None:
     """L'échéance à signaler à l'ouverture de la page, ou `None` (Amdt 9 §D12).
 
-    Deux conditions, et **toutes deux se lisent sur UNE seule date par élève** :
+    Deux conditions, et **chacune a sa date** — il en faut deux, pas une :
 
     1. **Du NOUVEAU retard** — une échéance dont la date est tombée *depuis* la dernière alerte.
        Une échéance déjà signalée ne revient jamais : un enfant qui n'arrive pas à rattraper ne
@@ -259,13 +259,14 @@ def late_alert(db: Session, *, student: StudentProfile) -> dict | None:
     l'arriéré complet — l'inverse exact de ce que le §D12 décide.
     """
     today = today_local()
-    if student.agenda_late_alert_on is None:
+    if student.agenda_late_alert_floor is None:
         # On pose le plancher SANS alerter : à partir de maintenant, seules les dates qui tombent
         # comptent. Le passé antérieur ne sera jamais signalé, et c'est voulu.
-        student.agenda_late_alert_on = today
+        student.agenda_late_alert_floor = today
         db.commit()
         return None
-    if student.agenda_late_alert_on >= today:
+    # « Pas deux fois le même jour » — c'est l'AUTRE date, et les confondre coûtait des échéances.
+    if student.agenda_late_alert_on is not None and student.agenda_late_alert_on >= today:
         return None
 
     item = db.scalars(
@@ -273,10 +274,11 @@ def late_alert(db: Session, *, student: StudentProfile) -> dict | None:
         .where(
             AgendaItem.student_id == student.id,
             AgendaItem.due_on < today,
-            # ⚠️ **`>=` et non `>`** : une échéance due le jour même de la dernière alerte n'était
-            # pas encore en retard ce jour-là (`due_on < today` était faux). L'exclure la rendrait
-            # invisible pour toujours — un trou d'une journée dans le filet.
-            AgendaItem.due_on >= student.agenda_late_alert_on,
+            # ⚠️ **`>=` et non `>`** : une échéance due le jour même du plancher n'était pas encore
+            # en retard ce jour-là (`due_on < today` était faux). L'exclure la rendrait invisible
+            # pour toujours — un trou d'une journée dans le filet. Vérifié par un test de borne,
+            # et confirmé par une relecture paire.
+            AgendaItem.due_on >= student.agenda_late_alert_floor,
             AgendaItem.done_at.is_(None),
             AgendaItem.dismissed_at.is_(None),
         )
@@ -303,14 +305,37 @@ def late_alert(db: Session, *, student: StudentProfile) -> dict | None:
     }
 
 
-def mark_late_alert_seen(db: Session, *, student: StudentProfile) -> None:
-    """Le toast a été montré : plus rien aujourd'hui, et le plancher du « nouveau » avance.
+def mark_late_alert_seen(
+    db: Session, *, student: StudentProfile, item_id: int | None = None
+) -> None:
+    """Le toast a été montré : plus rien aujourd'hui, et le plancher avance — **juste ce qu'il
+    faut**.
+
+    🔴 **Le plancher s'arrête au LENDEMAIN de l'échéance montrée, jamais à aujourd'hui.** Il
+    poussait à `today`, ce qui brûlait toute la fenêtre alors qu'**une seule** échéance en était
+    sortie : quand deux tombaient en retard pendant une absence, la seconde n'était jamais montrée
+    et ne pouvait plus l'être — le plancher n'avance que. Un contrôle tombait en silence derrière
+    un devoir plus ancien. Trouvé par relecture paire le 2026-08-17, reproduit par un test.
+
+    ⚠️ **L'item est REVALIDÉ côté serveur** : appartenance à l'élève vérifiée, jamais l'`id` du
+    client pris pour argent comptant. Et le plancher ne RECULE jamais (`max`) — un accusé rejoué
+    en retard ne doit pas rouvrir une fenêtre déjà close.
+
+    Sans `item_id` (accusé sans corps), seule la règle du jour s'applique : on ne devine pas quelle
+    échéance a été montrée, et avancer le plancher au hasard perdrait exactement ce qu'on répare.
 
     Ne renvoie rien, et **échoue en silence côté client** : rater un accusé laisse une alerte de
     trop dans la journée, ce qui est sans gravité. Afficher une erreur technique sur l'écran d'un
     enfant ne l'est pas. Même contrat que `markAgendaSeen`.
     """
     student.agenda_late_alert_on = today_local()
+    if item_id is not None:
+        item = db.get(AgendaItem, item_id)
+        if item is not None and item.student_id == student.id:
+            lendemain = item.due_on + timedelta(days=1)
+            plancher = student.agenda_late_alert_floor
+            if plancher is None or lendemain > plancher:
+                student.agenda_late_alert_floor = lendemain
     db.commit()
 
 

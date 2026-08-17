@@ -237,6 +237,19 @@ class LateAlertOut(BaseModel):
     subject: SubjectRef | None
 
 
+class LateAlertSeenRequest(BaseModel):
+    """Quelle échéance le toast a réellement montrée (Amdt 9 §D12, corrigé le 2026-08-17).
+
+    🔴 **Sans elle, le plancher ne peut avancer que jusqu'à aujourd'hui**, ce qui brûle la fenêtre
+    entière alors qu'une seule échéance en est sortie. L'`id` est **revalidé côté serveur** —
+    appartenance à l'élève — jamais pris pour argent comptant.
+
+    Optionnel : un accusé sans corps applique seulement la règle « pas deux fois le même jour ».
+    """
+
+    item_id: int | None = None
+
+
 class AheadGesteOut(BaseModel):
     """Un geste pour prendre de l'avance (Amdt 9 §D6).
 

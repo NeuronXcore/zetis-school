@@ -88,9 +88,17 @@ export async function fetchLateAlert(): Promise<AgendaLateAlert | null> {
  *
  *  Échec silencieux, comme `markAgendaSeen` : rater l'accusé laisse une alerte de trop dans la
  *  journée, ce qui est sans gravité. Une erreur technique sur l'écran d'un enfant ne l'est pas. */
-export async function markLateAlertSeen(): Promise<void> {
+export async function markLateAlertSeen(itemId?: number): Promise<void> {
   try {
-    await fetch(`${BASE}/late-alert/seen`, { method: "POST", headers: headers() });
+    // 🔴 **L'échéance montrée voyage avec l'accusé**, et ce n'est pas décoratif : sans elle, le
+    // serveur ne peut avancer son plancher que jusqu'à aujourd'hui, ce qui **brûle toute la
+    // fenêtre** alors qu'une seule échéance en est sortie. Les autres seraient perdues
+    // définitivement. L'`id` est revalidé côté serveur — il n'est jamais cru sur parole.
+    await fetch(`${BASE}/late-alert/seen`, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId ?? null }),
+    });
   } catch {
     // réseau indisponible : au pire une alerte de plus aujourd'hui
   }

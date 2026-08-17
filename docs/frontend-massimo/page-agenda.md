@@ -85,7 +85,10 @@
 > 🔴 **Une alerte éphémère à l'ouverture** (§D12) — `GET /late-alert` + `POST /late-alert/seen`,
 > migration `a8d76627dc51`. Elle ne signale que du **NOUVEAU** retard, **une fois par jour**, et
 > nomme **UNE** échéance sans aucun nombre. Elle s'efface seule en 7 s.
-> ⚠️ Le déclencheur se lit sur **une seule date par élève** (`agenda_late_alert_on`) : jamais une
+> ⚠️ Le déclencheur se lit sur **deux dates par élève** — `agenda_late_alert_on` (« en ai-je montré
+> un aujourd'hui ? ») et `agenda_late_alert_floor` (« à partir d'où je regarde ? »). Une seule ne
+> suffisait pas : l'accusé brûlait toute la fenêtre alors qu'UNE échéance en était sortie, et les
+> autres étaient perdues définitivement. Jamais une
 > marque par item, qui dirait « vu le 12, jamais fait » — de la surveillance par la porte de
 > service. Cette colonne ne sort d'aucune route (test de non-fuite).
 >

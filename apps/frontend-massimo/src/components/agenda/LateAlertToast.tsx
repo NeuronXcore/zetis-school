@@ -26,8 +26,10 @@ const DUREE_MS = 7000;
 
 interface Props {
   alerte: AgendaLateAlert | null | undefined;
-  /** Accuse réception — appelé une seule fois, quand le toast est RÉELLEMENT monté. */
-  onShown?: () => void;
+  /** Accuse réception — appelé une seule fois, quand le toast est RÉELLEMENT monté.
+   *  ⚠️ **Il porte l'échéance montrée** : sans elle, le serveur avance son plancher jusqu'à
+   *  aujourd'hui et perd définitivement les autres échéances de la même fenêtre. */
+  onShown?: (itemId: number) => void;
   /** Mène à l'échéance : ouvre son jour sous la bande. Une porte, jamais un reproche. */
   onOpenDay: (date: string) => void;
 }
@@ -52,7 +54,7 @@ export function LateAlertToast({ alerte, onShown, onOpenDay }: Props) {
     if (!alerte) return;
     setMontree(alerte);
     setVisible(true);
-    onShown?.();
+    onShown?.(alerte.item_id);
     const minuteur = window.setTimeout(() => setVisible(false), DUREE_MS);
     return () => window.clearTimeout(minuteur);
     // `onShown` est volontairement hors dépendances : une identité de fonction qui change à
