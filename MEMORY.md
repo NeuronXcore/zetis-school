@@ -60,9 +60,10 @@ chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
 
 #### 🧾 DETTES OUVERTES
 
-- 🔴 **Les trois migrations ne sont PAS en prod.** Elles y sont désormais légitimes (elles sont sur
-  `main`). ⚠️ Monter `alembic/` sinon l'image fige ses migrations ; la variable est
-  **`ZETIS_DATABASE_URL`**, `DATABASE_URL` est ignorée EN SILENCE.
+- ✅ **Les trois migrations SONT POSÉES en prod** (2026-08-17) : `f9a0b1c2d3e4` → `a8a71c84f86e`.
+  Sauvegarde préalable `~/zetis-backups/zetis-prod-20260817-131748-avant-agenda-v2.sql` (636 K,
+  marqueur `dump complete` présent). Vérifié **par le schéma réel** — les trois colonnes existent
+  — et non par le `head` d'alembic ; contenu inchangé (476/119/0). Pile éteinte sans `-v`.
 - ⚠️ **La relecture visuelle complète n'a pas eu lieu** avant le merge — le commanditaire a vu des
   captures, pas la page entière aux deux largeurs. **Septième fois** que ce gate saute.
 - **O3** vacances : aucune source de donnée (`SchoolYear` n'a que `starts_on`/`ends_on`).
@@ -75,7 +76,8 @@ chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
 
 #### ▶ PROCHAIN PAS
 
-Poser les **trois migrations en prod**, puis regarder la page en vrai, aux deux largeurs.
+**Regarder la page en vrai, aux deux largeurs** — c'est tout ce qui reste, et c'est la dette la
+plus ancienne du dépôt (septième merge sans ce gate).
 
 ---
 
