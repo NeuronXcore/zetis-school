@@ -41,7 +41,10 @@ export function FicheSidePanel({ subjectSlug, lessonId, title, onClose }: FicheS
         return fetchFiche(item.id);
       })
       .then((detail) => alive && detail && setFiche(detail))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Fiche indisponible"))
+      .catch((e) => {
+        console.warn("[mindmap] fiche de la leçon en panneau", e); // trace devtools (diagnostic)
+        if (alive) setError("Ta fiche n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

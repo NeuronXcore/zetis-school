@@ -1,5 +1,27 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.1 — Massimo ne lit plus « Erreur 500 »
+
+Quand quelque chose cassait, ZETIS lui montrait ce que la **machine** avait compris : `Erreur 500`,
+ou `Failed to fetch`. Les phrases écrites pour lui étaient là, dans le code, à côté — mais dans une
+branche qui n'était **jamais** atteinte. Personne ne les avait lues, sur aucun écran.
+
+**Ce qu'il lit maintenant** : *« Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨ »*
+— une phrase par surface, qui nomme ce qui n'a pas eu lieu. Et quand c'est vrai, elle porte le fait
+qui compte : *« Tes réponses sont bien là »*, *« Ton travail est bien enregistré »*, *« Tu peux
+quand même écrire ta notion »*.
+
+Le détail technique n'a pas disparu : il part en **console**, avec son fichier et sa ligne, où il
+sert à qui débogue au lieu d'inquiéter un enfant de treize ans.
+
+⚠️ **Deux messages continuent de venir du serveur, et c'est voulu** — la consigne d'une étape de
+mission non prouvée (409) et ce qui manque à une fiche pour être finie (422). Le serveur les a
+écrits pour lui ; son propre code le dit. Ils passent désormais par un type dédié, pas par le tout-
+venant des pannes.
+
+35 sites, 20 fichiers. Un verrou de dépôt refuse le retour du motif ; le test qui prétendait couvrir
+le 422 n'exerçait en fait aucun des deux cas, et `completeStepSafely` n'avait aucun test.
+
 ## 0.99.0 — L'agenda répond à trois questions
 
 Massimo ouvrait une page qui se contredisait : sur samedi 15 août, elle affirmait « Rien à rendre ce

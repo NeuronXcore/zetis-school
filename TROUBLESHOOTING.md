@@ -4,6 +4,77 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/erreurs-lisibles` — une branche morte, et le test qui croyait l'exercer — 2026-08-17
+
+### 🔴 `e instanceof Error ? e.message : "<phrase gentille>"` — la phrase gentille n'est JAMAIS lue
+
+35 sites dans `frontend-massimo`, 20 fichiers. Le motif a l'air prudent ; il ne l'est pas. Chaque
+`asJson` du dossier `lib/` lève un **vrai** `Error`, donc `e.message` gagne **toujours**. La phrase
+d'à côté était morte depuis le premier jour. Ce que Massimo lisait, lui : `Erreur 500` — chaîne que
+`asJson` **fabrique lui-même** — ou le `Failed to fetch` du navigateur quand le backend est éteint.
+
+**La parade** : message d'interface **fixe**, détail technique en console.
+
+```ts
+console.warn("[zone] ce qu'on tentait", e); // trace devtools (diagnostic)
+setError("Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨");
+```
+
+Vérifié à l'écran, backend forcé en 500 : `/mindmaps`, `/fiches`, `/revision` disent la phrase, et
+la console porte `[mindmap] chargement des matières  Error: Erreur 500 at asJson (lib/mindmaps.ts:18)`
+— avec le fichier et la ligne. **Les deux moitiés comptent** : un message fixe qui jette l'erreur
+laisserait qui débogue sans rien.
+
+Verrou : `apps/frontend-massimo/src/erreurs-lisibles.test.ts` (balaie `src/`, ignore les
+commentaires — la doctrine cite le motif pour l'interdire). ⚠️ Il attrape le motif **mesuré**, pas
+`String(e)` ni `${e}` : sa portée est écrite dans son en-tête plutôt que laissée à croire totale.
+
+### 🔴 Deux natures de message passent par le même `catch` — et le type est la seule frontière
+
+**Deux endroits sur 35 où la phrase du serveur DOIT atteindre l'enfant**, et leur docstring backend
+le dit noir sur blanc :
+
+| Où | Code | Ce que le serveur écrit |
+|---|---|---|
+| `lib/missions.ts` → `missionSteps.ts` | **409** | « Réexplique d'abord la notion à ZETIS pour valider cette étape. » |
+| `lib/atelier.ts` → `AtelierPage.terminer()` | **422** | « Il manque encore quelque chose pour que ta fiche soit finie. » |
+
+Tant que `asJson` levait un `Error` nu, **impossible de filtrer une nature sans l'autre**. Parade :
+deux classes, `MissionRefus` et `AtelierIncomplet`, levées **seulement** sur leur code. Précédent
+du dépôt : `Eli5SttUnavailable` (503). Tout le reste retombe sur la phrase d'interface.
+
+### 🔴 Le test « un finish en 422 » ne testait pas le 422 — il testait *n'importe quel échec*
+
+`AtelierPage.test.tsx` levait `new Error("Il manque encore quelque chose…")` et s'appelait « 422 ».
+Il ne pouvait pas faire mieux : **le code ne distinguait pas les deux**, donc le test non plus. Il
+croyait prouver le cas utile et prouvait aussi le cas nuisible — celui où `Erreur 500` s'affiche.
+C'est encore *un cas à DEUX exercé à UN*. Les deux cas sont désormais côte à côte, dans ce fichier
+et dans `lib/missionSteps.test.ts` (qui n'existait pas : la fonction avait **zéro** test).
+
+⚠️ **Piège de mock** : `vi.mock("../lib/atelier", () => api)` — si `api` n'exporte pas la classe, la
+page fait `e instanceof undefined` et vitest lève *pendant* le test. Il faut une **vraie classe**
+dans le mock (`class AtelierIncomplet extends Error {}`), pas un `vi.fn()`.
+
+### ⚠️ « 38 occurrences » n'a jamais correspondu à rien
+
+`MEMORY.md` annonçait 38. Mesure : **39** avant la PR #142 (chantier diagnostic), qui en a corrigé
+3 → **35** aujourd'hui. Le chiffre écrit était une estimation posée par la session qui venait d'en
+corriger trois, et personne ne l'a recomptée pendant vingt heures. *Un nombre dans `MEMORY.md` se
+remesure avant d'être cité* :
+
+```bash
+git grep -c "instanceof Error" -- apps/frontend-massimo/src | awk -F: '{s+=$NF} END {print s}'
+```
+
+### ⚠️ `tsc -b` ne se lance pas depuis la racine — il n'y a pas de `tsconfig.json` racine
+
+Seul `tsconfig.base.json` y vit. La commande écrite dans un plan précédent (`npx tsc -b` à la
+racine) rend `TS5083: Cannot read file …/tsconfig.json` **et sort en code 0**. Se placer dans le
+paquet : `cd apps/frontend-massimo && ./node_modules/.bin/tsc -b --force --noEmit`. (`npx tsc`
+échoue aussi : pas de `typescript` à la racine du workspace pnpm.)
+
+---
+
 ## Coordination entre sessions — deux instruments qui ne disent pas ce qu'on croit — 2026-08-17
 
 ### 🔴 Un bloc ```bash affiché porte un bouton « Run » — c'est une commande ARMÉE, pas une illustration

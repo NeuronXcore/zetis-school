@@ -27,7 +27,10 @@ export function QuizMissionModal({ mission, step, onStepDone, onClose }: Mission
     let alive = true;
     fetchQuizById(step.resource_id)
       .then((q) => alive && setQuiz(q))
-      .catch((e) => alive && setLoadError(e instanceof Error ? e.message : "Quiz indisponible"));
+      .catch((e) => {
+        console.warn("[missions] quiz de l'étape", e); // trace devtools (diagnostic)
+        if (alive) setLoadError("Ce quiz n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
+      });
     return () => {
       alive = false;
     };

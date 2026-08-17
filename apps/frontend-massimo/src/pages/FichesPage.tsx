@@ -22,7 +22,10 @@ export function FichesPage() {
     setError(null);
     fetchFichesSummary()
       .then((data) => alive && setSummary(data))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"))
+      .catch((e) => {
+        console.warn("[fiches] chargement des matières", e); // trace devtools (diagnostic)
+        if (alive) setError("Tes fiches n'ont pas voulu se charger. Réessaie dans un instant ✨");
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

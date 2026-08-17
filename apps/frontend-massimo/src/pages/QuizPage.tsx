@@ -49,7 +49,8 @@ export function QuizPage() {
         setSubjects(subjectList);
         setIndex(quizIndex);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Chargement impossible");
+        console.warn("[quiz] chargement de la page", e); // trace devtools (diagnostic)
+        setError("Tes quiz n'ont pas voulu se charger. Réessaie dans un instant ✨");
       } finally {
         setLoading(false);
       }

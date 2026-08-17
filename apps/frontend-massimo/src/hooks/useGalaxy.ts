@@ -93,9 +93,10 @@ export function useGalaxy(): GalaxyState {
     setNotion(null);
     fetchConstellation(slug)
       .then(setConstellation)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "Cette constellation n'a pas pu s'ouvrir."),
-      )
+      .catch((e: unknown) => {
+        console.warn("[galaxie] ouverture d'une constellation", e); // trace devtools (diagnostic)
+        setError("Cette constellation n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
+      })
       .finally(() => setLoadingConstellation(false));
   }, []);
 

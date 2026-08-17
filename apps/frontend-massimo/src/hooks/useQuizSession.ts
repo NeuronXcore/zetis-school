@@ -74,7 +74,8 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
       attemptRef.current = attempt.attempt_id;
       setStatus(q.questions.length === 0 ? "done" : "answering");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Impossible de démarrer le quiz");
+      console.warn("[quiz] démarrage de la tentative", e); // trace devtools (diagnostic)
+      setError("Le quiz n'a pas voulu démarrer. Réessaie dans un instant ✨");
       setStatus("error");
     }
   }, [quiz?.quiz_id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,7 +99,8 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
           setStatus("feedback");
         } catch (e) {
           // Bienveillant : jamais d'« échec » — on invite à réessayer.
-          setError(e instanceof Error ? e.message : "Réessaie dans un instant");
+          console.warn("[quiz] envoi d'une réponse", e); // trace devtools (diagnostic)
+          setError("Ta réponse n'est pas passée. Réessaie dans un instant ✨");
         } finally {
           submittingRef.current = false;
         }
@@ -130,7 +132,10 @@ export function useQuizSession(quiz: StudentQuiz | null): QuizSessionApi {
             /* silence */
           });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Impossible de terminer le quiz");
+        console.warn("[quiz] clôture de la tentative", e); // trace devtools (diagnostic)
+        // Le fait qui compte : chaque réponse est partie au serveur au fil du quiz
+        // (`submitQuizAnswer`) — seule la CLÔTURE a échoué. Rien de ce qu'il a fait n'est perdu.
+        setError("Le quiz n'a pas voulu se terminer. Tes réponses sont bien là — réessaie dans un instant ✨");
         setStatus("error");
       }
     })();

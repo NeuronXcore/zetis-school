@@ -80,7 +80,10 @@ export function CapsulesIAPage() {
           });
         }
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement échoué"))
+      .catch((e: unknown) => {
+        console.warn("[capsules] chargement de la liste", e); // trace devtools (diagnostic)
+        setError("Tes capsules n'ont pas voulu se charger. Réessaie dans un instant ✨");
+      })
       .finally(() => setLoading(false));
   }, [celebrate]);
 

@@ -10,7 +10,11 @@ import type { FicheCandidates, FicheDraftDetail } from "@zetis/types";
 // verraient dans aucun test backend, et une page sans test de rendu est une page qui part en
 // production sans que personne l'ait regardée (`AgendaPage` l'a fait).
 
+// ⚠️ `AtelierIncomplet` est une VRAIE classe dans le mock, pas un `vi.fn()` : la page fait
+// `e instanceof AtelierIncomplet` pour distinguer le 422 que le serveur a écrit POUR Massimo
+// d'une panne qui ne le regarde pas. Un doublon vide ferait échouer l'`instanceof` en silence.
 const api = vi.hoisted(() => ({
+  AtelierIncomplet: class AtelierIncomplet extends Error {},
   openDraft: vi.fn(),
   fetchCandidates: vi.fn(),
   saveDraft: vi.fn(),
@@ -603,11 +607,32 @@ describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
   it("🔒 un finish en 422 NE navigue PAS — on reste dans l'atelier", async () => {
     // Le 422 n'est pas un échec : il dit ce qui manque, et c'est déjà juste. Naviguer dessus
     // ferait sortir Massimo de son travail au moment précis où il lui manque une étape.
-    api.finishDraft.mockRejectedValue(new Error("Il manque encore quelque chose pour ta fiche."));
+    //
+    // ⚠️ Le refus est un `AtelierIncomplet`, PAS un `Error` nu. Jusqu'au 2026-08-17 ce test
+    // levait un `Error` en le nommant « 422 » — il ne pouvait pas faire autrement, le code ne
+    // distinguant pas les deux. Il croyait donc prouver le 422 et prouvait *n'importe quel
+    // échec*, y compris le 500 dont la phrase partait telle quelle à l'écran.
+    api.finishDraft.mockRejectedValue(
+      new api.AtelierIncomplet("Il manque encore quelque chose pour ta fiche."),
+    );
     sondeDeLURL();
     fireEvent.click(await screen.findByText("C'est fini, je la garde"));
 
     expect(await screen.findByText(/Il manque encore quelque chose/)).toBeInTheDocument();
+    expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
+  });
+
+  it("🔴 un finish qui CASSE ne raconte pas la panne — et promet le travail sauf", async () => {
+    // Le jumeau que le test ci-dessus n'avait pas. `asJson` fabrique `Erreur 500` quand le
+    // serveur n'a rien à dire, et cette chaîne s'affichait telle quelle à un enfant de treize ans
+    // (`CLAUDE.md` — « Massimo ne doit pas voir : les informations techniques »).
+    api.finishDraft.mockRejectedValue(new Error("Erreur 500"));
+    sondeDeLURL();
+    fireEvent.click(await screen.findByText("C'est fini, je la garde"));
+
+    // `persister()` tourne avant `finishDraft` : le dire n'est pas une consolation, c'est un fait.
+    expect(await screen.findByText(/Ton travail est bien enregistré/)).toBeInTheDocument();
+    expect(screen.queryByText(/Erreur 500/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
   });
 

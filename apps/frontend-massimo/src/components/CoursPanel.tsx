@@ -33,7 +33,10 @@ export function CoursPanel({ lessonId, title, onClose }: CoursPanelProps) {
     setCours(null);
     fetchStudentLessonCours(lessonId)
       .then((c) => alive && setCours(c))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Cours indisponible"))
+      .catch((e) => {
+        console.warn("[cours] panneau du cours d'une leçon", e); // trace devtools (diagnostic)
+        if (alive) setError("Ton cours n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

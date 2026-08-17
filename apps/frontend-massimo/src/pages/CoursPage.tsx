@@ -75,7 +75,8 @@ export function CoursPage() {
             : undefined) ?? data.chapters.find((c) => c.lessons.length > 0);
       setExpandedId(vise?.id ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement");
+      console.warn("[cours] chargement de la matière", e); // trace devtools (diagnostic)
+      setError("Ton cours n'a pas voulu se charger. Réessaie dans un instant ✨");
     } finally {
       setLoading(false);
     }
@@ -129,7 +130,8 @@ export function CoursPage() {
     try {
       setReading(await fetchStudentLessonCours(lesson.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement");
+      console.warn("[cours] ouverture d'une leçon", e); // trace devtools (diagnostic)
+      setError("Cette leçon n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
     } finally {
       setReadingLoading(false);
     }

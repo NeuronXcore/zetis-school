@@ -137,7 +137,8 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
       // Deck déjà à jour (rien de dû) : on n'invente pas de session vide, on rend la main.
       setStatus(served.length === 0 ? "done" : "front");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chargement impossible");
+      console.warn("[revision] démarrage de la séance", e); // trace devtools (diagnostic)
+      setError("Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨");
       setStatus("error");
     }
     // deckKey pilote le rechargement ; `deck` est lu via deckRef (stable).
@@ -214,7 +215,8 @@ export function useReviewSession(deck: ReviewDeck | null): ReviewSessionApi {
           }
         } catch (e) {
           // Bienveillant : on n'affiche jamais d'« échec », la carte reste notable.
-          setError(e instanceof Error ? e.message : "Réessaie dans un instant");
+          console.warn("[revision] envoi d'une note", e); // trace devtools (diagnostic)
+          setError("Cette note n'est pas passée. Réessaie dans un instant ✨");
         } finally {
           submittingRef.current = false;
         }

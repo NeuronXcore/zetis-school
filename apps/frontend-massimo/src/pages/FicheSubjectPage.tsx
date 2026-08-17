@@ -69,7 +69,10 @@ export function FicheSubjectPage() {
         setList(fiches);
         setIndex(toutes);
       })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"));
+      .catch((e) => {
+        console.warn("[fiches] deck d'une matière", e); // trace devtools (diagnostic)
+        if (alive) setError("Tes fiches n'ont pas voulu se charger. Réessaie dans un instant ✨");
+      });
     return () => {
       alive = false;
     };
@@ -94,7 +97,8 @@ export function FicheSubjectPage() {
         // Retrait local du badge « Nouveau » (le serveur l'a enregistré).
         setList((cur) => cur?.map((f) => (f.id === item.id ? { ...f, seen: true } : f)) ?? cur);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Fiche indisponible");
+        console.warn("[fiches] ouverture d'une fiche", e); // trace devtools (diagnostic)
+        setError("Cette fiche n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
         setOpenIdx(null);
       } finally {
         setDetailLoading(false);

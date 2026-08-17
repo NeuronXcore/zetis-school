@@ -79,12 +79,15 @@ function PhraseRaison({ raison, estUnChoix }: { raison: Raison; estUnChoix: bool
 
 /** Ce que Massimo lit quand ça casse — jamais ce que la machine, elle, a compris.
  *
- * 🔴 **Le motif `e instanceof Error ? e.message : "…"` est un piège, et il est partout.** La
- * phrase gentille y est la BRANCHE MORTE : `asJson` lève un vrai `Error`, donc c'est toujours
- * `e.message` qui s'affiche — `Erreur 500`. La phrase d'à côté n'a jamais été lue par personne.
- * Ici on inverse : le message d'interface est FIXE, et le détail technique part en console, où il
- * sert à qui débogue au lieu d'inquiéter un enfant de treize ans (`CLAUDE.md` — « Massimo ne doit
- * pas voir : les informations techniques »). Précédent du dépôt : `useEli5.ts:412`.
+ * 🔴 **Le motif `e instanceof Error ? e.message : "…"` est un piège.** La phrase gentille y est la
+ * BRANCHE MORTE : `asJson` lève un vrai `Error`, donc c'est toujours `e.message` qui s'affiche —
+ * `Erreur 500`. La phrase d'à côté n'a jamais été lue par personne. Ici on inverse : le message
+ * d'interface est FIXE, et le détail technique part en console, où il sert à qui débogue au lieu
+ * d'inquiéter un enfant de treize ans (`CLAUDE.md` — « Massimo ne doit pas voir : les informations
+ * techniques »). Précédent du dépôt : `useEli5.ts:412`.
+ *
+ * ⚠️ **Cet écran n'est plus l'exception, il est la règle** (2026-08-17) : les **35 autres sites**
+ * du motif ont été repris, et `src/erreurs-lisibles.test.ts` refuse désormais son retour.
  *
  * Les deux phrases diffèrent parce que l'enjeu diffère, et la seconde porte le fait qui compte :
  * **ses réponses sont toujours là.** Le test `n'oublie pas les réponses` prouve que c'est vrai ;

@@ -91,6 +91,10 @@ export interface UseMissions {
   dismissCompletion: () => void;
 }
 
+/** Ce que Massimo lit quand la page ne se charge pas — les deux chemins (premier montage et
+ *  rechargement) échouent de la même façon, ils disent donc la même chose. */
+const CHARGEMENT_IMPOSSIBLE = "Tes missions n'ont pas voulu se charger. Réessaie dans un instant ✨";
+
 export function useMissions(): UseMissions {
   const celebrate = useCelebrate();
 
@@ -123,7 +127,10 @@ export function useMissions(): UseMissions {
     setLoading(true);
     setError(null);
     load()
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement impossible"))
+      .catch((e: unknown) => {
+        console.warn("[missions] chargement de la page", e); // trace devtools (diagnostic)
+        setError(CHARGEMENT_IMPOSSIBLE);
+      })
       .finally(() => setLoading(false));
     // Source secondaire (non bloquante) : nom→slug des matières + liste « à jour ».
     fetchNotionsSummary()
@@ -140,7 +147,10 @@ export function useMissions(): UseMissions {
     setLoading(true);
     setError(null);
     load()
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Chargement impossible"))
+      .catch((e: unknown) => {
+        console.warn("[missions] rechargement de la page", e); // trace devtools (diagnostic)
+        setError(CHARGEMENT_IMPOSSIBLE);
+      })
       .finally(() => setLoading(false));
   }, [load]);
 
@@ -154,7 +164,8 @@ export function useMissions(): UseMissions {
           const started = mission.status === "planned" ? await startMission(mission.id) : mission;
           setActiveActivity({ mission: started, step, kind: activityKind(step.step_type) });
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Un petit souci — réessaie dans un instant ✨");
+          console.warn("[missions] démarrage d'une mission", e); // trace devtools (diagnostic)
+          setError("Un petit souci — réessaie dans un instant ✨");
         } finally {
           setBusy(false);
         }

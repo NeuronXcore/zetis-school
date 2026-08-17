@@ -23,7 +23,10 @@ export function MindmapsPage() {
     setError(null);
     fetchMindmapsSummary()
       .then((data) => alive && setSummary(data))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "Chargement impossible"))
+      .catch((e) => {
+        console.warn("[mindmap] chargement des matières", e); // trace devtools (diagnostic)
+        if (alive) setError("Tes cartes n'ont pas voulu se charger. Réessaie dans un instant ✨");
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;

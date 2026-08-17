@@ -31,6 +31,7 @@ import {
 } from "@zetis/types";
 import { CloseFullscreenButton } from "@zetis/ui";
 import {
+  AtelierIncomplet,
   fetchCandidates,
   finishDraft,
   openDraft,
@@ -219,7 +220,8 @@ export function AtelierPage() {
         if (defs) setTermes(defs.candidates.map((c) => c.texte));
         if (pgs) setPiegesProposes(pgs.candidates);
       } catch (e) {
-        if (!annule) setError(e instanceof Error ? e.message : "Impossible d'ouvrir l'atelier.");
+        console.warn("[atelier] ouverture du brouillon", e); // trace devtools (diagnostic)
+        if (!annule) setError("L'atelier n'a pas voulu s'ouvrir. Réessaie dans un instant ✨");
       }
     })();
     // `annule` : StrictMode monte deux fois en dev, et une réponse en retard écraserait l'état.
@@ -378,7 +380,9 @@ export function AtelierPage() {
         setTranscrit(true);
         void persister();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Je n'ai pas réussi à t'écouter.");
+        console.warn("[atelier] transcription de la dictée", e); // trace devtools (diagnostic)
+        // Même repli que le refus de micro juste en dessous : le clavier reste une vraie sortie.
+        setError("Je n'ai pas réussi à t'écouter. Tu peux écrire, ça marche aussi ✨");
       }
       return;
     }
@@ -412,7 +416,10 @@ export function AtelierPage() {
       setGardees([]);
       setRetour(await reviewDraft(detail.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Je n'ai pas réussi à regarder.");
+      console.warn("[atelier] relecture du brouillon", e); // trace devtools (diagnostic)
+      // `persister()` vient de tourner juste au-dessus : ce qu'il a écrit EST enregistré. Le dire
+      // est le fait qui compte — sans lui, un enfant croit avoir perdu son travail.
+      setError("Je n'ai pas réussi à regarder ta fiche. Ton travail est bien enregistré — réessaie dans un instant ✨");
     }
   }
 
@@ -428,9 +435,16 @@ export function AtelierPage() {
       // (`?fiche=`, adr-0054 §1) ; elle n'était simplement pas utilisée ici.
       navigate(`/fiches/${slug}?fiche=${fiche.id}`);
     } catch (e) {
+      console.warn("[atelier] passage brouillon → fiche", e); // trace devtools (diagnostic)
       // ⚠️ Le 422 ne navigue PAS : il dit ce qui manque, et on RESTE dans l'atelier. Il n'est PAS
-      // un échec : c'est une étape encore à faire.
-      setError(e instanceof Error ? e.message : "Il manque encore quelque chose.");
+      // un échec : c'est une étape encore à faire — et c'est le SERVEUR qui l'a écrite pour lui
+      // (`AtelierIncomplet`). Tout le reste est une panne, et une panne ne se raconte pas à un
+      // enfant : elle part en console, l'écran dit sa propre phrase.
+      setError(
+        e instanceof AtelierIncomplet
+          ? e.message
+          : "Ta fiche n'a pas voulu se terminer. Ton travail est bien enregistré — réessaie dans un instant ✨",
+      );
     }
   }
 

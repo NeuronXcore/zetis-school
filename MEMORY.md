@@ -6,6 +6,39 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+### 🟡 EN COURS — Massimo ne lit plus « Erreur 500 » (branche `fix/erreurs-lisibles`, base `4001594`)
+
+**Aucun ADR** : cas 2 de l'`adr-0060` — *application* d'une règle déjà écrite dans le `CLAUDE.md`
+(« Massimo ne doit pas voir : […] les informations techniques »). En écrire un fabriquerait une
+décision là où il n'y avait qu'une dette. Périmètre : `apps/frontend-massimo` seul.
+Hors périmètre assumé : **`frontend-papa` porte le même motif 113 fois** et le garde — c'est une
+interface adulte, le détail technique y est utile.
+
+**Fait, et vérifié à l'écran** (backend forcé en 500, `/mindmaps` `/fiches` `/revision`) : les
+**35** sites du motif `e instanceof Error ? e.message : "…"` sont repris — phrase fixe à l'écran,
+`console.warn("[zone] …", e)` aux devtools. Deux canaux délibérés typés (`MissionRefus` 409,
+`AtelierIncomplet` 422). Verrou `src/erreurs-lisibles.test.ts` + sabotage joué (1 rouge, le bon).
+`lib/missionSteps.test.ts` créé — la fonction n'avait **aucun** test.
+
+Suites : backend **1425**, Massimo **920**, Papa **814**, UI **28**. `tsc -b` vert.
+
+#### 🔴 CE QUI COMPTE
+
+- **« 38 occurrences » n'a jamais correspondu à rien.** Mesure : **39** avant la PR #142, qui en a
+  corrigé 3 → **35**. Le chiffre venait de la session qui venait d'en corriger trois et ne les avait
+  pas recomptées. *Un nombre écrit ici se remesure avant d'être cité.*
+- **Le test « un finish en 422 » ne testait pas le 422** : il levait un `Error` nu, parce que le
+  code ne distinguait pas les deux. Il croyait prouver le cas utile et prouvait aussi le nuisible.
+  Encore *un cas à DEUX exercé à UN* — le cinquième en deux jours.
+- ⚠️ **`tsc -b` ne part pas de la racine** (aucun `tsconfig.json` racine) : il rend `TS5083` **et
+  sort en code 0**. Se placer dans le paquet. Détail dans `TROUBLESHOOTING.md`.
+
+#### ▶ PROCHAIN PAS
+
+Relire le diff, lancer les suites, committer, pousser, PR, merger. **Rien d'autre n'est en vol.**
+
+---
+
 ### ✅ MERGÉ — l'agenda répond à trois questions (2026-08-17, PR #143, squash `b0f5d37`)
 
 Amendements **8 et 9** de l'ADR-0025, implémentés de bout en bout. **Trois migrations** :
@@ -96,8 +129,8 @@ Première fois depuis sept merges. Trois observations, aucune bloquante :
 
 1. 🔴 **Trancher la voie de la *required check*** (`## ⬆️ REMONTÉ` plus bas) — le trou est entier et
    nommé : un merge sur du rouge reste possible, et cette session vient précisément d'en faire un.
-2. **Les 38 occurrences du motif à branche morte** dans `frontend-massimo` — transversal, évident,
-   et Massimo y lit `Erreur 500`.
+2. ~~Les 38 occurrences du motif à branche morte~~ — **PRIS** le 2026-08-17, branche
+   `fix/erreurs-lisibles` (section en tête). Il y en avait **35**, pas 38.
 
 ---
 
@@ -180,9 +213,9 @@ tient, son argument principal non : à rouvrir sciemment, pas par entraînement.
 
 - **`gen_frontmatter.py` écrit un `pr:` FAUX** dès qu'un ADR **cite** une PR dans sa prose : `RE_PR`
   attrape le premier `PR #\d+` du texte. Contourné une fois à la main ; **le défaut est entier**.
-- **38 occurrences du motif à branche morte** dans `frontend-massimo` : `e instanceof Error ?
-  e.message : "<phrase gentille>"` — la phrase gentille est la branche MORTE, `asJson` levant un
-  vrai `Error`. Massimo lit donc `Erreur 500`. Chantier **transversal**, évident, jamais fait.
+- ✅ ~~38 occurrences du motif à branche morte dans `frontend-massimo`~~ — **CLOS** le 2026-08-17
+  (branche `fix/erreurs-lisibles`). Elles étaient **35**. ⚠️ **Le motif reste entier dans
+  `frontend-papa` : 113 occurrences**, laissées sciemment (interface adulte).
 - **Aucun lint dans ZETIS** — ni job CI, ni `ruff`. Vérifié : il n'a jamais existé.
 - **La matrice `Permissions` d'`API_SPEC.md` est à trous** (`/relecture`, `/mes-resultats/*`). Une
   matrice de permissions incomplète est elle-même un piège.

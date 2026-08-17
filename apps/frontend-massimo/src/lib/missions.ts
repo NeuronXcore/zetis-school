@@ -19,15 +19,35 @@ function headers(): HeadersInit {
   return token ? { ...base, Authorization: `Bearer ${token}` } : base;
 }
 
+/** Un refus que le SERVEUR a écrit **pour Massimo** — 409 quand la preuve d'une étape manque :
+ *  *« Réexplique d'abord la notion à ZETIS pour valider cette étape. »* C'est une consigne, pas un
+ *  diagnostic technique, et c'est la seule raison pour laquelle une phrase venue du réseau a le
+ *  droit d'atteindre son écran.
+ *
+ *  🔴 **Le type EST la frontière.** Avant, `asJson` levait un `Error` nu et `missionSteps.ts`
+ *  affichait `e.message` — ce qui rendait aussi bien la consigne du 409 que le `Erreur 500` que
+ *  cette fonction fabriquait elle-même. Un seul canal pour deux natures de message : impossible
+ *  d'en filtrer une sans l'autre. Deux types, deux sorts. Précédent du dépôt : `Eli5SttUnavailable`
+ *  dans `lib/eli5.ts`, qui distingue déjà un 503 de dictée d'une panne quelconque. */
+export class MissionRefus extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MissionRefus";
+  }
+}
+
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    // Le backend renvoie 409 { detail } quand la preuve d'une étape manque — message parlant.
     let detail: string | undefined;
     try {
       detail = ((await res.json()) as { detail?: string }).detail;
     } catch {
       detail = undefined;
     }
+    // ⚠️ **409 SEULEMENT.** Les autres codes portent des phrases écrites pour qui débogue
+    // (« Type d'étape non pris en charge. »), et un 500 n'en porte aucune : elles partent en
+    // console, l'écran dit sa propre phrase.
+    if (res.status === 409 && detail) throw new MissionRefus(detail);
     throw new Error(detail ?? `Erreur ${res.status}`);
   }
   return (await res.json()) as T;
