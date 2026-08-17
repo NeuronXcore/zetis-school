@@ -73,174 +73,127 @@ chapitre inexistant, la section du futur à 1050 px dans une fenêtre de 856.
   par la relecture paire, **maintenu** par le commanditaire (argument d'emplacement et de fugacité).
 - ✅ Worktree `claude/festive-kilby-0eafd7` et sa branche **supprimés** (2026-08-17). Vérifié avant :
   **zéro ligne** de sa branche n'était absente de `main` — le seul fichier divergent (`adr-0025`)
-  l'était dans l'autre sens. ⚠️ Elle était devenue une **référence trompeuse** : `18c4929` n'a
-  jamais porté le garde anti-conflit, pris directement sur `feat/agenda-v2`.
+  l'était dans l'autre sens. ⚠️ Elle était devenue une **référence trompeuse** : son dernier commit
+  n'a jamais porté le garde anti-conflit, pris directement dans son arbre de travail pour être
+  commité sur `feat/agenda-v2`. *(Le hash de ce commit ne figure pas ici : la branche étant
+  supprimée, il n'est plus atteignable et sera ramassé par le GC — une ligne qui le nommerait
+  deviendrait fausse.)*
+
+#### ✅ RELECTURE VISUELLE — FAITE le 2026-08-17
+
+La page a été regardée **aux deux largeurs**, dans les deux vues, du haut jusqu'au dernier registre.
+Première fois depuis sept merges. Trois observations, aucune bloquante :
+
+- le badge « En retard » **ne respire pas sur une capture** — une capture fige une animation ; le
+  mouvement a été mesuré séparément (`getAnimations()`, 3 s, ambre 50 % → 95 %) ;
+- **la bande est coupée à gauche sur iPhone** : elle s'ouvre aimantée sur aujourd'hui, donc le passé
+  est partiellement hors champ. Comportement voulu — s'ouvrir sur le rétroviseur serait pire ;
+- le contrôle du 14 n'apparaît plus dans « En retard » : **il a été coché** par le commanditaire.
 
 #### ▶ PROCHAIN PAS
 
-**Regarder la page en vrai, aux deux largeurs** — c'est tout ce qui reste, et c'est la dette la
-plus ancienne du dépôt (septième merge sans ce gate).
+**Aucun sur ce chantier — il est clos.** Les deux candidats, par ordre de coût :
+
+1. 🔴 **Trancher la voie de la *required check*** (`## ⬆️ REMONTÉ` plus bas) — le trou est entier et
+   nommé : un merge sur du rouge reste possible, et cette session vient précisément d'en faire un.
+2. **Les 38 occurrences du motif à branche morte** dans `frontend-massimo` — transversal, évident,
+   et Massimo y lit `Erreur 500`.
 
 ---
 
 
-### 🧭 CADRAGE — ADR-0061, la *required check* (2026-08-16, sur `main`)
+### ✅ MERGÉ — le tableau des amendements redevient généré (2026-08-17, via PR #143)
 
-**Aucune ligne de code.** Session de **cadrage** : elle vit sur `main`, ne livre rien, et écrit une
-décision. ✅ **Commitée** — `3372750`, puis corrigée en place par `a5d4016` (le moyen n'existe pas).
+`scripts/gen_tableau_amendements.py`. **Aucun ADR** : cas 2 de l'`adr-0060` — application d'une
+règle qui existait déjà (un artefact généré ne s'édite pas), pas une décision neuve.
 
-🔴 **Variante que `/cloture` ne couvre pas, et il faut la lire avant d'appliquer sa table** : le
-« chantier » que cet ADR cadre **n'est pas du code**. C'est **trois cases à cocher** dans
-*Settings → Branches* de GitHub. Il n'y aura donc **ni branche, ni PR, ni `/ouverture`** — le lot
-« spec + maquettes + prompts » de `WORKFLOW.md §2bis` est **vide par nature**. Le prochain pas
-n'est pas une commande, c'est un **geste de l'humain dans l'interface**.
+**Le problème** : la fusion du 2026-08-16 (PR #136) a supprimé les fichiers d'addendum sur
+lesquels `fusion_addendums.py::tableau_amendements()` itérait. Pendant une journée, la mention
+« ne pas éditer à la main » a désigné un outil devenu **incapable** de tenir la promesse — et
+l'Amendement 8 de l'`adr-0025` a dû être écrit à la main.
 
-#### ✅ FAIT — le lot `main`, en un seul commit
-
-| Fichier | Quoi |
-|---|---|
-| `docs/decisions/adr-0061-le-vert-devient-une-condition-d-entree.md` | la décision |
-| `DECISIONS.md` | **régénéré**, 61 décisions — ⚠️ jamais édité à la main |
-| `scripts/gen_frontmatter.py` | une ligne : `"0061"` dans `ARCHITECTURE` |
-| `MEMORY.md` | cette section + une correction de fait |
+🔴 **NE PAS RÉ-IMPLÉMENTER.** Le générateur lit les sections `## Amendement N — <titre> — <date>`
+**là où elles sont**, dans le fichier parent, et réécrit le seul bloc entre `> ### Amendements`
+et la ligne de mention. Il refuse d'écrire si une section manque une date ou un statut, si la
+numérotation n'est pas contiguë, si zéro fichier est trouvé, ou si le fichier porte des
+**marqueurs de fusion** — ce dernier cas est arrivé pour de vrai, en pleine fusion.
 
 #### 🔒 DÉCISIONS ACTIVES — à relire, jamais à rouvrir
 
-1. **Trois checks requis** (`backend — pytest`, `frontends — vitest`, `verrous du dépôt`).
-   **GitGuardian NON requis** : un service tiers en panne bloquerait le dépôt sans recours.
-   **« Branch up to date » NON exigé** : ~7 min de CI par avancement de `main`, pour un bénéfice
-   qui suppose des PR concurrentes — que le mono-chantier interdit.
-2. **Le bypass reste ouvert** (*Do not allow bypassing* décoché) : même arbitrage que `--no-verify`.
-   🔴 **Le signal à surveiller est l'USAGE du bypass, pas son existence** — deux fois en un mois
-   ⇒ **réparer la CI, jamais retirer le verrou**. *(L'exception qui visait `fix/observation-sorties`
-   est caduque : la branche est mergée verte, elle n'a jamais eu besoin du bypass.)*
-3. **Un merge autorisé ne dit RIEN du diff ni du périmètre.** Le vert devient une condition
-   **nécessaire** ; il n'a jamais été suffisante. `WORKFLOW.md` §2 étape 4 reste entière.
+- **La source de vérité est la SECTION, jamais le tableau.** Le tableau n'est qu'une vue.
+- **Le verrou CI (`--check`, job `verrous`) est ce qui rend la mention vraie** au lieu de pieuse.
+  Sans lui, un amendement écrit sans régénérer fait redériver le tableau en silence.
+- 🔴 **`REVOCATION_DECLAREE` demande une ligne par amendement neuf** — clé `adr-XXXX::<titre>`.
+  Rien à retenir : le rapport la réclame tout seul, et le verrou rougit tant qu'elle manque.
+  La détection par les mots a été retirée parce qu'elle **mentait sur 12 des 46 lignes**.
 
-#### 🧾 DETTES OUVERTES — nées de ce cadrage
+#### 🔴 CE QUI COMPTE
 
-- 🔴 **`gen_frontmatter.py` a rempli `pr: 136` sur cet ADR — un FAIT FAUX.** `RE_PR` attrape le
-  premier `PR #\d+` du texte, or l'ADR **cite** la PR #136 dans son contexte sans en être issu.
-  Corrigé **à la main** (`pr: null`) ; le fichier ayant désormais un front-matter, une
-  régénération le saute et la correction tient. **Le défaut du script, lui, reste entier** — tout
-  ADR qui cite une PR dans sa prose recevra ce champ faux.
-- ⚠️ **`type:` était `surface`**, ce qui aurait rangé la décision commandant l'entrée dans `main`
-  parmi les décisions d'écran. Corrigé dans le fichier **et** dans `ARCHITECTURE` du script, comme
-  l'`adr-0060` avant lui — c'est un motif qui se répète, pas un accident.
-- ⚠️ **`BACKLOG.md` n'a PAS été touché, à dessein** : c'est un backlog **fonctionnel** (P0/P1/P2 par
-  surface produit). Un réglage de protection de branche n'y est pas une entrée, c'en serait une
-  erreur de catégorie.
-- ⚠️ **Le geste lui-même n'est pas vérifiable depuis le dépôt.** Rien dans Git ne dira si les trois
-  cases sont cochées. La seule preuve serait **une PR volontairement rouge qui refuse de se merger**.
-  🔴 **Le témoin prévu n'existe plus : `fix/observation-sorties` a été MERGÉE, et VERTE** (PR #142,
-  squash `40eb4a8`, 2026-08-16). La PR qui devait fournir la preuve sans rien fabriquer a été
-  réparée puis livrée. Le jour où le réglage deviendra possible, il faudra **une PR rouge exprès** —
-  donc fabriquée, ce que ce point voulait précisément éviter. *Un témoin qu'on répare cesse d'être
-  un témoin* : celui qui compte sur un état cassé doit être consommé avant qu'on le corrige.
+⚠️ **La colonne « Révoque » a été corrigée sur 12 lignes**, pas 9 : neuf sections écrivaient
+« Ne révoque rien » et étaient comptées `oui`, et **trois de plus qu'aucune formule ne repère** —
+`adr-0025` Amdt 5 (« amendé, pas révoqué »), `adr-0032` Amdt 1 et `adr-0015` Amdt 1, qui révoquent
+leur **propre brouillon**, pas le parent. C'est une modification de métadonnées de décision déjà
+relues : elle a été **arbitrée**, pas glissée.
 
-#### 🧪 TESTS
+⚠️ **Une fence ` ``` ` orpheline a été supprimée dans `adr-0016`** (ligne 168, antérieure à la
+fusion, présente dès le commit d'origine). Elle faisait rendre **tout l'Amendement 1 comme un bloc
+de code** dans n'importe quel viewer markdown, et rendait le tableau de cet ADR non régénérable.
 
-**Aucun : aucune ligne de code** dans ce cadrage.
-
-✅ **Mais les suites ont bougé depuis, et elles sont MESURÉES sur le `main` mergé** :
-**1391 / 843 / 814** (contre 1384 / 807 / 814 au squash `314f336`). CI verte sur `main` pour
-`40eb4a8`. Les deux chantiers qui les ont fait monter sont décrits plus bas.
-
-⚠️ **Le compte de rouges de `fix/observation-sorties` était de 6, pas 3** — corrigé à la mesure,
-puis **soldé** : les six sont réparés et la branche est mergée.
-
-#### ▶ PROCHAIN PAS
-
-🔴 **LE GESTE EST IMPOSSIBLE — constaté le 2026-08-17.** La protection de branche n'existe pas sur
-un **dépôt privé en plan gratuit** : `branches/main/protection` et `rulesets` répondent tous deux
-**403** (*« Upgrade to GitHub Pro or make this repository public »*).
-
-**L'ADR-0061 a été corrigé EN PLACE** (et non par addendum : il est `propose` et cité par aucun
-autre ADR — `adr-0060`). Il reste **juste et proposé** ; seul son moyen manque. Son §Suivi porte les
-trois conditions qui le débloqueraient, et **ce qui tient le rôle en attendant**.
-
-1. **Trancher la voie** — la plus courte est **GitHub Pro** (~4 $/mois). Rendre le dépôt public est
-   **exclu** : il porte les données de Massimo. Une organisation Team débloque aussi, au prix d'une
-   administration pour **un** contributeur.
-2. ⚠️ **En attendant, le trou est ENTIER et il est nommé** : un merge sur du rouge reste possible,
-   à la seule condition de ne pas regarder. C'est exactement la situation du 2026-08-16. Le hook est
-   local et contournable ; la CI **affiche** sans empêcher.
-3. 🔴 **La leçon, qui vaut au-delà** : *un ADR qui décide d'un RÉGLAGE doit vérifier que le réglage
-   EXISTE avant de l'écrire.* Une commande d'API en lecture aurait suffi. Le read-before-code
-   s'applique aux **moyens** autant qu'au code.
-
-✅ **~~Le chantier d'application de l'ADR-0060~~ — FAIT** (PR #140, squash `2105ba9`).
+🔴 **Trois fois dans la session, l'instrument de vérification était le fautif, pas le code** — un
+`glob` sur un répertoire vide parce que le `cwd` avait persisté entre appels Bash, un pilote de
+test appelant une signature de la veille, un motif `grep` incomplet. Chaque fois il **accusait**,
+et chaque fois le vérifier avant d'envoyer a évité une fausse alerte. Un outil qu'on n'interroge
+pas devient une source d'erreur qui a l'apparence d'une mesure.
 
 ---
 
-### ✅ DEUX CHANTIERS MERGÉS — les rôles de `diagnostics` et les sorties de passation (2026-08-16)
 
-**Étape 4bis faite.** Rien à pousser, rien en attente de commit.
+## ⬆️ REMONTÉ de l'élagage du 2026-08-17 — ce qui reste OUVERT
 
-| Chantier | PR | Squash | Branche |
-|---|---|---|---|
-| Les 3 dernières routes sans rôle | [#141](https://github.com/NeuronXcore/zetis-school/pull/141) | `b29a985` | `fix/diagnostics-roles` — ✅ **supprimée** (locale + distante) |
-| Les 4 sorties de passation | [#142](https://github.com/NeuronXcore/zetis-school/pull/142) | `40eb4a8` | `fix/observation-sorties` — ✅ **supprimée** (locale + distante) |
+> Deux sections retirées : le **cadrage ADR-0061** (2026-08-16) et les **deux chantiers
+> `diagnostics`** (2026-08-16). Leurs récits sont dans Git, leurs décisions dans les ADR. Ce qui
+> suit est **tout ce qui restait ouvert** — et le contrôle 4 de l'élagage l'a exhumé.
 
-🔴 **Avant de supprimer, comparer au SQUASH — jamais à la tête de `main`** (`WORKFLOW.md` §2 étape 6).
-Fait par `patch-id` : `731dcb1c…` des deux côtés pour #141, `9f9edfc3…` pour #142, base `a5d4016`.
-⚠️ **Le premier passage de cette vérification a rendu ✅ sur DEUX comparaisons VIDES** — zsh n'avait
-pas découpé les paires, et `[ "" = "" ]` répond vrai. *Une comparaison qui ne mesure rien conclut à
-l'identité.* Toute vérification avant destruction doit **refuser un résultat vide**, pas seulement
-comparer les deux résultats.
+### 🔴 UNE DÉCISION T'ATTEND — la *required check* est IMPOSSIBLE en l'état
 
-**ADR-0060 cas 2 (application)** pour les deux : on exécute l'ADR-0002, l'ADR-0043 et l'ADR-0048.
-**Aucun ADR neuf**, et c'était le bon appel — aucune décision n'a été rouverte.
+L'**ADR-0061** décide qu'une PR rouge ne doit pas pouvoir se merger. **Le réglage n'existe pas sur
+un dépôt privé en plan gratuit** : `branches/main/protection` et `rulesets` répondent tous deux
+**403** (*« Upgrade to GitHub Pro or make this repository public »*). L'ADR reste **juste et
+proposé** ; seul son moyen manque.
 
-Suites sur le `main` mergé : **1391 / 843 / 814**, CI verte sur `40eb4a8`.
+- La voie la plus courte est **GitHub Pro** (~4 $/mois). Rendre le dépôt **public est exclu** : il
+  porte les données de Massimo.
+- ⚠️ **En attendant, le trou est ENTIER** : un merge sur du rouge reste possible, à la seule
+  condition de ne pas regarder. Le hook `pre-push` est local et contournable ; la CI **affiche**
+  sans empêcher. *C'est exactement la situation dans laquelle cette session a mergé la PR #143.*
+- 🔴 **Le témoin prévu n'existe plus** : la PR qui devait fournir la preuve a été réparée puis
+  mergée, verte. *Un témoin qu'on répare cesse d'être un témoin.*
 
-#### 🔴 CE QUI COMPTE — deux verrous qui ne verrouillaient rien, et un œil qui a vu
+### 🔴 TOUJOURS OUVERT — outillage
 
-1. **Le verrou de rôle était VERT SUR UNE LISTE VIDE.** Depuis **FastAPI 0.139**, `include_router`
-   ne met plus les routes à plat dans `app.routes` : il y range des `_IncludedRouter` (46, **aucun**
-   `APIRoute`). `isinstance(route, APIRoute)` ne trouvait rien. Seul l'**anti-test-à-vide** l'a vu.
-   ⚠️ **`test_galaxy.py` n'était PAS atteint** — il énumère `student_router.routes`, le routeur nu.
-   *Tout test qui énumère `app.routes` est désormais suspect ; énumérer le ROUTER, jamais l'app.*
-2. **La relecture visuelle a trouvé un défaut qu'aucun test ne pouvait voir.** Massimo clique
-   « Envoyer » en bas d'une page de 16 questions (`scrollTop` 3585 / 4360) ; le message d'erreur
-   naissait **3509 px au-dessus de sa vue**. À son écran, **rien ne se passait**. Les tests assertent
-   sur `document.body.textContent`, qui ignore la position. *Affiché ≠ VU.*
-3. **`e instanceof Error ? e.message : "<phrase gentille>"` — la phrase gentille est une BRANCHE
-   MORTE**, et le motif apparaît **39 fois** dans l'app de Massimo. `asJson` lève un vrai `Error`,
-   donc `e.message` gagne toujours : il lisait `Erreur 500`. Corrigé **sur cette page seulement**.
+- **`gen_frontmatter.py` écrit un `pr:` FAUX** dès qu'un ADR **cite** une PR dans sa prose : `RE_PR`
+  attrape le premier `PR #\d+` du texte. Contourné une fois à la main ; **le défaut est entier**.
+- **38 occurrences du motif à branche morte** dans `frontend-massimo` : `e instanceof Error ?
+  e.message : "<phrase gentille>"` — la phrase gentille est la branche MORTE, `asJson` levant un
+  vrai `Error`. Massimo lit donc `Erreur 500`. Chantier **transversal**, évident, jamais fait.
+- **Aucun lint dans ZETIS** — ni job CI, ni `ruff`. Vérifié : il n'a jamais existé.
+- **La matrice `Permissions` d'`API_SPEC.md` est à trous** (`/relecture`, `/mes-resultats/*`). Une
+  matrice de permissions incomplète est elle-même un piège.
+- **`GET /diagnostics/subjects` n'a aucun test de comportement nominal** — couvert en refus, jamais
+  en service.
+- ⚠️ **`b29a985` n'a AUCUN verdict de CI sur `main`** : deux merges à 3 s d'intervalle, le
+  `cancel-in-progress` a tué son run. Contenu vert sur sa PR, mais un bisect tombera sur un commit
+  que la CI n'a jamais mesuré.
 
-#### 🧾 DETTES OUVERTES — nées de ces deux chantiers
-
-- 🔴 **38 occurrences du motif à branche morte restent**, dans tout `frontend-massimo`. Même défaut,
-  mêmes phrases jamais lues. C'est le prochain chantier évident, et il est **transversal**.
-- 🔴 **`b29a985` n'a AUCUN verdict de CI sur `main`.** Les deux merges à 3 s d'intervalle ont
-  déclenché le `cancel-in-progress` de `ci.yml` : le run de `b29a985` a été tué par celui de
-  `40eb4a8`. Son contenu était vert sur la PR #141 (même arbre, squash propre) — mais un bisect
-  tombera sur un commit de `main` que la CI n'a jamais mesuré. *Prix du réglage, pas défaut.*
-- ⚠️ **Le 4ᵉ message d'erreur (liste) n'a jamais été VU.** Couper le backend **déconnecte l'app**
-  avant d'atteindre la page — impossible à photographier. Il rend dans le **même** paragraphe que
-  celui de la relecture (`erreurAction ?? erreur`, même `ref`, même effet), donc il hérite de la
-  visibilité prouvée. Hérité, pas constaté.
-- ⚠️ **`GET /diagnostics/subjects` n'a aucun test de comportement nominal** — ni avant ni après.
-  Elle est couverte en refus (403 à l'enfant), jamais en service.
-- ⚠️ **La matrice `Permissions` d'`API_SPEC.md` reste à trous** : `/relecture` et `/mes-resultats/*`
-  n'y figurent pas. Une matrice de permissions incomplète est elle-même un piège.
-- ⚠️ **Aucun lint dans ZETIS** — ni job CI, ni `ruff` dans `pyproject.toml`. Vérifié, ce n'est pas
-  une étape sautée : il n'a jamais existé.
-
-#### 📌 LEÇONS DE MÉTHODE — elles ont resservi dans la même session
+### 📌 DEUX LEÇONS DE MÉTHODE qui ont resservi
 
 - 🔴 **Le hook `pre-push` mesure l'ARBRE DE TRAVAIL, pas la référence poussée**, et rien dans sa
-  sortie ne le dit. Pousser une branche non extraite afficherait trois lignes vertes sur du code
-  qui n'est pas celui qu'on envoie. Parade appliquée : **basculer sur chaque branche avant de la
-  pousser** (les chiffres l'ont confirmé — 1391/807 d'un côté, 1384/843 de l'autre).
-- 🔴 **Deux de mes propres tests n'atteignaient aucune assertion**, deux fois pour la même raison :
-  écrits contre la forme du CORPS HTTP au lieu de celle de l'APPEL. `json={}` sur un `GET` (httpx
-  refuse), et `charge.answers` alors que `submitDiagnostic` reçoit le tableau en 2ᵉ argument.
-- ⚠️ **Une contre-épreuve a visé à côté** — 21 rouges d'un coup, soit un décor cassé, pas une
-  preuve. Refaite en réintroduisant **le défaut d'origine à l'identique** : 1 rouge, le bon.
+  sortie ne le dit. Basculer sur chaque branche avant de la pousser.
+- 🔴 **Une contre-épreuve qui casse le décor ne prouve rien.** 21 rouges d'un coup = décor cassé.
+  Refaire en réintroduisant **le défaut d'origine à l'identique** : 1 rouge, le bon.
 
 ---
+
 
 ## ⬆️ REMONTÉ de l'élagage de l'application de l'ADR-0060 (PR #140, squash `2105ba9`)
 

@@ -38,7 +38,10 @@ user_id
 first_name
 school_level_current
 birth_year optional
-agenda_last_seen_at optional   # high-water mark du témoin de nouveauté agenda (ADR-0030)
+agenda_last_seen_at optional     # high-water mark du témoin de nouveauté agenda (ADR-0030)
+agenda_late_alert_on optional    # jour de la dernière alerte de retard (ADR-0025 Amdt 9 §D12)
+agenda_late_alert_floor optional # bord bas de la fenêtre d'alerte — date
+agenda_late_alert_item_id optional # départage : dernière échéance alertée (même jour)
 created_at
 updated_at
 ```
@@ -50,6 +53,24 @@ updated_at
 dernier regard de Massimo sur son agenda. Écrit à l'ouverture de `/agenda` **et** au rendu du
 bandeau d'Accueil, par `agenda/service.py::mark_agenda_seen` et lui seul, avec `func.now()`
 (horloge SQL des deux côtés de la comparaison avec `agenda_items.created_at`).
+
+**Les TROIS colonnes `agenda_late_alert_*`** (ADR-0025 Amdt 9 §D12, migrations `a8d76627dc51`,
+`a86333999bf0`, `a8a71c84f86e`) — le mécanisme de l'alerte de retard à l'ouverture de `/agenda`.
+
+| Colonne | Répond à |
+|---|---|
+| `agenda_late_alert_on` | « en ai-je déjà montré une **aujourd'hui** ? » |
+| `agenda_late_alert_floor` | « **à partir d'où** je regarde ? » |
+| `agenda_late_alert_item_id` | « laquelle, quand deux tombent **le même jour** ? » |
+
+🔴 **Il en faut trois, et chaque fusion de deux d'entre elles a coûté une échéance perdue.**
+Confondre les deux premières faisait brûler toute la fenêtre alors qu'une seule échéance en était
+sortie ; se passer de la troisième faisait sauter le plancher par-dessus deux échéances de la même
+date. Le plancher est un **couple** `(due_on, id)`, comme l'ordre de sortie.
+
+⚠️ **Toujours des scalaires PAR ÉLÈVE, jamais une marque par item** — la même contrainte que
+`agenda_last_seen_at` ci-dessous, et pour la même raison. ⚠️ **Aucune des trois ne sort d'une
+route** : test de non-fuite dans `test_agenda.py`.
 
 Deux propriétés qui sont des décisions, pas des détails :
 

@@ -4,6 +4,108 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Agenda v2 — quatre défauts d'une même forme, zéro trouvé par les tests — 2026-08-17 *(PR #143, squash `b0f5d37`)*
+
+### 🔴 Un test qui n'exerce qu'UN exemplaire de ce qui peut arriver en DEUX teste le cas facile
+
+Le mécanisme d'alerte de retard a porté **quatre défauts réels**, tous de la même forme, et tous
+perdant silencieusement une échéance sur l'écran d'un enfant :
+
+| # | ce qui pouvait arriver en double | ce que les tests exerçaient | trouvé par |
+|---|---|---|---|
+| 1 | deux échéances en retard dans la même fenêtre | une seule | relecture paire |
+| 2 | deux versions du client (bundle en cache) | la version courante | relecture paire |
+| 3 | deux accusés de réception le même jour | un par jour | relecture paire |
+| 4 | deux échéances **à la même date** | une par date | une **capture d'écran** |
+
+**Cause commune** : le cas facile est celui qu'on a en tête en écrivant le code, donc celui qu'on
+teste. **Parade** : devant toute règle qui garde un état, demander *« qu'est-ce qui peut arriver
+DEUX FOIS ici ? »* — deux entités, deux appels, deux versions du client, deux sessions.
+
+⚠️ **Deux des quatre étaient dans le correctif du précédent.** Un correctif déplace le défaut aussi
+souvent qu'il le supprime, et il **change le mode de dégradation** — ce que personne ne re-teste :
+rater un accusé coûtait « une alerte de trop aujourd'hui », c'est devenu « la même, tous les jours,
+sans fin ». **Reposer la question sur le correctif.**
+
+🔴 **Le quatrième est d'un cran au-dessus : le « deux » était dans le TYPE.** Le plancher de la
+fenêtre était une **date**, et une date ne sait pas compter jusqu'à deux — deux échéances du même
+jour étaient indistinguables *par construction*. Aucune relecture de scénario ne pouvait le sortir.
+**Parade** : *le type choisi peut-il seulement REPRÉSENTER la multiplicité que le domaine
+autorise ?* Ici il fallait un couple `(date, id)` — l'ordre de tri l'était déjà.
+
+⚠️ **Zéro sur quatre trouvé par la suite de tests ou par la CI**, vertes à chaque étape. *La CI
+protège contre la RÉGRESSION, jamais contre la CONCEPTION.*
+
+### 🔴 Trois de mes propres verrous sont restés VERTS sous sabotage
+
+À chaque fois je vérifiais une **déclaration**, pas un **effet** :
+
+| Verrou | Pourquoi il ne mordait pas |
+|---|---|
+| « aucune quantité dans la réponse » | `response_model` **filtre** la sortie : ajouter un champ au dict du service ne fuit jamais. Le verrou devait porter sur le **schéma** |
+| garde anti-recul du plancher | le scénario qui la met en défaut (accusé rejoué) n'existait dans aucun test |
+| existence d'une keyframe CSS | `@keyframes <nom>\b` : **un tiret EST une frontière de mot**, donc `<nom>-ancien` passait. Ancrer sur l'accolade `\s*\{` |
+
+**Parade** : après avoir écrit un verrou, le saboter — et si le sabotage passe, le verrou est faux,
+pas le code.
+
+### ⚠️ Quatre défauts n'ont été vus qu'À L'ÉCRAN
+
+Un toast qui sortait par le haut (469 px de haut, `top` calculé à **−149** — un seuil de placement
+qui *supposait* la hauteur) · un fond dérivant qui n'animait rien (translation **parallèle** aux
+rayures d'un `repeating-linear-gradient(45deg)`, déphasage nul) · un libellé qui nommait « ce
+chapitre » quand aucun chapitre n'existait · une section à **1050 px** dans une fenêtre de 856.
+
+**Parade** : `getAnimations()` pour prouver qu'une animation tourne — une classe CSS ne prouve
+rien. Et **mesurer** une position dans le DOM plutôt que raisonner sur elle.
+
+### ⚠️ jsdom ne met rien en page — un test de géométrie y est toujours vert
+
+`getBoundingClientRect` rend des zéros. Un test de placement écrit naïvement passe **identiquement**
+sur le code fautif et sur le corrigé. **Parade** : injecter la hauteur en remplaçant
+`Element.prototype.getBoundingClientRect` pour l'élément visé, avec la géométrie **mesurée dans le
+navigateur**.
+
+### 🔴 Un worktree `.claude/worktrees/` n'isole PAS ce que sa session écrit
+
+Une session paire a modifié un ADR **dans l'arbre de travail principal** pendant que j'y
+travaillais. J'ai lu sa mention et l'ai citée comme *« la note d'origine »* du dépôt — or `main`
+disait autre chose. **Parades** : `git show origin/main:<fichier>` et `git log -S "<chaîne>"` pour
+toute affirmation sur ce que le dépôt « disait » ; `ListAgents` **avant** de committer dans un dépôt
+partagé.
+
+⚠️ **Une mesure qui change sans qu'on ait rien fait est un signal, pas un mystère** : un contrôle
+est passé de « 7 tableaux ont dérivé » à « 0 » entre deux appels. C'était une autre session qui
+régénérait — j'ai d'abord cherché un bug dans le script.
+
+⚠️ **Mon commit a capturé son travail EN VOL à 8 secondes près.** Un état intermédiaire est
+*cohérent-mais-faux* par nature. **Parade** : demander à l'auteur s'il a fini, pas regarder si ça
+compile.
+
+### ⚠️ Comparer deux diffs ne prouve rien si les bases diffèrent — et rien ne l'affiche
+
+J'allais contredire une paire sur cette base : son diff partait d'un commit, le mien d'un autre.
+**Parade** : comparer les **fichiers**, ou leurs empreintes.
+
+### ⚠️ Deux commandes du dépôt étaient fausses dans leur propre documentation
+
+- `check_migration_drift.py` : la commande de production montait le script dans `/scripts`, alors
+  qu'il déduit la racine du dépôt de **sa propre position** — il cherchait `/apps/backend/alembic`,
+  que personne ne monte, et s'arrêtait sur `CommandError`. **L'outil qui mesure la dérive ne
+  pouvait pas se lancer depuis sa propre documentation.**
+- `adr-0025` renvoyait vers `scripts/gen_tableau_amendements.py`, **qui n'existait pas** — la
+  mention « ne pas éditer à la main » a désigné un outil absent pendant une journée.
+
+### ⚠️ Les identifiants de migration « à la main » collisionnent
+
+Deux tentatives de suite (`a1b2c3d4e5f9`, `c1d2e3f4a5b6`) étaient **déjà prises** : l'alphabet
+employé dans ce dépôt (`a1b2c3d4…`) est si étroit que la collision est la règle. Le défaut n'éclate
+qu'au **démarrage de la production** (`alembic upgrade head` → *« Revision … is present more than
+once »*), jamais dans la suite de tests, qui tourne sur un SQLite créé par `metadata.create_all` et
+ne traverse pas alembic. Attrapé par `test_migrations_graph.py`.
+**Parade** : `secrets.token_hex(6)`, **vérifié** contre l'ensemble des révisions existantes.
+
+
 ## Leçons transversales — relogées depuis `MEMORY.md` — 2026-08-16
 
 > **Pourquoi elles arrivent ici.** Onze élagages successifs de `MEMORY.md` ont chacun retiré leur

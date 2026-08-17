@@ -1,5 +1,41 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.0 — L'agenda répond à trois questions
+
+Massimo ouvrait une page qui se contredisait : sur samedi 15 août, elle affirmait « Rien à rendre ce
+jour-là », puis cinquante lignes plus bas et en plus petit, « tu as travaillé 3 fois ». Elle niait le
+vide, puis le démentait en note de bas de page — et ce qu'elle concédait était **un nombre**, ni la
+matière, ni la notion, ni la forme du travail.
+
+**Ce qu'il voit maintenant**, dans cet ordre : ce qu'il y a **à faire**, comment **prendre de
+l'avance**, ce qui est **en retard**. Chaque section porte un liseré dont la couleur vient du
+calendrier juste au-dessus — aucun code nouveau à apprendre.
+
+- **Une vue mois**, en plus de la bande de 14 jours qui reste le défaut. Un jour passé raconte
+  enfin ce qui a été travaillé : matières, notions, formes — jamais un nombre.
+- **La couleur dit la matière, la forme dit la nature.** Quatre silhouettes distinctes là où leçon
+  et contrôle partageaient le même losange à 10 px.
+- **Survoler un jour en donne l'aperçu**, taper l'ouvre.
+- **« Prendre de l'avance »** part de la prochaine échéance et propose ce qui la prépare : son plan,
+  la mindmap de ce chapitre, ses cartes, la mission de cette notion.
+- **Une alerte éphémère à l'ouverture**, uniquement sur du **nouveau** retard, une fois par jour, et
+  qui nomme **une** échéance — jamais un total.
+
+⚠️ **Le vocabulaire change** : « À reprendre » devient **« En retard »**, dans un badge ambre qui
+respire. Décision du commanditaire, prise en connaissance de la doctrine qu'elle révoque — c'est la
+quatrième révocation du §7 de l'ADR-0025 dans la même journée. Ce qui ne bouge pas : **aucun rouge,
+aucun compteur d'arriéré, aucun total, aucune série.**
+
+🔴 **Quatre défauts ont failli passer**, tous de la même forme — *un cas à deux exercé à un* : deux
+échéances dans la fenêtre, deux versions du client, deux accusés le même jour, deux échéances à la
+même date. Chacun perdait silencieusement une échéance sur l'écran d'un enfant, dont un **contrôle**.
+Trois ont été trouvés par une relecture paire, un par une capture d'écran — **aucun par les tests ni
+par la CI**, verts à chaque étape.
+
+**Outillage** : le tableau des amendements des ADR redevient **généré** (il ne l'était plus depuis la
+fusion des addendums), avec un verrou CI ; et l'outil qui mesure la dérive des migrations de
+production peut enfin se lancer — sa propre documentation donnait une commande fausse.
+
 ## 0.98.0 — La méthode dit enfin ce qu'elle décide
 
 Rien ne change pour Massimo ni pour Papa. Mais le dépôt cesse de porter **deux doctrines opposées** :

@@ -2306,6 +2306,71 @@ Deux préfixes, deux schémas, **jamais mélangés**. Toute règle de visibilit�
 
 Tout utilisateur authentifié (rôle `child` inclus). Schéma `AgendaItemStudentOut`.
 
+#### GET `/month?anchor=YYYY-MM`
+
+La grille **mois** (ADR-0025 Amdt 8 §D1), seconde vue — la bande reste le défaut. Même forme de
+jour que `/week`. Ne rend **que** les jours du mois : les cellules d'alignement sur lundi sont
+fabriquées côté client, et rendues **totalement vides, sans numéral**.
+
+```txt
+{ anchor, days[], prev_anchor, next_anchor }
+```
+
+`prev_anchor` / `next_anchor` valent `null` aux bornes — le chevron **disparaît** côté client, il
+n'est jamais grisé (§14.6). Bornes : plancher de l'année scolaire, plafond `MONTH_NAV_AHEAD` mois.
+
+#### GET `/days/{date}/traces`
+
+Ce que Massimo a travaillé ce jour-là (Amdt 8 §D2) : **matières, notions, formes** — jamais un
+nombre.
+
+```txt
+{ date, subjects[]: { slug, name, color, notions[], forms[] } }
+```
+
+🔴 **Route ÉLÈVE à schéma dédié.** Ne jamais la router vers `activity.service.day_detail`, qui sert
+`time`, `minutes`, `xp` et `score_percent` — quatre interdits d'un coup, et « filtrer côté client »
+n'a jamais été une frontière. Matières dans l'ordre **chronologique de première touche** : un récit,
+pas un classement.
+
+#### GET `/ahead`
+
+« Prendre de l'avance » (Amdt 9 §D6) — la prochaine échéance et les gestes qui la préparent, en
+**un seul appel** pour cinq sources.
+
+```txt
+{ anchor: { item_id, label, kind, due_on, subject, chapter_id, lesson_id } | null,
+  gestes[]: { kind: plan|mindmap|revision|mission|renforcer, detail, mindmap_id, skill_id } }
+```
+
+🔴 **Aucun nombre** : ni `days_left`, ni `due_count`, ni score, ni total. L'ancre **nomme** son jour,
+elle ne le décompte pas. 🔴 **Aucune route non plus** — la table de routage vit côté client
+(`notionRoutes.ts`) et n'existe qu'une fois. Un geste n'est servi **que si sa cible existe** : c'est
+le serveur qui tranche. `anchor: null` n'est pas une réponse vide — les gestes qui tiennent debout
+sans échéance sont servis quand même.
+
+#### GET `/late-alert` · POST `/late-alert/seen`
+
+L'alerte de retard à l'ouverture (Amdt 9 §D12) — **du NOUVEAU retard seulement, une fois par jour**,
+et **une** échéance nommée.
+
+```txt
+GET  → { item_id, label, kind, due_on, subject } | null
+POST ← { item_id: int | null }   → 204
+```
+
+🔴 **La lecture ne CONSOMME pas l'alerte** : c'est le POST qui l'accuse, une fois le toast
+réellement affiché. Marquer sur le GET la perdrait à toute requête qui n'aboutit pas à l'écran — et
+React réinvoque les effets en double en développement.
+
+⚠️ **`item_id` est optionnel sur le fil, obligatoire côté client.** Un bundle en cache d'avant le
+correctif n'en envoie aucun : le serveur **recalcule** alors la même requête, et le vieux client se
+répare seul. Sans ce recalcul, le plancher restait immobile et le même toast revenait **tous les
+jours**. L'`id` est revalidé côté serveur — jamais cru sur parole.
+
+⚠️ **Le premier appel n'alerte JAMAIS** : il pose le plancher. Sans lui, toute l'histoire scolaire
+deviendrait « nouvelle » d'un coup.
+
 #### GET `/week?anchor=YYYY-MM-DD`
 
 Bande **glissante** : 3 jours avant l'ancre (défaut : aujourd'hui), l'ancre, 10 jours après
