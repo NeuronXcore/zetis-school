@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZETIS — Papa · La lacune ne se solde pas, elle se vérifie (maquette v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   v2 — la lacune ne se solde pas, elle se vérifie.
+
+   Elle ne refait PAS la page et ne révoque RIEN de la v1 : les trois sections,
+   leurs libellés, leurs deux boutons de génération, le filtre et les gestes de
+   ligne de l'`adr-0047` sont inchangés. Ce que la v2 ajoute est une QUATRIÈME
+   section, et une seule idée : une mesure contraire ne referme pas une lacune,
+   elle requalifie le travail à proposer.
+
+   Cadrage : `claude/CADRAGE_LACUNE_VERIFIEE_2026-08-16.md`.
+   Tokens repris VERBATIM de `mockup-papa-lacunes-v1.html`, aucun style inventé.
+
+   ─────────────────────────────────────────────────────────────────────────
+   🔴 STATUT DES DONNÉES — et c'est la différence avec la v1.
+
+   La v1 était peuplée d'un relevé en base du 2026-08-09, et c'est ce relevé
+   qui a révélé le cul-de-sac. La v2 ne peut pas en dire autant :
+
+     · ÉCRAN A — données RÉELLES, reprises du relevé de la v1.
+     · ÉCRANS B, D, E, G — données ILLUSTRATIVES. Les deux relevés qui les
+       fonderaient (points 8 et 14 du read-before-code) n'ont pas encore été
+       faits : personne ne sait combien de lacunes ouvertes portent un signal
+       positif postérieur, ni comment elles se répartissent entre les cinq
+       causes de manque de contenu.
+     · ÉCRAN F — surface DÉJÀ LIVRÉE (`VuePeriode.tsx`), rendue ici pour
+       mémoire, pas proposée.
+
+   ⚠️ Si le point 8 rend ZÉRO, l'écran B n'existera jamais et seul l'écran C
+   sera vrai. La maquette montre les deux pour que l'arbitrage se fasse en les
+   voyant — pas pour laisser croire que B est acquis.
+   ─────────────────────────────────────────────────────────────────────────
+
+   ✅ CE QUE LE READ-BEFORE-CODE A ÉTABLI, et qui tient cette maquette :
+     · un seul écrivain de `resolved` — `missions/service.py:1095` ;
+     · `resolved_at` EST lue : `gaps_closed_this_week()` et le fait
+       `gap_resolved` de `progress/skills.py:236` ;
+     · l'écran F est livré — `VuePeriode.tsx:16-17` ;
+     · 🔴 `CONTENU_OK` ne veut pas dire « travaillable » : il veut dire
+       « une leçon validée existe ». C'est l'écran D.
+   ========================================================================= */
+:root{
+  --papa-bg:#0a0f1a;
+  --papa-surface:#111a28;
+  --papa-surface-2:#18243a;
+  --papa-border:#243348;
+  --papa-text:#e6edf6;
+  --papa-muted:#8595ac;
+  --papa-accent:#10b981;
+  --papa-accent-2:#38bdf8;
+  --papa-warn:#f59e0b;
+
+  --accent-wash:rgba(16,185,129,.13);
+  --accent-line:rgba(16,185,129,.34);
+  --warn-wash:rgba(245,158,11,.11);
+  --warn-line:rgba(245,158,11,.38);
+  --sky-wash:rgba(56,189,248,.12);
+  --sky-line:rgba(56,189,248,.34);
+  --void:#5c6b82;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:40px 24px 80px;
+  background:var(--papa-bg);color:var(--papa-text);
+  font-family:'Instrument Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.55;
+}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-family:Archivo,sans-serif;font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+h2.ecran{
+  font-family:Archivo,sans-serif;font-size:13px;text-transform:uppercase;
+  letter-spacing:.14em;margin:44px 0 4px;color:var(--papa-accent);
+}
+h2.ecran.avant{color:var(--void)}
+h2.ecran.livre{color:var(--papa-accent-2)}
+.sub{color:var(--papa-muted);font-size:14px;margin:0 0 22px}
+.note{
+  border:1px solid var(--accent-line);background:var(--accent-wash);
+  border-radius:12px;padding:14px 16px;margin:0 0 8px;font-size:13.5px;
+}
+.note.warn{border-color:var(--warn-line);background:var(--warn-wash)}
+.note.sky{border-color:var(--sky-line);background:var(--sky-wash)}
+.note.plat{border-color:var(--papa-border);background:var(--papa-surface);color:var(--papa-muted)}
+.note b{color:var(--papa-text)}
+code{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:var(--papa-accent-2)}
+
+/* --- l'écran --- */
+.ecran-cadre{
+  border:1px solid var(--papa-border);border-radius:16px;
+  background:var(--papa-bg);padding:22px;margin-top:12px;
+}
+.pagehead h3{font-family:Archivo,sans-serif;font-size:20px;margin:0}
+.pagehead p{color:var(--papa-muted);font-size:13px;margin:3px 0 0}
+section.bloc{margin-top:24px}
+.bloc-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}
+.bloc-head h4{
+  font-family:Archivo,sans-serif;font-size:12.5px;text-transform:uppercase;
+  letter-spacing:.13em;margin:0;font-weight:700;
+}
+.bloc-head h4 span{font-family:'IBM Plex Mono',monospace;color:var(--papa-muted);font-weight:400}
+.bloc-note{color:var(--papa-muted);font-size:12px;margin:0 0 10px}
+.btn-section{
+  border:0;border-radius:9px;background:var(--papa-accent);color:#042f1f;
+  font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:11.5px;
+  padding:6px 13px;cursor:pointer;
+}
+
+/* --- la ligne --- */
+ul.lignes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li.ligne{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:12px;padding:11px 16px;
+}
+li.ligne.actionnable{transition:border-color .15s}
+li.ligne.actionnable:hover{border-color:var(--accent-line)}
+.picto{
+  width:26px;height:26px;border-radius:8px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:13px;
+  background:var(--papa-surface-2);border:1px solid var(--papa-border);
+}
+.corps{min-width:0;flex:1}
+.nom{font-weight:500}
+.meta{font-size:11.5px;color:var(--papa-muted);margin-top:1px}
+.sev{
+  flex:0 0 auto;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:500;
+}
+.sev.high{background:var(--warn-wash);color:var(--papa-warn)}
+.sev.medium{background:var(--sky-wash);color:var(--papa-accent-2)}
+.sev.low{background:var(--papa-surface-2);color:var(--papa-muted)}
+
+/* La PREUVE CONTRAIRE — v2. Émeraude, jamais ambre : ce n'est pas une alerte,
+   c'est une bonne nouvelle non confirmée. Elle vit dans `.meta`, pas comme un
+   troisième badge : deux pastilles sur une ligne feraient deux mesures. */
+.preuve{color:var(--papa-accent);font-weight:500}
+.preuve::before{content:"↑ ";}
+
+/* le geste — inchangé depuis la v1 */
+.geste{
+  flex:0 0 auto;font-size:12px;font-weight:600;color:var(--papa-accent);
+  text-decoration:none;border-bottom:1px solid transparent;
+}
+.geste:hover{border-bottom-color:var(--accent-line)}
+.geste.sky{color:var(--papa-accent-2)}
+.geste.absent{color:var(--void);font-weight:400;font-style:italic}
+.motif{
+  flex-basis:100%;font-size:11.5px;color:var(--papa-muted);
+  margin:2px 0 0;padding-left:38px;
+}
+
+/* --- la modale de confirmation (écran E) --- */
+.dialog{
+  border:1px solid var(--papa-border);background:var(--papa-surface);
+  border-radius:14px;padding:20px 22px;max-width:520px;margin:0 auto;
+}
+.dialog h5{font-family:Archivo,sans-serif;font-size:16px;margin:0 0 10px}
+.dialog ul{margin:0 0 16px;padding-left:18px;font-size:13px;color:var(--papa-muted)}
+.dialog ul li{margin:5px 0}
+.dialog ul li b{color:var(--papa-text)}
+.dialog-actions{display:flex;gap:10px;justify-content:flex-end}
+.btn-ghost{
+  border:1px solid var(--papa-border);background:transparent;color:var(--papa-muted);
+  border-radius:9px;padding:7px 14px;font-size:12.5px;cursor:pointer;
+  font-family:'Instrument Sans',sans-serif;
+}
+.bandeau-warn{
+  border:1px solid var(--warn-line);background:var(--warn-wash);color:var(--papa-warn);
+  border-radius:9px;padding:8px 12px;font-size:12.5px;margin:0 0 14px;
+}
+
+/* --- la frise de Progression (écran F) --- */
+ul.frise{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+ul.frise li{
+  display:flex;gap:14px;align-items:baseline;
+  padding:9px 0;border-top:1px solid var(--papa-border);font-size:13.5px;
+}
+ul.frise li:first-child{border-top:0}
+.quand{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--papa-muted);flex:0 0 68px}
+.nature{flex:0 0 auto;border-radius:999px;padding:1px 9px;font-size:11px;font-weight:500}
+.nature.resolue{background:var(--accent-wash);color:var(--papa-accent)}
+.nature.ouverte{background:var(--sky-wash);color:var(--papa-accent-2)}
+.nature.mission{background:var(--papa-surface-2);color:var(--papa-muted)}
+
+/* --- table --- */
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{text-align:left;padding:8px 10px;border-top:1px solid var(--papa-border);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--papa-muted);font-weight:500;border-top:0}
+.oui{color:var(--papa-accent);font-weight:600}
+.non{color:var(--papa-warn);font-weight:600}
+.amesurer{color:var(--void);font-style:italic}
+
+/* 🔴 Règle mobile reprise TELLE QUELLE de la v1 : sans elle, `.corps` est
+   comprimé sous sa largeur minimale par ses frères `flex:0 0 auto` et le titre
+   part en colonne, un mot par ligne. La v2 ajoute un contenu à `.meta`, donc
+   elle appuie encore plus fort sur cette contrainte. */
+@media (max-width:640px){
+  li.ligne{align-items:flex-start}
+  .corps{flex-basis:100%;order:1}
+  .picto{order:0}
+  .sev{order:2}
+  .geste{order:3;margin-left:auto}
+  .motif{padding-left:0;order:4}
+  ul.frise li{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>La lacune ne se solde pas, elle se vérifie</h1>
+  <p class="sub">
+    Maquette v2 · 2026-08-16 · <strong>à côté</strong> de la v1, jamais à sa place.
+    Elle ne révoque rien : elle ajoute une <strong>quatrième section</strong>.
+  </p>
+
+  <div class="note warn">
+    🔴 <b>Le constat qui ouvre le chantier.</b> Rien ne referme une lacune quand une notion est
+    réussie. Un seul écrivain de <code>resolved</code> dans tout le backend — le verdict
+    <code>acquired</code> d'une mission (<code>missions/service.py:1095</code>, vérifié). Une notion
+    qui remonte de 40 % à 95 % au diagnostic <b>laisse sa lacune ouverte à vie</b>, et la page
+    propose alors d'agir sur un constat périmé.
+  </div>
+
+  <div class="note warn" style="margin-top:10px">
+    ⚠️ <b>Les données de cette maquette ne sont PAS toutes relevées, et la v1 l'était.</b>
+    L'écran A vient du relevé du 2026-08-09. Les écrans B, D, E et G sont
+    <b>illustratifs</b> : les points 8 et 14 du read-before-code n'ont pas été faits.
+    <b>Si le point 8 rend zéro, l'écran B n'existera jamais et seul l'écran C sera vrai.</b>
+    Les deux sont montrés pour que l'arbitrage se fasse en les voyant.
+  </div>
+
+  <div class="note plat" style="margin-top:10px">
+    Ce que la maquette ne touche pas : les trois titres de section existants, leurs notes, les deux
+    boutons de génération, le filtre par matière, les gestes de ligne de l'<code>adr-0047</code>,
+    les états vides. Tout cela est livré et tenu par des tests.
+  </div>
+
+  <!-- ================= A — L'ÉTAT RÉEL ================= -->
+  <h2 class="ecran avant">A · L'état réel de la base — le point de départ</h2>
+  <p class="sub">
+    Relevé du 2026-08-09 : <strong>10 lacunes ouvertes, toutes avec une mission active</strong>.
+    Donc <code>pending</code> est vide, les deux premières sections ne s'affichent pas — ni leurs
+    boutons — et la page ne montre que « Déjà prises en charge ».
+    <strong>C'est ce dont la v2 hérite.</strong>
+  </p>
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Lacunes ouvertes</h3>
+      <p>Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider.</p>
+    </div>
+    <section class="bloc">
+      <div class="bloc-head"><h4>Déjà prises en charge <span>(10)</span></h4></div>
+      <p class="bloc-note">Une mission active couvre ces notions — rien à décider.</p>
+      <ul class="lignes">
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps"><p class="nom" style="margin:0">Mathématiques — Produit de relatifs</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p></div>
+          <span class="sev high">prioritaire</span>
+          <a class="geste sky" href="#">Voir la mission →</a>
+        </li>
+        <li class="ligne actionnable">
+          <span class="picto">¶</span>
+          <div class="corps"><p class="nom" style="margin:0">Français — Temps du récit</p>
+          <p class="meta">déjà travaillée, pas encore acquise · repérée le 5 août 2026</p></div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste sky" href="#">Voir la mission →</a>
+        </li>
+      </ul>
+      <p class="bloc-note" style="margin-top:12px">… et 8 autres.</p>
+    </section>
+  </div>
+
+  <!-- ================= B — LA QUATRIÈME SECTION ================= -->
+  <h2 class="ecran">B · La quatrième section — « Peut-être déjà comblées »</h2>
+  <p class="sub">
+    ZETIS <strong>ne referme rien sur une mesure</strong>. Il constate qu'un signal postérieur dit
+    que la notion tient, et il propose <strong>du travail court pour le vérifier</strong>.
+    C'est la doctrine appliquée à la lettre : <i>ZETIS mesure, produit du travail, et ne solde
+    jamais.</i>
+  </p>
+
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Lacunes ouvertes</h3>
+      <p>Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider.</p>
+    </div>
+
+    <section class="bloc">
+      <div class="bloc-head">
+        <h4>Peut-être déjà comblées <span>(2)</span></h4>
+        <button class="btn-section">Vérifier ces 2 notions · 5 min chacune</button>
+      </div>
+      <p class="bloc-note">
+        Un signal postérieur dit que la notion tient. ZETIS ne le croit pas sur parole.
+      </p>
+      <ul class="lignes">
+
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Comparaison de relatifs</p>
+            <p class="meta">
+              repérée le 8 août 2026 ·
+              <span class="preuve">diagnostic du 14 août : 100 %</span>
+            </p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste" href="#">Vérifier en 5 min →</a>
+          <p class="motif">
+            Une mission courte : reconstruire la carte, un mini-quiz, réexpliquer. Si les deux
+            preuves passent, la lacune se referme — par le verdict, comme toutes les autres.
+          </p>
+        </li>
+
+        <li class="ligne actionnable">
+          <span class="picto">¶</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Français — Accord du participe</p>
+            <p class="meta">
+              repérée le 5 août 2026 ·
+              <span class="preuve">carte de révision acquise, intervalle 21 j</span>
+            </p>
+          </div>
+          <span class="sev low">à surveiller</span>
+          <a class="geste" href="#">Vérifier en 5 min →</a>
+          <p class="motif">
+            La notion revient d'elle-même depuis trois semaines sans échec. La vérification confirme,
+            ou rouvre le travail — elle ne conclut pas à la place de la mesure.
+          </p>
+        </li>
+      </ul>
+    </section>
+
+    <p class="bloc-note" style="margin-top:18px">
+      ↓ Les trois sections existantes suivent, inchangées.
+    </p>
+  </div>
+
+  <div class="note sky" style="margin-top:14px">
+    ⚖️ <b>La question à trancher devant cet écran, et elle est réelle.</b>
+    <code>page-lacunes.md</code> interdit à cette page <i>« aucun compteur global, aucune tendance,
+    aucune date de bascule — Progression les porte »</i>. Or :
+    <br>· le <b>« (2) »</b> de section n'est pas un compteur global — les trois sections livrées en
+    portent déjà un ;
+    <br>· la <b>date du signal</b> n'est pas une date de bascule — la page affiche déjà
+    <i>« repérée le 8 août »</i> sur chaque ligne ;
+    <br>· mais <b>« refermées cette semaine (n) »</b> en serait un, et n'a donc pas sa place ici.
+    <br><b>À confirmer dans l'ADR plutôt qu'à supposer.</b>
+  </div>
+
+  <!-- ================= C — LA SECTION VIDE ================= -->
+  <h2 class="ecran">C · La même page si aucune lacune ne porte de preuve contraire</h2>
+  <p class="sub">
+    Une section vide n'est pas affichée. B et C ne se distinguent donc <strong>que par une
+    absence</strong> — et c'est l'état le plus probable tant que le point 8 n'a pas été mesuré.
+  </p>
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Lacunes ouvertes</h3>
+      <p>Ce que les diagnostics et les missions ont mesuré — et ce qu'il reste à décider.</p>
+    </div>
+    <section class="bloc">
+      <div class="bloc-head"><h4>Déjà prises en charge <span>(10)</span></h4></div>
+      <p class="bloc-note">Une mission active couvre ces notions — rien à décider.</p>
+      <ul class="lignes">
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps"><p class="nom" style="margin:0">Mathématiques — Produit de relatifs</p>
+          <p class="meta">découverte, jamais travaillée · repérée le 8 août 2026</p></div>
+          <span class="sev high">prioritaire</span>
+          <a class="geste sky" href="#">Voir la mission →</a>
+        </li>
+      </ul>
+    </section>
+    <p class="bloc-note" style="margin-top:14px">
+      Rigoureusement l'écran A. <strong>Aucun état vide dédié</strong> : annoncer « aucune lacune
+      peut-être comblée » apprendrait à Papa qu'une machinerie existe, sans lui donner de geste.
+    </p>
+  </div>
+
+  <!-- ================= D — LE PIÈGE ================= -->
+  <h2 class="ecran">D · 🔴 La ligne qui n'a pas de quoi se prouver</h2>
+  <p class="sub">
+    L'écran le plus important de cette maquette. <code>acquired</code> exige
+    <code>reverse ≥ t</code> <strong>ET</strong> (<code>quiz ≥ t</code> <strong>OU</strong>
+    <code>mindmap ≥ t</code>). Une notion sans quiz <em>et</em> sans mindmap validés produit une
+    mission qui <strong>ne peut rendre que « à revoir »</strong>, quoi que fasse Massimo.
+  </p>
+
+  <div class="ecran-cadre">
+    <section class="bloc" style="margin-top:0">
+      <div class="bloc-head">
+        <h4>Peut-être déjà comblées <span>(3)</span></h4>
+        <button class="btn-section">Vérifier ces 2 notions · 5 min chacune</button>
+      </div>
+      <p class="bloc-note">
+        Un signal postérieur dit que la notion tient. ZETIS ne le croit pas sur parole.
+      </p>
+      <ul class="lignes">
+        <li class="ligne actionnable">
+          <span class="picto">∑</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">Mathématiques — Comparaison de relatifs</p>
+            <p class="meta">repérée le 8 août 2026 · <span class="preuve">diagnostic du 14 août : 100 %</span></p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste" href="#">Vérifier en 5 min →</a>
+        </li>
+
+        <li class="ligne actionnable">
+          <span class="picto">⌬</span>
+          <div class="corps">
+            <p class="nom" style="margin:0">SVT — La cellule</p>
+            <p class="meta">repérée le 2 août 2026 · <span class="preuve">diagnostic du 14 août : 100 %</span></p>
+          </div>
+          <span class="sev medium">à traiter</span>
+          <a class="geste sky" href="#">Produire le quiz de cette notion →</a>
+          <p class="motif">
+            Le cours est écrit, mais <strong>ni quiz ni mindmap validés</strong> : une mission ne
+            pourrait rendre que « à revoir », et la lacune resterait ouverte quel que soit le
+            travail fourni. Il manque de quoi <em>prouver</em>, pas de quoi apprendre.
+          </p>
+        </li>
+      </ul>
+      <p class="bloc-note" style="margin-top:12px">
+        ⚠️ Le bouton de section annonce <strong>2</strong> devant <strong>3</strong> lignes — et
+        c'est voulu : il ne compte que ce qu'il va réellement créer. Le libellé porte le compte réel,
+        jamais celui de la section.
+      </p>
+    </section>
+  </div>
+
+  <div class="note warn" style="margin-top:14px">
+    🔴 <b><code>CONTENU_OK</code> ne veut pas dire « on peut travailler cette notion ».</b>
+    Il veut dire <i>« une leçon validée existe »</i> — vérifié :
+    <code>content_state.py</code> n'a que trois valeurs (<code>ok</code>,
+    <code>aucune_lecon</code>, <code>cours_brouillon</code>). Deux cas distincts tombent donc dans
+    <code>ok</code> : le cours <b>validé mais VIDE</b> (39 leçons au 2026-08-04) et le cours écrit
+    <b>sans quiz ni mindmap</b>. <b>Aucune fonction du dépôt ne répond aujourd'hui à la question de
+    cet écran</b> — c'est le prédicat <code>de_quoi_prouver()</code> à écrire.
+  </div>
+
+  <div class="note plat" style="margin-top:10px">
+    ⚠️ Aggravant : <code>progress/service.py:142</code> rend <code>CONTENU_OK</code>
+    <b>par défaut</b> quand la notion est absente de la table. L'absence de mesure se lit donc
+    comme une bonne nouvelle — la faute que <code>reliability_json</code> évite ailleurs en ayant
+    <b>trois</b> états, parce que <i>« NULL ne veut pas dire rien à signaler, il veut dire ZETIS ne
+    regardait pas »</i>.
+  </div>
+
+  <!-- ================= E — LA CONFIRMATION ================= -->
+  <h2 class="ecran">E · La confirmation — trois lignes existantes, une quatrième</h2>
+  <p class="sub">
+    Le patron est celui des deux boutons déjà livrés. La quatrième ligne est le seul ajout, et elle
+    porte toute la différence : <strong>vérifier n'est pas remédier</strong>.
+  </p>
+  <div class="ecran-cadre">
+    <div class="dialog">
+      <h5>Vérifier 2 notions ?</h5>
+      <div class="bandeau-warn">
+        ⚠️ Un filtre « Mathématiques » est posé — la création portera sur <b>toutes les matières</b>.
+      </div>
+      <ul>
+        <li>Les missions sont composées à partir des <b>contenus déjà validés</b> — aucun contenu
+          n'est généré.</li>
+        <li>Elles naissent <b>en attente de validation</b> : elles n'atteindront Massimo qu'une fois
+          relues.</li>
+        <li>Seules les notions qui portent <b>de quoi prouver une acquisition</b> sont reprises —
+          1 notion est écartée, faute de quiz et de mindmap.</li>
+        <li>🆕 Ce sont des <b>vérifications, pas des remédiations</b> : un parcours court sur une
+          notion qu'un signal dit déjà tenue. Si la preuve passe, la lacune se referme ; sinon elle
+          revient en travail normal, et <b>on aura appris quelque chose de vrai</b>.</li>
+      </ul>
+      <div class="dialog-actions">
+        <button class="btn-ghost">Annuler</button>
+        <button class="btn-section">Créer les 2 vérifications</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= F — DÉJÀ LIVRÉ ================= -->
+  <h2 class="ecran livre">F · Comment Papa l'apprend — et c'est DÉJÀ livré</h2>
+  <p class="sub">
+    Vérifié : <code>VuePeriode.tsx:16-17</code> rend déjà <code>gap_opened</code> →
+    « lacune ouverte » et <code>gap_resolved</code> → « lacune résolue », sur
+    <strong>Progression</strong>. La fermeture a sa surface, au bon endroit, avec le bon libellé.
+    <strong>Rien à construire ici.</strong>
+  </p>
+  <div class="ecran-cadre">
+    <div class="pagehead">
+      <h3>Progression — sur la période</h3>
+      <p>Ce qui a bougé, dans l'ordre où c'est arrivé.</p>
+    </div>
+    <ul class="frise" style="margin-top:16px">
+      <li><span class="quand">16 août</span><span class="nature resolue">lacune résolue</span>
+          <span>Mathématiques — Comparaison de relatifs</span></li>
+      <li><span class="quand">16 août</span><span class="nature mission">mission terminée</span>
+          <span>Vérification « Comparaison de relatifs » — acquise</span></li>
+      <li><span class="quand">14 août</span><span class="nature mission">quiz</span>
+          <span>Diagnostic Mathématiques — 100 % sur la notion</span></li>
+      <li><span class="quand">8 août</span><span class="nature ouverte">lacune ouverte</span>
+          <span>Mathématiques — Comparaison de relatifs</span></li>
+    </ul>
+    <p class="bloc-note" style="margin-top:14px">
+      La ligne d'ouverture <strong>reste</strong> : la fermeture s'ajoute à côté, elle ne réécrit
+      pas le passé. Patron du Journal de production, appliqué à la mesure.
+    </p>
+  </div>
+
+  <div class="note warn" style="margin-top:14px">
+    🔴 <b>Ces deux surfaces existent, sont branchées, et sont vides</b> — parce que rien ne ferme.
+    <b>Le dispositif de notification a été construit AVANT le dispositif de fermeture.</b>
+    Ce n'est pas une ironie, c'est un argument : le chantier consiste à alimenter un tuyau déjà posé,
+    pas à bâtir une surface.
+  </div>
+
+  <div class="note plat" style="margin-top:10px">
+    ⚠️ Et le seul <b>compteur</b> de fermetures du dépôt — <code>gaps_closed_this_week()</code> —
+    n'a qu'un consommateur : le <b>message d'accueil de Massimo</b>
+    (<i>« Tu as renforcé 2 notions cette semaine ! »</i>). <b>Papa n'a aucun compteur de
+    fermetures ; l'enfant, si.</b> Le garde-fou tient (aucun mot de « lacune », phrase positive,
+    machinerie invisible) — mais l'asymétrie mérite d'être vue avant d'être laissée.
+  </div>
+
+  <!-- ================= G — LE TRI DU MANQUE ================= -->
+  <h2 class="ecran">G · Le tri du manque — candidat au hors périmètre</h2>
+  <p class="sub">
+    Une part des lacunes qui ne se referment pas ne relève pas de la doctrine de résolution :
+    <strong>elles attendent un contenu</strong>. Cinq causes, cinq remèdes, et
+    <strong>une seule relève de la production</strong>.
+  </p>
+  <div class="ecran-cadre">
+    <table>
+      <thead>
+        <tr><th>Cause</th><th>Ce que <code>content_state</code> en dit</th><th>Remède</th><th>Combien ?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Notion orpheline</td>
+          <td><code>aucune_lecon</code></td>
+          <td>Rattacher la notion à une leçon — aucune production n'aboutira sans ça</td>
+          <td class="amesurer">à mesurer</td>
+        </tr>
+        <tr>
+          <td>Cours en brouillon</td>
+          <td><code>cours_brouillon</code></td>
+          <td>« Valider le cours de … → » — le geste est déjà à l'écran</td>
+          <td class="amesurer">à mesurer</td>
+        </tr>
+        <tr>
+          <td>🔴 Cours validé mais <b>VIDE</b></td>
+          <td class="non"><code>ok</code> — il ment</td>
+          <td>Écrire ou régénérer le cours</td>
+          <td class="amesurer">à mesurer</td>
+        </tr>
+        <tr>
+          <td>🔴 Cours écrit, <b>rien pour prouver</b></td>
+          <td class="non"><code>ok</code> — il ment</td>
+          <td>Produire le quiz <b>ou</b> le mindmap</td>
+          <td class="amesurer">à mesurer</td>
+        </tr>
+        <tr>
+          <td>Cours écrit, preuves présentes</td>
+          <td class="oui"><code>ok</code> — vrai</td>
+          <td>Rien : c'est un vrai cas de doctrine, pas de contenu</td>
+          <td class="amesurer">à mesurer</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note" style="margin-top:14px">
+    ✅ <b>Et il n'y a pas besoin d'ouvrir <code>trigger='evidence'</code> pour combler ce manque.</b>
+    Le scope-pièce existe déjà (<code>scope_skill_id</code> + <code>scope_kind</code>, livré avec
+    <code>trigger='request'</code>) : produire « le quiz de <b>cette</b> notion » est faisable, il
+    manque un appelant. En <code>manual</code>, <b>le clic de Papa est son propre régulateur</b> —
+    aucun quota, aucune doctrine rouverte. C'est littéralement la réponse que l'<code>adr-0043</code>
+    §7 désigne comme normale.
+  </div>
+
+  <div class="note warn" style="margin-top:10px">
+    ⚠️ <b>Mais produire n'est pas servir.</b> Tout ce qui est produit entre dans la file de
+    relecture, et <code>PRODUCTION_MAX_PENDING</code> (30) refuse quand l'arriéré est plein. Combler
+    le manque <b>déplace l'attente sur Papa</b> : une lacune qui attendait un quiz devient une
+    lacune qui attend une relecture.
+  </div>
+
+  <!-- ================= CE QUI RESTE ================= -->
+  <h2 class="ecran avant">Ce qui manque à cette maquette pour être décidable</h2>
+  <div class="ecran-cadre">
+    <table>
+      <thead><tr><th>Relevé</th><th>Ce qu'il décide</th><th>État</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Point 8 — lacunes ouvertes portant un signal positif postérieur</td>
+          <td>Si l'écran B existe, ou si seul C est vrai</td>
+          <td class="non">non mesuré</td>
+        </tr>
+        <tr>
+          <td>Point 14 — répartition entre les cinq causes de l'écran G</td>
+          <td>Si le chantier voisin pèse trois lacunes ou trente</td>
+          <td class="non">non mesuré</td>
+        </tr>
+        <tr>
+          <td>Le « (n) » de section est-il un compteur interdit ?</td>
+          <td>Écran B — arbitrage à faire devant l'écran</td>
+          <td class="amesurer">à trancher</td>
+        </tr>
+        <tr>
+          <td>Où la vérification est-elle générée ?</td>
+          <td>Paramètre de cible sur <code>generate_revision</code>, ou source neuve</td>
+          <td class="amesurer">à trancher</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="sub" style="margin-top:26px">
+    Cadrage complet : <code>claude/CADRAGE_LACUNE_VERIFIEE_2026-08-16.md</code> —
+    §8 bis pour les douze points du read-before-code déjà lus,
+    §8bis.8 pour les deux requêtes SQL restantes.
+  </p>
+
+</div>
+</body>
+</html>
