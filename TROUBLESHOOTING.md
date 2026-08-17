@@ -6,6 +6,30 @@
 
 ## Agenda v2 — quatre défauts d'une même forme, zéro trouvé par les tests — 2026-08-17 *(PR #143, squash `b0f5d37`)*
 
+### ⚠️ Le hook `pre-push` annonçait une SUPPRESSION quand il n'y avait rien à pousser
+
+`git` alimente le hook avec une ligne par référence poussée. **Quand il n'y a rien à pousser, il
+n'envoie AUCUNE ligne** : la boucle de lecture ne tourne pas, le compteur reste à zéro, et le hook
+concluait « suppression de branche seule ».
+
+Bénin sur le fond — rien n'est poussé, donc rien n'échappe aux tests — mais **faux dans le sens
+dangereux** : qui pousse en croyant envoyer quelque chose et lit « suppression de branche » peut
+conclure qu'une branche vient de disparaître.
+
+⚠️ **La fausse piste**, qui a coûté le plus de temps : j'ai d'abord soupçonné la **forme** du push
+— `git push origin <SHA>:refs/heads/main` plutôt qu'une référence, forme adoptée comme plus sûre
+pour figer le périmètre vérifié. **Mesuré sur un dépôt nu jetable : les deux formes lancent bien
+les trois suites.** Ce n'était pas ça.
+
+**Parade** : compter les lignes lues, et distinguer « zéro ligne » de « toutes les lignes sont des
+suppressions ». Les trois cas sont désormais mesurés à chaque doute — vrai push, rien à pousser,
+suppression — sur un dépôt nu créé dans le scratchpad.
+
+🔴 **Ce qui a révélé le défaut n'est pas le hook, c'est le dépôt partagé** : `origin/main` avait
+déjà mon commit quand ma commande s'est exécutée. Une autre session l'avait poussé entre ma mesure
+et mon geste, à quelques secondes près. *La sortie « Everything up-to-date » sur un push qu'on
+croit nécessaire signale une session concurrente, pas une erreur de commande.*
+
 ### 🔴 Un test qui n'exerce qu'UN exemplaire de ce qui peut arriver en DEUX teste le cas facile
 
 Le mécanisme d'alerte de retard a porté **quatre défauts réels**, tous de la même forme, et tous
