@@ -31,7 +31,7 @@ PR #46/#47). Deuxième consommateur du **service d'évidence** extrait au Lot 2
 > |---|---|---|---|---|
 > | 1 | 2026-08-05 | Le Conseil de classe peut ne parler que d'une matière | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

@@ -36,7 +36,7 @@ et « contenu absent → demande à Papa » dont le mécanisme est différé, Po
 > | 1 | 2026-07-30 | Liste d'attente de contenus pour Papa (`content_requests`) | Accepté | — |
 > | 2 | 2026-08-01 | Demander un contenu depuis une surface élève | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

@@ -37,7 +37,7 @@ qui existait est la partie utile.
 > | 3 | 2026-08-15 | le témoin d'ELI5, ou le §2 payé plutôt que contourné | Accepté | — |
 > | 4 | 2026-08-15 | le témoin du Quiz, et un témoin qui naît d'une production | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

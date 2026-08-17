@@ -33,21 +33,23 @@ décisions structurantes puis fait exécuter le Lot 1 dans la foulée, vérifié
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
 > | 1 | 2026-08-01 | Témoin de nouveauté ≠ compteur d'arriéré | Accepté | oui |
-> | 2 | 2026-08-10 | L'intitulé se choisit dans le référentiel | Accepté | oui |
-> | 3 | 2026-08-10 | « Leçon à apprendre », le quatrième type | Accepté | oui |
+> | 2 | 2026-08-10 | L'intitulé se choisit dans le référentiel | Accepté | — |
+> | 3 | 2026-08-10 | « Leçon à apprendre », le quatrième type | Accepté | — |
 > | 4 | 2026-08-10 | L'échéance mène à son cours | Accepté | oui |
-> | 5 | 2026-08-10 | Papa n'existe pas dans l'espace de Massimo | Accepté | oui |
+> | 5 | 2026-08-10 | Papa n'existe pas dans l'espace de Massimo | Accepté | — |
 > | 6 | 2026-08-10 | La bande ouvre un jour, et le passé cesse d'être hors d'atteinte | Accepté | oui |
 > | 7 | 2026-08-15 | le regard vit à `/agenda`, et nulle part ailleurs | Accepté | oui |
 > | 8 | 2026-08-17 | Le passé se raconte, et la matière prend la couleur | Proposé | oui |
 > | 9 | 2026-08-17 | Trois questions, trois sections | Proposé | oui |
 >
-> 🔴 *Tableau tenu **À LA MAIN** depuis l'Amendement 8. La note d'origine disait « généré par
-> `scripts/gen_tableau_amendements.py` — ne pas éditer à la main » : **ce script n'existe pas**, et
-> aucun autre ne produit ce tableau (`fusion_addendums.py` ne sait plus le régénérer depuis la
-> fusion des addendums). Une consigne qui interdit d'éditer en désignant un outil absent garantit
-> que le tableau se périme en silence — corrigé le 2026-08-17. Ajouter la ligne à la main, et
-> vérifier qu'elle correspond au dernier `####` de l'amendement.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
+>
+> ⚠️ *Les lignes **8 et 9 ont d'abord été écrites à la main**, et il faut savoir pourquoi : entre la
+> fusion des addendums (2026-08-16) et la création de ce script (2026-08-17), **aucun outil ne
+> pouvait produire ce tableau** — `fusion_addendums.py` itérait sur des fichiers d'addendum qui
+> n'existaient plus. La mention « ne pas éditer à la main » a donc désigné un outil absent pendant
+> une journée entière, et rien n'aurait signalé une ligne oubliée. Le script les régénère désormais
+> depuis les sections, qui sont la source de vérité.*
 
 ## Contexte
 

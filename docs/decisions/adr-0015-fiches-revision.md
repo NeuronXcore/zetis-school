@@ -28,9 +28,9 @@ Accepté — 2026-07-05
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-12 | La fiche que Massimo fabrique lui-même | Proposé | oui |
+> | 1 | 2026-08-12 | La fiche que Massimo fabrique lui-même | Proposé | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

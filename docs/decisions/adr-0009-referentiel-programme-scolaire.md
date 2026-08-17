@@ -27,7 +27,7 @@ Accepté — 2026-07-03 (bench T4 exécuté ; §7 tranché : issue (b), dérogat
 > |---|---|---|---|---|
 > | 1 | 2026-07-03 | Cours validé comme source canonique des dérivés + lien `lesson_skills` | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

@@ -29,7 +29,7 @@ la recherche suit **la règle des capsules**. 🔴 **Missions reste ouvert.**
 > |---|---|---|---|---|
 > | 1 | 2026-08-14 | ADR-0057 · Addendum — Missions : le tri se fait sur une NOTION, pas sur une leçon | Proposé | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 
