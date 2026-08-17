@@ -241,9 +241,17 @@ docker compose -f docker-compose.prod.yml up -d postgres
 
 docker compose -f docker-compose.prod.yml run --rm --no-deps \
   -v "$PWD/apps/backend/alembic:/repo/apps/backend/alembic:ro" \
-  -v "$PWD/scripts:/scripts:ro" \
-  --entrypoint python backend /scripts/check_migration_drift.py
+  -v "$PWD/scripts:/repo/scripts:ro" \
+  --entrypoint python backend /repo/scripts/check_migration_drift.py
 ```
+
+> 🔴 **Le script se monte dans `/repo/scripts`, PAS dans `/scripts` — et ce n'est pas cosmétique.**
+> Il déduit la racine du dépôt de **sa propre position** (`Path(__file__).parent.parent`). Posé à
+> `/scripts/`, il cherche donc `/apps/backend/alembic`, que personne ne monte, et **s'arrête sur
+> `CommandError: Path doesn't exist`**. La commande écrite ici s'est révélée fausse à l'usage le
+> 2026-08-17 : l'outil qui mesure la dérive ne pouvait pas se lancer depuis sa propre
+> documentation. ⚠️ L'échec est franc (une trace, pas un « aligné » menteur) — mais un outil qui
+> plante est un outil qu'on cesse d'appeler.
 
 | Sortie | Cas | Ce que ça veut dire |
 |---|---|---|
