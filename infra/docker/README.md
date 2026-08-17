@@ -44,6 +44,33 @@ pnpm prod:down    # tout arrêter
 **Ports miroir du dev** (`8000` / `5173` / `5174`) → lancer **SOIT `pnpm dev` SOIT `pnpm prod:up`**,
 jamais les deux en même temps. Les données prod vivent dans des volumes séparés (`zetis-prod_*`).
 
+### La prod se relève seule — et les deux conditions hôte
+
+Depuis le 2026-08-17, **les huit services** portent `restart: unless-stopped` — application de
+l'ADR-0046 §1 à tout le dispositif, et non au seul `worker` : après un arrêt du Mac, une base et un
+backend qui ne reviennent pas laissaient le worker se relever dans le vide. Verrouillé par
+`app/tests/test_compose_prod_restart.py`, qui tient la règle pour le **9e service**.
+
+⚠️ La propriété est **inerte sans deux conditions hôte**, et elles ne sont pas dans ce dépôt :
+
+1. 🔴 **Docker Desktop doit démarrer à l'ouverture de session** — *Settings → General → « Start
+   Docker Desktop when you sign in »*. Mesuré le 2026-08-17 sur le Mac Studio : `AutoStart = False`.
+   Sans le démon, aucune politique de redémarrage ne s'applique : la prod reste éteinte.
+2. 🔴 **Le disque externe doit être monté avant le démon.** `Docker.raw` vit sur
+   `/Volumes/NX-Projects` (réglage `DataFolder`) et les modèles Ollama sur `/Volumes/NX-Models`.
+   Disque absent au boot = Docker ne démarre pas, ou démarre sur un disque vide.
+
+**Vérifier que ça marche** — et surtout pas avec `docker compose kill`, qui rend un **faux négatif**
+(un arrêt d'opérateur est exclu par définition du mot *unless* ; mesuré le 2026-08-08). Il faut tuer
+le processus depuis l'intérieur :
+
+```bash
+docker exec zetis-prod-backend-1 sh -c 'kill -TERM 1'
+docker inspect zetis-prod-backend-1 --format '{{.RestartCount}} {{.State.Status}}'   # → 1 running
+```
+
+Procédure complète et motif : `docs/devops/worker-production.md`.
+
 ### Prérequis & limites
 
 - 🔴 **`POSTGRES_PASSWORD` dans le `.env` de la racine** — obligatoire depuis l'ADR-0046 : le

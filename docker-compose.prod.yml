@@ -7,6 +7,14 @@
 # l'atteint via host.docker.internal. Prérequis hôte :
 #   ollama serve   &&   ollama pull qwen3.6:35b-a3b
 #
+# TOUS les services portent `restart: unless-stopped` — application de l'ADR-0046 §1, qui pose la
+# propriété sur le `worker` et en donne la doctrine : « un dispositif dont une pièce doit être
+# lancée à la main finit toujours par tourner sans elle. » Le worker seul ne suffisait pas : après
+# un redémarrage du Mac, la base, le backend et les deux frontends ne revenaient pas — le worker
+# se relevait dans le vide. ⚠️ `unless-stopped`, pas `always` : un `prod:down` volontaire doit
+# rester un arrêt, pas un service qui insiste. C'est aussi pourquoi `docker compose kill` NE PROUVE
+# RIEN ici (faux négatif mesuré le 2026-08-08) — cf. `docs/devops/worker-production.md`.
+#
 # Ports miroir du dev (8000 / 5173 / 5174) → lancer SOIT `pnpm dev` SOIT `pnpm prod:up`,
 # pas les deux en même temps. Cf. infra/docker/README.md.
 # =====================================================================
@@ -34,6 +42,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -47,6 +56,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   minio:
     image: minio/minio:latest
@@ -66,6 +76,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   backend:
     build:
@@ -135,6 +146,7 @@ services:
       # pendant une migration longue, et le worker ne démarrerait jamais.
       start_period: 90s
       retries: 5
+    restart: unless-stopped
 
   # ── Worker de production ──────────────────────────────────────────────────────────────────
   # Le 8e service, et le seul qui manquait à ce fichier (ADR-0046). Sans lui, le backend accepte
@@ -234,6 +246,7 @@ services:
     networks: [interne]
     ports:
       - "5173:80"
+    restart: unless-stopped
 
   frontend-papa:
     build:
@@ -245,6 +258,7 @@ services:
     networks: [interne]
     ports:
       - "5174:80"
+    restart: unless-stopped
 
 networks:
   # Toutes les communications entre services passent ici. `internal: true` = AUCUN egress

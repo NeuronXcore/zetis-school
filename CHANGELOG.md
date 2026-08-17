@@ -1,5 +1,30 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.3 — ZETIS ne reste plus éteint après un redémarrage du Mac
+
+Massimo ouvre ZETIS, et il est là. C'est tout ce que ça change — mais ça ne tenait à rien : sur les
+huit services de production, **six n'avaient aucune politique de redémarrage**. Après un arrêt du
+Mac Studio, la base, le backend et les deux frontends ne revenaient pas. Le `worker`, lui, portait
+bien son `restart: unless-stopped` depuis l'ADR-0046 — il se relevait donc **dans le vide**, seul
+supervisé d'un dispositif qui ne l'était pas.
+
+Aucune décision nouvelle ici : la règle existe depuis l'ADR-0046 §1 et sa doctrine est explicite —
+*« un dispositif dont une pièce doit être lancée à la main finit toujours par tourner sans elle. »*
+Elle n'avait simplement jamais été appliquée aux sept autres pièces (ADR-0060, cas 2).
+
+`unless-stopped` et non `always`, et c'est un arbitrage : un `pnpm prod:down` volontaire doit rester
+un arrêt, pas un service qui insiste.
+
+⚠️ **Le correctif est à moitié hors du dépôt, et cette moitié-là n'est pas faite.** Mesuré le
+2026-08-17 sur le Mac Studio : Docker Desktop a `AutoStart = False`. Sans le démon au démarrage de
+session, aucune politique de redémarrage ne s'applique — la prod reste éteinte malgré ce commit. Il
+faut cocher *Settings → General → « Start Docker Desktop when you sign in »*, et que
+`/Volumes/NX-Projects` (qui porte `Docker.raw`) soit monté avant lui.
+
+Un verrou de dépôt tient la règle pour le **9e service**, celui que personne n'a encore écrit —
+c'est là qu'elle se reperdra. Il refuse aussi `always`. Il n'utilise **pas** PyYAML, présent dans le
+venv local mais absent de `pyproject.toml` : le vert local n'aurait pas prouvé le vert CI.
+
 ## 0.99.2 — La CI cesse de rougir au hasard (outillage)
 
 Aucun changement pour Massimo : deux lignes dans des aides de test. L'entrée existe parce que la
