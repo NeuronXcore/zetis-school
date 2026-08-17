@@ -26,7 +26,7 @@ Accepté — 2026-07-31.
 > | 1 | 2026-07-31 | Addendum « Construction depuis root » : une croissance, pas une lecture | Accepté | — |
 > | 2 | 2026-08-04 | Addendum « La galaxie dans le bandeau » : le chrome cesse de décorer pour rien | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

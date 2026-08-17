@@ -33,14 +33,14 @@ décisions structurantes puis fait exécuter le Lot 1 dans la foulée, vérifié
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
 > | 1 | 2026-08-01 | Témoin de nouveauté ≠ compteur d'arriéré | Accepté | oui |
-> | 2 | 2026-08-10 | L'intitulé se choisit dans le référentiel | Accepté | oui |
-> | 3 | 2026-08-10 | « Leçon à apprendre », le quatrième type | Accepté | oui |
+> | 2 | 2026-08-10 | L'intitulé se choisit dans le référentiel | Accepté | — |
+> | 3 | 2026-08-10 | « Leçon à apprendre », le quatrième type | Accepté | — |
 > | 4 | 2026-08-10 | L'échéance mène à son cours | Accepté | oui |
-> | 5 | 2026-08-10 | Papa n'existe pas dans l'espace de Massimo | Accepté | oui |
+> | 5 | 2026-08-10 | Papa n'existe pas dans l'espace de Massimo | Accepté | — |
 > | 6 | 2026-08-10 | La bande ouvre un jour, et le passé cesse d'être hors d'atteinte | Accepté | oui |
 > | 7 | 2026-08-15 | le regard vit à `/agenda`, et nulle part ailleurs | Accepté | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

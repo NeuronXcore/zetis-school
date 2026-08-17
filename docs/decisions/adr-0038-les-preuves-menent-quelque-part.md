@@ -27,7 +27,7 @@ Accepté — 2026-08-05.
 > |---|---|---|---|---|
 > | 1 | 2026-08-05 | Progression nomme ce qu'elle compte, et on peut agir depuis là | Accepté | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

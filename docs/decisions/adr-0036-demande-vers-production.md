@@ -33,10 +33,10 @@ l'ADR-0032, l'ADR-0034 et l'ADR-0035 + son addendum.
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-04 | Le bouton qui ne peut pas aboutir : le verdict porte sur la SITUATION, pas sur le TYPE | Proposé | oui |
-> | 2 | 2026-08-05 | Une file que personne n'écoute n'est pas une attente | Accepté | oui |
+> | 1 | 2026-08-04 | Le bouton qui ne peut pas aboutir : le verdict porte sur la SITUATION, pas sur le TYPE | Proposé | — |
+> | 2 | 2026-08-05 | Une file que personne n'écoute n'est pas une attente | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

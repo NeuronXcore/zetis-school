@@ -44,7 +44,7 @@ ADR-0011 §G (l'autorité et le veto), l'ADR-0031 (l'exécution en lot) et l'ADR
 > |---|---|---|---|---|
 > | 1 | 2026-08-03 | Les devoirs déclenchent aussi, et l'échéance commande enfin ses missions | Proposé | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

@@ -36,11 +36,11 @@ pas). L'audit a par ailleurs imposé **une migration** que la version « Propos�
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
 > | 1 | 2026-08-05 | Une bulle qu'on clique dit enfin QUELLES notions, et pas seulement combien | Accepté | — |
-> | 2 | 2026-08-05 | Le KPI qui manque : « À renforcer » | Proposé | oui |
-> | 3 | 2026-08-06 | La carte mémoire ne pouvait montrer aucun événement | Accepté | oui |
-> | 4 | 2026-08-06 | Deux cartes ne pouvaient que s'éteindre | Accepté | oui |
+> | 2 | 2026-08-05 | Le KPI qui manque : « À renforcer » | Proposé | — |
+> | 3 | 2026-08-06 | La carte mémoire ne pouvait montrer aucun événement | Accepté | — |
+> | 4 | 2026-08-06 | Deux cartes ne pouvaient que s'éteindre | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

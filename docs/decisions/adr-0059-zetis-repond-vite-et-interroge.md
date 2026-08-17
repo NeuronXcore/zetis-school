@@ -27,9 +27,9 @@ reformulé — sauf sur un point de bornage explicité au §12.
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-15 | La production était déjà propre | Accepté | oui |
+> | 1 | 2026-08-15 | La production était déjà propre | Accepté | — |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 

@@ -172,6 +172,20 @@ def corps_sans_h1(lignes: list[str]) -> list[str]:
 
 
 def tableau_amendements(addendums: list[ADR]) -> list[str]:
+    """⚠️ NE SERT PLUS QU'À LA FUSION INITIALE — voir `gen_tableau_amendements.py`.
+
+    Cette fonction itère sur des objets `ADR` lus depuis des **fichiers d'addendum
+    séparés** (`a.chemin`, `a.date`, `a.statut`, `a.revocations`). La fusion du
+    2026-08-16 a supprimé ces fichiers : il n'en reste aucun, donc plus rien ici ne
+    peut régénérer le tableau d'un ADR déjà fusionné.
+
+    🔴 Pendant un jour, la mention posée en bas du tableau a désigné ce script — donc
+    un outil devenu incapable de tenir la promesse. Le 2026-08-17, l'Amendement 8 de
+    l'ADR-0025 a dû être écrit à la main faute de générateur. La régénération vit
+    désormais dans `scripts/gen_tableau_amendements.py`, qui lit les sections
+    `## Amendement N` **là où elles sont**, dans le fichier parent.
+    """
+
     t = ["> ### Amendements", ">", "> | # | Date | Titre | Statut | Révoque |",
          "> |---|---|---|---|---|"]
     for n, a in enumerate(addendums, 1):
@@ -180,7 +194,8 @@ def tableau_amendements(addendums: list[ADR]) -> list[str]:
             f"> | {n} | {a.date or '—'} | {a.titre or a.chemin.stem} "
             f"| {LIBELLE_STATUT.get(a.statut, '?')} | {rev} |"
         )
-    t += [">", "> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*", ""]
+    t += [">", "> *Tableau généré par `scripts/gen_tableau_amendements.py` — "
+          "ne pas éditer à la main.*", ""]
     return t
 
 

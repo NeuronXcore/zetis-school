@@ -106,6 +106,15 @@ jobs:
       - name: check_adr_refs.sh — tout ADR-00XX cité doit exister
         run: bash scripts/check_adr_refs.sh
 
+      - name: le tableau « Amendements » n'a pas dérivé de ses sections
+        # 🔴 Sans ce verrou, la mention « ne pas éditer à la main » est un vœu, pas
+        # un fait. Motif mesuré : entre le 2026-08-16 (fusion) et le 2026-08-17,
+        # AUCUN script ne pouvait régénérer ce tableau — l'Amendement 8 de l'ADR-0025
+        # a dû être ajouté à la main, et rien n'aurait signalé s'il avait été oublié.
+        # La source de vérité est la SECTION `## Amendement N` ; le tableau n'en est
+        # que la vue, et une vue qui dérive en silence ment plus qu'elle n'informe.
+        run: python3 scripts/gen_tableau_amendements.py docs/decisions --check
+
       - name: hooks/pre-push — syntaxe, et aucune substitution accidentelle
         # 🔴 Un hook n'a pas de suite de tests. Le seul contrôle mécanique possible
         # est celui-ci, et il vient d'un vrai incident : des backticks dans une

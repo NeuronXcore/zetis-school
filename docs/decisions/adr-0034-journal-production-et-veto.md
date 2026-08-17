@@ -36,10 +36,10 @@ l'ADR-0035 (le déclencheur automatique).
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-04 | Le Journal dit sous quel régime, mène à ce qui débloque, et sait ce qui l'est déjà | Proposé | oui |
+> | 1 | 2026-08-04 | Le Journal dit sous quel régime, mène à ce qui débloque, et sait ce qui l'est déjà | Proposé | — |
 > | 2 | 2026-08-04 | Le Journal se trie et se filtre, et pour ça son passé cesse de bouger | Proposé | oui |
 >
-> *Tableau généré par `scripts/fusion_addendums.py` — ne pas éditer à la main.*
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
 ## Contexte
 
