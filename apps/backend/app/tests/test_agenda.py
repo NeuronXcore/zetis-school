@@ -1813,3 +1813,38 @@ def test_un_accuse_DUPLIQUE_sans_echeance_n_avale_pas_la_suivante(
         "Le second accusé a recalculé avec le plancher déjà avancé et avalé le contrôle : il n'a "
         "jamais été montré, et ne le sera plus."
     )
+
+
+def test_DEUX_echeances_le_MEME_JOUR_sortent_toutes_les_deux(
+    papa: TestClient, client_db
+) -> None:
+    """🔴 QUATRIÈME défaut de la même famille — sorti d'une démonstration à l'écran, pas d'un test.
+
+    Le plancher est une **date**. Deux échéances du même jour ne peuvent donc pas être départagées :
+    montrer la première l'avance au lendemain, ce qui exclut **aussi la seconde**. Vu en direct le
+    2026-08-17 en voulant montrer un contrôle au commanditaire — il ne pouvait pas sortir.
+
+    ⚠️ C'est exactement le motif des trois autres : *un cas à DEUX exercé à UN*. Ici, deux
+    échéances **à la même date**. Et ça contredit le contrat écrit à l'ADR : « aucune n'est perdue ».
+
+    ⚠️ Le cas est ordinaire, pas tordu : un contrôle et sa leçon tombent le même jour, et c'est
+    même la situation que le plan de préparation existe pour servir.
+    """
+    today = today_local()
+    meme_jour = (today - timedelta(days=3)).isoformat()
+    _create_parent_item(papa, due_on=meme_jour, label="la leçon")
+    _create_parent_item(papa, due_on=meme_jour, label="le contrôle", kind="controle")
+    _, SessionLocal = client_db
+    _poser_plancher(SessionLocal, today - timedelta(days=6))
+
+    _as_massimo()
+    premiere = papa.get(ALERTE).json()
+    assert premiere["label"] == "la leçon"
+    papa.post(f"{ALERTE}/seen", json={"item_id": premiere["item_id"]})
+
+    _rouvrir_la_journee(SessionLocal)
+    seconde = papa.get(ALERTE).json()
+    assert seconde is not None and seconde["label"] == "le contrôle", (
+        "Le contrôle du même jour est perdu : le plancher, qui est une DATE, a sauté par-dessus "
+        "les deux échéances alors qu'une seule avait été montrée."
+    )

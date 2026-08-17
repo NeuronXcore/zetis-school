@@ -3026,10 +3026,38 @@ bundle ; les suivants sont inertes sur ce chemin. L'ordre **est** la correction 
 `agenda_late_alert_on` après l'avoir écrit reviendrait à interroger la valeur qu'on vient soi-même
 de poser.
 
-> **Ce que ces trois trouvailles disent du dispositif de test.** Les trois défauts ont la même
+##### 🔴 Quatrième : deux échéances LE MÊME JOUR, et le plancher n'en voyait qu'une
+
+Sorti d'une **démonstration à l'écran**, pas d'un test : le commanditaire a demandé à voir le
+contrôle du 14, et il ne pouvait pas sortir.
+
+Le plancher était une **date**. Deux échéances du même jour n'étaient donc pas départagées :
+montrer la première l'avançait au lendemain, **donc par-dessus la seconde**, jamais montrée et
+définitivement perdue.
+
+⚠️ **Le cas est ordinaire, pas tordu** : un contrôle et sa leçon tombent le même jour — c'est même
+la situation que le plan de préparation existe pour servir.
+
+**Le plancher devient un COUPLE `(due_on, id)`**, comme l'ordre de sortie lui-même (migration
+`a8a71c84f86e`). L'accusé le pose sur l'échéance montrée elle-même, plus sur son lendemain.
+
+⚠️ **Toujours pas une marque par item** : UN identifiant par élève, celui du **dernier alerté** —
+jamais un `seen_at` sur chaque échéance. Rien ne dit « vu le 12, jamais fait » de l'ensemble des
+devoirs, ce que le commentaire d'`agenda_last_seen_at` interdit.
+
+⚠️ **La borne inclusive du premier passage est préservée** : tant que rien n'a été alerté, une
+échéance due le jour même du plancher reste dans la fenêtre — c'est le raisonnement du `>=`, et un
+test le tient séparément.
+
+> **Ce que ces quatre trouvailles disent du dispositif de test.** Les trois défauts ont la même
 > forme : *un cas à deux* que les tests n'exerçaient qu'à un. Deux échéances dans la fenêtre, deux
-> accusés le même jour, deux versions du client. Un test qui n'exerce qu'un exemplaire de ce qui
-> peut arriver en double ne teste pas la règle, il teste le cas facile.
+> accusés le même jour, deux versions du client, deux échéances **à la même date**. Un test qui
+> n'exerce qu'un exemplaire de ce qui peut arriver en double ne teste pas la règle, il teste le cas
+> facile — et le cas facile est celui qu'on avait en tête en écrivant le code.
+>
+> 🔴 **Trois des quatre ont été trouvés par une relecture PAIRE, le quatrième par une
+> DÉMONSTRATION À L'ÉCRAN.** Aucun ne l'a été par la suite de tests, qui était pourtant verte à
+> chaque étape — et par la CI, qui l'était aussi.
 
 ##### Deux défauts que seuls l'écran et un verrou existant ont attrapés
 

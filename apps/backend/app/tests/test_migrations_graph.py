@@ -90,7 +90,7 @@ def test_la_tete_du_depot_est_celle_que_le_chantier_a_posee() -> None:
     ligne est une migration qui n'est pas la nouvelle tête — c'est-à-dire, presque toujours, une
     seconde tête.
     """
-    assert list(_script().get_heads()) == ["a86333999bf0"], (
+    assert list(_script().get_heads()) == ["a8a71c84f86e"], (
         "La tête des migrations a changé. Si c'est voulu (nouvelle migration), mettre cette "
         "ligne à jour dans le même commit. Sinon, une seconde tête vient d'apparaître."
     )

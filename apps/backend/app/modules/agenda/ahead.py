@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -236,6 +236,28 @@ GESTES = {
 }
 
 
+def _apres_le_plancher(student: StudentProfile):
+    """« Strictement après ce qui a déjà été montré » — le plancher est un COUPLE `(due_on, id)`.
+
+    🔴 **Une date seule ne suffisait pas.** Deux échéances du même jour n'étaient pas départagées :
+    montrer la première avançait le plancher au lendemain, donc par-dessus la seconde, jamais
+    montrée et définitivement perdue. Le cas est ordinaire — un contrôle et sa leçon tombent le
+    même jour, et c'est même la situation que le plan de préparation existe pour servir.
+
+    ⚠️ **Tant que RIEN n'a été alerté** (`item_id` à `NULL`), la borne reste inclusive : une
+    échéance due le jour même du plancher n'était pas encore en retard ce jour-là, et l'exclure la
+    rendrait invisible pour toujours. C'est le raisonnement du `>=`, préservé tel quel.
+    """
+    plancher = student.agenda_late_alert_floor
+    dernier = student.agenda_late_alert_item_id
+    if dernier is None:
+        return AgendaItem.due_on >= plancher
+    return or_(
+        AgendaItem.due_on > plancher,
+        and_(AgendaItem.due_on == plancher, AgendaItem.id > dernier),
+    )
+
+
 def _echeance_a_signaler(
     db: Session, *, student: StudentProfile, today
 ) -> AgendaItem | None:
@@ -254,7 +276,7 @@ def _echeance_a_signaler(
             # en retard ce jour-là (`due_on < today` était faux). L'exclure la rendrait invisible
             # pour toujours — un trou d'une journée dans le filet. Vérifié par un test de borne,
             # et confirmé par une relecture paire.
-            AgendaItem.due_on >= student.agenda_late_alert_floor,
+            _apres_le_plancher(student),
             AgendaItem.done_at.is_(None),
             AgendaItem.dismissed_at.is_(None),
         )
@@ -372,10 +394,17 @@ def mark_late_alert_seen(
         item = _echeance_a_signaler(db, student=student, today=today)
     student.agenda_late_alert_on = today
     if item is not None:
-        lendemain = item.due_on + timedelta(days=1)
-        plancher = student.agenda_late_alert_floor
-        if plancher is None or lendemain > plancher:
-            student.agenda_late_alert_floor = lendemain
+        # Le plancher devient l'échéance montrée elle-même — pas son lendemain, sans quoi il
+        # sauterait par-dessus les autres échéances du MÊME jour.
+        ancien = (
+            student.agenda_late_alert_floor,
+            student.agenda_late_alert_item_id if student.agenda_late_alert_item_id else -1,
+        )
+        # ⚠️ **Ne recule JAMAIS** : un accusé rejoué en retard — réseau lent, onglet rouvert — ne
+        # doit pas rouvrir une fenêtre close, sinon une échéance déjà signalée reviendrait.
+        if student.agenda_late_alert_floor is None or (item.due_on, item.id) > ancien:
+            student.agenda_late_alert_floor = item.due_on
+            student.agenda_late_alert_item_id = item.id
     db.commit()
 
 

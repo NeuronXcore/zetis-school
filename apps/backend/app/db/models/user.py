@@ -68,3 +68,18 @@ class StudentProfile(Base, TimestampMixin):
     # ⚠️ Reste UNE date par élève de plus, jamais une marque par item : rien ici ne dit « vu le 12,
     # jamais fait ». La contrainte du commentaire d'`agenda_last_seen_at` est intacte.
     agenda_late_alert_floor: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Départage du plancher, quand deux échéances tombent LE MÊME JOUR (adr-0025 Amdt 9 §D12).
+    #
+    # 🔴 **Une DATE seule ne peut pas les distinguer.** Montrer la première avançait le plancher au
+    # lendemain — donc par-dessus la seconde, jamais montrée et définitivement perdue. Le cas est
+    # ordinaire, pas tordu : un contrôle et sa leçon tombent le même jour, et c'est même la
+    # situation que le plan de préparation existe pour servir. Vu à l'écran le 2026-08-17, en
+    # voulant montrer un contrôle au commanditaire : il ne pouvait pas sortir.
+    #
+    # Le plancher est donc un COUPLE `(due_on, id)`, comme l'ordre de sortie lui-même.
+    #
+    # ⚠️ **Ce n'est toujours pas une marque par item** : UN identifiant par élève, celui du dernier
+    # alerté — pas un `seen_at` sur chaque échéance. Rien ne dit « vu le 12, jamais fait » de
+    # l'ensemble des devoirs, ce que le commentaire d'`agenda_last_seen_at` interdit.
+    agenda_late_alert_item_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
