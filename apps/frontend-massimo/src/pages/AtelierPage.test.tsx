@@ -136,7 +136,16 @@ async function deplier(titre: RegExp) {
  *  nœuds des mindmaps. `elementFromPoint` n'existe pas dans jsdom : on le remplace le temps du
  *  lâcher, sinon la cible serait toujours `null` et le test ne mesurerait rien. */
 async function glisser(texte: string, emplacement: number | null) {
-  const puce = screen.getByText(texte);
+  // 🔴 `findByText`, JAMAIS `getByText` — corrigé le 2026-08-17, seconde cause de la CI instable.
+  // Les puces viennent de `fetchCandidates`, une promesse ; le bouton « regarde ma fiche », lui,
+  // appartient au gabarit et est là tout de suite. Un test qui attend le BOUTON puis glisse une
+  // PUCE attend donc la mauvaise chose : sous charge, la puce n'est pas encore née et
+  // `getByText` lève « Unable to find an element with the text: … ».
+  //
+  // L'asymétrie était visible dans ce fichier même : le test « ne rend QUE des réussites »
+  // attendait sa puce (`await screen.findByText(…)`), son voisin non. Corriger l'AIDE plutôt que
+  // ses appelants ferme la classe entière au lieu d'un cas.
+  const puce = await screen.findByText(texte);
   const cible =
     emplacement === null ? null : document.querySelector(`[data-emplacement="${emplacement}"]`);
   // ⚠️ jsdom n'implémente PAS `elementFromPoint` — `vi.spyOn` échoue sur une propriété absente.

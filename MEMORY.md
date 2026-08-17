@@ -45,7 +45,41 @@ Contrôle : `git diff main <branche> --stat` doit être **vide**.
 
 ---
 
-### 🔴 OUVERT — la suite Massimo est INSTABLE sur la CI (découvert le 2026-08-17)
+### 🟡 EN COURS — la CI instable : deux causes soldées, deux restantes (branche `fix/ci-instable`)
+
+**Reproduit** avec `scripts/ci-like.sh` (Node 20 + Linux + 2 CPU, conteneur). Ni la charge ni le
+parallélisme ne suffisaient : 5 suites complètes à 2 workers sur machine saturée, **920/920
+vertes**. C'est l'environnement qui compte.
+
+| | Avant | Après |
+|---|---|---|
+| passages rouges | **4 / 4** | **2 / 6** |
+
+**Corrigé et prouvé par sabotage :**
+
+1. 🔴 **`pump()` repartait de zéro, `HeaderGalaxy` compte en temps RÉEL** (`now - performance.now()`
+   du montage). L'écart était *négatif de tout ce que le processus avait vécu avant ce fichier* →
+   état bloqué sur `growing`. Invisible en local parce qu'avec 16 workers le fichier démarre dans
+   la première seconde. **Prouvé** en faisant avancer l'horloge de 10 s avant le fichier : même
+   échec, au mot près, sur macOS.
+2. **`glisser()` cherchait sa puce en `getByText`** alors qu'elle vient d'une promesse — le test
+   attendait le bouton du gabarit, déjà présent. Corrigé dans l'**aide**, pas chez ses appelants.
+
+🔴 **DEUX RESTENT, non diagnostiquées** — apparues *après* les correctifs, une fois sur six :
+`AtelierPage` › « un finish qui CASSE… » (**écrit ce jour même**) et `ChatPage` › « offre implicite
+(confirm) ». Elles n'ont pas de cause établie : ne pas les « corriger » sans les avoir reproduites.
+
+⚠️ **L'hypothèse publiée d'abord était FAUSSE** — j'avais accusé `findByRole` de rendre la main
+avant les effets passifs. Une sonde l'a réfutée : RTL enveloppe dans `act`, l'effet a bien tourné.
+Le test `DiagnosticPage.observation` que la CI avait fait tomber reste, lui aussi, **inexpliqué**.
+
+#### ▶ PROCHAIN PAS
+
+Relancer `scripts/ci-like.sh 6`, capturer le détail des deux restants, puis conclure.
+
+---
+
+### 🔴 Le contexte d'origine (découvert le 2026-08-17)
 
 **Un rouge puis un vert sur le SHA identique** (`281e620`, re-run sans un caractère de changement).
 Ce n'est donc pas un défaut de code : c'est une course.
