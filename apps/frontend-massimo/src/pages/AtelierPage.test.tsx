@@ -640,7 +640,15 @@ describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
     fireEvent.click(await screen.findByText("C'est fini, je la garde"));
 
     // `persister()` tourne avant `finishDraft` : le dire n'est pas une consolation, c'est un fait.
-    expect(await screen.findByText(/Ton travail est bien enregistré/)).toBeInTheDocument();
+    //
+    // ⏱️ Le message ne paraît qu'après DEUX `await` enchaînés (`persister` → `finishDraft` qui
+    // rejette) puis un re-render. Sous la contention de la CI, le défaut de 1 s de `findByText`
+    // s'épuise parfois avant que cette chaîne ne se pose — c'était là la panne intermittente, PAS
+    // dans le composant (prouvé en retardant le rejet : le message finit toujours par paraître). On
+    // laisse donc la fenêtre nécessaire, sans rien retirer à ce que le test prouve.
+    expect(
+      await screen.findByText(/Ton travail est bien enregistré/, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Erreur 500/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
   });
