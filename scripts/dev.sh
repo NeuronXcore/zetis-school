@@ -12,6 +12,22 @@ VENV_PY="$BACKEND_DIR/.venv/bin/python"
 VENV_UVICORN="$BACKEND_DIR/.venv/bin/uvicorn"
 VENV_ALEMBIC="$BACKEND_DIR/.venv/bin/alembic"
 
+# 🔴 REFUS SI LA PROD TOURNE — ajouté le 2026-08-18, et ce n'est pas du confort.
+# La prod possède 8000 / 5173 / 5174. Si elle tourne, le backend de dev ne peut pas prendre 8000
+# (il échoue), MAIS Vite démarre quand même et appelle 8000 : le frontend de dev parlerait alors à
+# la PROD, et écrirait dans l'année réelle de Massimo. Le défaut est SILENCIEUX — l'écran a l'air
+# normal. On refuse donc de démarrer, et on dit par quoi passer.
+for _port in 8000 5173 5174; do
+  if lsof -nP -iTCP:$_port -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "❌ Le port $_port est déjà pris — la prod tourne probablement (docker ps | grep zetis-prod)."
+    echo "   \`pnpm dev\` viserait ces ports ET la base de PROD. Refus."
+    echo "   → Pour développer à côté de la prod, employer une paire de .claude/launch.json :"
+    echo "     backend-dev :8001 + massimo-dev :5176 + papa-dev :5175"
+    echo "   → Ou arrêter la prod : pnpm prod:down"
+    exit 1
+  fi
+done
+
 echo "▶ 1/4 Infra Docker (postgres / redis / minio)…"
 docker compose up -d
 
@@ -45,4 +61,7 @@ trap 'echo; echo "⏹ Arrêt…"; kill "$BACKEND_PID" "$WORKER_PID" 2>/dev/null 
 
 echo "   Massimo → http://localhost:5173   Papa → http://localhost:5174"
 # Les deux frontends en parallèle (au premier plan : garde le terminal vivant).
-pnpm --parallel --filter "./apps/frontend-*" dev
+# ⚠️ VITE_API_URL est posée EXPLICITEMENT : sans elle, les frontends dépendraient d'un `.env.local`
+# (gitignoré, donc absent d'une machine neuve) ou du repli codé. Une variable d'environnement prime
+# sur les fichiers `.env` de Vite — ce lancement-ci dit donc toujours la vérité sur SON backend.
+VITE_API_URL="http://localhost:8000" pnpm --parallel --filter "./apps/frontend-*" dev
