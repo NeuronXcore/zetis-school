@@ -22,11 +22,26 @@
 > début d'année. Base de DEV inchangée (157 leçons, 48 fiches) sur `localhost:5432`. Les deux
 > cohabitent : DEV sur `:8001` / `:5176` / `:5175` (paires `.claude/launch.json`).
 >
-> 🔴 **SI TU NE LIS QU'UNE CHOSE : la survie au REDÉMARRAGE DU MAC n'est toujours pas prouvée.**
-> Ce qui l'est : la reprise après un crash de processus — `kill -TERM 1` depuis l'intérieur du
-> conteneur, `RestartCount` 0 → 1, PID changé, `healthy`. Ce qui ne l'est pas : un arrêt de la
-> machine. Et `AutoStart` vaut toujours `False` dans `settings-store.json` alors que `launchctl`
-> montre l'agent enregistré — **seul un vrai reboot tranche**, et il prouverait les deux d'un coup.
+> ✅ **LA SURVIE AU REDÉMARRAGE DU MAC EST PROUVÉE** (2026-08-18, reboot réel). Après redémarrage,
+> sans qu'on tape quoi que ce soit : NVMe monté, **Docker Desktop démarré seul**, **8/8 conteneurs de
+> prod revenus**, backend `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**, données intactes
+> (année 2026-2027, 2 utilisateurs). Le chantier `946baba` est validé de bout en bout.
+>
+> 🔴 **ET UN PIÈGE DE DIAGNOSTIC À NE PAS REFAIRE : `settings-store.json` N'EST PAS la source de
+> vérité de l'autostart.** Il dit `AutoStart: False` — **encore maintenant, alors que Docker vient
+> de démarrer tout seul**. La case « Start Docker Desktop when you sign in » passe par les
+> **éléments d'ouverture de macOS**, pas par cette clé. C'est `launchctl` (`com.docker.helper`
+> enregistré) qui disait vrai. J'ai perdu du temps à croire ce fichier ; ne pas le rejouer.
+>
+> 📌 **Deux mécanismes distincts, tous deux prouvés, à ne pas confondre :** la reprise après **crash
+> de processus** (`kill -TERM 1` depuis l'intérieur → `RestartCount` 0 → 1, PID changé) et le
+> **démarrage du démon** qui relance ce qui tournait (après reboot : `RestartCount` reste à **0**).
+> Un `RestartCount` à 0 après un reboot n'est donc pas un échec — c'est l'autre mécanisme.
+>
+> ✅ **L'infra de DEV n'est PAS revenue** (`zetis-postgres-1` : `Exited (255)`), **et c'est correct** :
+> `946baba` n'a posé `restart: unless-stopped` que sur la pile de PROD. Le dev se lance à la demande.
+> ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
+> qui refusera tant que la prod tient les ports (et c'est voulu).
 
 ### 🟢 LA SÉANCE PROD — trois défauts que SEUL un démarrage réel pouvait trouver (2026-08-18)
 
@@ -212,21 +227,15 @@ et c'est voulu**.
 déjà surchargeable par **`ZETIS_CORS_ORIGINS`** (la classe `Settings` porte `env_prefix="ZETIS_"`,
 mesuré), et **`ARG VITE_API_URL` existe déjà** dans `infra/docker/frontend.Dockerfile`.
 
-#### ▶ PROCHAIN PAS — LE REDÉMARRAGE DU MAC, et lui seul
+#### ✅ PROCHAIN PAS — ACCOMPLI le 2026-08-18
 
-Les quatre gestes de la séance sont **faits** : autostart coché (côté humain), `prod:up`, redémarrage
-prouvé par l'intérieur, dev relancé sur une paire `launch.json` pendant que la prod tient ses ports.
+Les cinq gestes de la séance sont faits : autostart armé (côté humain), `prod:up`, redémarrage
+prouvé par l'intérieur, dev relancé sur une paire `launch.json` pendant que la prod tenait ses
+ports, et **le reboot réel du Mac**. Il ne reste **rien** à prouver sur ce chantier.
 
-Il ne reste qu'un geste, et **aucun outil ne peut le faire à notre place** : **redémarrer le Mac**.
-Il tranchera deux questions d'un coup :
-
-1. **La prod revient-elle seule ?** C'est la seule preuve qui manque au chantier `946baba`.
-2. **L'autostart de Docker Desktop est-il vraiment armé ?** `settings-store.json` dit `AutoStart:
-   False` (fichier non modifié depuis le 2026-08-17 19:59) alors que `launchctl` montre
-   `com.docker.helper` enregistré. **Les deux sources se contredisent** ; le reboot est le seul juge.
-
-⚠️ Vérifier aussi que `/Volumes/NX-Projects` est monté **avant** le démon : il porte `Docker.raw`.
-Disque absent au boot = Docker ne démarre pas, et aucune politique de redémarrage ne s'applique.
+⚠️ La seule vigilance qui demeure : `/Volumes/NX-Projects` doit être monté **avant** le démon — il
+porte `Docker.raw`. Au reboot du 2026-08-18 il l'était, mais rien ne le garantit si le disque est
+débranché.
 
 #### 🧾 DETTES OUVERTES
 
