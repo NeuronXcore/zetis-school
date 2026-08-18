@@ -4,6 +4,118 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/annees-scolaires-attend-son-formulaire` — trouvé n'est pas actionnable — 2026-08-18
+
+### 🔴 `findByRole` rend un bouton DÉSACTIVÉ, et le clic part dans le vide
+
+La CI de la PR #146 est tombée sur un test qu'aucun de ses 22 fichiers ne touchait :
+
+```txt
+AnneesScolairesPage › création : formulaire inline → POST → liste rechargée
+TestingLibraryElementError: Unable to find a label with the text of: Libellé
+```
+
+La cause n'est pas dans le champ cherché, elle est **trois lignes plus haut**. Dans la page :
+
+```jsx
+<Button onClick={() => setCreating(true)} disabled={creating || data.loading}>
+```
+
+Le bouton **existe pendant le chargement, mais désactivé**. Or `findByRole` rend la main dès que le
+nœud entre dans le DOM — **RTL ne filtre pas les éléments désactivés** — et `fireEvent.click` sur un
+bouton désactivé **ne déclenche rien** : pas d'erreur, pas d'avertissement, `setCreating(true)` n'a
+simplement jamais lieu. Le formulaire ne s'ouvre pas, et c'est la requête *suivante* qui échoue,
+en désignant le mauvais coupable.
+
+**Pourquoi invisible en local** : `mockResolvedValue` résout dans la microtâche suivante, donc
+`data.loading` est déjà `false` quand le test clique. Sur 2 cœurs chargés, non.
+
+**La règle, qui vaut bien au-delà de ce fichier** : *un élément TROUVÉ n'est pas un élément
+ACTIONNABLE.* Attendre l'existence ne suffit pas quand le composant désactive pendant le chargement.
+
+```js
+const creer = await screen.findByRole("button", { name: "+ Créer une année" });
+await waitFor(() => expect(creer).toBeEnabled());   // ← ce qui manquait
+fireEvent.click(creer);
+```
+
+### 🔧 La méthode : saboter le TEMPS, au lieu d'attendre l'aléa
+
+C'est le gain durable de ce chantier. Un défaut qui tombe « une fois sur six » ne se diagnostique
+pas en relançant six fois : on rend la condition **déterministe**. Ici, retarder le premier
+chargement de 50 ms :
+
+```js
+vi.mocked(fetchSchoolYears).mockImplementationOnce(
+  () => new Promise((r) => setTimeout(() => r([year({ id: 2 })]), 50)),
+);
+```
+
+L'échec se reproduit **sur macOS, au mot près**. Et surtout — c'est la moitié qu'on oublie — on
+vérifie ensuite que le correctif passe **avec le sabotage TOUJOURS ACTIF**. Sans cela, on prouve
+qu'on a changé l'horaire, pas qu'on a corrigé la cause. Le sabotage se retire en dernier.
+
+### 🔴 L'instrument était aveugle à la moitié du parc
+
+`scripts/ci-like.sh` codait en dur `cd apps/frontend-massimo`. **La panne vivait dans Papa.** L'outil
+censé reproduire les instabilités ne pouvait pas voir celle qu'on lui demandait de reproduire — et
+c'est de là que vient le chiffre faux du registre (« deux tests instables restants », mesuré sur
+Massimo seul). L'app est devenue un paramètre : `ci-like.sh [passages] [app]`.
+
+Ce que la première mesure sur Papa a rendu, code d'avant correctif : **5 passages rouges sur 5**,
+13 à 30 tests en échec par passage, neuf fichiers — `CouverturePage` onze fois, `DashboardPage`
+cinq. Le test corrigé ici n'apparaissait qu'**une** fois : il était le sommet visible.
+
+⚠️ **Calibrage non vérifié** : le conteneur tourne à `--cpus=2`, et personne n'a confirmé que c'est
+la contrainte du runner GitHub. S'il en a davantage, ce harnais surestime la CI réelle — la CI de
+#146 n'avait fait tomber qu'un test. **À calibrer avant d'exploiter ces chiffres.**
+
+## `chore/dev-et-prod-cohabitent` — la doc affirmait un conflit qui n'existait pas — 2026-08-17
+
+### 🔴 PyYAML est dans le venv du backend, mais ABSENT de `pyproject.toml`
+
+`import yaml` fonctionne dans `apps/backend/.venv`, et `pip list | grep -i yaml` **ne rend rien** :
+le module est là sans métadonnée, personne ne l'a demandé. Un test qui l'importe serait donc **vert
+en local et rouge en CI**, où l'installation se limite à `pip install -e '.[dev]'`.
+
+C'est le défaut exact que l'en-tête de `.github/workflows/ci.yml` documente déjà pour
+`faster_whisper` et `piper` : *« le vert local ne le prouvait pas — ils y sont installés »*.
+
+**Parade retenue** : les deux verrous de ce chantier (`test_compose_prod_restart.py`,
+`test_compose_ports_cohabitent.py`) parsent le YAML **à la main**, par regex, plutôt que d'ajouter
+une dépendance pour un test. ⚠️ La dette elle-même n'est pas soldée : PyYAML reste indéclaré.
+
+### ⚠️ Une alternance de regex qui coupe `${VAR:-defaut}` en silence
+
+Pour lire la moitié hôte d'un mapping de ports, ceci **paraît** correct et ne l'est pas :
+
+```python
+r'^\s*-\s*"(?P<hote>[^:"]+|\$\{[^}]+\}):(?P<conteneur>[^"]+)"\s*$'
+```
+
+Sur `- "${MINIO_PORT_PROD:-9002}:9000"`, l'alternative `[^:"]+` est tentée **en premier**, matche
+`${MINIO_PORT_PROD`, et le `:` suivant est celui du `:-`. La regex matche donc — mais rend une
+moitié hôte inexploitable, **sans erreur**. Il faut placer `\$\{[^}]+\}` en premier.
+
+**Ce qui l'a attrapé** : le test garde-fou du verrou (« le parseur trouve-t-il au moins 4 ports ? »),
+pas les assertions utiles — elles passaient toutes les deux, sur zéro donnée. *Un verrou sans
+garde-fou de parsing valide le vide.*
+
+### 📌 Trois affirmations du dépôt démenties par la mesure
+
+`docker-compose.prod.yml` et deux README affirmaient : *« ports miroir du dev → SOIT `pnpm dev`
+SOIT `pnpm prod:up` »*. Faux sur trois points, tous vérifiables en une commande :
+
+| Affirmation | Réalité mesurée |
+|---|---|
+| 4 collisions de ports | **1 seule** — postgres et redis de prod ne publient rien (`interne`) |
+| MinIO doit être publié | **non** : le navigateur ne parle jamais à MinIO, `read_video()` lit côté serveur |
+| `cors_origins` est en dur | **non** : `env_prefix="ZETIS_"` → `ZETIS_CORS_ORIGINS` surcharge la liste |
+
+⚠️ **Le troisième vaut au-delà de ce chantier** : dans `app/core/config.py`, un champ **sans**
+`Field(validation_alias=…)` est quand même surchargeable — sous `ZETIS_<NOM_DU_CHAMP>`. Le lire
+comme « codé en dur » fait écrire du code inutile.
+
 ## `fix/ci-instable` — deux horloges qui n'ont pas la même origine — 2026-08-17
 
 ### 🔴 La CI rougissait au hasard : `pump()` repartait de zéro, le composant du temps RÉEL

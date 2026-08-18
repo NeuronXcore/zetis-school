@@ -1,5 +1,86 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.5 — Graphify entre dans le dépôt, sans le chemin d'une seule machine (outillage)
+
+Rien ne change pour Massimo. Ce qui change, c'est que `CLAUDE.md` redevient **exécutable** : il
+impose graphify depuis l'initialisation du dépôt, et la mesure du 2026-08-17 a montré qu'aucun
+binaire, aucune skill et aucune carte n'existaient. La doctrine était morte, et personne ne pouvait
+le voir puisque **rien n'échouait** — une règle qu'aucun outil ne vérifie ne se sait pas enfreinte.
+
+La skill est désormais **dans le dépôt** (`.claude/skills/graphify/`), donc versionnée, donc
+récupérée par la seconde machine au `git pull`. La carte, elle, ne suit pas : `graphify-out/`
+(42 Mo, 17 740 nœuds) reste gitignoré et se reconstruit par `graphify update .`.
+
+🔴 **Une régression a été introduite et corrigée dans le même geste.** L'installeur avait écrit dans
+les deux hooks `PreToolUse` d'un fichier **versionné et partagé** le chemin absolu de la machine qui
+l'avait lancé. Mesuré : ce chemin absent, le hook sort en **127** à *chaque* appel Bash, Grep, Read
+et Glob — c'est-à-dire sur le MacBook, dès le premier `git pull`. Le nom court rend une sortie
+strictement identique : le chemin absolu ne payait rien.
+
+⚠️ **Et il serait revenu tout seul** : `graphify install --project` réécrit ce fichier à chaque
+réinstallation. Un verrou de dépôt refuse désormais tout chemin de machine dans `.claude/` versionné,
+et tout hook invoquant un exécutable par chemin absolu — le second attrape `/opt/homebrew/…`, que le
+premier ne voit pas. Les deux ont été vérifiés en les cassant.
+
+⚠️ Ce que le verrou ne répare pas : ces hooks dépendent du binaire, là où les précédents étaient des
+one-liners `python3` autonomes. Sans graphify installé, c'est 127 quel que soit le chemin.
+
+## 0.99.4 — Le dev et la prod tiennent sur la même machine (outillage)
+
+Rien ne change pour Massimo. Ce qui change, c'est qu'on peut développer sur le Mac Studio **pendant
+que sa prod tourne** — jusqu'ici le dépôt l'interdisait en toutes lettres : *« ports miroir du dev
+→ lancer SOIT `pnpm dev` SOIT `pnpm prod:up`, pas les deux »*.
+
+**C'était inexact, et le mesurer a fait le chantier.** Trois faits que personne n'avait vérifiés :
+
+- Postgres et Redis de prod ne publient **aucun** port — ils sont sur le réseau `interne`. Les
+  5432/6379 du dev n'ont jamais été menacés.
+- Le navigateur ne parle **jamais** à MinIO : `MinioVideoBackend.read_video()` lit les octets côté
+  serveur et c'est la route backend qui les sert. Aucune URL présignée nulle part. La publication
+  MinIO de la prod n'exposait donc que la **console d'admin**.
+- `.claude/launch.json` définit déjà **14 entrées de dev** sur 8001→8004 et 5175→5180.
+
+Le seul heurt dur était MinIO. Il a désormais ses propres ports côté prod (9002/9003), sous des
+**noms de variables distincts** — les deux compose lisent le même `.env`, donc des défauts
+différents ne suffisaient pas : sous un nom commun, poser la variable les déplacerait ensemble.
+
+**La prod garde les ports canoniques** (8000 / 5173 / 5174). C'est elle qui tourne en permanence et
+dont on garde l'adresse ; le dev, lui, se déplace. Aucun rebuild d'image, aucun changement d'URL,
+aucune ligne de Python — le CORS était déjà surchargeable par `ZETIS_CORS_ORIGINS` (préfixe
+`ZETIS_`), et `ARG VITE_API_URL` existait déjà dans le Dockerfile des frontends.
+
+⚠️ **Sur une machine où la prod tourne, `pnpm dev` échoue** — et c'est voulu : il vise 8000/5173/5174.
+Le dev y passe par une paire de `launch.json`. Mesuré le 2026-08-17, prod éteinte : le dev canonique
+tenait bien les trois ports.
+
+Un verrou tient les deux propriétés — aucun port hôte en commun, aucun **nom de variable** en commun
+— et les deux ont été vérifiées en les cassant.
+
+## 0.99.3 — ZETIS ne reste plus éteint après un redémarrage du Mac
+
+Massimo ouvre ZETIS, et il est là. C'est tout ce que ça change — mais ça ne tenait à rien : sur les
+huit services de production, **six n'avaient aucune politique de redémarrage**. Après un arrêt du
+Mac Studio, la base, le backend et les deux frontends ne revenaient pas. Le `worker`, lui, portait
+bien son `restart: unless-stopped` depuis l'ADR-0046 — il se relevait donc **dans le vide**, seul
+supervisé d'un dispositif qui ne l'était pas.
+
+Aucune décision nouvelle ici : la règle existe depuis l'ADR-0046 §1 et sa doctrine est explicite —
+*« un dispositif dont une pièce doit être lancée à la main finit toujours par tourner sans elle. »*
+Elle n'avait simplement jamais été appliquée aux sept autres pièces (ADR-0060, cas 2).
+
+`unless-stopped` et non `always`, et c'est un arbitrage : un `pnpm prod:down` volontaire doit rester
+un arrêt, pas un service qui insiste.
+
+⚠️ **Le correctif est à moitié hors du dépôt, et cette moitié-là n'est pas faite.** Mesuré le
+2026-08-17 sur le Mac Studio : Docker Desktop a `AutoStart = False`. Sans le démon au démarrage de
+session, aucune politique de redémarrage ne s'applique — la prod reste éteinte malgré ce commit. Il
+faut cocher *Settings → General → « Start Docker Desktop when you sign in »*, et que
+`/Volumes/NX-Projects` (qui porte `Docker.raw`) soit monté avant lui.
+
+Un verrou de dépôt tient la règle pour le **9e service**, celui que personne n'a encore écrit —
+c'est là qu'elle se reperdra. Il refuse aussi `always`. Il n'utilise **pas** PyYAML, présent dans le
+venv local mais absent de `pyproject.toml` : le vert local n'aurait pas prouvé le vert CI.
+
 ## 0.99.2 — La CI cesse de rougir au hasard (outillage)
 
 Aucun changement pour Massimo : deux lignes dans des aides de test. L'entrée existe parce que la
