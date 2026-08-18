@@ -4,6 +4,72 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/annees-scolaires-attend-son-formulaire` — trouvé n'est pas actionnable — 2026-08-18
+
+### 🔴 `findByRole` rend un bouton DÉSACTIVÉ, et le clic part dans le vide
+
+La CI de la PR #146 est tombée sur un test qu'aucun de ses 22 fichiers ne touchait :
+
+```txt
+AnneesScolairesPage › création : formulaire inline → POST → liste rechargée
+TestingLibraryElementError: Unable to find a label with the text of: Libellé
+```
+
+La cause n'est pas dans le champ cherché, elle est **trois lignes plus haut**. Dans la page :
+
+```jsx
+<Button onClick={() => setCreating(true)} disabled={creating || data.loading}>
+```
+
+Le bouton **existe pendant le chargement, mais désactivé**. Or `findByRole` rend la main dès que le
+nœud entre dans le DOM — **RTL ne filtre pas les éléments désactivés** — et `fireEvent.click` sur un
+bouton désactivé **ne déclenche rien** : pas d'erreur, pas d'avertissement, `setCreating(true)` n'a
+simplement jamais lieu. Le formulaire ne s'ouvre pas, et c'est la requête *suivante* qui échoue,
+en désignant le mauvais coupable.
+
+**Pourquoi invisible en local** : `mockResolvedValue` résout dans la microtâche suivante, donc
+`data.loading` est déjà `false` quand le test clique. Sur 2 cœurs chargés, non.
+
+**La règle, qui vaut bien au-delà de ce fichier** : *un élément TROUVÉ n'est pas un élément
+ACTIONNABLE.* Attendre l'existence ne suffit pas quand le composant désactive pendant le chargement.
+
+```js
+const creer = await screen.findByRole("button", { name: "+ Créer une année" });
+await waitFor(() => expect(creer).toBeEnabled());   // ← ce qui manquait
+fireEvent.click(creer);
+```
+
+### 🔧 La méthode : saboter le TEMPS, au lieu d'attendre l'aléa
+
+C'est le gain durable de ce chantier. Un défaut qui tombe « une fois sur six » ne se diagnostique
+pas en relançant six fois : on rend la condition **déterministe**. Ici, retarder le premier
+chargement de 50 ms :
+
+```js
+vi.mocked(fetchSchoolYears).mockImplementationOnce(
+  () => new Promise((r) => setTimeout(() => r([year({ id: 2 })]), 50)),
+);
+```
+
+L'échec se reproduit **sur macOS, au mot près**. Et surtout — c'est la moitié qu'on oublie — on
+vérifie ensuite que le correctif passe **avec le sabotage TOUJOURS ACTIF**. Sans cela, on prouve
+qu'on a changé l'horaire, pas qu'on a corrigé la cause. Le sabotage se retire en dernier.
+
+### 🔴 L'instrument était aveugle à la moitié du parc
+
+`scripts/ci-like.sh` codait en dur `cd apps/frontend-massimo`. **La panne vivait dans Papa.** L'outil
+censé reproduire les instabilités ne pouvait pas voir celle qu'on lui demandait de reproduire — et
+c'est de là que vient le chiffre faux du registre (« deux tests instables restants », mesuré sur
+Massimo seul). L'app est devenue un paramètre : `ci-like.sh [passages] [app]`.
+
+Ce que la première mesure sur Papa a rendu, code d'avant correctif : **5 passages rouges sur 5**,
+13 à 30 tests en échec par passage, neuf fichiers — `CouverturePage` onze fois, `DashboardPage`
+cinq. Le test corrigé ici n'apparaissait qu'**une** fois : il était le sommet visible.
+
+⚠️ **Calibrage non vérifié** : le conteneur tourne à `--cpus=2`, et personne n'a confirmé que c'est
+la contrainte du runner GitHub. S'il en a davantage, ce harnais surestime la CI réelle — la CI de
+#146 n'avait fait tomber qu'un test. **À calibrer avant d'exploiter ces chiffres.**
+
 ## `chore/dev-et-prod-cohabitent` — la doc affirmait un conflit qui n'existait pas — 2026-08-17
 
 ### 🔴 PyYAML est dans le venv du backend, mais ABSENT de `pyproject.toml`

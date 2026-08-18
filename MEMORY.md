@@ -123,15 +123,53 @@ dans le dépôt et sans lesquels le chantier 1 ne sert à rien :
 - 📌 **`docs/devops/docker-compose.md` est un placeholder obsolète** (services `api`/`worker-ai`,
   réseau `zetis-net` — rien de tout ça n'existe). Rangement `chore/` à part, hors périmètre ici.
 
-#### 🧾 DETTE HÉRITÉE — la CI instable (PR #145, squash `0ad3679`, MERGÉE)
+#### 🔴 DETTE HÉRITÉE, ET LE CHIFFRE ÉTAIT FAUX — l'instabilité de la CI (2026-08-18)
 
-Deux causes soldées, **deux restantes non diagnostiquées**, apparues *après* les correctifs, une
-fois sur six : `AtelierPage` › « un finish qui CASSE… » et `ChatPage` › « offre implicite
-(confirm) ». Le test `DiagnosticPage.observation` que la CI avait fait tomber reste **inexpliqué**.
+⚠️ **Ce qui était écrit ici — « deux tests instables restants » — est DÉMENTI.** Le chiffre venait
+de `scripts/ci-like.sh`, qui codait en dur `cd apps/frontend-massimo` : **l'instrument était aveugle
+à Papa**. Le registre ne sous-comptait pas par négligence, il sous-comptait *par construction*.
+C'est le motif que l'ADR-0046 §4 nomme déjà : un dispositif attaché à une seule porte d'entrée.
 
-▶ **Relancer `scripts/ci-like.sh 6`** et capturer le détail des deux restants. ⚠️ **Ne pas lire un
-run vert comme une guérison** — c'est le sujet même du chantier ; seule la mesure en conteneur
-(Node 20 + Linux + 2 CPU) vaut. Ne pas « corriger » ces tests sans les avoir reproduits.
+**Mesuré le 2026-08-18** (`ci-like.sh 5 frontend-papa`, code d'avant correctif) :
+
+| Passage | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|
+| tests en échec / 814 | 26 | 30 | 19 | 13 |
+
+**Cinq passages rouges sur cinq.** Neuf fichiers distincts, très inégalement : `CouverturePage`
+(11 occurrences), `DashboardPage` (5), puis une traîne — `FicheEditorModal`, `PapaSidebar`,
+`ConfirmDialog`, `MindmapEditorModal`, `ProductionPopover`, `CartesRevisionPage`.
+
+⚠️ **CALIBRAGE NON VÉRIFIÉ, et c'est la première chose à faire.** Le conteneur tourne à `--cpus=2`.
+Personne n'a vérifié que c'est la contrainte du runner GitHub. S'il en a davantage, ce harnais est
+**plus dur que la CI réelle** et ces 13-30 échecs la surestiment — la CI de la PR #146 n'avait fait
+tomber qu'**un** test, ce qui le suggère fortement. Sans ce calibrage, on chasse des fantômes.
+
+✅ **Un cas est SOLDÉ** (PR #147, squash `1c7b21a`) : `AnneesScolairesPage` › « création ». Cause
+mécanique, pas un aléa — le bouton `+ Créer une année` est `disabled` pendant `data.loading` ;
+`findByRole` le rend dès qu'il entre dans le DOM (RTL ne filtre pas les désactivés) et un
+`fireEvent.click` sur un bouton désactivé **ne déclenche rien**. **Trouvé ≠ actionnable.**
+
+🔧 **Et la MÉTHODE a changé** — c'est le gain durable. On ne guette plus un aléa d'une fois sur six :
+on **sabote de façon déterministe** (retarder le mock de 50 ms), l'échec se reproduit sur macOS au
+mot près, et on vérifie que le correctif tient **le sabotage encore actif**. Détail dans
+`TROUBLESHOOTING.md`.
+
+Les deux instables du registre — `AtelierPage` › « un finish qui CASSE », `ChatPage` › « offre
+implicite » — partagent **peut-être** ce mécanisme (`findByText` sur un bouton désactivable,
+`getByRole` synchrone sur le micro). **NON REPRODUITS, donc pas de diagnostic.** Le test
+`DiagnosticPage.observation` reste inexpliqué lui aussi.
+
+#### ▶ PROCHAIN PAS de cette dette (chantier À PART, pas dans #146)
+
+1. **Calibrer `ci-like.sh` sur le vrai runner GitHub** (nombre de vCPU). Tout le reste en dépend.
+2. Traiter `CouverturePage` et `DashboardPage`, qui concentrent **16 des échecs** à eux deux.
+3. Ne « corriger » aucun test sans l'avoir reproduit — la règle n'a pas changé, elle a juste
+   maintenant un instrument qui marche.
+
+⚠️ **Ne pas lire un run vert comme une guérison.** La CI de #146 est repassée verte après le
+rapatriement de `main` : ça ne dit pas que la suite est saine, seulement qu'elle n'a pas été tirée
+au sort ce coup-là.
 
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-17 (soir) — trois chantiers clos
