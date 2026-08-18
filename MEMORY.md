@@ -68,16 +68,32 @@ donc sur toute machine clonée) et `pnpm dev`, dont le backend échoue à prendr
 démarre quand même** et appelle 8000. Repli → **8001**, `dev.sh` **refuse** si les ports canoniques
 sont pris, et pose `VITE_API_URL` explicitement.
 
-🔴 **Trois pièges laissés, que rien d'autre ne porte :**
+🔴 **Deux pièges laissés, que rien d'autre ne porte :**
 
 1. **`pnpm dev` REFUSE de démarrer si la prod tourne** — c'est voulu, et le message nomme le remède
    (une paire `launch.json`, ou `pnpm prod:down`). Ne pas le « réparer ».
 2. **Les `.env.local` que j'ai posés ne voyagent pas** (gitignorés). Sur une machine neuve, c'est le
    repli à 8001 qui protège — d'où son importance.
-3. 📌 **`apps/extension-zetis-clip` vise TOUJOURS `localhost:8000`** à trois endroits (`storage.ts`,
-   `manifest.config.ts` dans ses `host_permissions`, `Options.tsx` qui *valide* cette URL).
-   L'extension de Papa viserait donc la PROD. **Non corrigé** : les permissions d'une extension ne se
-   changent pas à la légère. Chantier à part.
+
+> ❌ **UNE TROISIÈME DETTE ÉTAIT INSCRITE ICI. ELLE ÉTAIT FAUSSE — ne pas la rouvrir.**
+>
+> J'avais noté que `apps/extension-zetis-clip` « vise la prod » comme si c'était un défaut, et que
+> `Options.tsx` « valide » l'URL `localhost:8000`. **Les deux sont inexacts**, vérifié le
+> 2026-08-18 :
+>
+> - **Viser 8000 est l'usage CORRECT.** L'ADR-0006 fait de l'extension un *client de capture* : Papa
+>   y envoie de vraies sources de cours, qui arrivent en `pending` et se valident sur sa page
+>   « Sources de cours ». C'est une activité de **production**. Contrairement aux frontends,
+>   l'extension DOIT parler à la prod.
+> - **`Options.tsx:29` ne valide rien — il fait l'inverse** : `if (!/localhost:8000/.test(clean))
+>   → chrome.permissions.request(...)`. Autrement dit, *si ce n'est pas 8000, demande la permission
+>   d'hôte*. Et `manifest.config.ts` porte bien `optional_host_permissions: ["http://*/*",
+>   "https://*/*"]` pour que cette demande aboutisse. **Pointer l'extension sur `:8001` fonctionne
+>   déjà.**
+>
+> 📌 La leçon vaut au-delà : cette fausse dette est née d'un `grep` sur `localhost:8000` lu **sans
+> ouvrir les fichiers**. Trois occurrences, trois conclusions fausses. Un motif de recherche n'est
+> pas un diagnostic.
 
 📌 **Une leçon de méthode, née d'une erreur de la séance** : une PR a été ouverte sur une branche
 voisine de celle qui portait le correctif. Le corps décrivait trois correctifs, la PR n'en portait
