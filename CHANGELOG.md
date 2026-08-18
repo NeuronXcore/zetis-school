@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.4 — Le dev et la prod tiennent sur la même machine (outillage)
+
+Rien ne change pour Massimo. Ce qui change, c'est qu'on peut développer sur le Mac Studio **pendant
+que sa prod tourne** — jusqu'ici le dépôt l'interdisait en toutes lettres : *« ports miroir du dev
+→ lancer SOIT `pnpm dev` SOIT `pnpm prod:up`, pas les deux »*.
+
+**C'était inexact, et le mesurer a fait le chantier.** Trois faits que personne n'avait vérifiés :
+
+- Postgres et Redis de prod ne publient **aucun** port — ils sont sur le réseau `interne`. Les
+  5432/6379 du dev n'ont jamais été menacés.
+- Le navigateur ne parle **jamais** à MinIO : `MinioVideoBackend.read_video()` lit les octets côté
+  serveur et c'est la route backend qui les sert. Aucune URL présignée nulle part. La publication
+  MinIO de la prod n'exposait donc que la **console d'admin**.
+- `.claude/launch.json` définit déjà **14 entrées de dev** sur 8001→8004 et 5175→5180.
+
+Le seul heurt dur était MinIO. Il a désormais ses propres ports côté prod (9002/9003), sous des
+**noms de variables distincts** — les deux compose lisent le même `.env`, donc des défauts
+différents ne suffisaient pas : sous un nom commun, poser la variable les déplacerait ensemble.
+
+**La prod garde les ports canoniques** (8000 / 5173 / 5174). C'est elle qui tourne en permanence et
+dont on garde l'adresse ; le dev, lui, se déplace. Aucun rebuild d'image, aucun changement d'URL,
+aucune ligne de Python — le CORS était déjà surchargeable par `ZETIS_CORS_ORIGINS` (préfixe
+`ZETIS_`), et `ARG VITE_API_URL` existait déjà dans le Dockerfile des frontends.
+
+⚠️ **Sur une machine où la prod tourne, `pnpm dev` échoue** — et c'est voulu : il vise 8000/5173/5174.
+Le dev y passe par une paire de `launch.json`. Mesuré le 2026-08-17, prod éteinte : le dev canonique
+tenait bien les trois ports.
+
+Un verrou tient les deux propriétés — aucun port hôte en commun, aucun **nom de variable** en commun
+— et les deux ont été vérifiées en les cassant.
+
 ## 0.99.3 — ZETIS ne reste plus éteint après un redémarrage du Mac
 
 Massimo ouvre ZETIS, et il est là. C'est tout ce que ça change — mais ça ne tenait à rien : sur les

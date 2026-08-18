@@ -41,8 +41,22 @@ pnpm prod:down    # tout arrêter
 - **Limites mémoire** : `backend` et `worker` à `1g` (mesuré à vide : 92 et 41 Mio),
   `worker-media` à `2g` (Chromium).
 
-**Ports miroir du dev** (`8000` / `5173` / `5174`) → lancer **SOIT `pnpm dev` SOIT `pnpm prod:up`**,
-jamais les deux en même temps. Les données prod vivent dans des volumes séparés (`zetis-prod_*`).
+**La prod possède les ports canoniques** (`8000` / `5173` / `5174`) — c'est elle qui tourne en
+permanence et dont Massimo garde l'adresse. **Le dev et la prod peuvent tourner ensemble** sur la
+même machine, à une condition : sur cette machine, le dev passe par les **paires de
+`.claude/launch.json`** (`8001`→`8004` / `5175`→`5180`), pas par `pnpm dev` — qui vise 8000/5173/5174
+et échouerait.
+
+Ce qui rend la cohabitation possible, et qui était mal documenté jusqu'au 2026-08-17 :
+
+| Service prod | Publie | Heurte le dev ? |
+|---|---|---|
+| postgres, redis | rien (réseau `interne`) | non — les 5432/6379 du dev restent libres |
+| minio | `9002` / `9003` | non — depuis ce chantier ; **seule** la console d'admin passe par là |
+| backend, frontends | `8000` / `5173` / `5174` | uniquement contre `pnpm dev`, pas contre une paire |
+
+Les données sont cloisonnées par `name: zetis-prod` (volumes `zetis-prod_*`) : lancer le dev ne
+touche jamais la base de Massimo.
 
 ### La prod se relève seule — et les deux conditions hôte
 

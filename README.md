@@ -159,7 +159,7 @@ Le **dev natif** (`pnpm dev`) reste recommandé au quotidien (HMR instantané). 
 voir `infra/docker/README.md` :
 
 ```bash
-pnpm prod:up      # docker-compose.prod.yml — tout en conteneurs (soit dev, soit prod, pas les deux)
+pnpm prod:up      # docker-compose.prod.yml — tout en conteneurs (garde 8000/5173/5174)
 pnpm prod:down    # arrêter la stack prod
 ```
 

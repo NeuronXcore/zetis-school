@@ -15,8 +15,14 @@
 # rester un arrêt, pas un service qui insiste. C'est aussi pourquoi `docker compose kill` NE PROUVE
 # RIEN ici (faux négatif mesuré le 2026-08-08) — cf. `docs/devops/worker-production.md`.
 #
-# Ports miroir du dev (8000 / 5173 / 5174) → lancer SOIT `pnpm dev` SOIT `pnpm prod:up`,
-# pas les deux en même temps. Cf. infra/docker/README.md.
+# LA PROD POSSÈDE LES PORTS CANONIQUES : 8000 / 5173 / 5174. C'est elle qui tourne en
+# permanence et dont Massimo garde l'adresse ; le dev, lui, se déplace. Sur une machine où la prod
+# tourne, le dev passe par les paires de `.claude/launch.json` (8001→8004 / 5175→5180), qui
+# existent depuis longtemps pour ça — `pnpm dev`, qui vise 8000/5173/5174, échouerait.
+#
+# Postgres et Redis de prod ne publient AUCUN port (réseau `interne`) : ils ne heurtent rien.
+# MinIO est le seul service dont la publication gênait, et il a désormais ses propres ports.
+# Les données sont cloisonnées de leur côté par `name: zetis-prod` (volumes `zetis-prod_*`).
 # =====================================================================
 name: zetis-prod
 
@@ -64,9 +70,16 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-zetis_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-zetis_minio_password}
+    # 🔴 Ports DISTINCTS du dev, et sous des NOMS DE VARIABLES distincts. Les deux compose lisent
+    # le MÊME `.env` de la racine : réutiliser `MINIO_PORT` ferait déménager les deux stacks
+    # ensemble, ce qui est exactement le défaut qu'on referme ici.
+    # ⚠️ Rien d'autre que la console d'admin ne passe par là : le backend et `worker-media`
+    # joignent MinIO en `minio:9000` sur le réseau `interne`, et le NAVIGATEUR ne parle jamais à
+    # MinIO — `MinioVideoBackend.read_video()` lit les octets côté serveur et c'est la route
+    # backend qui les sert (aucune URL présignée nulle part).
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${MINIO_PORT_PROD:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT_PROD:-9003}:9001"
     volumes:
       - minio_data:/data
     networks: [interne]
