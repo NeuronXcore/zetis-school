@@ -129,7 +129,15 @@ describe("AnneesScolairesPage", () => {
     );
 
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "+ Créer une année" }));
+    // 🔴 Le bouton EXISTE pendant le chargement, mais `disabled` (`data.loading`, page L25).
+    // `findByRole` le rend dès qu'il entre dans le DOM — RTL ne filtre pas les boutons désactivés —
+    // et `fireEvent.click` sur un bouton désactivé ne déclenche RIEN : `setCreating(true)` n'a
+    // jamais lieu, le formulaire ne s'ouvre pas, et `getByLabelText("Libellé")` échoue. Invisible
+    // en local (les mocks résolvent dans la microtâche suivante), fatal sur les 2 cœurs de la CI.
+    // Il ne suffit donc pas que le bouton EXISTE : il doit être ACTIONNABLE.
+    const creer = await screen.findByRole("button", { name: "+ Créer une année" });
+    await waitFor(() => expect(creer).toBeEnabled());
+    fireEvent.click(creer);
 
     fireEvent.change(screen.getByLabelText("Libellé"), {
       target: { value: "2027-2028" },
