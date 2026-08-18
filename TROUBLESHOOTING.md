@@ -4,6 +4,35 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/atelier-finish-instable` + `fix/diagnostic-observation-instable` — deux flakes RTL — 2026-08-18 (soir)
+
+### 🔴 Une assertion sur un rendu à PLUSIEURS `await` a besoin d'une fenêtre `findBy` suffisante
+
+`AtelierPage` : le message n'apparaît qu'après deux `await` enchaînés (`persister` → `finishDraft`)
++ un re-render. `findByText` n'attend que **1 s** par défaut ; sous la contention CI, cette chaîne
+dépasse parfois la fenêtre → « Unable to find … » sur des PR sans rapport (1/920).
+
+**Reproduction déterministe** : retarder le mock de la dernière étape (`finishDraft`) au-delà de 1 s
+→ l'échec se rejoue au mot près, et prouve que le rendu *finit toujours* par paraître.
+**Parade** : `{ timeout: 5000 }` sur **la seule assertion `findBy` concernée**, documentée. Ce
+n'est PAS « gonfler pour cacher » : la repro déterministe prouve qu'il n'y a rien à cacher (rendu
+réellement asynchrone). Ne jamais toucher au timeout GLOBAL — c'est local à l'assertion lente.
+
+### 🔴 Une assertion sur un side-effect d'`useEffect` doit être ATTENDUE, jamais synchrone
+
+`DiagnosticPage.observation` : `scrollIntoView` est appelé dans un `useEffect` (clé `erreur`), donc
+APRÈS le commit qui rend l'alerte. `await screen.findByRole("alert")` se résout dès que l'alerte est
+dans le DOM — **parfois avant que l'effet passif ne s'exécute**. L'assertion **synchrone**
+`expect(scrollMock).toHaveBeenCalled()` gagnait la course par hasard : **verte en local, rouge sur
+le runner GitHub** (l'effet passif flushe plus tard sous charge).
+
+⚠️ **Profil trompeur** : NON reproductible au harnais local (5/5 vert) — c'est une course interne à
+l'ordonnanceur React, pas de la contention brute.
+**Reproduction déterministe** : différer l'effet d'un macrotask (`setTimeout(fn, 0)` dans le
+composant, sabotage temporaire) → l'assertion synchrone tombe au mot près.
+**Parade** : `await waitFor(() => expect(scrollMock).toHaveBeenCalled())`. `findByRole` se résout au
+commit ; l'effet passif, lui, part après. Règle générale : tester un side-effect d'effet = `waitFor`.
+
 ## `fix/la-dictee-manque-dans-l-image-prod` + `chore/calibrer-le-harnais-ci` — 2026-08-18 (soir)
 
 ### 🔴 Un correctif installé dans le venv de l'hôte NE COUVRE PAS l'image Docker de prod

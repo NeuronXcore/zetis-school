@@ -7,18 +7,25 @@
 ## État à la reprise
 
 > **Où en est le dépôt** (2026-08-18, séance du SOIR — étape 4bis FAITE) — `main` **égal à
-> `origin/main`**, rien à pousser ; **aucune branche** vivante. Les deux chantiers du soir sont
+> `origin/main`**, rien à pousser ; **aucune branche** vivante. **QUATRE chantiers** ce soir, tous
 > **MERGÉS** (squash), branches supprimées :
 > - **#156** (`bf148b8`) — `scripts/ci-like.sh` calibré sur le vrai runner (4 vCPU, `--cpuset-cpus`).
 > - **#157** (`b1dec13`) — l'image backend de prod embarque l'extra `[stt]` ; la dictée, morte en
 >   prod (503), est réparée **dans l'image**, déployée et vérifiée.
+> - **#158** (`b12f3a0`) — flake `AtelierPage` (« un finish qui CASSE » + ses 2 jumeaux) : `findBy`
+>   à 1 s parfois trop court sous la contention CI. Fusion en **admin**, car un flake SANS RAPPORT
+>   bloquait alors la CI — c'est #159.
+> - **#159** (`15ea76d`) — ce flake, justement : `DiagnosticPage.observation`, une assertion
+>   **synchrone** sur un `scrollIntoView` d'`useEffect` (course effet-passif / `findByRole`). Rouge
+>   sur le runner, vert en local ; reproduit en différant l'effet, corrigé par `waitFor`. Mergé
+>   proprement (CI verte, sans admin).
 >
-> Détail : « LES DEUX CHANTIERS DU SOIR ». 🟢 **Plus rien d'ouvert sur ces deux chantiers.**
-> **Résidus qui traînent** (chacun un chore/fix à part, rien d'autre ne les porte) : le vrai flake
-> `AtelierPage`/`CouverturePage`/`DashboardPage` (pastille posée pour `AtelierPage`), `mise-en-route.sh`
-> + le venv de l'hôte **toujours hors dépôt** (une machine de DEV neuve repart muette côté natif), et
-> `docs/devops/docker-compose.md` **obsolète**. Rappel : les chantiers **#146→#155** ont été mergés
-> plus tôt ce jour — détail plus bas et `CHANGELOG.md`.
+> Détail #156/#157 : « LES DEUX CHANTIERS DU SOIR » ; #158/#159 : « LES DEUX FLAKES DE LA CI ».
+> 🟢 **Plus rien d'ouvert sur ces quatre chantiers.** **Résidus qui traînent** (chacun un chore/fix à
+> part) : les flakes `CouverturePage`/`DashboardPage` (jamais reproduits, donc pas de diagnostic),
+> `mise-en-route.sh` + le venv de l'hôte **toujours hors dépôt** (une machine de DEV neuve repart
+> muette côté natif), et `docs/devops/docker-compose.md` **obsolète**. Rappel : les chantiers
+> **#146→#155** ont été mergés plus tôt ce jour — détail plus bas et `CHANGELOG.md`.
 >
 > 🟢 **LA PROD TOURNE** (2026-08-18, séance de vérification) — **8 conteneurs debout**, backend
 > `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**. Base de PROD à **0 leçon / 0 fiche** : un vrai
@@ -90,6 +97,36 @@ verrou `test_dockerfile_backend_extras.py`. **Déployé** (image reconstruite, c
 - Docker Hub a **timé out** (`DeadlineExceeded` sur le *load metadata* de `python:3.11-slim-bookworm`,
   base non cachée) au premier `up --build` ; un `docker pull` direct l'a amorcée, puis le rebuild a
   passé. Registre lent, pas un défaut du Dockerfile.
+
+### 🔧 LES DEUX FLAKES DE LA CI — trouvés, reproduits, corrigés (2026-08-18, soir)
+
+Deux tests instables rougissaient la CI par intermittence sur des PR **sans rapport**. Même famille
+de cause (une assertion qui court après un rendu asynchrone), deux mécanismes distincts. Méthode PR
+#147 dans les deux cas : **reproduire de façon déterministe → corriger sans affaiblir → vérifier
+sous sabotage encore actif.**
+
+**#158 (`b12f3a0`) — `AtelierPage`, le finish (3 tests d'un même `describe`).** Le message (ou la
+navigation) ne paraît qu'après DEUX `await` enchaînés (`persister` → `finishDraft`) + un re-render ;
+`findBy` à 1 s s'épuisait parfois avant, sous la contention CI. Reproduit en retardant `finishDraft`
+de 1,5 s (les trois tombent au mot près), corrigé par la fenêtre nécessaire (`timeout: 5000`) sur la
+seule assertion concernée de chacun. **Fusion en admin** : le flake #159 bloquait la CI au même
+moment.
+
+**#159 (`15ea76d`) — `DiagnosticPage.observation`, le scroll.** `scrollIntoView` est dans un
+`useEffect` (clé `erreur`), donc APRÈS le commit ; `findByRole("alert")` se résout parfois AVANT
+l'effet passif, et l'assertion **synchrone** `expect(scroll).toHaveBeenCalled()` perdait la course.
+**Rouge sur le runner, vert en local** (le « inexpliqué » de MEMORY). Reproduit de façon
+déterministe en différant l'effet d'un macrotask (`setTimeout(…,0)`, sabotage temporaire du
+composant → même échec au mot près), corrigé par `await waitFor(() => expect(scroll)…)`. Mergé
+proprement (CI verte, sans admin).
+
+📌 **Deux motifs RTL à reconnaître (relogés dans `TROUBLESHOOTING.md`) :** (1) une assertion sur un
+rendu à plusieurs `await` a besoin d'une fenêtre `findBy` suffisante, pas du défaut de 1 s ; (2) une
+assertion sur un effet d'`useEffect` (side-effect, ex. `scrollIntoView`) doit être **attendue**
+(`waitFor`), jamais synchrone — `findByRole` se résout au commit, pas après l'effet passif.
+
+⚠️ **Ce que ça n'a PAS traité :** `CouverturePage` et `DashboardPage`, **jamais reproduits** (donc
+pas de diagnostic — « trouvé ≠ actionnable »). Ils restent la dette CI ouverte.
 
 ### 🟢 LA SÉANCE PROD — trois défauts que SEUL un démarrage réel pouvait trouver (2026-08-18)
 
@@ -405,10 +442,10 @@ on **sabote de façon déterministe** (retarder le mock de 50 ms), l'échec se r
 mot près, et on vérifie que le correctif tient **le sabotage encore actif**. Détail dans
 `TROUBLESHOOTING.md`.
 
-Les deux instables du registre — `AtelierPage` › « un finish qui CASSE », `ChatPage` › « offre
-implicite » — partagent **peut-être** ce mécanisme (`findByText` sur un bouton désactivable,
-`getByRole` synchrone sur le micro). **NON REPRODUITS, donc pas de diagnostic.** Le test
-`DiagnosticPage.observation` reste inexpliqué lui aussi.
+Le registre listait `AtelierPage` › « un finish qui CASSE » et `DiagnosticPage.observation` : les
+DEUX sont désormais **reproduits et corrigés** (#158, #159 — voir « LES DEUX FLAKES DE LA CI »).
+Reste `ChatPage` › « offre implicite » (`getByRole` synchrone sur le micro ?), **NON REPRODUIT, donc
+pas de diagnostic** — comme `CouverturePage` et `DashboardPage`.
 
 #### ▶ PROCHAIN PAS de cette dette (chantier À PART, pas dans #146)
 
@@ -416,8 +453,9 @@ implicite » — partagent **peut-être** ce mécanisme (`findByText` sur un bou
    13-30 échecs/passage étaient un artefact de sur-souscription (`--cpus=2` laissait voir 24 cœurs) ;
    à 4 cœurs réels, `frontend-papa` rend **0/5**. Sous-comptage (aveugle à Papa) ET sur-comptage
    (sur-souscription) sont donc corrigés — mais le **vrai flake demeure** (voir 2, 3).
-2. Traiter `CouverturePage`, `DashboardPage` **et `AtelierPage`** (pastille déposée) — désormais
-   reproductibles sous le harnais calibré.
+2. ✅ **`AtelierPage` (#158) et `DiagnosticPage.observation` (#159) sont SOLDÉS** (voir « LES DEUX
+   FLAKES DE LA CI »). Restent `CouverturePage` et `DashboardPage`, **jamais reproduits** — la règle
+   « trouvé ≠ actionnable » tient : pas de correctif sans reproduction.
 3. Ne « corriger » aucun test sans l'avoir reproduit — la règle n'a pas changé, elle a juste
    maintenant un instrument qui marche.
 
