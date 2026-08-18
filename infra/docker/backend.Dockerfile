@@ -13,10 +13,15 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /repo
 # Le backend fournit app.* + alembic + le seed. Installé en editable (comme le dev).
-# Extra [tts] = piper-tts : fournit le binaire `piper` + onnxruntime pour la voix des capsules
-# (piper-tts embarque la phonémisation, pas besoin d'espeak-ng système). Cf. ADR-0007.
+# Extras :
+#   [tts] = piper-tts : binaire `piper` + onnxruntime pour la voix des capsules (embarque la
+#           phonémisation, pas besoin d'espeak-ng système). Cf. ADR-0007.
+#   [stt] = faster-whisper : dictée du chat / ELI5, 100 % local (ADR-0012). SANS lui, /transcribe
+#           répond 503 et Massimo voit « La dictée n'est pas dispo pour l'instant ». C'était le cas
+#           en prod jusqu'au 2026-08-18 : l'image n'installait que [tts] — la voix marchait, la
+#           dictée non.
 COPY apps/backend /repo/apps/backend
-RUN pip install --no-cache-dir -e 'apps/backend[tts]'
+RUN pip install --no-cache-dir -e 'apps/backend[tts,stt]'
 
 # Modèle de voix FR (siwis medium) baké dans l'image (storage/ est git-ignoré + .dockerignore).
 # Chemin attendu par défaut : storage/models/piper/fr_FR-siwis-medium.onnx (cf. core/config.py).
@@ -26,6 +31,14 @@ RUN mkdir -p /repo/apps/backend/storage/models/piper \
          "${PIPER_VOICE_BASE}/fr_FR-siwis-medium.onnx" \
     && curl -sL -o /repo/apps/backend/storage/models/piper/fr_FR-siwis-medium.onnx.json \
          "${PIPER_VOICE_BASE}/fr_FR-siwis-medium.onnx.json"
+
+# Modèle STT (faster-whisper 'small', ADR-0012) baké comme la voix Piper ci-dessus : une dictée
+# fiable et hors-ligne, sans téléchargement de ~150 Mo au premier appui-micro de Massimo. HF_HOME
+# persistant → le warm-up de build ET le runtime lisent le même cache (storage/ n'est pas monté en
+# volume, donc le modèle baké survit à la recréation du conteneur). Doit rester aligné sur le défaut
+# WHISPER_MODEL / WHISPER_COMPUTE_TYPE de core/config.py ('small' / int8).
+ENV HF_HOME=/repo/apps/backend/storage/models/whisper
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
 
 COPY infra/docker/backend-entrypoint.sh /usr/local/bin/backend-entrypoint.sh
 RUN chmod +x /usr/local/bin/backend-entrypoint.sh
