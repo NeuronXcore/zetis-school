@@ -4,6 +4,43 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `chore/la-ci-typecheck` — un vert qui ne mesure pas le typage — 2026-08-18
+
+### 🔴 La CI ne lançait aucun `tsc`, et personne ne pouvait le voir
+
+Le job `frontends` n'exécutait que `vitest`, qui **transpile sans vérifier les types**. Trois erreurs
+`tsc` ont donc vécu dans `main` avec quatre checks verts, jusqu'à bloquer la construction des images
+de prod. L'une d'elles cachait un vrai défaut produit (PR #151).
+
+Le mode d'échec est le pire qui soit : **rien ne rougit**. Il n'y a pas de symptôme à chercher, pas
+de trace à lire — seulement une commande qu'on ne lance pas.
+
+### ⚠️ `tsc -b --noEmit` peut rendre VERT sur un paquet partagé cassé
+
+C'est le script `typecheck` du dépôt, et il n'est pas fiable en local. Mesuré :
+
+```txt
+# une erreur de type ajoutée dans packages/types/src/fiche.ts
+pnpm --filter @zetis/frontend-papa typecheck        → exit 0, aucune erreur   ← ment
+pnpm --filter … exec tsc -b --force --noEmit        → exit 1, erreur TS2322   ← dit vrai
+```
+
+`tsc -b` se fie à son `.tsbuildinfo` et ne réévalue pas les projets référencés dont il se croit à
+jour. **En CI le cas ne se pose pas** — l'arbre est neuf, `.tsbuildinfo` est gitignoré — mais la CI
+emploie quand même `--force`, pour que le contrôle ne dépende d'aucun cache le jour où quelqu'un
+mettra ce fichier en cache.
+
+📌 Une commande par app suffit à couvrir `packages/` : `@zetis/types` et `@zetis/ui` exposent
+`./src/index.ts` (pas un `dist/`), donc leurs sources sont compilées avec l'app. Ni l'un ni l'autre
+n'a de script `typecheck` à lui.
+
+### 🔴 NE PAS renommer le job `frontends — vitest`
+
+Le nom est devenu trompeur — le job fait aussi `tsc`. Le renommer **casserait la protection de
+branche**, qui identifie les checks requis **par leur nom** (adr-0061 §1). Le check disparaîtrait
+sans bruit et toute PR resterait bloquée en attente d'un job qui n'existe plus. Renommer suppose de
+changer le réglage du dépôt dans le même geste.
+
 ## `fix/annees-scolaires-attend-son-formulaire` — trouvé n'est pas actionnable — 2026-08-18
 
 ### 🔴 `findByRole` rend un bouton DÉSACTIVÉ, et le clic part dans le vide
