@@ -11,7 +11,9 @@
 > (vérifié par `gh pr list`, et non plus déduit : `gh` fonctionne enfin). **Cinq chantiers mergés ce
 > jour** : le correctif du test instable Papa (**#147**, `1c7b21a`), la prod du Mac Studio
 > (**#146**, `9d05544`), la mise en route d'une machine (**#148**, `c2d7dce`), le contrôle
-> d'intégrité des médias (**#149**, `17da5b4`), le kit de migration (**#150**, `bb2da55`).
+> d'intégrité des médias (**#149**, `17da5b4`), le kit de migration (**#150**, `bb2da55`), le
+> pilotage qui cesse d'exposer les fiches de Massimo (**#151**, `e61fecf`), et le typecheck en CI
+> (**#152**, `e3d4641`).
 >
 > **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts, et **aucun conteneur `zetis-prod`
 > n'a jamais existé** (`docker ps -a` : 0). Le **dev tourne** (postgres/redis/minio sur
@@ -19,10 +21,46 @@
 > prod réclame). Aucun de ces chantiers n'apporte de migration — mais le premier `prod:up` en
 > jouera, sur une base neuve.
 >
+> ✅ **Nouveau le 2026-08-18 : la prod est CONSTRUCTIBLE.** Les **cinq images** se construisent
+> (`docker images | grep zetis-prod` → 5). Ce n'était **pas vrai** le matin même : le build tombait
+> sur trois erreurs `tsc`, et personne ne pouvait le savoir puisque la CI ne typecheckait pas.
+>
 > 🔴 **SI TU NE LIS QU'UNE CHOSE : la prod n'a JAMAIS tourné.** Tout le code est mergé et vert, et
 > ça ne prouve rien d'une pile qui n'a jamais démarré. Le prochain pas est la **séance qui prouve la
 > prod** — voir « ▶ PROCHAIN PAS » plus bas. Elle commence par une case à cocher qui n'est pas dans
 > ce dépôt : l'autostart de Docker Desktop, toujours à `False`.
+
+### 🔴 LE COMPILATEUR A TROUVÉ UN DÉFAUT PRODUIT — #151 (`e61fecf`) et #152 (`e3d4641`)
+
+Parti pour corriger trois erreurs `tsc` qui bloquaient le build des images. Le compilateur ne
+signalait pas une gêne de typage : **Papa se voyait offrir Valider / Rejeter / Éditer / Régénérer /
+Supprimer sur les fiches personnelles de son fils.** Mesuré sur la base réelle : **11 fiches**
+(5 `personal`, 6 `personal_draft`).
+
+**L'ADR-0015 (constat 5) avait prédit ce défaut mot pour mot** — *« elle apparaîtrait dans l'arbre
+de pilotage de Papa, avec ses boutons Valider / Rejeter / Éditer »* — nommé le fichier et la ligne,
+et prescrit le remède : *« pilotage_tree exclut author='massimo' »*. Le prédicat `zetis_authored()`
+existait déjà, sa docstring nommait l'usage (« la population de la production **et du pilotage** »),
+et il n'était branché nulle part.
+
+📌 **La leçon, et elle vaut au-delà de ce chantier : l'ADR n'était ni fausse ni mal formulée. Ce qui
+a manqué, c'est l'exécution — et le contrôle qui l'aurait rendue obligatoire.** Une décision juste,
+écrite, citée, mais que rien ne vérifie, se perd exactement comme une décision absente.
+
+🔴 **Deux pièges laissés derrière, que rien d'autre ne porte :**
+
+1. **NE JAMAIS renommer le job `frontends — vitest`**, malgré son nom devenu trompeur (il fait aussi
+   `tsc`). La protection de branche identifie les checks requis **par leur nom** (adr-0061 §1) :
+   renommer ferait disparaître un check requis **sans bruit**, et toute PR resterait bloquée en
+   attente d'un job inexistant. Renommer suppose de changer le réglage du dépôt dans le même geste.
+2. **`pnpm … typecheck` MENT en local.** Mesuré : une erreur ajoutée dans `packages/types` →
+   `tsc -b --noEmit` rend **exit 0**, l'erreur n'apparaît qu'avec **`--force`**. `tsc -b` se fie à
+   son `.tsbuildinfo`. En CI l'arbre est neuf, donc le cas ne se pose pas — mais **pour vérifier à
+   la main, employer `pnpm --filter … exec tsc -b --force --noEmit`**, jamais le script nu.
+
+📌 Troisième piège, du même chantier : `graphify affected` **n'a pas vu** le second appelant de
+`list_fiches_for_lesson` (l'appel passe par `service.`). C'est le `grep` de contre-vérification,
+prescrit par la cage, qui l'a trouvé — sans lui, une porte sur deux serait restée ouverte.
 
 ### 🧰 L'OUTILLAGE de la journée — trois scripts neufs, et ce qu'ils ne couvrent pas
 
