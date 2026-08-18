@@ -12,23 +12,63 @@
 > jour** : le correctif du test instable Papa (**#147**, `1c7b21a`), la prod du Mac Studio
 > (**#146**, `9d05544`), la mise en route d'une machine (**#148**, `c2d7dce`), le contrôle
 > d'intégrité des médias (**#149**, `17da5b4`), le kit de migration (**#150**, `bb2da55`), le
-> pilotage qui cesse d'exposer les fiches de Massimo (**#151**, `e61fecf`), et le typecheck en CI
-> (**#152**, `e3d4641`).
+> pilotage qui cesse d'exposer les fiches de Massimo (**#151**, `e61fecf`), le typecheck en CI
+> (**#152**, `e3d4641`), puis les trois de la SÉANCE PROD : les frontends joignables (**#153**,
+> `5f1104f`), l'avancement ancré dès la première image (**#154**, `5d4df9a`), et le dev qui ne peut
+> plus écrire dans la prod (**#155**, `01daf25`).
 >
-> **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts, et **aucun conteneur `zetis-prod`
-> n'a jamais existé** (`docker ps -a` : 0). Le **dev tourne** (postgres/redis/minio sur
-> 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174, soit précisément les trois ports que la
-> prod réclame). Aucun de ces chantiers n'apporte de migration — mais le premier `prod:up` en
-> jouera, sur une base neuve.
+> 🟢 **LA PROD TOURNE** (2026-08-18, séance de vérification) — **8 conteneurs debout**, backend
+> `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**. Base de PROD à **0 leçon / 0 fiche** : un vrai
+> début d'année. Base de DEV inchangée (157 leçons, 48 fiches) sur `localhost:5432`. Les deux
+> cohabitent : DEV sur `:8001` / `:5176` / `:5175` (paires `.claude/launch.json`).
 >
-> ✅ **Nouveau le 2026-08-18 : la prod est CONSTRUCTIBLE.** Les **cinq images** se construisent
-> (`docker images | grep zetis-prod` → 5). Ce n'était **pas vrai** le matin même : le build tombait
-> sur trois erreurs `tsc`, et personne ne pouvait le savoir puisque la CI ne typecheckait pas.
->
-> 🔴 **SI TU NE LIS QU'UNE CHOSE : la prod n'a JAMAIS tourné.** Tout le code est mergé et vert, et
-> ça ne prouve rien d'une pile qui n'a jamais démarré. Le prochain pas est la **séance qui prouve la
-> prod** — voir « ▶ PROCHAIN PAS » plus bas. Elle commence par une case à cocher qui n'est pas dans
-> ce dépôt : l'autostart de Docker Desktop, toujours à `False`.
+> 🔴 **SI TU NE LIS QU'UNE CHOSE : la survie au REDÉMARRAGE DU MAC n'est toujours pas prouvée.**
+> Ce qui l'est : la reprise après un crash de processus — `kill -TERM 1` depuis l'intérieur du
+> conteneur, `RestartCount` 0 → 1, PID changé, `healthy`. Ce qui ne l'est pas : un arrêt de la
+> machine. Et `AutoStart` vaut toujours `False` dans `settings-store.json` alors que `launchctl`
+> montre l'agent enregistré — **seul un vrai reboot tranche**, et il prouverait les deux d'un coup.
+
+### 🟢 LA SÉANCE PROD — trois défauts que SEUL un démarrage réel pouvait trouver (2026-08-18)
+
+La pile de prod a démarré pour la **première fois**. Elle avait un seul but — voir ce qu'aucun test
+ne peut voir — et elle a rendu **trois défauts**, tous invisibles jusque-là.
+
+**1. Docker publiait dans le vide (#153, `5f1104f`).** Les 8 conteneurs `Up`, le backend `healthy`,
+et les deux frontends **injoignables** : `docker port` rendait « aucune liaison ». Un conteneur
+rattaché au seul réseau `interne` (`internal: true`) **ne peut pas publier de port** — Docker accepte
+la déclaration `ports:` et ne fait rien, sans erreur ni avertissement. Le backend marchait parce
+qu'il est aussi sur `externe`. Défaut présent depuis l'introduction des réseaux (ADR-0046).
+⚠️ `minio` garde des publications **inertes à dessein** : lui donner `externe` ouvrirait une sortie
+au magasin de données pour le confort d'une console. C'est écrit, et le verrou le nomme en exception.
+
+**2. L'avancement repartait de zéro à la première image (#154, `5d4df9a`).**
+`useEstimatedProgress` faisait `useState(0)` puis calculait dans un `useEffect` — qui s'exécute
+**après** la première peinture. L'intention contraire était écrite dans le fichier depuis l'origine.
+Sur 2 cœurs, une requête DOM gagne la course et lit « 0 % » : `DemandesPage` est tombée ainsi en CI.
+Corrigé par un initialiseur paresseux ; sonde de premier rendu en verrou.
+
+**3. Le dev pouvait écrire dans l'année réelle de Massimo (#155, `01daf25`).** Deux chemins
+silencieux : le repli codé `?? "http://localhost:8000"` (actif dès qu'aucun `.env.local` n'existe,
+donc sur toute machine clonée) et `pnpm dev`, dont le backend échoue à prendre 8000 mais dont **Vite
+démarre quand même** et appelle 8000. Repli → **8001**, `dev.sh` **refuse** si les ports canoniques
+sont pris, et pose `VITE_API_URL` explicitement.
+
+🔴 **Trois pièges laissés, que rien d'autre ne porte :**
+
+1. **`pnpm dev` REFUSE de démarrer si la prod tourne** — c'est voulu, et le message nomme le remède
+   (une paire `launch.json`, ou `pnpm prod:down`). Ne pas le « réparer ».
+2. **Les `.env.local` que j'ai posés ne voyagent pas** (gitignorés). Sur une machine neuve, c'est le
+   repli à 8001 qui protège — d'où son importance.
+3. 📌 **`apps/extension-zetis-clip` vise TOUJOURS `localhost:8000`** à trois endroits (`storage.ts`,
+   `manifest.config.ts` dans ses `host_permissions`, `Options.tsx` qui *valide* cette URL).
+   L'extension de Papa viserait donc la PROD. **Non corrigé** : les permissions d'une extension ne se
+   changent pas à la légère. Chantier à part.
+
+📌 **Une leçon de méthode, née d'une erreur de la séance** : une PR a été ouverte sur une branche
+voisine de celle qui portait le correctif. Le corps décrivait trois correctifs, la PR n'en portait
+qu'un, et **la CI était verte** — elle ne pouvait rien voir. Ce qui l'a rattrapé, c'est d'avoir
+**compté les fichiers du merge** (4 listés là où le diff en annonçait 7). *Vérifier ce qui est entré
+dans `main`, pas seulement que le merge a réussi.*
 
 ### 🔴 LE COMPILATEUR A TROUVÉ UN DÉFAUT PRODUIT — #151 (`e61fecf`) et #152 (`e3d4641`)
 
@@ -131,12 +171,16 @@ ni SMTP_HOST ni ALERT_EMAIL_TO »*. `ALERT_EMAIL_TO` est pourtant dans le `.env`
 **`SMTP_HOST` qui manque**. Si le worker tombe, ça se verra dans le bandeau Papa et **nulle part
 ailleurs**.
 
-### ✅ MERGÉ, MAIS JAMAIS EXÉCUTÉ — la prod du Mac Studio (PR #146, squash `9d05544`)
+### ✅ EXÉCUTÉ ET PROUVÉ — la prod du Mac Studio (PR #146, squash `9d05544`)
 
-> 🔴 **Lis d'abord ceci.** Le code est dans `main` et la CI est verte, mais **aucun conteneur
-> `zetis-prod` n'a jamais existé sur cette machine** — vérifié le 2026-08-18 par `docker ps -a`.
-> Ni le redémarrage automatique, ni la cohabitation dev/prod n'ont été observés en vrai. Un vert de
-> CI ne prouve rien d'une pile qui n'a jamais démarré.
+> ✅ **Ce chantier a été vérifié en vrai le 2026-08-18** (voir « LA SÉANCE PROD » plus haut). Les
+> huit conteneurs portent `restart: unless-stopped` — lu dans `docker inspect`, pas dans le fichier
+> — et la reprise après crash est prouvée : `kill -TERM 1` **depuis l'intérieur** du conteneur,
+> `RestartCount` 0 → 1, PID changé, `healthy`.
+>
+> 🔴 **Ce qui reste NON prouvé : la survie au redémarrage du MAC.** Un crash de processus n'est pas
+> un arrêt de machine. ⚠️ Et `docker compose kill` ne prouverait rien non plus — un arrêt d'opérateur
+> est exclu par définition d'`unless-stopped` (faux négatif mesuré le 2026-08-08).
 
 **Pourquoi ce chantier existe.** Le Mac Studio doit héberger **la prod que Massimo utilise** *et*
 servir de machine de développement, pendant qu'un MacBook Pro sert en itinérance. Deux défauts
@@ -168,26 +212,21 @@ et c'est voulu**.
 déjà surchargeable par **`ZETIS_CORS_ORIGINS`** (la classe `Settings` porte `env_prefix="ZETIS_"`,
 mesuré), et **`ARG VITE_API_URL` existe déjà** dans `infra/docker/frontend.Dockerfile`.
 
-#### ▶ PROCHAIN PAS — LA SÉANCE QUI PROUVE LA PROD
+#### ▶ PROCHAIN PAS — LE REDÉMARRAGE DU MAC, et lui seul
 
-Le code est mergé ; il ne reste que ce qu'aucun test ne peut faire à notre place. **Une seule séance
-ferme les deux chantiers**, et l'ordre compte :
+Les quatre gestes de la séance sont **faits** : autostart coché (côté humain), `prod:up`, redémarrage
+prouvé par l'intérieur, dev relancé sur une paire `launch.json` pendant que la prod tient ses ports.
 
-1. 🔴 **Cocher *Docker Desktop → Settings → General → « Start Docker Desktop when you sign in »***.
-   Toujours `AutoStart = False` au 2026-08-18 (`settings-store.json`). Sans le démon au démarrage de
-   session, **aucune** politique de redémarrage ne s'applique : le chantier 1 ne produit rien.
-   ⚠️ Vérifier aussi que `/Volumes/NX-Projects` est monté **avant** le démon — il porte `Docker.raw`
-   (réglage `DataFolder`). Disque absent = Docker ne démarre pas du tout.
-2. Libérer 8000/5173/5174 (le dev les tient), puis `pnpm prod:up --build`. ⚠️ **Long** — `worker-media`
-   télécharge ~300 Mo de Chromium — et ce premier `up` **crée la vraie base de Massimo** (migrations
-   + seed). C'est la naissance des données de production, pas un essai jetable : à partir de là, le
-   volume `zetis-prod_postgres_data` se sauvegarde.
-3. Prouver le redémarrage **depuis l'intérieur** du conteneur, jamais par `docker compose kill` qui
-   rend un faux négatif (mesuré le 2026-08-08) :
-   `docker exec zetis-prod-backend-1 sh -c 'kill -TERM 1'` → `RestartCount = 1`, `running`.
-4. Puis relancer le dev **par une paire `.claude/launch.json`** (8001+/5175+) pendant que la prod
-   tourne. C'est la seule preuve réelle de la cohabitation — jusqu'ici elle ne repose que sur des
-   ports libres et un test de fichiers.
+Il ne reste qu'un geste, et **aucun outil ne peut le faire à notre place** : **redémarrer le Mac**.
+Il tranchera deux questions d'un coup :
+
+1. **La prod revient-elle seule ?** C'est la seule preuve qui manque au chantier `946baba`.
+2. **L'autostart de Docker Desktop est-il vraiment armé ?** `settings-store.json` dit `AutoStart:
+   False` (fichier non modifié depuis le 2026-08-17 19:59) alors que `launchctl` montre
+   `com.docker.helper` enregistré. **Les deux sources se contredisent** ; le reboot est le seul juge.
+
+⚠️ Vérifier aussi que `/Volumes/NX-Projects` est monté **avant** le démon : il porte `Docker.raw`.
+Disque absent au boot = Docker ne démarre pas, et aucune politique de redémarrage ne s'applique.
 
 #### 🧾 DETTES OUVERTES
 
