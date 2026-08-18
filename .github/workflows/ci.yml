@@ -130,6 +130,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 🔴 SONDE DE CALIBRAGE — elle ne vérifie rien, elle MESURE. `scripts/ci-like.sh` rejoue les
+      # suites dans un conteneur bridé pour débusquer l'instable ; si sa bride ne correspond pas au
+      # vrai runner, il chasse des fantômes (trop dur) ou ne trouve rien (trop mou). Le 2026-08-18,
+      # les 13-30 échecs mesurés sur Papa l'ont été à `--cpus=2` SANS QUE PERSONNE N'AIT VÉRIFIÉ que
+      # c'était la contrainte réelle.
+      #
+      # ⚠️ Elle reste EN PERMANENCE, et c'est le point : GitHub change la taille de ses runners
+      # (les dépôts publics sont passés à 4 cœurs). Sans cette ligne, le harnais dériverait de
+      # nouveau en silence. Coût : moins d'une seconde.
+      - name: caractéristiques du runner (calibrage de ci-like.sh)
+        run: |
+          echo "vCPU (nproc)  : $(nproc)"
+          echo "RAM           : $(free -h | awk '/^Mem:/{print $2}')"
+          echo "modèle        : $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+          echo "noyau         : $(uname -sr)"
+
       - name: check_adr_refs.sh — tout ADR-00XX cité doit exister
         run: bash scripts/check_adr_refs.sh
 

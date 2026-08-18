@@ -29,12 +29,45 @@ RACINE=$(git rev-parse --show-toplevel) || exit 1
 PASSAGES=${1:-4}
 APP=${2:-frontend-massimo}
 
+# 🔴 CALIBRÉ SUR LE VRAI RUNNER, mesuré le 2026-08-18 par la sonde du job `verrous du dépôt` :
+#
+#     vCPU : 4        modèle : AMD EPYC 9V74 80-Core
+#     RAM  : 15 Gi    noyau  : Linux 6.17.0-1022-azure
+#
+# Avant cette mesure, la bride valait `--cpus=2` — un chiffre que PERSONNE N'AVAIT VÉRIFIÉ. Le
+# harnais était donc DEUX FOIS PLUS DUR que la CI, et ses relevés la surestimaient : il avait rendu
+# 13 à 30 échecs par passage sur Papa, cinq passages rouges sur cinq, là où la CI réelle n'en
+# faisait tomber qu'un. On chassait des fantômes.
+#
+# ⚠️ CE QUI RESTE NON REPRODUCTIBLE ICI : la mémoire. Le runner a 15 Gi ; ce Mac n'alloue que
+# ~7,7 Gi à Docker. Une instabilité due à la PRESSION MÉMOIRE ne se reproduira donc pas avec ce
+# harnais, et son silence sur ce point ne prouve rien.
+#
+# 🔴 ET LE DRAPEAU COMPTE AUTANT QUE LE CHIFFRE — mesuré le 2026-08-18 :
+#
+#     docker run --cpus=4          → nproc = 24   (le conteneur VOIT tout l'hôte)
+#     docker run --cpuset-cpus=0-3 → nproc = 4    (ce qu'on veut)
+#
+# `--cpus` ne borne que le TEMPS CPU, pas le nombre de cœurs visibles. Or vitest dimensionne son
+# pool de workers sur `os.cpus().length`. L'ancien harnais (`--cpus=2`) laissait donc démarrer
+# ~24 workers pour 2 cœurs de temps : une sur-souscription pathologique, BIEN PIRE qu'une vraie
+# machine à 2 cœurs. C'est de là que venaient ses 13-30 échecs par passage — un régime que la CI
+# ne connaît jamais.
+#
+# On emploie donc `--cpuset-cpus`, qui épingle des cœurs RÉELS et fait voir le bon compte.
+#
+# Pour durcir volontairement (chercher une race latente plutôt que reproduire la CI) :
+#     CPUS=2 scripts/ci-like.sh 5 frontend-papa
+# Dans ce cas, les chiffres obtenus ne sont PLUS comparables à ceux de la CI.
+CPUS=${CPUS:-4}
+CPUSET="0-$((CPUS - 1))"
+
 case "$APP" in
   frontend-massimo|frontend-papa) ;;
   *) echo "app inconnue : $APP (attendu : frontend-massimo | frontend-papa)" >&2; exit 2 ;;
 esac
 
-exec docker run --rm --cpus=2 -v "$RACINE":/src:ro -w /w node:20 bash -c "
+exec docker run --rm --cpuset-cpus="$CPUSET" -v "$RACINE":/src:ro -w /w node:20 bash -c "
 set -e
 mkdir -p /w && cd /src
 tar --exclude=node_modules --exclude=.git --exclude=graphify-out -cf - . | (cd /w && tar -xf -)
