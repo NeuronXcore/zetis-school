@@ -6,80 +6,115 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt, en trois lignes** (2026-08-17, fin de journée) — `main` est à jour, l'arbre
-> est propre, **aucune branche** locale ni distante, **aucune PR ouverte**. Quatre chantiers mergés
-> ce jour : l'agenda v2 (#143 `b0f5d37`), la *required check* (`4001594`), « Massimo ne lit plus
-> Erreur 500 » (#144 `1178a68`), la CI instable (#145 `0ad3679`). **Un seul reste inachevé** — le
-> dernier, ci-dessous.
+> **Où en est le dépôt, en trois lignes** (2026-08-17, nuit) — `main` est à jour et **égal à
+> `origin/main`** : rien à y pousser. **Deux branches locales vivent, aucune n'est poussée, aucune
+> PR n'est ouverte** : `fix/prod-survit-au-redemarrage`, et `chore/dev-et-prod-cohabitent` qui la
+> **contient**. Les cinq chantiers mergés le 2026-08-17 sont plus bas.
 >
-> **Prod** : mesurée à la clôture, révision `a8a71c84f86e` = tête du dépôt, **zéro migration en
-> attente**. Aucune écriture faite, donc aucune sauvegarde nécessaire ; pile éteinte **sans `-v`**,
-> volumes intacts. Les chantiers de l'après-midi n'apportent aucune migration.
+> **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts. Le **dev tourne** (postgres/redis/
+> minio sur 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174). Les deux chantiers en cours
+> n'apportent **aucune migration**.
 
-### 🟡 MERGÉ mais INACHEVÉ — la CI instable : deux causes soldées, deux restantes (2026-08-17, PR #145, squash `0ad3679`)
+### 🟢 EN COURS — la prod du Mac Studio se relève, et elle cohabite avec le dev (2026-08-17)
 
-**Reproduit** avec `scripts/ci-like.sh` (Node 20 + Linux + 2 CPU, conteneur). Ni la charge ni le
-parallélisme ne suffisaient : 5 suites complètes à 2 workers sur machine saturée, **920/920
-vertes**. C'est l'environnement qui compte.
+**Pourquoi ce chantier existe.** Le Mac Studio doit héberger **la prod que Massimo utilise** *et*
+servir de machine de développement, pendant qu'un MacBook Pro sert en itinérance. Deux défauts
+l'empêchaient. Ils ont été traités séparément, dans deux commits.
 
-| | Avant | Après |
-|---|---|---|
-| passages rouges | **4 / 4** | **2 / 6** |
+⚠️ **La seconde branche est branchée sur la PREMIÈRE, pas sur `main`** — les deux modifient
+l'en-tête de `docker-compose.prod.yml`, et brancher sur `main` garantissait un conflit. **Merger
+`chore/dev-et-prod-cohabitent` emporte les deux.** Base commune : `dac14f1`. Le détail des commits
+se lit par `git log --oneline main..HEAD`.
 
-**Corrigé et prouvé par sabotage :**
+**1. `fix/prod-survit-au-redemarrage`** — ADR-0060 **cas 2** (application), aucun ADR écrit, on
+exécute l'**ADR-0046 §1**. Six des huit services de prod n'avaient **aucune** politique de
+redémarrage : après un arrêt du Mac, la base, le backend et les deux frontends ne revenaient pas,
+et le `worker` — seul supervisé — se relevait dans le vide. `restart: unless-stopped` (jamais
+`always` : un `prod:down` volontaire doit rester un arrêt).
 
-1. 🔴 **`pump()` repartait de zéro, `HeaderGalaxy` compte en temps RÉEL** (`now - performance.now()`
-   du montage). L'écart était *négatif de tout ce que le processus avait vécu avant ce fichier* →
-   état bloqué sur `growing`. Invisible en local parce qu'avec 16 workers le fichier démarre dans
-   la première seconde. **Prouvé** en faisant avancer l'horloge de 10 s avant le fichier : même
-   échec, au mot près, sur macOS.
-2. **`glisser()` cherchait sa puce en `getByText`** alors qu'elle vient d'une promesse — le test
-   attendait le bouton du gabarit, déjà présent. Corrigé dans l'**aide**, pas chez ses appelants.
+**2. `chore/dev-et-prod-cohabitent`** — ADR-0060 **cas 1** (rangement), aucun ADR. Le dépôt
+affirmait « ports miroir → SOIT `pnpm dev` SOIT `pnpm prod:up` ». **C'était faux**, et le mesurer a
+réduit le chantier à deux lignes : Postgres et Redis de prod ne publient **rien** ; le navigateur ne
+parle **jamais** à MinIO (`MinioVideoBackend.read_video()` lit côté serveur, la route backend sert
+les octets, aucune URL présignée) ; `.claude/launch.json` définit déjà 14 entrées de dev sur
+8001→8004 / 5175→5180. MinIO prod prend **9002/9003**, sous des **noms de variables distincts** —
+les deux compose lisent le même `.env`, donc des défauts différents ne suffisaient pas.
 
-🔴 **DEUX RESTENT, non diagnostiquées** — apparues *après* les correctifs, une fois sur six :
-`AtelierPage` › « un finish qui CASSE… » (**écrit ce jour même**) et `ChatPage` › « offre implicite
-(confirm) ». Elles n'ont pas de cause établie : ne pas les « corriger » sans les avoir reproduites.
+**Décision prise (ne pas la rouvrir) : la PROD possède les ports canoniques** 8000/5173/5174. Sur
+une machine où la prod tourne, le dev passe par une paire `launch.json` ; **`pnpm dev` y échouera,
+et c'est voulu**.
 
-⚠️ **L'hypothèse publiée d'abord était FAUSSE** — j'avais accusé `findByRole` de rendre la main
-avant les effets passifs. Une sonde l'a réfutée : RTL enveloppe dans `act`, l'effet a bien tourné.
-Le test `DiagnosticPage.observation` que la CI avait fait tomber reste, lui aussi, **inexpliqué**.
+**Ce qui n'a demandé AUCUNE ligne de Python**, contre ce qui était annoncé au cadrage : le CORS est
+déjà surchargeable par **`ZETIS_CORS_ORIGINS`** (la classe `Settings` porte `env_prefix="ZETIS_"`,
+mesuré), et **`ARG VITE_API_URL` existe déjà** dans `infra/docker/frontend.Dockerfile`.
 
 #### ▶ PROCHAIN PAS
 
-**Relancer `scripts/ci-like.sh 6`** et capturer le détail des deux restants. ⚠️ **Ne pas lire le
-vert de la PR #145 comme une guérison** : la CI y est passée du premier coup, mais elle était déjà
-passée au second essai hier sur du code inchangé. *Un run vert n'a jamais rien prouvé ici* — c'est
-le sujet même du chantier. La seule mesure qui vaut est celle du conteneur.
+**Pousser les deux branches et ouvrir UNE PR** (celle de `chore/dev-et-prod-cohabitent`, qui
+contient l'autre), puis étape **4bis**. Avant de merger, deux gestes **humains** qui ne sont pas
+dans le dépôt et sans lesquels le chantier 1 ne sert à rien :
 
----
+1. 🔴 **Cocher *Docker Desktop → Settings → General → « Start Docker Desktop when you sign in »***.
+   Mesuré : `AutoStart = False` dans `settings-store.json`. Sans le démon au démarrage de session,
+   **aucune** politique de redémarrage ne s'applique.
+2. Vérifier que `/Volumes/NX-Projects` est monté **avant** le démon : il porte `Docker.raw`
+   (réglage `DataFolder`). Disque absent = Docker ne démarre pas.
 
-### 🔴 Le contexte d'origine (découvert le 2026-08-17)
+#### 🧾 DETTES OUVERTES
 
-**Un rouge puis un vert sur le SHA identique** (`281e620`, re-run sans un caractère de changement).
-Ce n'est donc pas un défaut de code : c'est une course.
+- 🔴 **La preuve de bout en bout n'est PAS faite** pour aucun des deux chantiers : elle demande
+  `pnpm prod:up --build` (construction des images, dont ~300 Mo de Chromium pour `worker-media`).
+  Ce qui est prouvé : le **rendu** de compose porte `unless-stopped` sur les 8 services, les ports
+  9002/9003 sont libres dev allumé, et les deux verrous échouent quand on les casse.
+- ⚠️ **Vérifier un redémarrage se fait DEPUIS L'INTÉRIEUR du conteneur** —
+  `docker exec … sh -c 'kill -TERM 1'`. `docker compose kill` rend un **faux négatif** (un arrêt
+  d'opérateur est exclu par définition d'`unless-stopped` ; mesuré le 2026-08-08).
+- ✅ **`graphify` est INSTALLÉ et la carte est construite** (2026-08-17, nuit). Paquet PyPI
+  **`graphifyy`** — deux *y*, la commande s'appelle `graphify` ; `pip install graphify` sans le
+  second *y* n'est **pas** ce paquet. Posé par `uv tool install graphifyy` (v0.9.46, isolé, hors des
+  venvs du projet). Carte : **17 740 nœuds, 35 201 arêtes, 943 communautés**, dans `graphify-out/`
+  (42 Mo, gitignoré — donc **à reconstruire sur le MacBook**, il ne vient pas au `git pull`).
+  🔴 **La commande de construction est `graphify update .`** — le CLI n'a **pas** de forme
+  `graphify .` nue (ça, c'est la skill). Elle est AST-only, sans clé API, ~2 min sur 1321 fichiers.
+- ✅ **La skill `/graphify` est posée DANS le dépôt** (`graphify install --project`) :
+  `.claude/skills/graphify/` (10 fichiers, 104 Ko) + `.claude/CLAUDE.md`, donc **versionnées** et
+  récupérées par le MacBook au `git pull`. Les deux hooks `PreToolUse` de `.claude/settings.json`
+  couvrent désormais `Bash|Grep` et `Read|Glob`.
+  🔴 **Le PATH était le vrai obstacle** : `uv tool install` pose le binaire dans `~/.local/bin`,
+  qu'aucun profil zsh ne déclarait. Réparé par `uv tool update-shell` → `~/.zshenv`. Sur le MacBook,
+  ce geste-là sera à refaire : il n'est pas dans le dépôt.
+  ⚠️ **L'installeur avait écrit un CHEMIN ABSOLU machine-spécifique** dans les deux hooks
+  (`/Users/atlas/.local/share/uv/tools/…`) — d'un fichier **versionné et partagé**. Mesuré : binaire
+  absent → **exit 127 à chaque appel** Bash/Grep/Read/Glob, ce qui aurait cassé le MacBook. Remplacé
+  par le nom court `graphify`, qui rend une sortie identique. **À re-vérifier après chaque
+  réinstallation de graphify** : l'installeur réécrit ce fichier.
+  ⚠️ Ce que le nom court ne répare PAS : les hooks d'avant étaient des one-liners `python3`
+  autonomes ; ceux-ci dépendent du binaire. Sans graphify installé, c'est 127 dans les deux cas.
+  📌 `.claude/CLAUDE.md` est un **second** fichier de doctrine (3 lignes) à côté de la section
+  `## graphify` du `CLAUDE.md` racine — resté intact, lui. Duplication à trancher un jour.
+  🔴 **`graphify-out/` (42 Mo) est gitignoré** : la carte ne voyage pas. Sur le MacBook, après le
+  clone, relancer `graphify update .`.
+- ⚠️ **Ne jamais lancer `graphify extract` sans réfléchir au backend.** La passe *code* est locale
+  (Tree-sitter, aucun appel) ; la passe *sémantique* sur les docs enverrait le contenu de
+  `MEMORY.md`, `TROUBLESHOOTING.md`, `API_SPEC.md`… au backend détecté depuis les clés d'env.
+  Aucune clé n'est exportée dans le shell aujourd'hui, et Ollama tourne — mais l'ADR-0009 impose
+  de le choisir explicitement, pas de le subir.
+- ⚠️ **PyYAML est dans le venv du backend mais ABSENT de `pyproject.toml`.** Un test qui l'importe
+  passerait en local et tomberait en CI. Les deux verrous de ce chantier parsent le YAML à la main
+  pour cette raison. La dette elle-même n'est pas soldée.
+- 📌 **`docs/devops/docker-compose.md` est un placeholder obsolète** (services `api`/`worker-ai`,
+  réseau `zetis-net` — rien de tout ça n'existe). Rangement `chore/` à part, hors périmètre ici.
 
-| Run | Commit | Test tombé |
-|---|---|---|
-| 14 h 29 | `b2b10bc` — **un commit de maquette HTML** | `AtelierPage` › « un finish RÉUSSI ouvre la fiche » |
-| 15 h 19 | `281e620` | `DiagnosticPage.observation` › « champ de vision » |
+#### 🧾 DETTE HÉRITÉE — la CI instable (PR #145, squash `0ad3679`, MERGÉE)
 
-**Deux tests, deux runs, deux commits incapables de les causer.** Jamais reproduit en local : 3
-suites complètes + 5 passages du fichier fautif, toutes vertes.
+Deux causes soldées, **deux restantes non diagnostiquées**, apparues *après* les correctifs, une
+fois sur six : `AtelierPage` › « un finish qui CASSE… » et `ChatPage` › « offre implicite
+(confirm) ». Le test `DiagnosticPage.observation` que la CI avait fait tomber reste **inexpliqué**.
 
-🔴 **Cause diagnostiquée pour le PREMIER seulement** — `findByRole` rend la main dès que le nœud
-entre dans le DOM, alors que le `useEffect` qui remonte le message est un effet **passif**, planifié
-*après* le commit React. Sur 2 cœurs chargés, le MutationObserver gagne. *Le test attend le nœud au
-lieu d'attendre l'effet.* Correction pressentie, **non appliquée** :
-`await waitFor(() => expect(remonter).toHaveBeenCalled())`, à prouver par sabotage.
+▶ **Relancer `scripts/ci-like.sh 6`** et capturer le détail des deux restants. ⚠️ **Ne pas lire un
+run vert comme une guérison** — c'est le sujet même du chantier ; seule la mesure en conteneur
+(Node 20 + Linux + 2 CPU) vaut. Ne pas « corriger » ces tests sans les avoir reproduits.
 
-⚠️ **Le second n'est PAS diagnostiqué** (`findByTestId` qui expire, peut-être le délai de 1 s par
-défaut sous charge). Le corriger sans l'avoir reproduit serait de la devinette — c'est pourquoi
-aucun des deux n'a été touché dans la PR #144.
-
-🔴 **Pourquoi ça presse** : la *required check* est active depuis ce matin. Une suite qui rougit au
-hasard apprend très vite à relancer sans lire — et c'est ainsi qu'un vrai rouge passe.
-
----
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-17 (soir) — trois chantiers clos
 

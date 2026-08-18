@@ -4,6 +4,52 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `chore/dev-et-prod-cohabitent` — la doc affirmait un conflit qui n'existait pas — 2026-08-17
+
+### 🔴 PyYAML est dans le venv du backend, mais ABSENT de `pyproject.toml`
+
+`import yaml` fonctionne dans `apps/backend/.venv`, et `pip list | grep -i yaml` **ne rend rien** :
+le module est là sans métadonnée, personne ne l'a demandé. Un test qui l'importe serait donc **vert
+en local et rouge en CI**, où l'installation se limite à `pip install -e '.[dev]'`.
+
+C'est le défaut exact que l'en-tête de `.github/workflows/ci.yml` documente déjà pour
+`faster_whisper` et `piper` : *« le vert local ne le prouvait pas — ils y sont installés »*.
+
+**Parade retenue** : les deux verrous de ce chantier (`test_compose_prod_restart.py`,
+`test_compose_ports_cohabitent.py`) parsent le YAML **à la main**, par regex, plutôt que d'ajouter
+une dépendance pour un test. ⚠️ La dette elle-même n'est pas soldée : PyYAML reste indéclaré.
+
+### ⚠️ Une alternance de regex qui coupe `${VAR:-defaut}` en silence
+
+Pour lire la moitié hôte d'un mapping de ports, ceci **paraît** correct et ne l'est pas :
+
+```python
+r'^\s*-\s*"(?P<hote>[^:"]+|\$\{[^}]+\}):(?P<conteneur>[^"]+)"\s*$'
+```
+
+Sur `- "${MINIO_PORT_PROD:-9002}:9000"`, l'alternative `[^:"]+` est tentée **en premier**, matche
+`${MINIO_PORT_PROD`, et le `:` suivant est celui du `:-`. La regex matche donc — mais rend une
+moitié hôte inexploitable, **sans erreur**. Il faut placer `\$\{[^}]+\}` en premier.
+
+**Ce qui l'a attrapé** : le test garde-fou du verrou (« le parseur trouve-t-il au moins 4 ports ? »),
+pas les assertions utiles — elles passaient toutes les deux, sur zéro donnée. *Un verrou sans
+garde-fou de parsing valide le vide.*
+
+### 📌 Trois affirmations du dépôt démenties par la mesure
+
+`docker-compose.prod.yml` et deux README affirmaient : *« ports miroir du dev → SOIT `pnpm dev`
+SOIT `pnpm prod:up` »*. Faux sur trois points, tous vérifiables en une commande :
+
+| Affirmation | Réalité mesurée |
+|---|---|
+| 4 collisions de ports | **1 seule** — postgres et redis de prod ne publient rien (`interne`) |
+| MinIO doit être publié | **non** : le navigateur ne parle jamais à MinIO, `read_video()` lit côté serveur |
+| `cors_origins` est en dur | **non** : `env_prefix="ZETIS_"` → `ZETIS_CORS_ORIGINS` surcharge la liste |
+
+⚠️ **Le troisième vaut au-delà de ce chantier** : dans `app/core/config.py`, un champ **sans**
+`Field(validation_alias=…)` est quand même surchargeable — sous `ZETIS_<NOM_DU_CHAMP>`. Le lire
+comme « codé en dur » fait écrire du code inutile.
+
 ## `fix/ci-instable` — deux horloges qui n'ont pas la même origine — 2026-08-17
 
 ### 🔴 La CI rougissait au hasard : `pump()` repartait de zéro, le composant du temps RÉEL
