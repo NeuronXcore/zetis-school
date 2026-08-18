@@ -97,6 +97,21 @@ dans le dépôt et sans lesquels le chantier 1 ne sert à rien :
   `## graphify` du `CLAUDE.md` racine — resté intact, lui. Duplication à trancher un jour.
   🔴 **`graphify-out/` (42 Mo) est gitignoré** : la carte ne voyage pas. Sur le MacBook, après le
   clone, relancer `graphify update .`.
+- ✅ **`gh` fonctionne, et « aucune PR ouverte » est désormais VÉRIFIÉ** (`gh pr list`), plus déduit.
+  🔴 **Le piège était le même que pour graphify, et il se reproduira** : `gh` 2.97.0 était installé
+  depuis juillet, mais **non lié** — `command -v gh` ne rendait rien, et `/cloture` comme `/reprise`
+  prescrivaient un `gh pr view` impossible. `brew install gh` a simplement reposé le symlink
+  `/opt/homebrew/bin/gh`. *Un binaire présent dans le Cellar n'est pas un binaire disponible.*
+  Authentifié : compte **NeuronXcore**, scopes `repo`, `workflow`, `read:org`, `gist`.
+  ⚠️ Sur le MacBook, les deux gestes seront à refaire : `brew install gh` **et** `gh auth login`.
+  Aucun des deux n'est versionnable.
+- ✅ **Les permissions Claude Code sont réparties** : 37 règles **portables** dans le
+  `.claude/settings.json` versionné (donc reçues par le MacBook au `git pull`), 8 **liées à la
+  machine** laissées dans `settings.local.json` gitignoré — trois `Read(/Users/atlas/.claude/**)`,
+  quatre sondes `curl localhost`, un `python3 -c` qui nomme `/Volumes/NX-Projects/ZETIS`.
+  Contrôlé : l'union des deux fichiers vaut exactement les 45 règles d'origine.
+  ⚠️ **À confirmer à l'usage** : Claude Code est supposé UNIR les deux listes `allow`. Si l'un
+  remplaçait l'autre, les 37 redemanderaient une autorisation — visible aussitôt, sans dommage.
 - ⚠️ **Ne jamais lancer `graphify extract` sans réfléchir au backend.** La passe *code* est locale
   (Tree-sitter, aucun appel) ; la passe *sémantique* sur les docs enverrait le contenu de
   `MEMORY.md`, `TROUBLESHOOTING.md`, `API_SPEC.md`… au backend détecté depuis les clés d'env.
