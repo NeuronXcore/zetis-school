@@ -6,18 +6,19 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-18, séance du SOIR) — depuis l'étape 4bis du matin (où `main`
-> était à jour, aucune branche, aucune PR), **DEUX chantiers de plus** ont été menés ce soir, tous
-> deux **FINIS et poussés, en attente de relecture/merge** (détail : « LES DEUX CHANTIERS DU SOIR ») :
-> - **`chore/calibrer-le-harnais-ci`** → **PR #156** : `scripts/ci-like.sh` calibré sur le vrai
->   runner (4 vCPU) et passé de `--cpus` à `--cpuset-cpus`.
-> - **`fix/la-dictee-manque-dans-l-image-prod`** → **PR #157** : l'image backend de prod embarque
->   enfin l'extra `[stt]`. La dictée était morte en prod (503). Reconstruite, recréée, **vérifiée**.
+> **Où en est le dépôt** (2026-08-18, séance du SOIR — étape 4bis FAITE) — `main` **égal à
+> `origin/main`**, rien à pousser ; **aucune branche** vivante. Les deux chantiers du soir sont
+> **MERGÉS** (squash), branches supprimées :
+> - **#156** (`bf148b8`) — `scripts/ci-like.sh` calibré sur le vrai runner (4 vCPU, `--cpuset-cpus`).
+> - **#157** (`b1dec13`) — l'image backend de prod embarque l'extra `[stt]` ; la dictée, morte en
+>   prod (503), est réparée **dans l'image**, déployée et vérifiée.
 >
-> Les deux branches sont **vivantes**, les deux PR **ouvertes** (`gh pr list` fait foi, jamais un
-> compte écrit ici). 🔴 **PROCHAIN PAS : relire + merger #156 puis #157, faire le 4bis de chacun.**
-> Rappel : les chantiers **#146→#155** ont été mergés plus tôt ce jour (prod du Mac Studio, outillage,
-> pilotage, typecheck) — détail dans les sections ci-dessous et le `CHANGELOG.md`.
+> Détail : « LES DEUX CHANTIERS DU SOIR ». 🟢 **Plus rien d'ouvert sur ces deux chantiers.**
+> **Résidus qui traînent** (chacun un chore/fix à part, rien d'autre ne les porte) : le vrai flake
+> `AtelierPage`/`CouverturePage`/`DashboardPage` (pastille posée pour `AtelierPage`), `mise-en-route.sh`
+> + le venv de l'hôte **toujours hors dépôt** (une machine de DEV neuve repart muette côté natif), et
+> `docs/devops/docker-compose.md` **obsolète**. Rappel : les chantiers **#146→#155** ont été mergés
+> plus tôt ce jour — détail plus bas et `CHANGELOG.md`.
 >
 > 🟢 **LA PROD TOURNE** (2026-08-18, séance de vérification) — **8 conteneurs debout**, backend
 > `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**. Base de PROD à **0 leçon / 0 fiche** : un vrai
@@ -80,8 +81,10 @@ verrou `test_dockerfile_backend_extras.py`. **Déployé** (image reconstruite, c
    environnement à part ; elle installe ses propres extras. La preuve venv du matin masquait le trou.
 
 ⚠️ **Résidus de la séance (rien d'autre ne les porte) :**
-- Les deux PR (#156, #157) ne sont **pas mergées** ; le 4bis de chacune reste à faire.
-- La CI de #157 va tourner ; le flake `AtelierPage` peut la rougir **sans rapport** avec le correctif.
+- ✅ Les deux PR sont **MERGÉES** (squash `bf148b8` #156, `b1dec13` #157), **4bis fait**, branches
+  supprimées, `main` = `origin/main`.
+- La CI des deux PR était **verte au merge** (le flake `AtelierPage` n'a pas rejoué ce coup-ci). Il
+  **demeure** et peut rougir d'AUTRES PR sans rapport — pastille posée.
 - La rustine « pip dans le conteneur vivant » n'a **pas** été employée (le rebuild propre l'a
   remplacée) : aucun état manuel ne traîne dans le conteneur de prod.
 - Docker Hub a **timé out** (`DeadlineExceeded` sur le *load metadata* de `python:3.11-slim-bookworm`,
