@@ -8,14 +8,90 @@
 
 > **Où en est le dépôt, en trois lignes** (2026-08-18, étape 4bis faite) — `main` est **égal à
 > `origin/main`** : rien à y pousser. **Aucune branche** locale ni distante, **aucune PR ouverte**
-> (vérifié par `gh pr list`, et non plus déduit : `gh` fonctionne enfin). Deux chantiers mergés ce
-> jour — le correctif du test instable Papa (**PR #147**, squash `1c7b21a`) puis la prod du Mac
-> Studio (**PR #146**, squash `9d05544`).
+> (vérifié par `gh pr list`, et non plus déduit : `gh` fonctionne enfin). **Cinq chantiers mergés ce
+> jour** : le correctif du test instable Papa (**#147**, `1c7b21a`), la prod du Mac Studio
+> (**#146**, `9d05544`), la mise en route d'une machine (**#148**, `c2d7dce`), le contrôle
+> d'intégrité des médias (**#149**, `17da5b4`), le kit de migration (**#150**, `bb2da55`).
 >
-> **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts. Le **dev tourne** (postgres/redis/
-> minio sur 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174, soit précisément les trois
-> ports que la prod réclame). Les deux chantiers mergés n'apportent **aucune migration** — mais le
-> premier `prod:up` en jouera, sur une base neuve.
+> **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts, et **aucun conteneur `zetis-prod`
+> n'a jamais existé** (`docker ps -a` : 0). Le **dev tourne** (postgres/redis/minio sur
+> 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174, soit précisément les trois ports que la
+> prod réclame). Aucun de ces chantiers n'apporte de migration — mais le premier `prod:up` en
+> jouera, sur une base neuve.
+>
+> 🔴 **SI TU NE LIS QU'UNE CHOSE : la prod n'a JAMAIS tourné.** Tout le code est mergé et vert, et
+> ça ne prouve rien d'une pile qui n'a jamais démarré. Le prochain pas est la **séance qui prouve la
+> prod** — voir « ▶ PROCHAIN PAS » plus bas. Elle commence par une case à cocher qui n'est pas dans
+> ce dépôt : l'autostart de Docker Desktop, toujours à `False`.
+
+### 🧰 L'OUTILLAGE de la journée — trois scripts neufs, et ce qu'ils ne couvrent pas
+
+Trois scripts sont entrés dans `scripts/`, tous nés du même défaut de fond : **un contrôle qui
+devine rend un faux verdict.** L'un rendait un faux positif (« machine prête » alors que le PATH
+était cassé), l'autre un faux négatif (« contenu perdu » alors qu'il était intact).
+
+| Script | Ce qu'il répond | PR |
+|---|---|---|
+| `mise-en-route.sh` | met une machine en état — installe **puis vérifie que chaque commande répond** | #148 |
+| `check_media_integrity.py` | confronte ce que la base **promet** aux fichiers réels, via le backend **réellement configuré** | #149 |
+| `migration/` (5 scripts) | le kit qui a déplacé ZETIS du MacBook, rendu portable | #150 |
+
+**Verdict du contrôle d'intégrité, au 2026-08-18** : les **8 vidéos** et les **6 documents RAG**
+(66 chunks, tous avec texte ET vecteur) sont intacts. **La migration depuis le MacBook n'a rien
+perdu** — affirmé sur mesure, plus sur espoir.
+
+🔴 **Trois dettes de cet outillage, qu'aucun test ne rattrapera :**
+
+- **`mise-en-route.sh` n'installe PAS les extras `[tts]`/`[stt]`** ni ne vérifie les chemins d'un
+  `.env` — c'est exactement le trou par lequel cette machine est restée **muette et sourde** (voir
+  la section suivante). Une machine neuve repartira avec le même défaut.
+- **Le kit `migration/` existe en DEUX copies non synchronisées** : `scripts/migration/` (relue) et
+  `/Volumes/NX-Projects/` (le point d'entrée opérationnel, laissé en place à dessein). Modifier
+  l'une n'informe pas l'autre.
+- **Aucun script du kit n'a jamais été exécuté depuis sa mise sous version.** Le correctif rsync est
+  prouvé par lecture et par la mesure de `/usr/bin/rsync --info=progress2` (**refusé** : openrsync,
+  protocole 29), *pas* par un transfert réel. La prochaine migration sera le premier essai.
+
+### 🔴 LA MACHINE ÉTAIT MUETTE ET SOURDE — réparé le 2026-08-18, HORS DÉPÔT
+
+Diagnostic de pile complet ce jour : tout était sain (48 tables, pgvector 0.8.6, base **alignée** sur
+la tête du dépôt, les deux modèles Ollama de l'ADR-0008, graphify, gh) **sauf la voix et la dictée**.
+
+- `apps/backend/.env` avait été **copié du MacBook sans être adapté** : `PIPER_BINARY` et
+  `PIPER_VOICE_MODEL` pointaient vers `/Users/andrececcoli/NeuronXcode/ZETIS/…`, inexistant ici.
+- Les extras `[tts]` et `[stt]` n'avaient **jamais été installés** sur cette machine.
+
+**Réparé** : `uv pip install -e "apps/backend[tts,stt]"` (piper-tts 1.7, faster-whisper 1.2.1) et les
+deux chemins réécrits vers `/Volumes/NX-Projects/ZETIS/…`. **Prouvé, pas supposé** : synthèse réelle
+par `PiperProvider` (voix `upmc`, speaker 1) → **122 924 octets, 2,79 s d'audio**. Le modèle Whisper
+`small` était déjà en cache et charge en 0,6 s.
+
+⚠️ **Ces deux réparations sont HORS DÉPÔT** — `.env` est gitignoré, les extras vivent dans le venv.
+Elles ne suivront **pas** au `git pull` : toute nouvelle machine repartira muette et sourde.
+
+⚠️ **La panne était SILENCIEUSE** : le backend répondait 200, les 1434 tests passaient (la CI tourne
+sans ces extras, à dessein). Rien ne la signalait — elle serait apparue devant Massimo, au premier
+appui sur le micro ou à la première capsule qui parle.
+
+### ⚠️ DEUX SESSIONS `pnpm dev` tournaient en parallèle — 2026-08-18
+
+Constaté au redémarrage du backend : deux arbres `dev.sh` (13:27 et 14:03), deux paires de Vite se
+disputant 5173/5174, et le worker de la première encore vivant. Arrêté proprement après avoir
+vérifié qu'**aucun travail n'était en vol** (trois files RQ à zéro, 883 jobs tous `succeeded` ou
+`failed`). Relancé : **un seul arbre, un seul worker**, concurrence 1 conforme à l'ADR-0046 §3.
+
+🔴 **Deux pièges d'arrêt, mesurés, à ne pas réapprendre :**
+
+1. **Un `SIGTERM` sur `dev.sh` ne fait RIEN** tant que son `pnpm --parallel` tourne au premier plan :
+   bash **diffère** l'exécution d'un trap jusqu'à la fin de l'enfant. Il faut tuer les **feuilles**
+   (uvicorn, vite, worker) pour que les traps se déroulent.
+2. Un shell zsh **interactif ignore SIGTERM** — viser le mauvais PID ne produit aucun effet visible,
+   donc aucune alerte. Vérifier la cible par `ps -o command=` avant de signaler.
+
+📌 **Au démarrage, un avertissement légitime** : *« watchdog production actif mais CANAL INERTE :
+ni SMTP_HOST ni ALERT_EMAIL_TO »*. `ALERT_EMAIL_TO` est pourtant dans le `.env` racine : c'est
+**`SMTP_HOST` qui manque**. Si le worker tombe, ça se verra dans le bandeau Papa et **nulle part
+ailleurs**.
 
 ### ✅ MERGÉ, MAIS JAMAIS EXÉCUTÉ — la prod du Mac Studio (PR #146, squash `9d05544`)
 
