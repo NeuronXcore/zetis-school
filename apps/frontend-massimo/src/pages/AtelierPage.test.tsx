@@ -610,7 +610,11 @@ describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
     fireEvent.click(await screen.findByText("C'est fini, je la garde"));
 
     // 🔴 L'adresse existait déjà (`?fiche=`, adr-0054 §1) — elle n'était pas utilisée ici.
-    expect(await screen.findByTestId("adresse")).toHaveTextContent("fiche=4242");
+    // ⏱️ Même chaîne asynchrone que « un finish qui CASSE » (persister → finishDraft → navigation) :
+    // la fenêtre par défaut de 1 s est parfois trop courte sous la contention CI. Cf. le test CASSE.
+    expect(
+      await screen.findByTestId("adresse", undefined, { timeout: 5000 }),
+    ).toHaveTextContent("fiche=4242");
   });
 
   it("🔒 un finish en 422 NE navigue PAS — on reste dans l'atelier", async () => {
@@ -627,7 +631,11 @@ describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
     sondeDeLURL();
     fireEvent.click(await screen.findByText("C'est fini, je la garde"));
 
-    expect(await screen.findByText(/Il manque encore quelque chose/)).toBeInTheDocument();
+    // ⏱️ Même chaîne asynchrone que « un finish qui CASSE » (persister → finishDraft → setError) :
+    // fenêtre par défaut de 1 s parfois trop courte sous la contention CI. Cf. le test CASSE.
+    expect(
+      await screen.findByText(/Il manque encore quelque chose/, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
   });
 
@@ -640,7 +648,15 @@ describe("« C'est fini, je la garde » (ADR-0058 §2)", () => {
     fireEvent.click(await screen.findByText("C'est fini, je la garde"));
 
     // `persister()` tourne avant `finishDraft` : le dire n'est pas une consolation, c'est un fait.
-    expect(await screen.findByText(/Ton travail est bien enregistré/)).toBeInTheDocument();
+    //
+    // ⏱️ Le message ne paraît qu'après DEUX `await` enchaînés (`persister` → `finishDraft` qui
+    // rejette) puis un re-render. Sous la contention de la CI, le défaut de 1 s de `findByText`
+    // s'épuise parfois avant que cette chaîne ne se pose — c'était là la panne intermittente, PAS
+    // dans le composant (prouvé en retardant le rejet : le message finit toujours par paraître). On
+    // laisse donc la fenêtre nécessaire, sans rien retirer à ce que le test prouve.
+    expect(
+      await screen.findByText(/Ton travail est bien enregistré/, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Erreur 500/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("adresse")).not.toBeInTheDocument();
   });
