@@ -6,33 +6,39 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt, en trois lignes** (2026-08-17, nuit) — `main` est à jour et **égal à
-> `origin/main`** : rien à y pousser. **Deux branches locales vivent, aucune n'est poussée, aucune
-> PR n'est ouverte** : `fix/prod-survit-au-redemarrage`, et `chore/dev-et-prod-cohabitent` qui la
-> **contient**. Les cinq chantiers mergés le 2026-08-17 sont plus bas.
+> **Où en est le dépôt, en trois lignes** (2026-08-18, étape 4bis faite) — `main` est **égal à
+> `origin/main`** : rien à y pousser. **Aucune branche** locale ni distante, **aucune PR ouverte**
+> (vérifié par `gh pr list`, et non plus déduit : `gh` fonctionne enfin). Deux chantiers mergés ce
+> jour — le correctif du test instable Papa (**PR #147**, squash `1c7b21a`) puis la prod du Mac
+> Studio (**PR #146**, squash `9d05544`).
 >
 > **Prod** : pile **éteinte**, volumes `zetis-prod_*` intacts. Le **dev tourne** (postgres/redis/
-> minio sur 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174). Les deux chantiers en cours
-> n'apportent **aucune migration**.
+> minio sur 5432/6379/9000/9001 ; backend :8000 ; Vite :5173 et :5174, soit précisément les trois
+> ports que la prod réclame). Les deux chantiers mergés n'apportent **aucune migration** — mais le
+> premier `prod:up` en jouera, sur une base neuve.
 
-### 🟢 EN COURS — la prod du Mac Studio se relève, et elle cohabite avec le dev (2026-08-17)
+### ✅ MERGÉ, MAIS JAMAIS EXÉCUTÉ — la prod du Mac Studio (PR #146, squash `9d05544`)
+
+> 🔴 **Lis d'abord ceci.** Le code est dans `main` et la CI est verte, mais **aucun conteneur
+> `zetis-prod` n'a jamais existé sur cette machine** — vérifié le 2026-08-18 par `docker ps -a`.
+> Ni le redémarrage automatique, ni la cohabitation dev/prod n'ont été observés en vrai. Un vert de
+> CI ne prouve rien d'une pile qui n'a jamais démarré.
 
 **Pourquoi ce chantier existe.** Le Mac Studio doit héberger **la prod que Massimo utilise** *et*
 servir de machine de développement, pendant qu'un MacBook Pro sert en itinérance. Deux défauts
 l'empêchaient. Ils ont été traités séparément, dans deux commits.
 
-⚠️ **La seconde branche est branchée sur la PREMIÈRE, pas sur `main`** — les deux modifient
-l'en-tête de `docker-compose.prod.yml`, et brancher sur `main` garantissait un conflit. **Merger
-`chore/dev-et-prod-cohabitent` emporte les deux.** Base commune : `dac14f1`. Le détail des commits
-se lit par `git log --oneline main..HEAD`.
+Deux chantiers, fusionnés dans la même PR : la seconde branche portait la première, parce que les
+deux modifiaient l'en-tête de `docker-compose.prod.yml` et que partir de `main` garantissait un
+conflit. Tout est désormais dans `main`.
 
-**1. `fix/prod-survit-au-redemarrage`** — ADR-0060 **cas 2** (application), aucun ADR écrit, on
+**1. La prod se relève seule** — ADR-0060 **cas 2** (application), aucun ADR écrit, on
 exécute l'**ADR-0046 §1**. Six des huit services de prod n'avaient **aucune** politique de
 redémarrage : après un arrêt du Mac, la base, le backend et les deux frontends ne revenaient pas,
 et le `worker` — seul supervisé — se relevait dans le vide. `restart: unless-stopped` (jamais
 `always` : un `prod:down` volontaire doit rester un arrêt).
 
-**2. `chore/dev-et-prod-cohabitent`** — ADR-0060 **cas 1** (rangement), aucun ADR. Le dépôt
+**2. Le dev et la prod cohabitent** — ADR-0060 **cas 1** (rangement), aucun ADR. Le dépôt
 affirmait « ports miroir → SOIT `pnpm dev` SOIT `pnpm prod:up` ». **C'était faux**, et le mesurer a
 réduit le chantier à deux lignes : Postgres et Redis de prod ne publient **rien** ; le navigateur ne
 parle **jamais** à MinIO (`MinioVideoBackend.read_video()` lit côté serveur, la route backend sert
@@ -48,17 +54,26 @@ et c'est voulu**.
 déjà surchargeable par **`ZETIS_CORS_ORIGINS`** (la classe `Settings` porte `env_prefix="ZETIS_"`,
 mesuré), et **`ARG VITE_API_URL` existe déjà** dans `infra/docker/frontend.Dockerfile`.
 
-#### ▶ PROCHAIN PAS
+#### ▶ PROCHAIN PAS — LA SÉANCE QUI PROUVE LA PROD
 
-**Pousser les deux branches et ouvrir UNE PR** (celle de `chore/dev-et-prod-cohabitent`, qui
-contient l'autre), puis étape **4bis**. Avant de merger, deux gestes **humains** qui ne sont pas
-dans le dépôt et sans lesquels le chantier 1 ne sert à rien :
+Le code est mergé ; il ne reste que ce qu'aucun test ne peut faire à notre place. **Une seule séance
+ferme les deux chantiers**, et l'ordre compte :
 
 1. 🔴 **Cocher *Docker Desktop → Settings → General → « Start Docker Desktop when you sign in »***.
-   Mesuré : `AutoStart = False` dans `settings-store.json`. Sans le démon au démarrage de session,
-   **aucune** politique de redémarrage ne s'applique.
-2. Vérifier que `/Volumes/NX-Projects` est monté **avant** le démon : il porte `Docker.raw`
-   (réglage `DataFolder`). Disque absent = Docker ne démarre pas.
+   Toujours `AutoStart = False` au 2026-08-18 (`settings-store.json`). Sans le démon au démarrage de
+   session, **aucune** politique de redémarrage ne s'applique : le chantier 1 ne produit rien.
+   ⚠️ Vérifier aussi que `/Volumes/NX-Projects` est monté **avant** le démon — il porte `Docker.raw`
+   (réglage `DataFolder`). Disque absent = Docker ne démarre pas du tout.
+2. Libérer 8000/5173/5174 (le dev les tient), puis `pnpm prod:up --build`. ⚠️ **Long** — `worker-media`
+   télécharge ~300 Mo de Chromium — et ce premier `up` **crée la vraie base de Massimo** (migrations
+   + seed). C'est la naissance des données de production, pas un essai jetable : à partir de là, le
+   volume `zetis-prod_postgres_data` se sauvegarde.
+3. Prouver le redémarrage **depuis l'intérieur** du conteneur, jamais par `docker compose kill` qui
+   rend un faux négatif (mesuré le 2026-08-08) :
+   `docker exec zetis-prod-backend-1 sh -c 'kill -TERM 1'` → `RestartCount = 1`, `running`.
+4. Puis relancer le dev **par une paire `.claude/launch.json`** (8001+/5175+) pendant que la prod
+   tourne. C'est la seule preuve réelle de la cohabitation — jusqu'ici elle ne repose que sur des
+   ports libres et un test de fichiers.
 
 #### 🧾 DETTES OUVERTES
 
