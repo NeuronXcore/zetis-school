@@ -176,6 +176,17 @@ pnpm dev:back      # backend seul (:8000)
 pnpm infra:up      # infra Docker seule
 ```
 
+### Nouvelle machine — une seule commande
+
+```bash
+scripts/mise-en-route.sh
+```
+
+Idempotent. Il installe `uv`/`pnpm`/`gh`/`graphify`, le venv backend, le hook `pre-push` (un
+symlink qui **ne vient pas avec le clone**), prépare le `.env` et construit la carte Graphify —
+puis **vérifie que chaque commande répond vraiment**. Il énumère à la fin ce qu'il ne peut pas
+faire à ta place : `gh auth login`, les secrets du `.env`, l'autostart de Docker Desktop.
+
 ### Installation détaillée (première fois)
 
 ```bash
