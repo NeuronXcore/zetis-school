@@ -217,7 +217,12 @@ describe("l'échec de soumission", () => {
 
     const alerte = await screen.findByRole("alert");
     expect(alerte.textContent).toMatch(/Tes réponses sont bien là/);
-    expect(remonter).toHaveBeenCalled();
+    // ⏱️ `scrollIntoView` est appelé dans un `useEffect` (clé `erreur`), donc APRÈS le commit qui
+    // rend l'alerte. `findByRole("alert")` se résout dès que l'alerte est dans le DOM — parfois
+    // AVANT que l'effet passif ne s'exécute. Une assertion SYNCHRONE gagnait alors la course par
+    // hasard : verte en local, rouge sur le runner GitHub (2/2 sur #158). On attend l'effet, sans
+    // rien retirer à ce qui est prouvé (le message EST ramené dans le champ de vision).
+    await waitFor(() => expect(remonter).toHaveBeenCalled());
   });
 
   it("🔴 ne dit RIEN de technique — pas de code HTTP, pas de « erreur réseau »", async () => {
