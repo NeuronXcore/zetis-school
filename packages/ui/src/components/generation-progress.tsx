@@ -29,7 +29,28 @@ export function useEstimatedProgress(
    */
   startedAtMs?: number | null,
 ): number {
-  const [pct, setPct] = useState(0);
+  // ⚠️ `?? Date.now()` et non `|| Date.now()` : un `startedAtMs` de 0 est un instant valide en
+  // théorie, et surtout `||` traiterait `null` et `0` pareil pour de mauvaises raisons.
+  // Courbe asymptotique : approche 95 % sans jamais l'atteindre avant la fin réelle.
+  const calculer = (start: number): number => {
+    const t = (Date.now() - start) / expectedMs;
+    const eased = 1 - Math.exp(-t * 2.2);
+    return Math.max(1, Math.min(95, Math.round(eased * 100)));
+  };
+
+  // 🔴 INITIALISEUR PARESSEUX, et c'est le cœur du correctif. L'intention était écrite juste en
+  // dessous depuis l'origine — « le premier rendu ne doit pas afficher 1 % pour une opération déjà
+  // avancée » — mais le calcul vivait dans le `useEffect`, qui s'exécute APRÈS la première
+  // peinture : `useState(0)` gagnait toujours la première image. Papa voyait donc un « 0 % » fugace
+  // sur un lot commencé depuis une minute, c'est-à-dire exactement le défaut que le paramètre
+  // `startedAtMs` avait été ajouté pour supprimer (constaté le 2026-08-05).
+  //
+  // ⚠️ Ce n'était PAS qu'un scintillement : sur les 2 cœurs de la CI, un test qui interroge le DOM
+  // pouvait gagner la course contre l'effet et lire « 0 % » — `DemandesPage` est tombée ainsi le
+  // 2026-08-18. Un défaut d'affichage d'une image devient un test rouge une fois sur N.
+  const [pct, setPct] = useState(() =>
+    active && expectedMs > 0 ? calculer(startedAtMs ?? Date.now()) : 0,
+  );
 
   useEffect(() => {
     if (!active) {
@@ -37,20 +58,13 @@ export function useEstimatedProgress(
       setPct((p) => (p > 0 ? 100 : 0));
       return;
     }
-    // ⚠️ `?? Date.now()` et non `|| Date.now()` : un `startedAtMs` de 0 est un instant valide en
-    // théorie, et surtout `||` traiterait `null` et `0` pareil pour de mauvaises raisons.
     const start = startedAtMs ?? Date.now();
-    // Le premier rendu ne doit pas afficher 1 % pour une opération déjà avancée : on calcule tout
-    // de suite, au lieu d'attendre le premier tic 120 ms plus tard.
-    const lire = () => {
-      const t = (Date.now() - start) / expectedMs;
-      // Courbe asymptotique : approche 95 % sans jamais l'atteindre avant la fin réelle.
-      const eased = 1 - Math.exp(-t * 2.2);
-      setPct(Math.max(1, Math.min(95, Math.round(eased * 100))));
-    };
+    const lire = () => setPct(calculer(start));
     lire();
     const timer = setInterval(lire, 120);
     return () => clearInterval(timer);
+    // `calculer` se referme sur `expectedMs`, déjà listé : pas de dépendance supplémentaire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, expectedMs, startedAtMs]);
 
   return pct;
