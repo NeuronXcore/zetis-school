@@ -1,5 +1,31 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.6 — La dictée revient dans la prod (l'image ne l'avait jamais embarquée)
+
+Massimo, sur le chat : « pas de voix ». Il appuyait sur le micro, parlait, et rien — ZETIS
+répondait « La dictée n'est pas dispo pour l'instant ». Le chat écrit marchait, la voix de sortie
+aussi (ZETIS lisait ses réponses) : seule la **dictée** — parler pour écrire — était morte.
+
+La cause était dans l'**image Docker de prod**, pas dans le code. Elle installait de quoi *parler*
+(l'extra `[tts]`, la voix Piper) mais **pas de quoi écouter** (l'extra `[stt]`, `faster-whisper`).
+La décision d'une dictée 100 % locale existait depuis l'ADR-0012, et le paquet était déjà déclaré —
+l'image ne l'installait simplement pas. Une réparation faite le matin dans l'environnement natif de
+la machine ne pouvait pas la couvrir : l'image est un monde à part, qui embarque ses propres outils.
+
+Désormais l'image installe les deux, et le modèle de reconnaissance vocale (`small`) est **cuit dans
+l'image** — comme la voix l'était déjà — pour qu'au premier appui sur le micro, il n'y ait aucun
+téléchargement à attendre ni à rater. Vérifié dans un vrai navigateur : micro → transcription → tour
+de chat, de bout en bout. Un test-verrou lit désormais l'image pour refuser qu'elle reparte un jour
+sourde.
+
+**Côté outillage** : `scripts/ci-like.sh`, qui rejoue la suite de tests dans les conditions de la CI
+pour débusquer l'instable, mentait sur l'ampleur du problème — il annonçait 13 à 30 tests en échec
+là où la CI n'en voyait qu'un. Il bridait le conteneur avec `--cpus`, qui ne limite pas le nombre de
+cœurs *visibles* : l'outil de test en lançait 24 en parallèle sur 2 cœurs de temps, une bousculade
+que la vraie CI ne connaît pas. Calibré sur le vrai runner (4 cœurs, épinglés cette fois), il rend
+enfin des chiffres comparables à la CI. On chassait des fantômes ; on peut maintenant viser les
+vrais tests instables.
+
 ## 0.99.5 — Graphify entre dans le dépôt, sans le chemin d'une seule machine (outillage)
 
 Rien ne change pour Massimo. Ce qui change, c'est que `CLAUDE.md` redevient **exécutable** : il

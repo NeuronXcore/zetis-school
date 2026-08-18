@@ -4,6 +4,45 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/la-dictee-manque-dans-l-image-prod` + `chore/calibrer-le-harnais-ci` — 2026-08-18 (soir)
+
+### 🔴 Un correctif installé dans le venv de l'hôte NE COUVRE PAS l'image Docker de prod
+
+Le matin, `apps/backend[tts,stt]` avait été installé dans le venv de l'hôte, et la voix + la dictée
+prouvées en natif. Le soir, Massimo : « pas de voix » sur la PROD. `/api/student/chat/transcribe` →
+**503**.
+
+**Cause** : l'image de prod (`infra/docker/backend.Dockerfile`) installait `apps/backend[tts]`
+**seul**. `faster_whisper` (extra `[stt]`) était absent de l'IMAGE — un environnement distinct du
+venv de l'hôte. La voix Piper marchait (extra `[tts]` présent, `/chat/tts` → 200), ce qui rendait la
+panne partielle et trompeuse : « il y a du son, donc l'audio marche » (faux : le son = TTS, la
+dictée = STT, deux extras).
+
+**Parade** : `pip install -e 'apps/backend[tts,stt]'` dans le Dockerfile + **baker le modèle
+Whisper** (`WhisperModel('small', …)` sous `HF_HOME` persistant), comme la voix Piper l'était déjà.
+Verrou `test_dockerfile_backend_extras.py` (lit le Dockerfile en TEXTE, sans importer les paquets
+que la CI n'a pas). **Leçon** : une preuve faite dans le venv ne dit rien de l'image ; chaque
+environnement installe ses propres extras.
+
+### 🔴 `docker --cpus` ne limite PAS le nombre de cœurs visibles — `--cpuset-cpus`, lui, oui
+
+`scripts/ci-like.sh` bridait le conteneur à `--cpus=2` pour « reproduire un petit runner ». Mesuré :
+
+```txt
+docker run --cpus=4          → nproc = 24   (le conteneur voit tout l'hôte)
+docker run --cpuset-cpus=0-3 → nproc = 4
+```
+
+**Cause** : `--cpus` borne le TEMPS CPU (quota CFS), pas le nombre de cœurs vus ; `nproc` /
+`os.cpus().length` rendent l'hôte entier. Or **vitest dimensionne son pool de workers sur
+`os.cpus().length`** : à `--cpus=2` il lançait ~24 workers pour 2 cœurs de temps — sur-souscription
+BIEN PIRE qu'une vraie machine à 2 cœurs, source de 13-30 « échecs » par passage qui n'existent pas
+en CI.
+
+**Parade** : `--cpuset-cpus=0-3` épingle des cœurs réels et fait voir le bon compte. Après quoi
+`ci-like.sh 5 frontend-papa` passe de 5/5 rouges à **0/5**. Tout harnais qui « limite le CPU » pour
+reproduire la CI doit employer `--cpuset-cpus`, jamais `--cpus`.
+
 ## `fix/les-frontends-de-prod-sont-joignables` — Docker publie dans le vide — 2026-08-18
 
 ### 🔴 Un conteneur sur un réseau `internal: true` NE PUBLIE AUCUN PORT, et ne le dit pas

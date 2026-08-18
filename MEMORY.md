@@ -6,16 +6,18 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt, en trois lignes** (2026-08-18, étape 4bis faite) — `main` est **égal à
-> `origin/main`** : rien à y pousser. **Aucune branche** locale ni distante, **aucune PR ouverte**
-> (vérifié par `gh pr list`, et non plus déduit : `gh` fonctionne enfin). **Cinq chantiers mergés ce
-> jour** : le correctif du test instable Papa (**#147**, `1c7b21a`), la prod du Mac Studio
-> (**#146**, `9d05544`), la mise en route d'une machine (**#148**, `c2d7dce`), le contrôle
-> d'intégrité des médias (**#149**, `17da5b4`), le kit de migration (**#150**, `bb2da55`), le
-> pilotage qui cesse d'exposer les fiches de Massimo (**#151**, `e61fecf`), le typecheck en CI
-> (**#152**, `e3d4641`), puis les trois de la SÉANCE PROD : les frontends joignables (**#153**,
-> `5f1104f`), l'avancement ancré dès la première image (**#154**, `5d4df9a`), et le dev qui ne peut
-> plus écrire dans la prod (**#155**, `01daf25`).
+> **Où en est le dépôt** (2026-08-18, séance du SOIR) — depuis l'étape 4bis du matin (où `main`
+> était à jour, aucune branche, aucune PR), **DEUX chantiers de plus** ont été menés ce soir, tous
+> deux **FINIS et poussés, en attente de relecture/merge** (détail : « LES DEUX CHANTIERS DU SOIR ») :
+> - **`chore/calibrer-le-harnais-ci`** → **PR #156** : `scripts/ci-like.sh` calibré sur le vrai
+>   runner (4 vCPU) et passé de `--cpus` à `--cpuset-cpus`.
+> - **`fix/la-dictee-manque-dans-l-image-prod`** → **PR #157** : l'image backend de prod embarque
+>   enfin l'extra `[stt]`. La dictée était morte en prod (503). Reconstruite, recréée, **vérifiée**.
+>
+> Les deux branches sont **vivantes**, les deux PR **ouvertes** (`gh pr list` fait foi, jamais un
+> compte écrit ici). 🔴 **PROCHAIN PAS : relire + merger #156 puis #157, faire le 4bis de chacun.**
+> Rappel : les chantiers **#146→#155** ont été mergés plus tôt ce jour (prod du Mac Studio, outillage,
+> pilotage, typecheck) — détail dans les sections ci-dessous et le `CHANGELOG.md`.
 >
 > 🟢 **LA PROD TOURNE** (2026-08-18, séance de vérification) — **8 conteneurs debout**, backend
 > `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**. Base de PROD à **0 leçon / 0 fiche** : un vrai
@@ -42,6 +44,49 @@
 > `946baba` n'a posé `restart: unless-stopped` que sur la pile de PROD. Le dev se lance à la demande.
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
+
+### 🌙 LES DEUX CHANTIERS DU SOIR (2026-08-18) — le harnais calibré, la dictée rendue à la prod
+
+Deux dettes déjà inscrites plus bas dans ce fichier ont été soldées ce soir. **Aucune décision
+neuve** : deux applications (ADR-0060 cas 2), sur deux branches distinctes.
+
+**1. `ci-like.sh` calibré sur le vrai runner — PR #156 (`chore/calibrer-le-harnais-ci`).** La sonde
+du job « verrous du dépôt » a mesuré le runner : **4 vCPU, 15 Gi, AMD EPYC 9V74**. La bride valait
+`--cpus=2` — mauvais chiffre ET mauvais drapeau. Deux corrections : `2 → 4` (surchargeable via
+`CPUS=`), et surtout `--cpus → --cpuset-cpus`. Mesuré : `--cpus=4` laisse voir **nproc=24** dans le
+conteneur (vitest y lance ~24 workers), `--cpuset-cpus=0-3` en montre **4**. L'ancien harnais
+sur-souscrivait pathologiquement — d'où ses 13-30 échecs/passage, un régime que la CI ne connaît
+pas. **Preuve** : `ci-like.sh 5 frontend-papa` passe de **5/5 rouges** à **0/5** (815/815 à chaque
+passage). → Ceci SOLDE le « PROCHAIN PAS 1 » de la dette CI plus bas ; le vrai flake demeure
+(`CouverturePage`, `DashboardPage`, `AtelierPage`), désormais reproductible sous le harnais calibré.
+Pastille déposée pour `AtelierPage.test.tsx` (le flake `/Ton travail est bien enregistré/` qui a
+rougi #156).
+
+**2. La dictée rendue à la prod — PR #157 (`fix/la-dictee-manque-dans-l-image-prod`).** Massimo :
+« pas de voix ». Le micro s'ouvrait, l'audio partait, `/api/student/chat/transcribe` répondait
+**503** → « La dictée n'est pas dispo ». Cause : `infra/docker/backend.Dockerfile` installait
+`apps/backend[tts]` **seul** — la voix Piper marchait (d'où `/chat/tts` à 200), mais `faster_whisper`
+était absent de l'image. C'est la MÊME panne que « la machine muette et sourde » du matin, mais dans
+un AUTRE environnement : le matin a réparé le **venv de l'hôte** (hors dépôt) ; l'image de prod ne
+l'avait jamais eu. Correctif : `[tts,stt]` + **modèle Whisper `small` baké** (comme la voix Piper) +
+verrou `test_dockerfile_backend_extras.py`. **Déployé** (image reconstruite, conteneur recréé) et
+**vérifié dans le vrai navigateur** : `/transcribe` → **200**, pipeline complet (micro → transcription
+→ tour de chat). `getUserMedia` marche côté Chrome — « pas de voix » était 100 % backend.
+
+🔴 **Deux pièges de cette séance, relogés dans `TROUBLESHOOTING.md` :**
+1. **`--cpus` ≠ `--cpuset-cpus`** : `--cpus` ne borne que le TEMPS CPU, pas le nombre de cœurs
+   visibles. Un harnais qui bride avec `--cpus` laisse vitest voir tout l'hôte.
+2. **Un correctif HORS DÉPÔT (venv, `.env`) ne couvre PAS l'image Docker.** L'image est un
+   environnement à part ; elle installe ses propres extras. La preuve venv du matin masquait le trou.
+
+⚠️ **Résidus de la séance (rien d'autre ne les porte) :**
+- Les deux PR (#156, #157) ne sont **pas mergées** ; le 4bis de chacune reste à faire.
+- La CI de #157 va tourner ; le flake `AtelierPage` peut la rougir **sans rapport** avec le correctif.
+- La rustine « pip dans le conteneur vivant » n'a **pas** été employée (le rebuild propre l'a
+  remplacée) : aucun état manuel ne traîne dans le conteneur de prod.
+- Docker Hub a **timé out** (`DeadlineExceeded` sur le *load metadata* de `python:3.11-slim-bookworm`,
+  base non cachée) au premier `up --build` ; un `docker pull` direct l'a amorcée, puis le rebuild a
+  passé. Registre lent, pas un défaut du Dockerfile.
 
 ### 🟢 LA SÉANCE PROD — trois défauts que SEUL un démarrage réel pouvait trouver (2026-08-18)
 
@@ -181,6 +226,14 @@ Elles ne suivront **pas** au `git pull` : toute nouvelle machine repartira muett
 ⚠️ **La panne était SILENCIEUSE** : le backend répondait 200, les 1434 tests passaient (la CI tourne
 sans ces extras, à dessein). Rien ne la signalait — elle serait apparue devant Massimo, au premier
 appui sur le micro ou à la première capsule qui parle.
+
+> 🔴 **ET ELLE EST RÉAPPARUE EN PROD LE SOIR — puis corrigée DURABLEMENT (PR #157).** La réparation
+> ci-dessus était **hors dépôt** (venv + `.env` de l'hôte) ; l'**image Docker de prod** est un
+> environnement distinct, et elle n'installait que `[tts]`. Massimo a donc eu « pas de voix » sur la
+> prod. Cette fois le correctif est **dans l'image et versionné** (`[tts,stt]` + modèle Whisper baké
+> + verrou), donc il **suivra** au `git pull` et à la reconstruction. Voir « LES DEUX CHANTIERS DU
+> SOIR ». ⚠️ Reste hors dépôt : le venv de l'hôte (dev) et `mise-en-route.sh`, qui n'installe
+> toujours pas les extras — une machine de DEV neuve repartira muette et sourde côté natif.
 
 ### ⚠️ DEUX SESSIONS `pnpm dev` tournaient en parallèle — 2026-08-18
 
@@ -333,10 +386,11 @@ C'est le motif que l'ADR-0046 §4 nomme déjà : un dispositif attaché à une s
 (11 occurrences), `DashboardPage` (5), puis une traîne — `FicheEditorModal`, `PapaSidebar`,
 `ConfirmDialog`, `MindmapEditorModal`, `ProductionPopover`, `CartesRevisionPage`.
 
-⚠️ **CALIBRAGE NON VÉRIFIÉ, et c'est la première chose à faire.** Le conteneur tourne à `--cpus=2`.
-Personne n'a vérifié que c'est la contrainte du runner GitHub. S'il en a davantage, ce harnais est
-**plus dur que la CI réelle** et ces 13-30 échecs la surestiment — la CI de la PR #146 n'avait fait
-tomber qu'**un** test, ce qui le suggère fortement. Sans ce calibrage, on chasse des fantômes.
+✅ **CALIBRAGE FAIT le 2026-08-18 (PR #156) — ce paragraphe est CONSERVÉ pour la leçon.** Le harnais
+tournait à `--cpus=2`, que **personne n'avait vérifié** ; le runner a **4 vCPU** (mesuré par la
+sonde). Pire, `--cpus` ne bride pas les cœurs visibles : le conteneur voyait **24 cœurs**, vitest
+sur-souscrivait, et les 13-30 échecs/passage étaient l'artefact — la CI réelle n'en faisait tomber
+qu'**un**. On chassait bien des fantômes. Corrigé en `--cpuset-cpus=0-3` ; `frontend-papa` : **0/5**.
 
 ✅ **Un cas est SOLDÉ** (PR #147, squash `1c7b21a`) : `AnneesScolairesPage` › « création ». Cause
 mécanique, pas un aléa — le bouton `+ Créer une année` est `disabled` pendant `data.loading` ;
@@ -355,8 +409,12 @@ implicite » — partagent **peut-être** ce mécanisme (`findByText` sur un bou
 
 #### ▶ PROCHAIN PAS de cette dette (chantier À PART, pas dans #146)
 
-1. **Calibrer `ci-like.sh` sur le vrai runner GitHub** (nombre de vCPU). Tout le reste en dépend.
-2. Traiter `CouverturePage` et `DashboardPage`, qui concentrent **16 des échecs** à eux deux.
+1. ✅ **FAIT le 2026-08-18 (PR #156)** : `ci-like.sh` calibré à **4 vCPU** + `--cpuset-cpus`. Les
+   13-30 échecs/passage étaient un artefact de sur-souscription (`--cpus=2` laissait voir 24 cœurs) ;
+   à 4 cœurs réels, `frontend-papa` rend **0/5**. Sous-comptage (aveugle à Papa) ET sur-comptage
+   (sur-souscription) sont donc corrigés — mais le **vrai flake demeure** (voir 2, 3).
+2. Traiter `CouverturePage`, `DashboardPage` **et `AtelierPage`** (pastille déposée) — désormais
+   reproductibles sous le harnais calibré.
 3. Ne « corriger » aucun test sans l'avoir reproduit — la règle n'a pas changé, elle a juste
    maintenant un instrument qui marche.
 
