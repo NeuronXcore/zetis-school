@@ -34,7 +34,7 @@ pnpm prod:down    # tout arrêter
 - **worker-media** (`worker-media.Dockerfile`) : rendu MP4 Remotion (Chromium pré-baké), file RQ `media`.
 - Vidéos → **MinIO** ; audio partagé backend↔worker via le volume `capsule_audio`.
 - **Réseaux** (ADR-0046) : `interne` (`internal: true`, aucun egress) porte toutes les
-  communications entre services ; `externe` n'est joint que par **backend** et **worker**, qui
+  communications entre services ; `externe` est joint par **backend** et **worker** (egress Ollama/Anthropic) **et par les deux frontends**, non pour sortir mais pour être **joignables** — Docker ne publie aucun port d'un conteneur qui n'est que sur un réseau `internal` (mesuré le 2026-08-18). Les deux premiers, eux,
   appellent Ollama sur l'hôte et l'API Anthropic. `worker-media` est sur `interne` **seul** —
   Chromium ne doit pas pouvoir sortir. Vérifié : un conteneur sur `interne` seul n'atteint pas
   l'hôte.

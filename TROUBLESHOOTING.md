@@ -4,6 +4,41 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `fix/les-frontends-de-prod-sont-joignables` — Docker publie dans le vide — 2026-08-18
+
+### 🔴 Un conteneur sur un réseau `internal: true` NE PUBLIE AUCUN PORT, et ne le dit pas
+
+Au premier démarrage réel de la pile de prod, les huit conteneurs étaient `Up`, le backend
+`healthy`, et pourtant :
+
+```txt
+:8000/health   HTTP 200        ← backend, aussi sur `externe`
+:5173/         pas de réponse  ← Massimo
+:5174/         pas de réponse  ← Papa
+```
+
+`docker port zetis-prod-frontend-massimo-1` → **aucune liaison**. Les deux frontends déclaraient
+pourtant `ports: "5173:80"`, juste sous `networks: [interne]`.
+
+**Cause** : `interne` porte `internal: true`. Docker **accepte** la déclaration `ports:` et
+n'attache rien — pas d'erreur, pas d'avertissement, un conteneur en bonne santé. Le backend
+marchait précisément parce qu'il est **aussi** sur `externe`.
+
+**Parade** : `networks: [interne, externe]` sur les deux frontends. ⚠️ Le coût est réel — ils
+gagnent un egress dont ils n'ont pas besoin, Docker ne sachant pas donner l'ingress sans lui. Le
+garde-fou qui comptait dans l'ADR-0046 (`worker-media` seul sur `interne`, « Chromium ne doit pas
+pouvoir sortir ») reste intact.
+
+📌 **`minio` garde des publications inertes, à dessein** : lui donner `externe` ouvrirait une sortie
+au magasin de données pour le seul confort d'une console d'admin. Sa console n'est donc pas
+joignable depuis le Mac, et c'est écrit dans le compose.
+
+🔴 **Pourquoi ce défaut a vécu si longtemps** : il datait de l'introduction des réseaux (ADR-0046) et
+**la pile de prod n'avait jamais démarré**. Aucun test, aucune CI, aucune relecture ne pouvait le
+voir — seul un `up` réel le pouvait. Un verrou le tient désormais
+(`test_compose_ports_cohabitent.py`) : un service qui publie un port ne peut pas n'être que sur des
+réseaux `internal`.
+
 ## `chore/la-ci-typecheck` — un vert qui ne mesure pas le typage — 2026-08-18
 
 ### 🔴 La CI ne lançait aucun `tsc`, et personne ne pouvait le voir
