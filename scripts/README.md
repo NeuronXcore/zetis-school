@@ -17,7 +17,8 @@ Scripts utilitaires (setup, seed DB, backups).
 | `gen_decisions_index.py` | régénère `DECISIONS.md` — un index, pas une seconde copie |
 | `redirige_renvois_addendums.py` | redirige vers son parent tout renvoi désignant un addendum supprimé |
 | `check_adr_refs.sh` | verrou : tout `ADR-00XX` cité doit correspondre à un fichier |
-| `ci-like.sh` | rejoue la suite Massimo **dans les conditions de la CI** (Node 20, Linux, 2 CPU), en boucle |
+| `ci-like.sh` | rejoue une suite frontend **dans les conditions de la CI** (Node 20, Linux, 2 CPU), en boucle — `ci-like.sh [passages] [app]` |
+| `mise-en-route.sh` | met une **nouvelle machine** en état de développer ZETIS — installe, puis **vérifie que chaque commande répond** |
 
 ## Le registre ADR — six scripts, un ordre imposé
 
