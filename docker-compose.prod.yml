@@ -77,6 +77,12 @@ services:
     # joignent MinIO en `minio:9000` sur le réseau `interne`, et le NAVIGATEUR ne parle jamais à
     # MinIO — `MinioVideoBackend.read_video()` lit les octets côté serveur et c'est la route
     # backend qui les sert (aucune URL présignée nulle part).
+    # ⚠️ CES DEUX PUBLICATIONS SONT INERTES, et c'est un choix. `minio` n'est que sur `interne`
+    # (`internal: true`) : Docker n'y attache aucune liaison hôte — mesuré le 2026-08-18,
+    # `docker port` rend « aucune liaison ». La console d'admin n'est donc PAS joignable depuis le
+    # Mac. On ne le corrige pas en ajoutant `externe` : ça donnerait un egress au magasin de
+    # données pour le seul confort d'une console. Elles restent déclarées parce qu'elles réservent
+    # les ports côté documentation et que le verrou de cohabitation s'en sert.
     ports:
       - "${MINIO_PORT_PROD:-9002}:9000"
       - "${MINIO_CONSOLE_PORT_PROD:-9003}:9001"
@@ -256,7 +262,16 @@ services:
         APP: frontend-massimo
     depends_on: [backend]
     # nginx sert du statique ; c'est le NAVIGATEUR qui appelle le backend, pas ce conteneur.
-    networks: [interne]
+    # 🔴 `externe` EST NÉCESSAIRE, et pas pour sortir : un conteneur rattaché au SEUL réseau
+    # `interne` (`internal: true`) ne peut PAS publier de port vers l'hôte. Docker accepte la
+    # déclaration `ports:` ci-dessous et ne fait RIEN — sans erreur, sans avertissement. Mesuré le
+    # 2026-08-18, au premier démarrage réel de la pile : `docker port` rendait « aucune liaison »
+    # pour les deux frontends, et Massimo ne pouvait pas ouvrir ZETIS.
+    #
+    # ⚠️ Le coût est réel et assumé : ces conteneurs gagnent un egress dont ils n'ont pas besoin.
+    # Docker ne sait pas donner l'ingress sans lui. Le garde-fou qui comptait dans l'ADR-0046 —
+    # `worker-media` seul sur `interne`, « Chromium ne doit pas pouvoir sortir » — reste intact.
+    networks: [interne, externe]
     ports:
       - "5173:80"
     restart: unless-stopped
@@ -268,7 +283,16 @@ services:
       args:
         APP: frontend-papa
     depends_on: [backend]
-    networks: [interne]
+    # 🔴 `externe` EST NÉCESSAIRE, et pas pour sortir : un conteneur rattaché au SEUL réseau
+    # `interne` (`internal: true`) ne peut PAS publier de port vers l'hôte. Docker accepte la
+    # déclaration `ports:` ci-dessous et ne fait RIEN — sans erreur, sans avertissement. Mesuré le
+    # 2026-08-18, au premier démarrage réel de la pile : `docker port` rendait « aucune liaison »
+    # pour les deux frontends, et Massimo ne pouvait pas ouvrir ZETIS.
+    #
+    # ⚠️ Le coût est réel et assumé : ces conteneurs gagnent un egress dont ils n'ont pas besoin.
+    # Docker ne sait pas donner l'ingress sans lui. Le garde-fou qui comptait dans l'ADR-0046 —
+    # `worker-media` seul sur `interne`, « Chromium ne doit pas pouvoir sortir » — reste intact.
+    networks: [interne, externe]
     ports:
       - "5174:80"
     restart: unless-stopped
@@ -278,8 +302,11 @@ networks:
   # internet : un service qui n'est que sur ce réseau ne peut joindre que ses voisins.
   interne:
     internal: true
-  # L'egress, réservé aux deux services qui en ont besoin : `backend` et `worker` appellent
-  # Ollama sur l'hôte et l'API Anthropic (dérogation `curriculum_*`, ADR-0009).
+  # Joint par `backend` et `worker`, qui appellent Ollama sur l'hôte et l'API Anthropic
+  # (dérogation `curriculum_*`, ADR-0009) — et, depuis le 2026-08-18, par les DEUX FRONTENDS, non
+  # pour sortir mais pour être JOIGNABLES : Docker ne publie aucun port d'un conteneur qui n'est
+  # que sur un réseau `internal`. Restent hors de ce réseau ceux qui doivent y rester :
+  # `worker-media` (Chromium), `postgres`, `redis`, `minio`.
   externe:
 
 volumes:

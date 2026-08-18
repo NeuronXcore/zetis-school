@@ -119,3 +119,88 @@ def test_aucune_variable_de_port_partagee_entre_dev_et_prod() -> None:
         "Les deux fichiers lisent le même `.env` de la racine : poser l'une d'elles déplacerait "
         "les deux stacks ensemble et recréerait la collision."
     )
+
+
+#: `networks: [a, b]` — la forme en ligne, la seule employée par les deux compose.
+_RESEAUX = re.compile(r"^\s+networks:\s*\[([^\]]*)\]\s*$")
+
+
+def _reseaux_internes(fichier: Path) -> set[str]:
+    """Les réseaux déclarés `internal: true` au niveau racine du fichier."""
+    internes: set[str] = set()
+    courant: str | None = None
+    dans_section = False
+    for ligne in fichier.read_text(encoding="utf-8").splitlines():
+        if not ligne.startswith(" ") and ligne.strip():
+            dans_section = ligne.startswith("networks:")
+            courant = None
+            continue
+        if not dans_section or ligne.strip().startswith("#"):
+            continue
+        nom = re.match(r"^  ([a-z0-9-]+):\s*$", ligne)
+        if nom:
+            courant = nom.group(1)
+        elif courant and ligne.strip() == "internal: true":
+            internes.add(courant)
+    return internes
+
+
+def _services_publiant(fichier: Path) -> dict[str, list[str]]:
+    """{service publiant un port hôte: ses réseaux}."""
+    resultat: dict[str, list[str]] = {}
+    courant, reseaux, publie = None, [], False
+    dans_services = False
+
+    def _clore() -> None:
+        if courant and publie:
+            resultat[courant] = list(reseaux)
+
+    for ligne in fichier.read_text(encoding="utf-8").splitlines():
+        if not ligne.startswith(" ") and ligne.strip():
+            _clore()
+            dans_services = ligne.startswith("services:")
+            courant, reseaux, publie = None, [], False
+            continue
+        if not dans_services:
+            continue
+        nom = _SERVICE.match(ligne)
+        if nom:
+            _clore()
+            courant, reseaux, publie = nom.group(1), [], False
+            continue
+        r = _RESEAUX.match(ligne)
+        if r:
+            reseaux = [x.strip() for x in r.group(1).split(",") if x.strip()]
+        elif _MAPPING.match(ligne):
+            publie = True
+    _clore()
+    return resultat
+
+
+def test_un_service_qui_publie_un_port_n_est_pas_QUE_sur_un_reseau_interne() -> None:
+    """Test-verrou — Docker ne publie RIEN depuis un réseau `internal: true`, et sans le dire.
+
+    Mesuré le 2026-08-18, au premier démarrage réel de la pile de prod : `frontend-massimo` et
+    `frontend-papa` déclaraient `ports: "5173:80"` / `"5174:80"` et n'avaient **aucune liaison
+    hôte** (`docker port` → vide). Massimo ne pouvait pas ouvrir ZETIS. Le backend, lui, répondait
+    — parce qu'il est aussi sur `externe`.
+
+    🔴 Le mode d'échec est le pire : Docker **accepte** la déclaration `ports:` et ne fait rien. Pas
+    d'erreur, pas d'avertissement, un conteneur `Up (healthy)`. Le défaut vivait dans le fichier
+    depuis l'ADR-0046 et n'a été vu que le jour où la pile a démarré pour de bon.
+
+    ⚠️ `minio` est une EXCEPTION ASSUMÉE : ses ports restent inertes plutôt que de donner un egress
+    au magasin de données pour le confort d'une console d'admin. Le choix est écrit dans le compose,
+    et il est nommé ici — sans quoi ce verrou l'effacerait en silence.
+    """
+    tolere = {"minio"}
+    for fichier in (DEV, PROD):
+        internes = _reseaux_internes(fichier)
+        for service, reseaux in _services_publiant(fichier).items():
+            if service in tolere or not reseaux:
+                continue  # pas de `networks:` = réseau par défaut, qui publie
+            assert any(r not in internes for r in reseaux), (
+                f"{fichier.name} : `{service}` publie un port mais n'est que sur "
+                f"{reseaux}, tous `internal: true`. Docker n'attachera AUCUNE liaison hôte, "
+                "sans le dire — le service sera injoignable."
+            )
