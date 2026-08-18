@@ -18,6 +18,11 @@ Scripts utilitaires (setup, seed DB, backups).
 | `redirige_renvois_addendums.py` | redirige vers son parent tout renvoi désignant un addendum supprimé |
 | `check_adr_refs.sh` | verrou : tout `ADR-00XX` cité doit correspondre à un fichier |
 | `ci-like.sh` | rejoue une suite frontend **dans les conditions de la CI** (Node 20, Linux, 2 CPU), en boucle — `ci-like.sh [passages] [app]` |
+| `migration/check-docker.sh` | **cible** — état Docker avant migration : volume, `Docker.raw`, réglages, démon, énergie, Ollama (lecture seule) |
+| `migration/zetis-export.sh` | **source** — inventaire, `.env`, dump Postgres depuis le conteneur, archivage des volumes |
+| `migration/zetis-import.sh` | **cible** — restauration ; 🔴 **DESTRUCTIF** : DROP puis recrée la base cible |
+| `migration/zetis-pull.sh` | **cible** — variante réseau (SSH) : export distant + rapatriement + dépôt, rejouable, avec garde-fou anti-`--delete` |
+| `migration/zetis-verify.sh` | **cible** — contrôle post-migration : conteneurs, base, volumétrie, MinIO, backend (lecture seule) |
 | `check_media_integrity.py` | confronte ce que la base **promet** aux fichiers qui existent — lit le backend RÉELLEMENT configuré, ne devine pas |
 | `mise-en-route.sh` | met une **nouvelle machine** en état de développer ZETIS — installe, puis **vérifie que chaque commande répond** |
 
