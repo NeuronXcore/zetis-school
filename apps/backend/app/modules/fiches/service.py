@@ -45,6 +45,7 @@ from app.modules.fiches.population import (
     STATUS_DRAFT,
     STATUS_PERSONAL,
     readable_by_student,
+    zetis_authored,
 )
 from app.modules.fiches.atelier import occasion_mnemonique
 from app.modules.fiches.schemas import FicheSpec
@@ -319,8 +320,30 @@ def get_fiche(db: Session, fiche_id: int) -> Fiche:
 
 
 def list_fiches_for_lesson(db: Session, lesson_id: int) -> list[Fiche]:
+    """Les fiches d'une leçon **pour les surfaces de Papa** — donc celles de ZETIS, jamais celles
+    de Massimo.
+
+    🔴 C'est le corollaire de l'ADR-0015 (constat 5), écrit et **jamais appliqué** : *« pilotage_tree
+    exclut author='massimo'. Papa ne valide pas, ne rejette pas, n'édite pas la fiche de son fils.
+    Il la lit, sur une surface séparée. »* L'ADR avait même prédit le défaut : sans ce filtre, la
+    fiche de Massimo *« apparaîtrait dans l'arbre de pilotage de Papa, avec ses boutons Valider /
+    Rejeter / Éditer »*. Mesuré le 2026-08-18 : elle y apparaissait, pour 11 fiches réelles.
+
+    ⚠️ Le filtre est ICI et non dans `pilotage_tree` seul, alors que l'ADR ne nommait que lui :
+    cette fonction a **deux** appelants, tous deux sous `require_parent` — `pilotage_tree` et
+    `GET /api/fiches/lessons/{id}`. Un correctif attaché à une seule porte d'entrée ne survit pas à
+    l'ouverture d'une seconde (ADR-0046 §4). On ferme les deux.
+
+    ⚠️ `zetis_authored()` en `WHERE` est sûr ici — sa mise en garde vise la clause `ON` d'un
+    `outerjoin`, et il n'y a aucun join : `pilotage_tree` compose les leçons à part, donc une leçon
+    sans fiche garde bien sa liste vide.
+    """
     return list(
-        db.scalars(select(Fiche).where(Fiche.lesson_id == lesson_id).order_by(Fiche.id.desc()))
+        db.scalars(
+            select(Fiche)
+            .where(Fiche.lesson_id == lesson_id, zetis_authored())
+            .order_by(Fiche.id.desc())
+        )
     )
 
 
