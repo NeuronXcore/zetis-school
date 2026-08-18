@@ -1,5 +1,30 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.5 — Graphify entre dans le dépôt, sans le chemin d'une seule machine (outillage)
+
+Rien ne change pour Massimo. Ce qui change, c'est que `CLAUDE.md` redevient **exécutable** : il
+impose graphify depuis l'initialisation du dépôt, et la mesure du 2026-08-17 a montré qu'aucun
+binaire, aucune skill et aucune carte n'existaient. La doctrine était morte, et personne ne pouvait
+le voir puisque **rien n'échouait** — une règle qu'aucun outil ne vérifie ne se sait pas enfreinte.
+
+La skill est désormais **dans le dépôt** (`.claude/skills/graphify/`), donc versionnée, donc
+récupérée par la seconde machine au `git pull`. La carte, elle, ne suit pas : `graphify-out/`
+(42 Mo, 17 740 nœuds) reste gitignoré et se reconstruit par `graphify update .`.
+
+🔴 **Une régression a été introduite et corrigée dans le même geste.** L'installeur avait écrit dans
+les deux hooks `PreToolUse` d'un fichier **versionné et partagé** le chemin absolu de la machine qui
+l'avait lancé. Mesuré : ce chemin absent, le hook sort en **127** à *chaque* appel Bash, Grep, Read
+et Glob — c'est-à-dire sur le MacBook, dès le premier `git pull`. Le nom court rend une sortie
+strictement identique : le chemin absolu ne payait rien.
+
+⚠️ **Et il serait revenu tout seul** : `graphify install --project` réécrit ce fichier à chaque
+réinstallation. Un verrou de dépôt refuse désormais tout chemin de machine dans `.claude/` versionné,
+et tout hook invoquant un exécutable par chemin absolu — le second attrape `/opt/homebrew/…`, que le
+premier ne voit pas. Les deux ont été vérifiés en les cassant.
+
+⚠️ Ce que le verrou ne répare pas : ces hooks dépendent du binaire, là où les précédents étaient des
+one-liners `python3` autonomes. Sans graphify installé, c'est 127 quel que soit le chemin.
+
 ## 0.99.4 — Le dev et la prod tiennent sur la même machine (outillage)
 
 Rien ne change pour Massimo. Ce qui change, c'est qu'on peut développer sur le Mac Studio **pendant

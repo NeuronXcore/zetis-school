@@ -86,8 +86,11 @@ dans le dépôt et sans lesquels le chantier 1 ne sert à rien :
   ⚠️ **L'installeur avait écrit un CHEMIN ABSOLU machine-spécifique** dans les deux hooks
   (`/Users/atlas/.local/share/uv/tools/…`) — d'un fichier **versionné et partagé**. Mesuré : binaire
   absent → **exit 127 à chaque appel** Bash/Grep/Read/Glob, ce qui aurait cassé le MacBook. Remplacé
-  par le nom court `graphify`, qui rend une sortie identique. **À re-vérifier après chaque
-  réinstallation de graphify** : l'installeur réécrit ce fichier.
+  par le nom court `graphify`, qui rend une sortie identique. 🔒 **Et ce n'est plus à surveiller
+  à la main** : `app/tests/test_claude_config_portable.py` refuse tout chemin de machine dans
+  `.claude/` versionné, **et** tout hook invoquant un exécutable par chemin absolu (le second
+  attrape `/opt/homebrew/…`, invisible au premier). L'installeur réécrit ce fichier : le verrou est
+  ce qui survit à la prochaine réinstallation.
   ⚠️ Ce que le nom court ne répare PAS : les hooks d'avant étaient des one-liners `python3`
   autonomes ; ceux-ci dépendent du binaire. Sans graphify installé, c'est 127 dans les deux cas.
   📌 `.claude/CLAUDE.md` est un **second** fichier de doctrine (3 lignes) à côté de la section
