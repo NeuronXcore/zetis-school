@@ -74,6 +74,11 @@ jobs:
         run: python -m pytest -q
 
   frontends:
+    # 🔴 NE PAS RENOMMER ce job, malgré le nom devenu trompeur (il fait aussi `tsc` depuis le
+    # 2026-08-18). La protection de branche identifie les checks requis PAR LEUR NOM — les trois de
+    # l'adr-0061 §1 sont `backend — pytest`, `frontends — vitest`, `verrous du dépôt`. Renommer ici
+    # sans changer le réglage du dépôt ferait disparaître un check requis : il ne remonterait plus
+    # jamais, et toute PR resterait bloquée en attente d'un job qui n'existe plus.
     name: frontends — vitest
     runs-on: ubuntu-latest
     steps:
@@ -90,6 +95,28 @@ jobs:
 
       - name: Installer les dépendances
         run: pnpm install --frozen-lockfile
+
+      # 🔴 LE TYPECHECK PASSE AVANT vitest, et il n'y était pas jusqu'au 2026-08-18.
+      #
+      # Motif mesuré, pas théorique : `vitest` TRANSPILE sans vérifier les types. Trois erreurs
+      # `tsc` ont donc vécu dans `main` sans qu'aucun check ne rougisse — jusqu'à ce qu'elles
+      # bloquent la construction des images de prod (PR #151). L'une d'elles cachait un vrai défaut
+      # produit : Papa se voyait offrir Valider/Rejeter/Supprimer sur les fiches personnelles de
+      # son fils. Un vert qui ne mesure pas le typage n'est pas un vert (adr-0061).
+      #
+      # ⚠️ `--force`, et ce n'est pas de la ceinture-bretelles : `tsc -b --noEmit` seul se fie à son
+      # `.tsbuildinfo` et RATE une erreur introduite dans `packages/` (mesuré le 2026-08-18 —
+      # exit 0 sur un `packages/types` cassé, l'erreur n'apparaît qu'avec `--force`). En CI l'arbre
+      # est neuf, donc le cas ne se pose pas aujourd'hui ; `--force` garantit qu'il ne se posera pas
+      # le jour où quelqu'un mettra `.tsbuildinfo` en cache.
+      #
+      # ⚠️ Une seule commande par app suffit à couvrir `packages/` : `@zetis/types` et `@zetis/ui`
+      # sont résolus vers leurs SOURCES (`exports: ./src/index.ts`), donc compilés avec l'app.
+      - name: tsc — frontend Massimo
+        run: pnpm --filter @zetis/frontend-massimo exec tsc -b --force --noEmit
+
+      - name: tsc — frontend Papa
+        run: pnpm --filter @zetis/frontend-papa exec tsc -b --force --noEmit
 
       - name: vitest — frontend Massimo
         run: pnpm --filter @zetis/frontend-massimo exec vitest run --reporter=dot
