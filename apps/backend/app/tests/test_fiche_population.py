@@ -31,6 +31,7 @@ from app.modules.fiches.population import (
 from app.modules.production import equipment, veto
 from app.modules.production.coverage import actionable_gaps, coverage
 from app.prompts import fiche as fiche_prompt
+from app.tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
 from app.tests.test_fiche_service import _seed_validated_lesson
 
 _SPEC = fiche_prompt.FEW_SHOTS[0]
@@ -231,3 +232,49 @@ def test_papa_ne_peut_pas_retirer_un_cours_dont_massimo_a_fait_sa_fiche(client_d
         # Et elle reste bien listée dans la cascade : la FK `fiches.lesson_id` est NOT NULL,
         # l'oublier ferait échouer la suppression en base le jour où le retrait est permis.
         assert sienne.id in veto._derivatives_of_lesson(db, lesson.id)["fiche"]
+
+
+def test_le_pilotage_de_papa_n_expose_JAMAIS_la_fiche_de_massimo(client_db) -> None:
+    """Test-verrou du corollaire de l'ADR-0015 (constat 5) — écrit, puis JAMAIS appliqué.
+
+    L'ADR avait prédit le défaut mot pour mot : sans filtre d'auteur, la fiche de Massimo
+    *« apparaîtrait dans l'arbre de pilotage de Papa, avec ses boutons Valider / Rejeter / Éditer.
+    Ce serait la négation de la décision §5.6 »*. Elle prescrivait le remède dans la foulée :
+    *« pilotage_tree exclut author='massimo' »*.
+
+    Mesuré le 2026-08-18 : le remède n'était nulle part dans le code, et 11 fiches réelles de
+    Massimo (5 `personal`, 6 `personal_draft`) étaient exposées au pilotage. La suite entière
+    passait — **aucun test ne couvrait ce corollaire**, et c'est très exactement pourquoi il s'est
+    perdu.
+
+    🔴 Le verrou porte les DEUX portes d'entrée, pas seulement celle que l'ADR nommait : le routeur
+    `/api/fiches` est entier sous `require_parent`, et `list_fiches_for_lesson` y sert aussi
+    `GET /lessons/{id}`. Un correctif attaché à une seule porte ne survit pas à l'ouverture d'une
+    seconde (ADR-0046 §4).
+
+    Un échec ici ne se répare pas en ajustant l'assertion : la fiche de Massimo est à lui.
+    """
+    _, Session = client_db
+    with Session() as db:
+        lesson = _seed_validated_lesson(db)
+        etudiant = get_default_student(db)
+        sienne = _fiche_de_massimo(db, lesson.id, etudiant.id)
+        de_zetis = service.generate_fiche(
+            db, FakeLLMProvider(), FakeEmbeddingProvider(), lesson_id=lesson.id
+        )
+
+        # Porte 1 — l'arbre de pilotage.
+        arbre = service.pilotage_tree(db, subject_id=1)
+        vues = [f["id"] for n in arbre["lessons"] for f in n["fiches"]]
+        assert de_zetis.id in vues, "la fiche de ZETIS doit rester pilotable"
+        assert sienne.id not in vues, (
+            f"la fiche personnelle #{sienne.id} de Massimo est exposée au pilotage de Papa — "
+            "négation du corollaire ADR-0015 (constat 5)"
+        )
+
+        # Porte 2 — la route par leçon, sous le même `require_parent`.
+        par_lecon = [f.id for f in service.list_fiches_for_lesson(db, lesson.id)]
+        assert de_zetis.id in par_lecon
+        assert sienne.id not in par_lecon, (
+            "la seconde porte d'entrée laisse passer la fiche de Massimo (ADR-0046 §4)"
+        )

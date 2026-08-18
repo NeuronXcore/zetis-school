@@ -16,6 +16,10 @@ const BASE: FicheDetail = {
   subject_slug: "mathematiques",
   validation_status: "validated",
   seen: false,
+  // Requis par `FicheDetail` depuis l'ADR-0054 §3 (datation absolue de l'export A5). Le fixture
+  // avait pris du retard sur le contrat, et rien ne l'a vu : `vitest` transpile sans vérifier les
+  // types, et la CI ne lance aucun `tsc`. Seul le build de PROD tombait.
+  updated_at: null,
   spec: {
     title: "Multiplication",
     subject: "Mathématiques",

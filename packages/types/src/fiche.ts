@@ -97,13 +97,29 @@ export interface FicheTile {
   updated_at: string | null;
 }
 
+// Le sous-ensemble ÉDITORIAL des statuts : celui d'une fiche dont ZETIS est l'auteur. Les DEUX
+// états personnels en sont exclus — `personal` ET `personal_draft` : la fiche de Massimo n'a pas de
+// cycle éditorial (ADR-0015). Oublier le second est une erreur facile, le compilateur l'a attrapée.
+// `Exclude` plutôt qu'une union recopiée : si `FicheValidationStatus` gagne une valeur, elle entre
+// ici aussi, et il faudra la retirer explicitement plutôt que de l'oublier.
+export type FicheEditorialStatus = Exclude<FicheValidationStatus, "personal" | "personal_draft">;
+
 // Arbre de pilotage Papa d'une matière : leçons validées + leurs fiches (1 appel).
+//
+// 🔴 La fiche vue par le pilotage porte un statut ÉDITORIAL, jamais `personal` : depuis le
+// 2026-08-18, `list_fiches_for_lesson` filtre sur `author = 'zetis'` — le corollaire de l'ADR-0015
+// (constat 5), écrit à l'époque et resté inappliqué. Le type dit désormais ce que le backend
+// garantit, ce qui évite d'avoir à raconter au compilateur qu'on sait mieux que lui.
+export interface FichePilotageFiche extends Omit<FicheDetail, "validation_status"> {
+  validation_status: FicheEditorialStatus;
+}
+
 export interface FichePilotageLesson {
   lesson_id: number;
   title: string;
   chapter: string | null;
   has_content: boolean;
-  fiches: FicheDetail[];
+  fiches: FichePilotageFiche[];
 }
 
 export interface FichePilotageTree {
