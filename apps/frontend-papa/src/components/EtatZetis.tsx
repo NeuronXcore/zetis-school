@@ -49,6 +49,9 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
   const pret = state.status === "ready";
   const niveau = pret ? state.autonomy.niveau : null;
   const arme = pret && state.autonomy.auto_trigger_enabled;
+  // ADR-0063 §6 : un ZETIS suspendu INVISIBLE serait la panne des six heures, causée par Papa
+  // lui-même — donc plus difficile à soupçonner. L'état se lit ici, sur les 22 pages.
+  const suspendu = pret && state.autonomy.production_suspended;
   const visage: Visage = niveau ?? "neutre";
   const sortant = useCrossfade(visage);
 
@@ -65,7 +68,9 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
       ? "ZETIS — état d'autonomie en cours de lecture"
       : state.status === "error"
         ? "ZETIS — état d'autonomie indisponible. Ouvrir les Paramètres"
-        : `ZETIS — régime ${regime}, ${declencheur}. Ouvrir les Paramètres`;
+        : suspendu
+          ? `ZETIS — SUSPENDU. Régime ${regime}, rien ne démarre. Ouvrir les Paramètres`
+          : `ZETIS — régime ${regime}, ${declencheur}. Ouvrir les Paramètres`;
 
   // ⚠️ Le tooltip est en `position: fixed`, et ce n'est pas un caprice : la sidebar ET son
   // conteneur sont en `overflow-hidden` (le défilement de la nav en dépend), donc une infobulle
@@ -120,7 +125,19 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
         />
         {/* Second axe, doublé en ambiance. Absent du DOM quand le déclencheur est désarmé,
             jamais seulement invisible. */}
-        {arme && <span className="regime-orbit" aria-hidden />}
+        {arme && !suspendu && <span className="regime-orbit" aria-hidden />}
+
+        {/* Troisième axe, troisième signe (ADR-0063 §6) : un RUBAN au-dessus de l'avatar. Le
+            badge du bas garde le RÉGIME — la suspension ne le change pas (§7), elle se superpose.
+            Ambre, jamais rouge : le rouge de ce bloc est l'avatar Autonom (§7.6). */}
+        {suspendu && (
+          <span
+            aria-hidden
+            className="absolute -top-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-amber-400/60 bg-amber-500/90 px-2 py-0.5 text-[9px] font-extrabold tracking-[0.12em] text-amber-950"
+          >
+            ⏸ SUSPENDU
+          </span>
+        )}
 
         {/* LE BADGE, à cheval sur le bas de l'avatar. Il porte les DEUX axes : le mot du régime
             (celui du CODE, pas celui cuit dans l'illustration) et le glyphe du déclencheur.
@@ -168,7 +185,11 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
               </span>
               {niveau && <span className="mt-1 block">{NIVEAU_DESCRIPTION[niveau]}</span>}
               <span className="mt-1.5 block border-t border-papa-border pt-1.5">
-                {arme ? "⚡ Il démarre sans vous." : "⏸ Il attend votre clic pour démarrer."}
+                {suspendu
+                  ? "⏸ SUSPENDU — rien ne démarre, même sur clic. Se remet en route dans Paramètres → La machine."
+                  : arme
+                    ? "⚡ Il démarre sans vous."
+                    : "⏸ Il attend votre clic pour démarrer."}
               </span>
             </>
           )}

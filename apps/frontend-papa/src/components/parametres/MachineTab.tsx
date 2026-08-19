@@ -18,7 +18,9 @@ import { type EtatSonde, type Machine, type TestMoteur } from "@zetis/types";
 import {
   acquitterEchec,
   fetchMachine,
+  notifyAutonomyChanged,
   redemarrerWorker,
+  setProductionSuspension,
   testMoteur,
 } from "../../lib/settings";
 
@@ -49,6 +51,7 @@ export function MachineTab() {
   const [essai, setEssai] = useState<TestMoteur | "en-cours" | null>(null);
   // Le retour du POST restart, par worker — 202 comme 409 sont des PHRASES à afficher.
   const [redemarrage, setRedemarrage] = useState<{ nom: string; detail: string } | null>(null);
+  const [bascule, setBascule] = useState<"en-cours" | string | null>(null);
 
   const charger = useCallback(() => {
     setErreur(null);
@@ -140,6 +143,57 @@ export function MachineTab() {
           </ul>
         </div>
       )}
+
+      <section
+        className={cn(
+          "mb-4 rounded-xl border p-5",
+          machine.production_suspended
+            ? "border-amber-400/50 bg-amber-400/10"
+            : "border-papa-border bg-papa-surface",
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">
+              {machine.production_suspended ? "⏸ ZETIS est suspendu" : "⏸ Suspendre ZETIS"}
+            </h2>
+            <p className="mt-1 text-sm text-papa-muted">
+              {machine.production_suspended
+                ? "Aucun lot ne démarre — même sur clic, même par le scan. Rien n'a été défait."
+                : "Arrête la machine : aucun lot ne démarrera, et un lot en vol s'écourte entre deux pièces (~15 à 45 s)."}
+            </p>
+            {/* Le §7 se lit AVANT le clic : une commande d'arrêt n'est pas une commande
+                destructive, et l'écran le dit plutôt que de le laisser supposer. */}
+            <p className="mt-1 text-xs text-papa-muted">
+              Ne touche pas au régime d'autonomie · ne désarme pas le déclencheur · ne vide pas la
+              file · ne défait rien. {machine.production_suspended && "Il ne se relèvera pas tout seul."}
+            </p>
+          </div>
+          <Button
+            variant={machine.production_suspended ? "primary" : "secondary"}
+            disabled={bascule === "en-cours"}
+            onClick={() => {
+              setBascule("en-cours");
+              setProductionSuspension(!machine.production_suspended)
+                .then(() => {
+                  setBascule(null);
+                  // La sidebar lit la suspension dans le GET d'autonomie (§6) : même événement
+                  // que le panneau d'autonomie, jamais un sondage.
+                  notifyAutonomyChanged();
+                  charger();
+                })
+                .catch((e: unknown) =>
+                  setBascule(e instanceof Error ? e.message : "la bascule n'a pas abouti"),
+                );
+            }}
+          >
+            {machine.production_suspended ? "▶︎ Remettre en route" : "⏸ Suspendre"}
+          </Button>
+        </div>
+        {bascule && bascule !== "en-cours" && (
+          <p className="mt-2 text-sm text-rose-300">{bascule}</p>
+        )}
+      </section>
 
       <Carte
         titre="Qui fait quoi"

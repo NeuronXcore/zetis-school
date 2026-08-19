@@ -70,5 +70,6 @@
     }
   ],
   "niveau": "semi",
-  "auto_trigger_enabled": false
+  "auto_trigger_enabled": false,
+  "production_suspended": false
 }

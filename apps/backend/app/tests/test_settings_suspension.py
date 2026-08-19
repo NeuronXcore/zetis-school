@@ -61,13 +61,22 @@ def test_la_bascule_s_ecrit_et_se_relit_dans_les_deux_sens(client_db) -> None:
 
 
 def test_suspendre_ne_touche_ni_au_regime_ni_au_declencheur(client_db) -> None:
-    """ADR-0063 §7 : le veto retire une pièce, ceci arrête la machine — et rien d'autre."""
+    """ADR-0063 §7 : le veto retire une pièce, ceci arrête la machine — et rien d'autre.
+
+    ⚠️ Depuis le §6, la réponse d'autonomie PORTE `production_suspended` (transport de la
+    sidebar) : c'est le seul champ qui a le DROIT de bouger — comparer le payload entier ferait
+    échouer le test sur le comportement même qu'on vient de livrer."""
     client, _ = client_db
     avant = client.get("/api/settings/autonomy").json()
 
     client.put(API, json={"suspended": True})
 
-    assert client.get("/api/settings/autonomy").json() == avant
+    apres = client.get("/api/settings/autonomy").json()
+    assert apres["classes"] == avant["classes"]
+    assert apres["niveau"] == avant["niveau"]
+    assert apres["auto_trigger_enabled"] == avant["auto_trigger_enabled"]
+    # Et le transport marche : la sidebar verra la suspension par ce même GET.
+    assert apres["production_suspended"] is True
 
 
 def test_le_role_enfant_est_refuse(client_db) -> None:

@@ -100,13 +100,17 @@ export const INVENTAIRE: LigneReglage[] = [
     lien: "/journal",
   },
   {
-    nom: "Suspendre ZETIS / la file",
+    nom: "Suspendre ZETIS",
     concerne: "ZETIS",
-    ou: "nulle part",
-    // Corrigé au read-before-code : la maquette annonçait « ADR rédigé (S0) ». Aucun ADR ne le
-    // porte — mais le MÉCANISME existe déjà (`production/runner.py::massimo_is_active`).
-    statut: "⏸ différé — le mécanisme existe déjà côté runner",
-    famille: "nulle",
+    ou: "ici · La machine",
+    // Livré le 2026-08-19 (ADR-0063) : sixième régulateur, arrêt au grain de la pièce, état
+    // dans la sidebar. Découvert MENSONGER pendant la démo à l'écran : la clé existait en base,
+    // le compteur d'en-tête la comptait, et cette ligne disait encore « nulle part » — le filtre
+    // « modifiés » annonçait 8 écarts et n'en listait que 2.
+    statut: "✅ livré — ADR-0063 : il ne se relève jamais tout seul",
+    famille: "ici",
+    onglet: "machine",
+    cles: ["zetis_production_suspended"],
   },
   {
     nom: "Régulateur de volume du palier 3",

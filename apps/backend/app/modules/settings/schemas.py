@@ -35,6 +35,13 @@ class AutonomyOut(BaseModel):
     #: « a-t-il le droit de SERVIR sans relecture ? ». Le mettre dans `classes` ferait qu'un
     #: préréglage l'armerait, et le front le rendrait comme un palier à 4 valeurs.
     auto_trigger_enabled: bool = False
+    #: ZETIS est-il SUSPENDU ? (ADR-0063 §6) — la sidebar lit ce GET sur les 22 écrans, et un
+    #: ZETIS suspendu invisible serait la panne des six heures causée par Papa lui-même.
+    #:
+    #: ⚠️ **Transport partagé, question distincte, ÉCRITURE SÉPARÉE** : même patron que le
+    #: déclencheur (ADR-0035 §5). `AutonomyRequest` ne gagne AUCUN champ — la bascule passe par
+    #: `PUT /production-suspension`, sinon deux chemins d'écriture pour la même question.
+    production_suspended: bool = False
 
 
 class AutonomyRequest(BaseModel):
@@ -187,6 +194,8 @@ class MachineOut(BaseModel):
     valeur ni un préfixe, et aucune URL de service ne porte d'identifiant. Un test le verrouille.
     """
 
+    #: ZETIS est-il suspendu ? (ADR-0063) — l'état vit à côté du geste, dans le même instantané.
+    production_suspended: bool
     workers_supervision: SupervisionOut
     sondes: list[SondeOut]
     moteurs: list[MoteurOut]

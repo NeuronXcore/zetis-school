@@ -34,6 +34,8 @@ router = APIRouter(
 def _out(db: Session, values: dict[str, int]) -> dict:
     return {
         "auto_trigger_enabled": service.auto_trigger_enabled(db),
+        # Lu ici pour la SIDEBAR (ADR-0063 §6) ; le geste, lui, vit sur sa propre route.
+        "production_suspended": service.production_suspended(db),
         "classes": [
             {
                 "key": cls.key,

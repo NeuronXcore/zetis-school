@@ -39,6 +39,7 @@ function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
   return {
     // Le déclencheur automatique est DÉSARMÉ par défaut (ADR-0035 §5).
     auto_trigger_enabled: false,
+    production_suspended: false,
     classes: [
       cls(A0A, "A0a", "Dérivés inertes", 3, [2, 3]),
       cls(

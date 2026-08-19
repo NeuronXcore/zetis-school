@@ -13,6 +13,7 @@ import { useAutonomyState } from "./useAutonomyState";
 function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
   return {
     auto_trigger_enabled: false,
+    production_suspended: false,
     classes: [],
     niveau: "semi",
     ...overrides,
