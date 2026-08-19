@@ -246,6 +246,15 @@ class SauvegardeVerificationRequest(BaseModel):
     archive: str
 
 
+class SauvegardeRestaurationRequest(BaseModel):
+    """La désignation d'UNE archive à restaurer (ADR-0066 §2) — même contrat que la
+    vérification : un NOM confronté à la whitelist, jamais un chemin. Toutes les autres
+    préconditions (verdict `reussie`, suspension, supervision, compatibilité) sont refusées
+    en 409 motivé par la route, AVANT d'enfiler."""
+
+    archive: str
+
+
 # --- 💾 Données (ADR-0065 §7) — l'état, jamais un contenu -----------------------------------------
 
 
@@ -286,6 +295,13 @@ class ArchiveOut(BaseModel):
     tables: int | None = None
     #: `None` = jamais vérifiée — « export non vérifié » à l'écran, et c'est le point du §7.
     verification: VerificationArchiveOut | None = None
+    #: Le verdict de COMPATIBILITÉ (ADR-0066 §5) : la tête Alembic du manifeste contre les
+    #: migrations du code installé — rendu AVANT le geste, fail-closed. Ne dit RIEN de
+    #: l'intégrité (ça, c'est `verification`) : les deux verdicts se cumulent pour « Restaurer ».
+    restaurable: bool = False
+    #: Pourquoi pas restaurable — `None` quand `restaurable` est vrai (adr-0062 §6 : un
+    #: cadenas muet se lit comme une panne).
+    motif: str | None = None
 
 
 class DonneesOut(BaseModel):

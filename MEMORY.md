@@ -6,18 +6,56 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
-> pousser, **aucune branche de chantier vivante**. **La phase B « la sauvegarde qui se mérite »
-> est SOLDÉE** : trois slices, trois PR mergées, CI verte du premier coup à chaque fois. La prod
-> tourne (8 conteneurs, ports canoniques 8000/5173/5174) ; le dev se lance à la demande sur les
-> paires `.claude/launch.json`.
+> **Où en est le dépôt** (2026-08-19, nuit) — `main` = `origin/main` (= la base du chantier,
+> `020b733`). **UNE branche de chantier vivante : `feat/restaurer-une-sauvegarde`** (ADR-0066,
+> phase E), déjà sur `origin` et synchrone (le commit des prompts des deux slices, voir
+> `git log --oneline main..HEAD`) — et **la slice 1 COMPLÈTE dans l'arbre de travail, PAS
+> ENCORE COMMITÉE** : l'humain vérifie (diff, tests) puis committe. ℹ️ Une branche de worktree
+> d'agent `claude/fervent-stonebraker-bfa5b9` existe aussi (posée sur un commit de `main`,
+> zéro commit propre — infrastructure Claude Code, pas un chantier). La prod tourne
+> (8 conteneurs, ports canoniques) ; le dev se lance à la demande.
 
-### ⏸ CADRAGE FAIT — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, sous-chantier de phase E) — écrit, pas encore codé (2026-08-19)
+### 🚧 CHANTIER EN COURS — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — slice 1/2 COMPLÈTE, à committer (2026-08-19)
 
-**PROCHAIN PAS : l'humain relit et committe le lot Décision sur `main`** (ADR-0066 +
-`DECISIONS.md` régénéré + `BACKLOG.md` annoté + ce fichier), **puis** `/ouverture` vers
-`feat/restaurer-une-sauvegarde`. Rien sous `apps/` ni `packages/` n'a bougé ;
-`check_adr_refs.sh` sort en 0.
+**PROCHAIN PAS : l'humain vérifie le diff et les suites, committe la slice 1 sur la branche**
+(message suggéré rendu à la clôture du 2026-08-19), **puis push → PR → merge → étape 4bis**
+(`docs/WORKFLOW.md` §5 : revenir mettre ce fichier au réel — squash, n° de PR). **Ensuite
+seulement : `/slice` avec le prompt de la slice 2**
+(`prompts/claude-code/prompts-claude-code-adr-0066.md`, § slice 2 — il exige le merge de la
+slice 1, et son read-before-code peut déplacer des détails).
+
+**FAIT — slice 1 (le geste `backup_restore`, dans l'arbre de la branche) :**
+
+- `settings/sauvegarde.py` : `refus_restauration` (les 7 préconditions du §2, TOUTES en 409
+  motivé avant d'enfiler) · `restaurer_sauvegarde` (les 8 étapes dans l'ordre : filet ① →
+  `_restaurer_dans(zetis_restore)` ② → réveil ③ upserts `app_settings` DANS la base restaurée →
+  `_neutraliser_pool` + `_swap` ④ → `_remplacer_medias` ⑤ → `_purger_files_redis` ⑥ →
+  `_alembic_upgrade` ⑦ → `_arret_worker` ⑧) · sidecar `_JournalRestauration`
+  (`<archive>.restauration.json`, réécrit à CHAQUE étape — un crash laisse un fichier qui dit où
+  ça s'est arrêté) · verdict de compatibilité §5 (`_tetes_connues` via `ScriptDirectory` — le
+  CODE, jamais la base vivante) servi par archive dans `GET /donnees` (`restaurable`, `motif`) ·
+  `RestaurationInterrompue` = zéro rejeu quelle que soit l'exception.
+- `production/jobs.py` : exécutant `backup_restore` (sans db/llm) + **le garde « introuvable »
+  en FIN de `run_ai_job`** (la ligne du travail meurt au swap, §3). `ai/travaux.py` : amorce
+  20 s. `settings/router.py` + `schemas.py` : `POST /donnees/restauration` (202/409, patron
+  exact de `/verification`).
+- **Tests : backend 1542/1542 (dont 21 neufs, `test_sauvegarde_restauration.py`), papa 869/869,
+  massimo 920/920, `tsc` OK ×2 — zéro test existant modifié, zéro fichier front touché.** Les
+  verrous : jamais sans filet · réveil AVANT swap (ordre SQL exact asserté, faux psycopg) ·
+  409 paramétré ×7 · ② en échec ne swap pas · sidecar survit au crash · métadonnées seules ·
+  le garde `run_ai_job`.
+- Docs : `API_SPEC.md` (§💾 : POST restauration + champs `restaurable`/`motif` du GET),
+  `TROUBLESHOOTING.md` § `feat/restaurer-une-sauvegarde` (3 pièges).
+
+**Verdicts des read-before-code slice 1 (à ne pas re-vérifier) :** le seed de l'entrypoint EST
+idempotent sur base restaurée pleine (`User.count() > 0` → ignoré) · le warm shutdown de
+soi-même marche (rq 2.11 lu : SIGINT → BUSY → drapeau, la pièce se termine, statut écrit, puis
+sortie ; nom via `get_current_job().worker_name`) · clés Redis ⑥ = les DEUX files de production
++ leurs `ScheduledJobRegistry` (le scan se réamorce au redémarrage du worker — garanti par ⑧ +
+la précondition de supervision) ; la file `media` reste hors du destructif énuméré ·
+`remove_objects` MinIO est un itérateur PARESSEUX (consommer, sinon rien ne part) · la connexion
+admin du swap DOIT viser `postgres` (jamais la base qu'on renomme) · 🔴 le chemin « tête plus
+ancienne » du §5 reste NON MESURÉ (aucune archive d'une tête antérieure n'existe au 2026-08-19).
 
 **Ce que l'ADR-0066 décide** (ne pas re-débattre) : restaurer ne s'offre qu'à une archive au
 verdict `reussie` — le mot se mérite dans les deux sens (§1) · préconditions toutes en 409 motivé
@@ -39,147 +77,42 @@ réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaur
 terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
 est requis à la restauration (attrapé en conteneur).
 
-⚠️ **Pièges consignés pour les slices** (§Suivi 3) : 🔴 le seed de l'entrypoint rejoue à chaque
-boot — est-il idempotent sur une base restaurée PLEINE ? · warm shutdown de soi-même depuis un
-travail RQ · clés Redis exactes à purger · `remove_objects` MinIO · le chemin « tête plus
-ancienne » du §5 n'est PAS mesuré (aucune archive antérieure n'existe).
+**EN COURS :** rien d'instable — la slice 1 est finie et vérifiée ; elle attend le commit humain.
 
-### ✅ CHANTIER SOLDÉ — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — 3/3 slices MERGÉES (2026-08-19)
+**À FAIRE — slice 2 (l'administration), après le merge de la slice 1 :** `DELETE
+/api/settings/donnees/archives/{nom}` et ses gardes (§6 — 🔴 la dernière archive au verdict
+`reussie` ne se supprime pas ; suppression = tar + TOUS les sidecars) · la surface §7
+(« Restaurer » sur les seules archives vérifiées, dialogue à SAISIE de confirmation ;
+« Supprimer », dialogue sans saisie ; état « restaurée le … » lu du sidecar dans `GET /donnees`)
+· le runbook du re-swap `zetis_avant` (§4) dans `TROUBLESHOOTING.md`, commandes testées en
+conteneur · **l'entrée `CHANGELOG` du chantier part avec cette slice** (affectation explicite du
+prompt).
 
-Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1** (le socle) : PR #164, squash
-`8650f26` · **Slice 2** (la preuve) : PR #165, squash `fe95bf5` · **Slice 3** (la surface) :
-PR #166, squash `7a287dc`. Les trois branches sont supprimées (vérifié `ls-remote` → 0).
-🎉 **Le cycle complet a été exécuté EN VRAI sur les données de dev pendant la relecture** (détail
-au bloc slice 3) : la dette « chemin Postgres réel jamais exercé » est FERMÉE.
+**PIÈGES :** `TROUBLESHOOTING.md` § `feat/restaurer-une-sauvegarde` — la fin de `run_ai_job`
+sans garde + le pool à neutraliser AVANT le terminate · la connexion admin du swap sur
+`postgres` · le verrou zéro-rejeu contre `is_transient` (+ `remove_objects` paresseux).
 
-**FAIT — slice 1 (le socle, sur `main` via #164)** : `modules/settings/sauvegarde.py`
-(`backup_create` : certificat fail-closed → 409 avant d'enfiler → dump sur instantané exporté →
-objets S3 → audio → manifeste scellé + sidecars ; archive au couple incomplet SUPPRIMÉE) · route
-`POST /api/settings/donnees/sauvegarde` · `postgresql-client-16` (PGDG, majeure épinglée, vérifiée
-en conteneur) · `ZETIS_BACKUP_DIR` + bind mount `:?` sur `backend` ET `worker` ·
-`scripts/certifier-cible-sauvegarde.sh` prouvé sur la machine (2 cas). Détail : PR #164, ADR-0065,
-`API_SPEC` §💾.
+**🧾 DETTES OUVERTES** (du chantier, et REMONTÉES de l'élagage ADR-0065 fait ce jour) :
 
-**FAIT — slice 2 (la preuve, sur `main` via #165) :**
-
-- `sauvegarde.verifier_sauvegarde` — les six étapes du §6 : ① sha256 du tar vs sidecar (divergent
-  ⇒ on ne restaure même pas) · manifeste **scellé DU tar** comme seule autorité (sidecar
-  `.manifeste.json` falsifié = sans effet, verrouillé) · ⑤ membres comparés dans les DEUX sens ·
-  ②③④ `_restaurer_a_blanc` (connexion admin **autocommit**, `DROP IF EXISTS … WITH (FORCE)` en
-  ménage ET en `finally`, `psql -v ON_ERROR_STOP=1 -f` par URI, comptes + tête relus dans
-  `zetis_verify`) · verdict détaillé (`verdict`, `ecarts` nommés, comptes, tête).
-- 🔴 **Le verdict vit dans `output_json` d'un travail `succeeded`** (ADR §6) — y compris un
-  verdict d'échec : le chemin d'échec de `run_ai_job` n'écrit pas `output_json`, le détail serait
-  perdu. `failed` = dispositif cassé seulement.
-- Route `POST /api/settings/donnees/verification` (202 métadonnées / **409 motivé avant
-  d'enfiler** : nom hors whitelist `zetis-AAAA-MM-JJ-hhmm.tar` — traversée de répertoire sinon —,
-  archive ou sidecar absents, doublon `backup_create` COMME `backup_verify`) · exécutant
-  `backup_verify` · amorce 10 s.
-- **Tests : backend 1514/1514 (dont 20 neufs : `test_sauvegarde_verification.py`),
-  frontend-massimo 920/920, frontend-papa 860/860 — zéro test existant modifié.** Le verrou
-  « `zetis_verify` détruite MÊME en échec + `zetis` jamais touchée » tient sur le VRAI
-  `_restaurer_a_blanc` (faux module psycopg injecté : la liste EXACTE des ordres admin est
-  assertée).
-
-**Verdicts des read-before-code (à ne pas re-vérifier) :** rien n'empêche deux travaux de
-sauvegarde (le régulateur `duplicate` ne couvre que les LOTS) → les ROUTES refusent ·
-`video_url`/`audio_url` sont des **chemins d'API**, la dérivation média se fait par id de capsule
-(`capsules/{id}/video.mp4`, `capsules/{id}/scene_0.wav`) · psycopg3 ouvre une transaction
-implicite → `CREATE DATABASE` la refuse, la parade est `autocommit=True` au connect (mesuré,
-conteneur d'essai) · `DROP DATABASE … WITH (FORCE)` tue une connexion tenue (`AdminShutdown`,
-pg16) · cycle `psql -f` par URI prouvé (exit 0, 42/42).
-
-**DÉCISIONS ACTIVES (ADR-0065, relire jamais rouvrir) :** aucun octet d'archive sur HTTP · quatuor
-Postgres + MinIO (API S3) + `capsule_audio` + manifeste, exclusions écrites dedans (`.env`, Redis,
-modèles) · certificat hôte fail-closed (§3) · travaux de la file existante, concurrence 1, dump
-d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomplet REFUSÉE et détruite
-(§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
-(les exécutants sont des adaptateurs ; direction production→settings déjà existante).
-
-**FAIT — slice 3 (la surface, sur `main` via #166) :**
-
-- `GET /api/settings/donnees` — métadonnées SEULEMENT, **aucun tar ouvert** (verrou structurel :
-  la route répond même quand `tarfile.open` explose) : archives via sidecars, certificat
-  `{valable, motif, cible}` (le chemin HÔTE consigné — « certifiée » sans dire OÙ obligeait à
-  demander, relevé à la relecture d'écran), verdicts par archive depuis les `backup_verify`
-  réussis (le plus récent gagne).
-- **L'onglet 💾 rendu** (`DonneesTab`) : badge certificat + chemin de cible + pourquoi la
-  destination ne se choisit pas ici · geste 💾 Sauvegarder (grisé AVEC motif sans certificat,
-  `signalerEnfilement` après 202) · liste des archives avec ✓ Vérifier par ligne · **« export non
-  vérifié » / « Sauvegarde vérifiée · date » / « vérification en échec (N écarts) »** — le mot se
-  mérite, trois libellés verrouillés · refus 409 en AMBRE avec motif (`estRefus`), jamais en
-  panne · aucun sondage, ⟳ bouton · heures locales (le fuseau UTC de `verifie_le` s'affichait
-  09:43 à côté de 11:42 — vu à l'écran, corrigé).
-- La CARTE mise au réel : « Sauvegarder · vérifier » et « Cible de sauvegarde » → ✅ `onglet:
-  donnees` ; la ligne FAUSSE « PDF importés = seul poste irremplaçable » corrigée par la mesure
-  de l'ADR (le poste n'existe pas — les PDF ne sont jamais persistés).
-- ⚠️ **UN test existant retouché, prévu par son propre commentaire** : l'exemple d'onglet non
-  construit était `?onglet=donnees` — devenu réel ; bascule vers `massimo`, propriété intacte
-  (preuve en deux temps : 1 seul test tombait avant la retouche, 859/860 intacts).
-- **Tests : backend 1521/1521 (+7 : `test_sauvegarde_donnees.py`), papa 869/869 (+9 :
-  `DonneesTab.test.tsx` + le swap), massimo 920/920, `tsc -b --force` OK, `ci-like.sh 3
-  frontend-papa` → 0 rouge/3.** Docs : CHANGELOG **0.99.9** (la phase B entière), API_SPEC §GET
-  /donnees, page-parametres §💾, TROUBLESHOOTING slice 3.
-
-🎉 **LE CYCLE RÉEL, exécuté pendant la relecture humaine** (paire d'essai isolée sur Redis db2 ;
-le worker maison a été refusé par le garde anti-doublon → travaux exécutés par le VRAI
-`run_ai_job` à la main) : `backup_create` réel sur la base de dev (archives 48,2 Mo, 9163-9165
-lignes / 48 tables, tête `a8a71c84f86e`, 76 fichiers audio, couple fermé) puis `backup_verify`
-réel — **et le premier verdict fut un ÉCHEC HONNÊTE** : `pg_dump` 18.6 (keg libpq) écrit
-`SET transaction_timeout`, que le serveur pg16 refuse sous `ON_ERROR_STOP` — le produit a refusé
-le mot « sauvegarde » à une archive qui, réellement, ne se rejouait pas. Rejoué aligné
-(`postgresql@16`, 16.15 = le serveur) : **« Sauvegarde vérifiée », 9165/9165, 48/48, zéro
-écart**, `zetis_verify` détruite à chaque fois (vérifié : seule `zetis` existe).
-
-**EN COURS :** rien — le chantier est soldé, aucune branche vivante, rien d'instable. L'écran a
-été REGARDÉ (§5bis) : les deux états du certificat, les trois statuts d'archive, le refus motivé,
-le cycle réel — captures dans la session du 2026-08-19.
-
-**À FAIRE :** rien sur ce chantier. La suite vit dans « PROCHAIN PAS » et « À CASER ».
-
-**PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/sauvegarde-qui-se-merite` (le bac à sable de l'agent
-GÈLE un script hôte qui lit `~/Library` ; un renvoi de prompt se vérifie), `…-2` (psycopg3 :
-transaction implicite vs `CREATE DATABASE` — autocommit obligatoire) et `…-3` (🔴 un `pg_dump`
-PLUS RÉCENT que le serveur écrit un dump que pg16 refuse de rejouer — l'alignement de majeure
-vaut dans les DEUX sens et pour l'HÔTE ; le runner `preview_start` bloqué TCC sur `/Volumes` →
-paire lancée à la main + panneau ouvert par URL).
-
-**🧾 DETTES OUVERTES du chantier :**
-
-- ✅ **FERMÉE pendant la relecture : le chemin Postgres réel** — `_instantane` ET
-  `_restaurer_a_blanc` exercés en vrai sur la base de dev, de bout en bout, par le vrai
-  `run_ai_job` (travaux #891/#893 create · #892 verify-échec honnête · #894/#895
-  verify-réussie). Reste : l'image Docker jamais reconstruite en entier (couche PGDG vérifiée en
-  conteneur identique) — le premier `prod:up --build` sera la preuve d'image.
 - 🔴 **Le prochain `prod:up` NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR` dans le `.env` racine**
-  (`:?`, voulu). Le geste : poser la variable vers un répertoire d'un AUTRE disque durable
-  (ex. `NX-Models`), puis `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
-- **Ménage de la relecture, sur cette machine** : jobs d'essai `#890→#895` dans les `ai_jobs` de
-  DEV — **`#890` est un `failed` « Aucun exécutant » à ACQUITTER** (clic parti vers le worker de
-  l'autre session, qui tourne un code d'avant les slices), les autres sont des traces réelles
-  `succeeded` · les archives d'essai vivent dans le scratch de session `/private/tmp/…` (éphémère,
-  disparaît seul) · la paire d'essai 8002/5178 (Redis db2) peut encore tourner — l'arrêter ou la
-  laisser mourir avec la session · kegs brew posés le 2026-08-19 : **`postgresql@16`** (le BON,
-  aligné serveur) et `libpq` (redondant, désinstallable).
+  (`:?`, voulu — ADR-0065 §2). Le geste : poser la variable vers un répertoire d'un AUTRE disque
+  durable, puis `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
+- **L'image Docker n'a jamais été reconstruite en entier** depuis la couche PGDG (vérifiée en
+  conteneur identique) : le premier `prod:up --build` sera la preuve d'image.
+- **Ménage de la relecture 0065, sur cette machine** : le job d'essai `#890` (`failed` « Aucun
+  exécutant ») reste à ACQUITTER dans les `ai_jobs` de DEV · la paire d'essai 8002/5178
+  (Redis db2) peut encore tourner — l'arrêter ou la laisser mourir · kegs brew : `postgresql@16`
+  (le BON) et `libpq` (redondant, désinstallable).
 - **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16` (jamais
-  `libpq` — TROUBLESHOOTING slice 3). Dette outillage, chore à part.
-- `API_SPEC.md` ne documente toujours PAS les autres routes `/api/settings` (`/autonomy`,
-  `/machine`, `/ecarts`, `/production-suspension`) — rangement doc à part.
-
-**PROCHAIN PAS :** au choix de l'humain — le **cadrage de la phase E** (restaurer / supprimer /
-administrer les archives — demande déjà consignée en À CASER, `/cadrage` cas 3, l'ADR-0065 §Suivi 5
-pose que la phase E RELIRA le manifeste/l'empreinte/`zetis_verify` sans les redécider) ou la
-petite **fix sidebar** (À CASER). ⚠️ Et le geste opérationnel toujours dû AVANT le prochain
-`prod:up` : `ZETIS_BACKUP_DIR` + certification (DETTES).
+  `libpq` — TROUBLESHOOTING slice 3 du 0065). Dette outillage, chore à part.
+- `API_SPEC.md` ne documente toujours pas les autres routes `/api/settings` (`/autonomy`,
+  `/machine`, `/ecarts`, `/production-suspension`) — la note en tête de sa section 💾 le dit.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
 - **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
   Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
-  clôture de la slice 1). Chore/fix à part, hors périmètre sauvegarde.
-- ✅ **Administrer les sauvegardes (restaurer + supprimer)** — demande du 2026-08-19, **consommée
-  par le cadrage ADR-0066** (bloc en tête de fichier) : le vœu « toasts de confirmation » y est
-  traduit en confirmation explicite + toast de retour d'action (§7).
+  clôture de la slice 1 du 0065). Chore/fix à part, hors périmètre sauvegarde.
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 
