@@ -39,6 +39,11 @@
 - ✅ ~~la relecture §5bis restante~~ — **JOUÉE le 2026-08-19 au soir** : la restauration a
   ABOUTI en dev, 8/8 étapes, « restaurée le … » vu à l'écran (résidu n°1 ci-dessous, soldé —
   avec DEUX découvertes : le travail fantôme 🔴 et le piège d'alias d'env) ;
+- 🎯 **le chantier CADRÉ et prêt : « le réveil clôt les fantômes »** (Amendement 1 de
+  l'ADR-0066, cadré le 2026-08-19 au soir) — application directe (cas 2) : branche
+  `fix/reveil-clot-les-fantomes` depuis `main`, périmètre au premier message, `/slice` avec un
+  prompt qui cite l'amendement (le prompt s'écrit sur la branche — lot Exécution, WORKFLOW
+  §2bis) ; test-verrous et preuve vivante listés au §Suivi de l'amendement ;
 - le chore « À CASER » (l'emoji sidebar → onglet Autonomie), ou le prochain sous-chantier de la
   phase E (occupation disque · purges/rétention · remises à zéro · export RGPD) — chacun avec
   son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
@@ -168,11 +173,14 @@ en tête du fichier.
 - 🔴 **DÉCOUVERT à l'essai — le travail FANTÔME (systématique)** : toute archive du produit
   contient SA PROPRE ligne `ai_jobs` en `running` (dump pris pendant le travail) ; restaurée,
   cette ligne revit en éternel « en cours » — la barre l'affiche, et **les préconditions « rien
-  en vol » refuseront tout geste sauvegarde suivant**. ⚠️ **État LAISSÉ dans la base dev** : la
-  ligne #896 (`backup_create`, `running`) y vit — le prochain geste sauvegarde en dev tombera en
-  409 tant qu'elle n'est pas soldée. Parade à CADRER (le réveil ③ clôturerait les
-  `queued|running` restaurés) — décision d'ADR, pas un correctif silencieux
-  (`TROUBLESHOOTING.md` § essai, détail complet).
+  en vol » refuseront tout geste sauvegarde suivant** (mesuré : même 💾 Sauvegarder rend 409 au
+  motif menteur « attendez sa fin »). ⚠️ **État LAISSÉ dans la base dev** : la ligne #896
+  (`backup_create`, `running`) y vit — voulu, c'est la **preuve vivante** du chantier correctif.
+  ✅ **CADRÉ le soir même : Amendement 1 de l'ADR-0066** (« Le réveil clôt les travaux d'une
+  autre époque ») — le ③ clôt les `queued|running` restaurés (`failed` + motif + `finished_at`,
+  travaux ET lots), aucune ligne insérée, aucun statut neuf, Échecs existant fait foi. Chantier
+  d'application (cas 2) : branche directe `fix/reveil-clot-les-fantomes`, preuve = rejouer
+  `…-1756.tar` en dev → #896 clos, 💾 repart.
 - ⚠️ **La machine finit SANS worker de production** (le ⑧ a consommé le mien, j'avais remplacé
   celui de l'autre session par le geste documenté du module) : `pnpm dev:worker` pour en relancer
   un ; le backend 8001 de l'autre session tourne toujours, sans worker.

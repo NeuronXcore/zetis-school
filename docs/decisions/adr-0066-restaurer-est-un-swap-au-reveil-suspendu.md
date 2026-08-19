@@ -30,6 +30,14 @@ suspension comme préalable au remplacement (`adr-0063`, dont le §8 du 0065 dis
 restauration, elle, suspendra avant de remplacer ») · le worker supervisé et son warm shutdown
 (`adr-0064`) · « aucun octet d'archive sur HTTP » (`adr-0065` §1, qui vaut ici tel quel).
 
+> ### Amendements
+>
+> | # | Date | Titre | Statut | Révoque |
+> |---|---|---|---|---|
+> | 1 | 2026-08-19 | Le réveil clôt les travaux d'une autre époque | Proposé | — |
+>
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
+
 ## Contexte
 
 ### Ce qui existe depuis la phase B (squashes `8650f26`, `fe95bf5`, `7a287dc`)
@@ -261,3 +269,103 @@ raconte.
    le mesurer — le dire si toujours vrai).
 4. La phase E suivante (remises à zéro) **relira** ce swap et son réveil suspendu — elle ne les
    redécide pas.
+
+## Amendement 1 — Le réveil clôt les travaux d'une autre époque — 2026-08-19
+
+### Statut
+
+**Proposé — 2026-08-19.** Né du premier essai réel du geste (résidu n°1 de la slice 2, joué en
+dev ce jour) : la restauration a abouti — 8/8 étapes, zéro écart — et a réveillé un **travail
+fantôme** que cet amendement décide d'éteindre. Les §1 à §7 ne bougent pas ; le §2.③ s'étend, la
+frontière du §3 se précise.
+
+### Contexte — le fait est structurel, et il est MESURÉ
+
+**Toute archive du produit contient SA PROPRE ligne `ai_jobs` en `running`** : le dump est pris
+sur un instantané exporté PENDANT le travail qui crée l'archive (`_instantane`, ADR-0065 §5) —
+sa ligne y est donc, à jamais « en cours ». Mesuré le 2026-08-19 sur les deux vrais tars de
+l'essai : `zetis-2026-08-19-1756.tar` porte `896 · backup_create · running`, et la
+sauvegarde-filet `…-1807.tar` porte `899 · backup_restore · running` (le geste lui-même — le
+filet du ① embarque le travail de restauration qui le commande). Une (1) ligne en vol par dump
+mesuré ; rien n'empêche d'autres `queued` d'y figurer (`backup_create` n'exige pas « rien en
+vol », et c'est assumé).
+
+**Restaurée, cette ligne revit en fantôme éternel — conséquences mesurées en dev** :
+
+- la barre affiche « ZETIS produit — backup_create » à demeure ;
+- `POST /donnees/sauvegarde` rend **409** « *Une sauvegarde est déjà en file ou en cours
+  (travail #896) : attendez sa fin…* » — un motif qui **ment** (elle ne finira jamais), et donc
+  🔴 **l'état post-catastrophe ne peut plus se sauvegarder** — précisément le moment où le filet
+  compte le plus ;
+- les préconditions « rien en vol » de la restauration (§2) et du DELETE (§6) refusent pareil ;
+- un lot `production_runs` restauré `running` bloquerait de même : la précondition lit le statut
+  BRUT, pas le `stale` dérivé à la lecture (ADR-0034 §2 — ce patron couvre un battement expiré
+  d'un lot *vivant*, pas une époque morte).
+
+### Décision
+
+1. **Le §2.③ s'étend.** Les écritures de réveil — DANS `zetis_restore`, avant le swap, sur la
+   même connexion que les upserts existants — **clôturent les travaux et lots d'une autre
+   époque** : `ai_jobs` en `queued|running` passent à `failed` avec un `error_message` motivé
+   (il nomme la restauration et l'archive) et `finished_at` posé ; `production_runs` en
+   `queued|running` passent à `failed` avec `finished_at`. Même principe que le régime dans la
+   phrase fondatrice du ③ : *une archive AUTONOM ne réarme pas AUTONOM en silence* — **une
+   archive ne fait revivre ni un travail ni un lot**.
+2. **La frontière du §3 est précisée, pas rouverte.** Le §3 interdit d'**insérer** une trace du
+   geste dans l'histoire restaurée — fabriquer du futur dans le passé. Le réveil, lui, **adapte
+   l'état restauré** pour que le monde se lève sain : il écrivait déjà suspension, régime et
+   déclencheur ; il clôt désormais ce qui prétendrait courir. Clore n'est pas falsifier : la
+   ligne **reste**, datée et motivée — elle raconte qu'une restauration l'a interrompue.
+3. **Aucune surface neuve.** Les lignes closes tombent dans **Échecs** tel qu'il existe
+   (`status='failed'` + `error_message`, acquittement serveur ADR-0041 §8) : Papa les voit, lit
+   le motif, acquitte. Le seul texte nouveau est le motif lui-même.
+4. **Le sidecar dit ce que le réveil a éteint** : le détail de l'étape `reveil` porte les ids
+   clos (travaux et lots) — le journal du geste reste la seule trace complète (§3).
+
+### Alternatives considérées
+
+| Alternative | Pourquoi écartée |
+|---|---|
+| **Ne rien faire** | Mesuré : barre fantôme, 409 au motif menteur, et l'état post-restauration ne peut plus NI se sauvegarder NI se re-restaurer — le filet meurt au moment où il sert. |
+| **`DELETE` des lignes restaurées** | Falsifie l'histoire (§3) : la ligne a existé ; l'effacer ment plus que la clore. |
+| **Un statut neuf (`interrompu`)** | Le vocabulaire `queued\|running\|succeeded\|failed` est requêté partout, Échecs ne montrerait pas le nouveau venu sans chantier de surface — `failed` + motif porte la même information pour zéro coût. |
+| **Nettoyer à la LECTURE** (gardes dans `refus_*`, patron `stale`) | Soigne chaque symptôme là où on pense à l'ajouter : la barre mentirait encore, et chaque précondition future devrait re-connaître le fantôme. Une écriture unique au réveil éteint la source. |
+| **Clore APRÈS le swap** | Fenêtre où barre et refus voient le fantôme, et le worker meurt au ⑧ — l'après-swap n'a pas de main sûre. Le ③ est le seul moment où la base restaurée est à nous sans être encore le monde. |
+
+### Périmètre — les critères mordent
+
+1. **Aucune ligne INSÉRÉE** dans `ai_jobs` ni `production_runs` restaurées — le §3 tient tel
+   quel, cet amendement ne l'entame pas.
+2. **Aucun statut nouveau, aucune migration, aucune colonne.**
+3. Seuls **`queued|running` restaurés** sont touchés — jamais `succeeded`, `failed` ou `done` :
+   l'histoire accomplie ne se réécrit pas.
+4. **Aucun changement de surface** — Échecs existant fait foi.
+
+### Hors périmètre — nommé
+
+- Le **toast de fin de restauration** (demande du 2026-08-19) — son propre cadrage, autre
+  mécanique (la découverte de fin sans sondage).
+- Toute purge/rotation (sous-chantier phase E, inchangé).
+- Un `UPDATE` manuel du fantôme #896 qui vit dans la base dev : **il est la preuve vivante du
+  chantier** — rejouer la restauration de `…-1756.tar` avec le code amendé DOIT le clore.
+
+### Le signal qui dirait qu'on s'est trompé
+
+- **Une restauration clôt régulièrement PLUS d'une ligne `ai_jobs`** : des travaux tiers vivaient
+  pendant les dumps — interroger alors les préconditions de `backup_create` (aujourd'hui il
+  n'exige pas « rien en vol », mesuré et assumé), pas élargir la clôture.
+- **Un travail légitime se retrouve clos** : impossible par construction (le réveil n'écrit que
+  dans `zetis_restore`, qui n'a pas de monde vivant avant le swap) — si ça arrive, c'est un bug
+  d'adressage de connexion, jamais une doctrine à assouplir.
+
+### Suivi
+
+1. **Une slice unique** — après cet amendement, c'est une application (cas 2 de l'`adr-0060`) :
+   branche directe `fix/reveil-clot-les-fantomes`, périmètre posé au premier message, pas
+   d'`/ouverture`.
+2. **Test-verrous dus** : la clôture visible dans l'ordre SQL asserté du réveil — ⚠️ les
+   assertions de `test_le_reveil_est_ecrit_avant_le_swap` **évoluent**, c'est LE changement de
+   comportement voulu et le seul · fantôme clos ⇒ `refus()` de sauvegarde ne bloque plus · les
+   lots couverts · `succeeded`/`done` intouchés · le sidecar porte les ids clos.
+3. **La preuve vivante en dev** : rejouer `…-1756.tar` → #896 clos en Échecs (acquittable),
+   barre propre, 💾 Sauvegarder repart.
