@@ -6,25 +6,26 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, nuit) — `main` = `origin/main` (= la base du chantier,
-> `020b733`). **UNE branche de chantier vivante : `feat/restaurer-une-sauvegarde`** (ADR-0066,
-> phase E), déjà sur `origin` et synchrone (le commit des prompts des deux slices, voir
-> `git log --oneline main..HEAD`) — et **la slice 1 COMPLÈTE dans l'arbre de travail, PAS
-> ENCORE COMMITÉE** : l'humain vérifie (diff, tests) puis committe. ℹ️ Une branche de worktree
-> d'agent `claude/fervent-stonebraker-bfa5b9` existe aussi (posée sur un commit de `main`,
+> **Où en est le dépôt** (2026-08-19, nuit — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante** (`feat/restaurer-une-sauvegarde` supprimée au
+> merge, locale et distante — vérifié). **La slice 1 de l'ADR-0066 est MERGÉE** : PR #167,
+> squash `8fab1a8`, CI verte du premier coup (3 checks requis + GitGuardian). ℹ️ Une branche de
+> worktree d'agent `claude/fervent-stonebraker-bfa5b9` existe (posée sur un commit de `main`,
 > zéro commit propre — infrastructure Claude Code, pas un chantier). La prod tourne
 > (8 conteneurs, ports canoniques) ; le dev se lance à la demande.
 
-### 🚧 CHANTIER EN COURS — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — slice 1/2 COMPLÈTE, à committer (2026-08-19)
+### 🚧 CHANTIER EN COURS — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — slice 1/2 MERGÉE, slice 2 à lancer (2026-08-19)
 
-**PROCHAIN PAS : l'humain vérifie le diff et les suites, committe la slice 1 sur la branche**
-(message suggéré rendu à la clôture du 2026-08-19), **puis push → PR → merge → étape 4bis**
-(`docs/WORKFLOW.md` §5 : revenir mettre ce fichier au réel — squash, n° de PR). **Ensuite
-seulement : `/slice` avec le prompt de la slice 2**
-(`prompts/claude-code/prompts-claude-code-adr-0066.md`, § slice 2 — il exige le merge de la
-slice 1, et son read-before-code peut déplacer des détails).
+**PROCHAIN PAS : la slice 2** — créer sa branche depuis `main` (précédent 0065 : une branche par
+slice, donc `feat/restaurer-une-sauvegarde-2` ; ⚠️ pas d'`/ouverture` — le chantier est déjà
+cadré et ouvert, la commande exigerait un cadrage qui existe), puis **`/slice` avec le prompt de
+la slice 2** (`prompts/claude-code/prompts-claude-code-adr-0066.md`, § slice 2 : DELETE + surface
+§7 + runbook du re-swap). Le read-before-code de la slice 1 n'a **rien déplacé** dans son
+squelette ; deux acquis à consommer : `GET /donnees` porte déjà `restaurable`/`motif` par archive
+(le bouton « Restaurer » s'en sert), et l'état « restaurée le … » se lira du sidecar
+`.restauration.json` (champ à AJOUTER au GET en slice 2).
 
-**FAIT — slice 1 (le geste `backup_restore`, dans l'arbre de la branche) :**
+**FAIT — slice 1 (le geste `backup_restore`, sur `main` via PR #167, squash `8fab1a8`) :**
 
 - `settings/sauvegarde.py` : `refus_restauration` (les 7 préconditions du §2, TOUTES en 409
   motivé avant d'enfiler) · `restaurer_sauvegarde` (les 8 étapes dans l'ordre : filet ① →
@@ -77,7 +78,8 @@ réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaur
 terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
 est requis à la restauration (attrapé en conteneur).
 
-**EN COURS :** rien d'instable — la slice 1 est finie et vérifiée ; elle attend le commit humain.
+**EN COURS :** rien d'instable — la slice 1 est mergée, la branche supprimée ; la slice 2 n'est
+pas commencée.
 
 **À FAIRE — slice 2 (l'administration), après le merge de la slice 1 :** `DELETE
 /api/settings/donnees/archives/{nom}` et ses gardes (§6 — 🔴 la dernière archive au verdict
