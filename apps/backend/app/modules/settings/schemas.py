@@ -228,6 +228,15 @@ class SuspensionOut(BaseModel):
     suspended: bool
 
 
+class SauvegardeAccepteeOut(BaseModel):
+    """Le 202 de `POST /donnees/sauvegarde` (ADR-0065 §1, §7) : des MÉTADONNÉES de travail,
+    rien d'autre. Aucun octet d'archive ne passe par HTTP — ce schéma est le contrat qui
+    l'empêche de dériver : y ajouter un champ de contenu ferait rougir le test-verrou."""
+
+    job_id: int
+    status: str
+
+
 class SuspensionRequest(BaseModel):
     """La bascule, dans les deux sens. Pas d'expiration, pas de durée : un suspend ne se lève que
     par le geste inverse (ADR-0063 §5) — un champ « pendant N minutes » en ferait un minuteur."""

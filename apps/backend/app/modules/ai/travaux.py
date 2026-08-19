@@ -117,6 +117,10 @@ AMORCES_MS: dict[str, int] = {
     # personne (addendum 2 §22). L'amorce ne s'appliquait donc à rien, et les rendus réels — qui
     # existent en base depuis des semaines — n'avaient ni libellé ni durée attendue.
     "capsule_render": 75_000,
+    # ⚠️ Au-dessus du PLANCHER_MS, et c'est voulu (ADR-0065 §Conséquences) : le cycle réel mesuré
+    # tient sous la seconde aujourd'hui — un travail sous 2 s n'apprend rien à la barre, donc
+    # cette amorce restera la valeur servie tant que l'archive reste petite. Très bien ainsi.
+    "backup_create": 10_000,
 }
 
 # En dessous, la statistique n'est pas une mesure mais un accident : un seul travail lent la

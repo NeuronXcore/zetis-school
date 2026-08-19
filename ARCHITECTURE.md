@@ -247,6 +247,19 @@ Stocke :
 - pièces jointes ;
 - mindmaps exportées.
 
+### Sauvegarde (ADR-0065)
+
+La donnée vit dans **quatre** endroits — Postgres, MinIO, le volume audio `capsule_audio`
+(WAV Piper sur disque), le `.env` — et la sauvegarde couvre les trois premiers : un travail de
+file `backup_create` écrit `zetis-AAAA-MM-JJ-hhmm.tar` (dump `pg_dump` pris sur un instantané
+exporté + objets MinIO lus par l'API S3 + fichiers audio + manifeste scellé, empreinte sha256 en
+sidecar) directement sur la **cible montée** `ZETIS_BACKUP_DIR` → `/backups` (bind mount sur
+`backend` et `worker`, fail-closed `:?`). **Aucun octet d'archive ne passe par HTTP.** La cible
+doit vivre sur un **autre disque physique** que `Docker.raw` : un script hôte
+(`scripts/certifier-cible-sauvegarde.sh`) certifie les UUID de volume dans `.zetis-cible.json`,
+et la route refuse (409) sans certificat valable. Le `.env` est exclu (secrets — se remettent à
+la main), Redis aussi (état transitoire), et l'exclusion est écrite dans le manifeste.
+
 ## Rôles
 
 ### `child`

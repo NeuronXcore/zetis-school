@@ -4,6 +4,31 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `feat/sauvegarde-qui-se-merite` — slice 1 — 2026-08-19
+
+### 🔴 Un script HÔTE testé sous le bac à sable de l'agent PEND — ce n'est pas un défaut du script
+
+Mesuré sur `scripts/certifier-cible-sauvegarde.sh` : lancé par l'agent (Bash sandboxé), le script
+gèle **plus de 120 s** — précisément à la phase qui lit `~/Library/Group Containers/group.com.docker/`
+et `~/Library/Containers/…` (un premier `diskutil info` sur `/private/tmp` avait, lui, répondu).
+Le même script, hors bac à sable, termine en **moins de 2 s**, les deux cas (UUID distincts → exit
+0, même volume → exit 2) rendus juste.
+
+**Cause** : le bac à sable bloque l'accès aux chemins protégés par TCC (`~/Library/*`) en
+**suspendant** l'appel au lieu de le refuser — aucun message, aucun timeout côté script.
+
+**Parade** : tester les scripts hôte (diskutil, `~/Library`, Docker Desktop) **hors bac à sable** ;
+un gel silencieux à cet endroit désigne le bac à sable, pas le script. Ne pas « corriger » le
+script pour ça.
+
+### 📌 Un constat de prompt peut nommer le mauvais document — vérifier le renvoi, pas juste le fait
+
+Le prompt de slice affirmait le piège `idle in transaction` « documenté dans TROUBLESHOOTING.md » :
+le terme n'y figure nulle part — l'incident n'est consigné que dans l'ADR-0063 §Suivi 3. Le fond
+était vrai (la parade : connexion psycopg **dédiée hors pool**, transaction tenue le seul temps du
+`pg_dump --snapshot`, fermée en `finally` — voir `settings/sauvegarde.py::_instantane`), mais le
+renvoi était faux. Un renvoi non vérifié envoie la session suivante chercher au mauvais endroit.
+
 ## `fix/atelier-finish-instable` + `fix/diagnostic-observation-instable` — deux flakes RTL — 2026-08-18 (soir)
 
 ### 🔴 Une assertion sur un rendu à PLUSIEURS `await` a besoin d'une fenêtre `findBy` suffisante

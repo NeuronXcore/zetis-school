@@ -315,6 +315,14 @@ class Settings(BaseSettings):
         default="capsules", validation_alias="MINIO_BUCKET_CAPSULES"
     )
 
+    # --- Sauvegarde (ADR-0065) : la cible CERTIFIÉE où les archives s'écrivent. ---
+    # Env : ZETIS_BACKUP_DIR (préfixe `ZETIS_`, comme `database_url` — pas de validation_alias).
+    # En prod : bind mount `${ZETIS_BACKUP_DIR:?}` → `/backups` sur `backend` ET `worker`
+    # (docker-compose.prod.yml). En dev, le backend natif lit la même variable.
+    # ⚠️ Le défaut ne rend PAS la sauvegarde possible : sans certificat `.zetis-cible.json`
+    # écrit par `scripts/certifier-cible-sauvegarde.sh`, la route refuse (409, fail-closed §3).
+    backup_dir: str = "storage/backups"
+
     # --- File de rendu asynchrone des capsules (Lot 2) : RQ sur Redis, hors backend. ---
     redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
     render_queue: str = Field(default="media", validation_alias="RENDER_QUEUE")

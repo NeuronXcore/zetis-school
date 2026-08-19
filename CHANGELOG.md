@@ -1,5 +1,40 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.8 — La page Paramètres devient une carte, et la machine gagne ses deux premiers gestes
+
+> Entrée écrite le 2026-08-19 à la clôture suivante — les quatre PR étaient mergées sans entrée,
+> ce que le contrôle d'élagage de `MEMORY.md` a attrapé. PR #160 · #161 · #162 · #163.
+
+La page Paramètres de Papa n'est plus une liste : c'est une **carte** qui dit qui fait quoi, et
+des onglets qui n'existent que s'ils ont du contenu (ADR-0062). L'onglet 🧠 **La machine** montre
+l'état réel — sondes, moteurs, file, workers, échecs — sans jamais servir un secret, et porte
+désormais **deux gestes** :
+
+- **Suspendre ZETIS** (ADR-0063) : un interrupteur d'urgence qui arrête la production entre deux
+  pièces, se voit dans la sidebar sur tous les écrans, survit au redémarrage et ne se relève
+  jamais seul.
+- **Redémarrer un worker** (ADR-0064) : le geste du superviseur pour un worker coincé — 202 quand
+  un superviseur relancera, 409 motivé quand rien ne supervise. Le 202 ne promet plus « le code à
+  jour » (#163) : un restart rend le même code, le remède du périmé est le déploiement.
+
+## 0.99.7 — La première vraie mise en route de la prod, et ce qu'elle seule pouvait trouver
+
+> Entrée écrite le 2026-08-19 (même rattrapage que ci-dessus). PR #151 → #155, 2026-08-17/18.
+
+Trois défauts qu'aucun test ne voyait, trouvés au premier démarrage réel de la pile :
+
+- **Les frontends de prod étaient injoignables** : un conteneur sur un réseau `internal: true`
+  ne peut pas publier de port, et Docker ne le dit pas. Massimo ne pouvait pas ouvrir ZETIS.
+- **La barre d'avancement repartait de zéro** à la première image (calcul après la première
+  peinture) — corrigé par un initialiseur paresseux.
+- **Une machine de dev pouvait écrire dans l'année réelle de Massimo** (repli silencieux vers
+  `localhost:8000`) : le repli vise désormais 8001, et `dev.sh` refuse si la prod tient les ports.
+
+Et le compilateur, mis au travail pour le build des images, a trouvé un défaut produit que
+l'ADR-0015 avait prédit mot pour mot : **Papa se voyait offrir Valider / Rejeter / Supprimer sur
+les fiches personnelles de son fils.** Les fiches de Massimo ont quitté l'arbre de pilotage
+(`zetis_authored()` enfin branché).
+
 ## 0.99.6 — La dictée revient dans la prod (l'image ne l'avait jamais embarquée)
 
 Massimo, sur le chat : « pas de voix ». Il appuyait sur le micro, parlait, et rien — ZETIS

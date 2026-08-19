@@ -75,10 +75,71 @@ sans commit : l'humain relit et committe.
 
 ## Slice 2 — la preuve : `backup_verify` *(à coller après le merge de la slice 1)*
 
-À rédiger à la clôture de la slice 1 — son read-before-code peut déplacer des détails. Le
-squelette : les six étapes du §6, `POST …/verification` (202), verdict détaillé dans
-`output_json`. Test-verrou : **`zetis_verify` détruite MÊME en échec** (drop en `finally`, ménage
-d'une vérification interrompue au démarrage de la suivante), et `zetis` jamais touchée.
+*(Rédigé à la clôture de la slice 1, le 2026-08-19, comme prévu.)*
+
+Chantier : la slice 2 de l'ADR-0065, même branche (ou sa suivante si la slice 1 a été mergée —
+vérifier l'état réel, arbre propre). L'ADR reste LA référence : relire §6, §Périmètre, §Suivi 2.
+La slice 1 a posé les patrons — **les réutiliser, pas les réinventer** :
+`modules/settings/sauvegarde.py` (le module), `_instantane` (le point de greffe patchable en
+test — `backup_verify` aura l'équivalent pour la restauration), `refus()` avant `enfiler`,
+l'exécutant sans db/llm dans `production/jobs.py`.
+
+### Livrables
+
+1. `sauvegarde.verifier_sauvegarde(nom_archive)` : les six étapes du §6, dans l'ordre —
+   ① sha256 du tar **vs** sidecar `.sha256` · ② `DROP DATABASE IF EXISTS zetis_verify` (le ménage
+   d'une vérification interrompue) puis `CREATE DATABASE zetis_verify` · ③ restauration du dump
+   (`psql -v ON_ERROR_STOP=1`) · ④ comptage par table + tête Alembic **vs le manifeste lu DANS le
+   tar** (la vérité scellée — jamais le sidecar `.manifeste.json`, qui n'est qu'une copie de
+   lecture) · ⑤ sha256 de chaque objet/fichier média de l'archive vs manifeste · ⑥ `DROP DATABASE
+   zetis_verify` en **`finally`** — succès ou échec.
+2. Exécutant `backup_verify` dans `_EXECUTANTS` + amorce `AMORCES_MS["backup_verify"]`
+   (au-dessus de `PLANCHER_MS`, même motif que `backup_create`).
+3. `POST /api/settings/donnees/verification` (202 `{job_id, status}`) : payload `{"archive": nom}`.
+   409 AVANT d'enfiler si : nom d'archive invalide (🔴 **whitelist `zetis-*.tar`, aucun
+   séparateur de chemin** — le nom vient du client, c'est une traversée de répertoire sinon) ·
+   archive ou sidecar `.sha256` absents de `ZETIS_BACKUP_DIR` · un `backup_verify` OU un
+   `backup_create` déjà `queued|running` (le trou du doublon vaut pour les deux types, et une
+   vérification pendant une création lirait un tar en cours d'écriture).
+4. Verdict détaillé dans `output_json` : ce qui a été comparé, ce qui diverge (liste d'écarts
+   nommés), et le mot de la fin — jamais un booléen sec.
+
+### Test-verrous (chacun un test nommé, aucun affaibli)
+
+- 🔴 **`zetis_verify` détruite MÊME en échec** : une restauration qui lève au milieu ⇒ le `DROP`
+  du `finally` est passé. Et le ménage du ② : une `zetis_verify` laissée par une vérification
+  interrompue n'empêche pas la suivante.
+- 🔴 **La base `zetis` n'est jamais touchée** : aucune écriture — le verrou l'affirme sur le vrai
+  code (la connexion de vérification ne vise que `zetis_verify`).
+- **Un écart = un échec motivé** : un compte qui diverge du manifeste ⇒ verdict d'échec avec la
+  table nommée ; un sha256 de média qui diverge ⇒ l'objet nommé.
+- **409 sur nom d'archive hors whitelist** (traversée de chemin) et sur doublon — AUCUN job créé.
+- **Le manifeste de référence est celui DU TAR**, pas le sidecar : un sidecar falsifié ne change
+  pas le verdict.
+
+### Read-before-code à rendre en RAPPORT
+
+- 🔴 **`CREATE DATABASE` ne s'exécute PAS dans une transaction** : la connexion psycopg du ② doit
+  être en **autocommit** — l'inverse exact de `_instantane` (REPEATABLE READ tenue ouverte).
+  Vérifier la façon psycopg3 de le poser, et que la concurrence 1 de la file suffit face au
+  verrou de template de `CREATE DATABASE`.
+- La connexion de comptage du ④ vise `zetis_verify` : vérifier la dérivation du DSN (remplacer le
+  nom de base dans `settings.database_url`) et ce que `psql` attend exactement
+  (`-f dump.sql` + URI, sortie 0 — le cycle mesuré au cadrage l'a fait, le refaire dans le
+  conteneur d'essai si le doute existe).
+- Le point de greffe test : quelle(s) fonction(s) remplacer pour jouer les six étapes sur SQLite
+  sans Postgres — même esprit que `_instantane`, dire lesquelles et pourquoi.
+
+### Hors-périmètre de CETTE slice
+
+`GET /donnees` et l'onglet 💾 (slice 3) · tout le hors-périmètre de l'ADR. Les trois critères du
+§Périmètre mordent toujours : `backup_verify` n'écrit que dans `zetis_verify`, qu'il détruit ·
+aucun octet d'archive sur HTTP · rien de destructif hors `zetis_verify`.
+
+### Fin de slice
+
+Suites complètes backend + les deux frontends (le front ne doit PAS bouger), `graphify update .`,
+puis `/cloture` — sans commit.
 
 ## Slice 3 — la surface *(après la slice 2)*
 
