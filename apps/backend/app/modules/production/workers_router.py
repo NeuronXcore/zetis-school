@@ -24,11 +24,14 @@ router = APIRouter(
 
 @router.post("/{name}/restart", status_code=status.HTTP_202_ACCEPTED)
 def restart_worker(name: str) -> dict:
-    """Arrêt gracieux d'un worker périmé — le superviseur le relance avec le code à jour.
+    """Arrêt gracieux d'un worker coincé — le superviseur le relance.
 
     **202, pas 200** : l'ordre est accepté, pas exécuté. La pièce en cours se termine d'abord
     (un appel LLM n'est pas préemptible), ce qui peut prendre jusqu'à ~77 s — l'écran doit
     l'annoncer plutôt que de laisser croire à un bouton cassé.
+
+    ⚠️ Le restart rend le **même** code — il est baké dans l'image (ADR-0064 §3) : le remède du
+    worker *périmé* est le déploiement, pas ce geste.
 
     Refus : 409 si rien ne supervise (le motif dit quoi faire à la place) · 404 si le nom est
     inconnu des files de production · 503 si Redis est injoignable (rien n'a été envoyé).
