@@ -12,6 +12,38 @@
 > tourne (8 conteneurs, ports canoniques 8000/5173/5174) ; le dev se lance à la demande sur les
 > paires `.claude/launch.json`.
 
+### ⏸ CADRAGE FAIT — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, sous-chantier de phase E) — écrit, pas encore codé (2026-08-19)
+
+**PROCHAIN PAS : l'humain relit et committe le lot Décision sur `main`** (ADR-0066 +
+`DECISIONS.md` régénéré + `BACKLOG.md` annoté + ce fichier), **puis** `/ouverture` vers
+`feat/restaurer-une-sauvegarde`. Rien sous `apps/` ni `packages/` n'a bougé ;
+`check_adr_refs.sh` sort en 0.
+
+**Ce que l'ADR-0066 décide** (ne pas re-débattre) : restaurer ne s'offre qu'à une archive au
+verdict `reussie` — le mot se mérite dans les deux sens (§1) · préconditions toutes en 409 motivé
+AVANT d'enfiler : suspension ACTIVE posée par Papa, supervisé requis, rien en vol, compatibilité
+favorable (§2) · la séquence en 8 étapes : filet `backup_create` non négociable → restore dans
+`zetis_restore` → écritures de réveil DANS la base restaurée (suspendue + MANUAL + déclencheur
+désarmé) → **SWAP** (terminate + double RENAME, `zetis` → `zetis_avant`) → médias remplacés en
+couple → files Redis purgées → `alembic upgrade head` → le worker se recycle (§2) · **le journal
+du geste vit en sidecar `.restauration.json`** — la ligne `ai_jobs` meurt au swap, structurel et
+assumé (§3) · `zetis_avant` = UN filet immédiat, écrasé au geste suivant, re-swap en runbook —
+pas de bouton « annuler » en v1 (§4) · compatibilité : tête identique OK, plus ancienne OK avec
+upgrade, inconnue REFUS (§5) · DELETE d'archive explicite, jamais de rotation, et **la dernière
+archive vérifiée ne se supprime pas** (§6) · surface dans l'onglet 💾, confirmation par SAISIE
+pour restaurer, dialogue simple pour supprimer, toast = retour d'action seulement (§7).
+
+📌 **Mesures du cadrage** (conteneur d'essai, VRAI dump de l'archive vérifiée du jour) :
+restauration 0,234 s / 48 tables · **SWAP 8 ms** (terminate + 2 RENAME), témoin `AdminShutdown`,
+réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaurée · connexions à
+terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
+est requis à la restauration (attrapé en conteneur).
+
+⚠️ **Pièges consignés pour les slices** (§Suivi 3) : 🔴 le seed de l'entrypoint rejoue à chaque
+boot — est-il idempotent sur une base restaurée PLEINE ? · warm shutdown de soi-même depuis un
+travail RQ · clés Redis exactes à purger · `remove_objects` MinIO · le chemin « tête plus
+ancienne » du §5 n'est PAS mesuré (aucune archive antérieure n'existe).
+
 ### ✅ CHANTIER SOLDÉ — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — 3/3 slices MERGÉES (2026-08-19)
 
 Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1** (le socle) : PR #164, squash
@@ -145,14 +177,9 @@ petite **fix sidebar** (À CASER). ⚠️ Et le geste opérationnel toujours dû
 - **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
   Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
   clôture de la slice 1). Chore/fix à part, hors périmètre sauvegarde.
-- **Administrer les sauvegardes : RESTAURER et SUPPRIMER une archive** (demande utilisateur du
-  2026-08-19, pendant la relecture de la slice 3). C'est la **phase E**, nommée par l'ADR-0065
-  §Hors périmètre — restaurer = son propre ADR (classe A4, consomme l'ADR-0063 « suspendre avant
-  de remplacer », verdict de compatibilité) ; supprimer/rotation = interdits par le périmètre
-  actuel (« rien de destructif, pas même pour faire de la place »). Pour le cadrage E : le vœu
-  UX est « avec des toasts de confirmation » — à traduire en **confirmation explicite** (dialogue
-  nommant l'archive, règles `adr-0062` §6) + toast de retour d'action, jamais un toast seul pour
-  du destructif.
+- ✅ **Administrer les sauvegardes (restaurer + supprimer)** — demande du 2026-08-19, **consommée
+  par le cadrage ADR-0066** (bloc en tête de fichier) : le vœu « toasts de confirmation » y est
+  traduit en confirmation explicite + toast de retour d'action (§7).
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 

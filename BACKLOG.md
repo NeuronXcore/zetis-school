@@ -291,7 +291,8 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
   identifiants, hors commentaires — pas les 508 occurrences brutes. Et `/api/student/motivation`
   sert **déjà** `first_name` : la donnée arrive, il reste à l'employer.
 - **E** — occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
-  remises à zéro **portées** (2) · restaurer (2) · export RGPD (1).
+  remises à zéro **portées** (2) · restaurer (2) — ✅ **cadré par l'`adr-0066`** (swap à réveil
+  suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · export RGPD (1).
 
 ### Trois décisions à trancher, une par cadrage
 
