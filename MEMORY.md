@@ -53,6 +53,38 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### ✅ PHASE A SOLDÉE — les deux gestes de 🧠 La machine sont sur `main` (2026-08-19)
+
+**PROCHAIN PAS : la phase B du `BACKLOG.md` — « la sauvegarde qui se mérite »** (~4 sessions, le
+seul risque irréversible du projet). Elle commence par un `/cadrage` sur `main` (cas 3), avec sa
+question à trancher : les SSD/UUID sont illisibles du conteneur — sonde côté hôte, ou abandon de
+ces lignes ?
+
+La journée du 2026-08-19, bout en bout : ADR-0062 → tranche 1 mergée (#160, `49a4890`) → ADR-0063
+→ A1 mergé (#161, `9e93746`) → ADR-0064 (surface, APRÈS l'écran) → A2 mergé (#162, `fb031d3`).
+Quatre PR, quatre CI vertes, deux ADR avant le code et un après l'écran — le rituel a tenu sur
+toute la ligne. Les blocs A1/A2 ci-dessous décrivent les chantiers ; leurs « prochains pas » sont
+tous SOLDÉS.
+
+⚠️ **Résidus de la journée, chacun avec son porteur :**
+- 🟡 **Flake CI NOUVEAU : `ProgrammePage.test.tsx`** (« pendant la génération : barre de
+  progression estimée ») — a rougi la PR #161 qui ne le touche pas, 0/3 sous `ci-like.sh`, vert au
+  rerun sur le même SHA. Même famille que #158/#159 (assertion qui court après un rendu async).
+  S'ajoute à la liste `CouverturePage` / `DashboardPage` / `AtelierPage`.
+- 🟡 **Retouche de libellé due** (ADR-0064 §3, cas 2) : retirer « avec le code à jour » du 202 —
+  le code est baké dans l'image, restart relance le même conteneur. **Chip posé**
+  (`task_6edd9147`), part en un clic.
+- 🟡 **`scripts/audit_contexte.sh` est entré dans `main` par accident** (squash #162) : ce fichier
+  non suivi de l'utilisateur a fini indexé pendant la résolution du rebase, malgré l'exclusion
+  `:!` des commits individuels. **Vérifié : aucun secret** — script d'audit de docs, sain. À
+  l'utilisateur de décider s'il reste (il est utile) ou part.
+- ⚠️ **La carte a menti deux fois le jour de sa livraison** (ses propres chantiers non reportés,
+  trouvés par la démo à l'écran, corrigés). C'est le signal que l'ADR-0062 avait écrit d'avance :
+  « si elle dérive, elle doit être DÉRIVÉE, pas écrite ». Deux occurrences en un jour — à peser au
+  prochain chantier de la page.
+- Le worktree sert `main` : la page complète (carte + Autonomie + La machine avec les DEUX gestes)
+  est visible sur `:5175`.
+
 ### ⏸ A2 « SUSPENDRE ZETIS » — backend LIVRÉ selon l'ADR-0063, surface LIVRÉE, en PR après le merge d'A1 #161 (2026-08-19)
 
 Branche `feat/suspendre-zetis` (depuis `main`). **Backend complet, committé `01bbf45` (rebasé).** La surface
