@@ -334,6 +334,7 @@ export {
   type CertificatCible,
   type VerificationArchive,
   type ArchiveSauvegarde,
+  type ArchiveSupprimee,
   type Donnees,
   type SauvegardeAcceptee,
 } from "./settings";

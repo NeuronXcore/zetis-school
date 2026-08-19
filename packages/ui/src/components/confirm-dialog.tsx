@@ -13,6 +13,10 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   /** Désactive les boutons pendant l'action (ex. appel API en cours). */
   busy?: boolean;
+  /** Désactive le SEUL bouton de confirmation tant qu'une condition n'est pas remplie — ex. la
+   *  saisie de confirmation d'un geste de classe A4 (ADR-0066 §7 : un clic ne suffit pas).
+   *  Distinct de `busy` : « Annuler » reste disponible. */
+  confirmDisabled?: boolean;
   /** `danger` = action destructive (rouges) ; `important` = validation à enjeu :
    *  cadre doré animé (halo pulsé) + bouton doré. */
   tone?: "default" | "danger" | "important";
@@ -35,6 +39,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Annuler",
   busy = false,
+  confirmDisabled = false,
   tone = "default",
   onConfirm,
   onCancel,
@@ -92,7 +97,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             autoFocus
             className={cn(
               tone === "danger" && "bg-rose-600 text-rose-50 hover:bg-rose-500",

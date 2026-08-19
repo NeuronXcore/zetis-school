@@ -13,12 +13,23 @@
 // Après un 202, le suivi vit dans la barre du header (travail de file, comme tout le reste) —
 // le ⟳ relit l'état quand le travail est fini.
 import { useCallback, useEffect, useState } from "react";
-import { Button, cn } from "@zetis/ui";
+import { Button, ConfirmDialog, Input, cn } from "@zetis/ui";
 import { type ArchiveSauvegarde, type Donnees } from "@zetis/types";
 
 import { estRefus } from "../../lib/httpClient";
 import { signalerEnfilement } from "../../lib/productionSignal";
-import { fetchDonnees, lancerSauvegarde, lancerVerification } from "../../lib/settings";
+import {
+  fetchDonnees,
+  lancerRestauration,
+  lancerSauvegarde,
+  lancerVerification,
+  supprimerArchive,
+} from "../../lib/settings";
+
+/** La saisie qui arme « Restaurer » (ADR-0066 §7) : geste de classe A4, un clic ne suffit pas.
+ *  Le MOT plutôt que le nom d'archive — le dialogue nomme déjà l'archive, et un nom de 25
+ *  caractères à recopier transformerait la confirmation en épreuve de dactylographie. */
+const MOT_DE_CONFIRMATION = "RESTAURER";
 
 /** L'issue d'un geste, à l'écran : un 202 (accepté), un 409 (refusé AVEC son motif — reconnu au
  *  CODE via `estRefus`, jamais au texte), ou une panne. Les trois sont des PHRASES à afficher. */
@@ -92,6 +103,14 @@ export function DonneesTab() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [sauvegardeEnCours, setSauvegardeEnCours] = useState<Geste>(null);
   const [verification, setVerification] = useState<{ archive: string; geste: Geste } | null>(null);
+  const [restauration, setRestauration] = useState<{ archive: string; geste: Geste } | null>(null);
+  const [suppression, setSuppression] = useState<{ archive: string; geste: Geste } | null>(null);
+  // Les DIALOGUES (ADR-0066 §7) : chacun nomme l'archive qu'il vise — jamais un « êtes-vous
+  // sûr ? » anonyme. La saisie n'existe que pour Restaurer (classe A4) ; Supprimer confirme
+  // sans saisie.
+  const [aRestaurer, setARestaurer] = useState<ArchiveSauvegarde | null>(null);
+  const [saisie, setSaisie] = useState("");
+  const [aSupprimer, setASupprimer] = useState<ArchiveSauvegarde | null>(null);
 
   const charger = useCallback(() => {
     setErreur(null);
@@ -137,7 +156,11 @@ export function DonneesTab() {
   }
 
   const derniere = donnees.archives[0] ?? null;
-  const gesteOccupe = sauvegardeEnCours === "en-cours" || verification?.geste === "en-cours";
+  const gesteOccupe =
+    sauvegardeEnCours === "en-cours" ||
+    verification?.geste === "en-cours" ||
+    restauration?.geste === "en-cours" ||
+    suppression?.geste === "en-cours";
 
   return (
     <div>
@@ -223,7 +246,8 @@ export function DonneesTab() {
         <p className="mb-3 text-xs text-papa-muted">
           Vérifier = rejouer l'archive à blanc dans une base jetable (`zetis_verify`), détruite
           ensuite — la base vivante n'est jamais touchée. Une archive n'a droit au mot
-          « sauvegarde » qu'après une restauration à blanc réussie.
+          « sauvegarde » qu'après une restauration à blanc réussie — et Restaurer ne s'offre
+          qu'à elle : le mot se mérite dans les deux sens.
         </p>
         {donnees.archives.length === 0 ? (
           <p className="text-sm text-papa-muted">
@@ -248,7 +272,17 @@ export function DonneesTab() {
                   const statut = statutArchive(a);
                   return (
                     <tr key={a.nom} className="border-b border-papa-border/60">
-                      <td className="py-2.5 pr-3 font-mono text-xs">{a.nom}</td>
+                      <td className="py-2.5 pr-3 font-mono text-xs">
+                        {a.nom}
+                        {/* L'état « restaurée le … » (ADR-0066 §7) — du sidecar
+                            `.restauration.json`, seul survivant du geste : la ligne du travail
+                            est morte au swap, c'est ici que l'histoire se lit. */}
+                        {a.restauree_le && (
+                          <span className="mt-0.5 block font-sans text-[11px] text-papa-muted">
+                            ↺ restaurée le {quand(a.restauree_le)}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 pr-3">{quand(a.cree_le)}</td>
                       <td className="py-2.5 pr-3">{taille(a.taille)}</td>
                       <td className="py-2.5 pr-3 font-mono text-xs" title={a.sha256 ?? undefined}>
@@ -265,29 +299,56 @@ export function DonneesTab() {
                         </span>
                       </td>
                       <td className="py-2.5 text-right">
-                        <Button
-                          variant="secondary"
-                          disabled={gesteOccupe}
-                          onClick={() => {
-                            setVerification({ archive: a.nom, geste: "en-cours" });
-                            lancerVerification(a.nom)
-                              .then((r) => {
-                                setVerification({
-                                  archive: a.nom,
-                                  geste: {
-                                    genre: "accepte",
-                                    texte: `Travail #${r.job_id} enfilé — le verdict s'affichera ici après ⟳.`,
-                                  },
-                                });
-                                signalerEnfilement();
-                              })
-                              .catch((e: unknown) =>
-                                setVerification({ archive: a.nom, geste: issue(e) }),
-                              );
-                          }}
-                        >
-                          ✓ Vérifier
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            disabled={gesteOccupe}
+                            onClick={() => {
+                              setVerification({ archive: a.nom, geste: "en-cours" });
+                              lancerVerification(a.nom)
+                                .then((r) => {
+                                  setVerification({
+                                    archive: a.nom,
+                                    geste: {
+                                      genre: "accepte",
+                                      texte: `Travail #${r.job_id} enfilé — le verdict s'affichera ici après ⟳.`,
+                                    },
+                                  });
+                                  signalerEnfilement();
+                                })
+                                .catch((e: unknown) =>
+                                  setVerification({ archive: a.nom, geste: issue(e) }),
+                                );
+                            }}
+                          >
+                            ✓ Vérifier
+                          </Button>
+                          {/* « Restaurer » n'APPARAÎT que sur une archive au verdict `reussie`
+                              (ADR-0066 §7) — la compatibilité (§5), elle, GRISE avec son motif :
+                              deux verdicts, deux traitements (un cadenas muet se lirait comme
+                              une panne, adr-0062 §6). */}
+                          {a.verification?.verdict === "reussie" && (
+                            <Button
+                              variant="secondary"
+                              disabled={gesteOccupe || !a.restaurable}
+                              title={a.motif ?? undefined}
+                              onClick={() => {
+                                setSaisie("");
+                                setARestaurer(a);
+                              }}
+                            >
+                              ↺ Restaurer
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            className="text-rose-300 hover:text-rose-200"
+                            disabled={gesteOccupe}
+                            onClick={() => setASupprimer(a)}
+                          >
+                            🗑 Supprimer
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -306,6 +367,21 @@ export function DonneesTab() {
             <MessageGeste geste={verification.geste} />
           </div>
         )}
+        {restauration && (
+          <div className="mt-1">
+            {restauration.geste === "en-cours" && (
+              <p className="mt-2 text-sm text-papa-muted">
+                restauration de {restauration.archive} en file…
+              </p>
+            )}
+            <MessageGeste geste={restauration.geste} />
+          </div>
+        )}
+        {suppression && (
+          <div className="mt-1">
+            <MessageGeste geste={suppression.geste} />
+          </div>
+        )}
         {donnees.derniere_verification && (
           <p className="mt-3 border-t border-papa-border pt-3 text-xs text-papa-muted">
             Dernière vérification : {donnees.derniere_verification.archive} —{" "}
@@ -322,9 +398,116 @@ export function DonneesTab() {
       <p className="text-xs text-papa-muted">
         🔴 Aucune archive ne se télécharge ici, et ce n'est pas un oubli : le dump porte toute la
         vie scolaire de Massimo et les empreintes de mots de passe — l'archive naît sur le disque
-        cible et y reste (ADR-0065 §1). Restaurer, purger, exporter en lisible : phase E, pas
-        cette page.
+        cible et y reste (ADR-0065 §1). Purger en masse, faire tourner les archives, exporter en
+        lisible : d'autres sous-chantiers de la phase E, pas cette page.
       </p>
+
+      {/* Le dialogue RESTAURER (ADR-0066 §7) : il nomme l'archive, énonce la séquence — filet
+          compris — et EXIGE une saisie (classe A4, un clic ne suffit pas). Renoncer ne coûte
+          rien : Échap, l'overlay ou « Annuler ». */}
+      <ConfirmDialog
+        open={aRestaurer !== null}
+        tone="danger"
+        title={`Restaurer « ${aRestaurer?.nom ?? ""} » ?`}
+        confirmLabel="Restaurer cette archive"
+        busy={restauration?.geste === "en-cours"}
+        confirmDisabled={saisie.trim() !== MOT_DE_CONFIRMATION}
+        onCancel={() => {
+          setARestaurer(null);
+          setSaisie("");
+        }}
+        onConfirm={() => {
+          const archive = aRestaurer;
+          // Ceinture ET bretelles : le bouton est désactivé sans la saisie, et le geste ne part
+          // pas non plus si ce garde tombait — un clic seul ne restaure JAMAIS.
+          if (!archive || saisie.trim() !== MOT_DE_CONFIRMATION) return;
+          setRestauration({ archive: archive.nom, geste: "en-cours" });
+          lancerRestauration(archive.nom)
+            .then((r) => {
+              setRestauration({
+                archive: archive.nom,
+                geste: {
+                  genre: "accepte",
+                  texte: `Travail #${r.job_id} enfilé — ZETIS bascule sur cette archive. La ligne disparaîtra de la barre au moment de la bascule (c'est prévu : son journal vit sur la cible) ; ⟳ ensuite pour relire l'état.`,
+                },
+              });
+              signalerEnfilement();
+              setARestaurer(null);
+              setSaisie("");
+            })
+            .catch((e: unknown) => {
+              // Un 409 est un REFUS motivé (préconditions du §2) — il s'affiche en ambre sous
+              // le tableau, pas dans le dialogue : le dialogue se ferme, le motif dit quoi faire.
+              setRestauration({ archive: archive.nom, geste: issue(e) });
+              setARestaurer(null);
+              setSaisie("");
+            });
+        }}
+      >
+        <div className="space-y-3">
+          <p>
+            ZETIS remplace l'état vivant par cette archive. La séquence : une{" "}
+            <strong>sauvegarde-filet de l'état actuel</strong> d'abord (si elle échoue, rien
+            n'est remplacé) → l'archive est rejouée dans une base de travail → bascule en
+            quelques millisecondes (les requêtes en vol échouent) → médias remplacés → files
+            purgées → migrations rejouées → le worker se recycle.
+          </p>
+          <p>
+            Au réveil, ZETIS est <strong>suspendu</strong>, en régime Manual, déclencheur
+            désarmé — c'est vous qui relèverez. L'état d'avant reste en repli immédiat
+            (`zetis_avant`, écrasé au prochain geste), en plus de la sauvegarde-filet.
+          </p>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide">
+              Tapez {MOT_DE_CONFIRMATION} pour armer le geste
+            </span>
+            <Input
+              value={saisie}
+              onChange={(e) => setSaisie(e.target.value)}
+              placeholder={MOT_DE_CONFIRMATION}
+              aria-label="saisie de confirmation"
+            />
+          </label>
+        </div>
+      </ConfirmDialog>
+
+      {/* Le dialogue SUPPRIMER (§6-§7) : il nomme l'archive, sans saisie — le serveur garde de
+          toute façon la dernière archive vérifiée (409 motivé : jamais zéro filet). */}
+      <ConfirmDialog
+        open={aSupprimer !== null}
+        tone="danger"
+        title={`Supprimer « ${aSupprimer?.nom ?? ""} » ?`}
+        confirmLabel="Supprimer cette archive"
+        busy={suppression?.geste === "en-cours"}
+        onCancel={() => setASupprimer(null)}
+        onConfirm={() => {
+          const archive = aSupprimer;
+          if (!archive) return;
+          setSuppression({ archive: archive.nom, geste: "en-cours" });
+          supprimerArchive(archive.nom)
+            .then((r) => {
+              setSuppression({
+                archive: archive.nom,
+                geste: {
+                  genre: "accepte",
+                  texte: `Archive ${r.archive} supprimée — ${r.supprimes.length} fichier(s) retirés de la cible.`,
+                },
+              });
+              setASupprimer(null);
+              charger();
+            })
+            .catch((e: unknown) => {
+              setSuppression({ archive: archive.nom, geste: issue(e) });
+              setASupprimer(null);
+            });
+        }}
+      >
+        <p>
+          Le tar et tous ses sidecars (empreinte, manifeste, journal de restauration) sont
+          retirés de la cible. Aucune rotation automatique n'existe : ce geste est le seul qui
+          supprime — et rien ne se récupère ensuite.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }

@@ -6,24 +6,22 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, nuit — étape 4bis FAITE) — `main` = `origin/main`, rien à
-> pousser, **aucune branche de chantier vivante** (`feat/restaurer-une-sauvegarde` supprimée au
-> merge, locale et distante — vérifié). **La slice 1 de l'ADR-0066 est MERGÉE** : PR #167,
-> squash `8fab1a8`, CI verte du premier coup (3 checks requis + GitGuardian). ℹ️ Une branche de
-> worktree d'agent `claude/fervent-stonebraker-bfa5b9` existe (posée sur un commit de `main`,
-> zéro commit propre — infrastructure Claude Code, pas un chantier). La prod tourne
-> (8 conteneurs, ports canoniques) ; le dev se lance à la demande.
+> **Où en est le dépôt** (2026-08-19, soir — clôture de la slice 2 du 0066) — `main` =
+> `origin/main`. **Une branche de chantier vivante : `feat/restaurer-une-sauvegarde-2`** (base
+> `e07c753d` = la tête de `main` à l'ouverture — vérifié `merge-base`), qui porte la slice 2
+> ENTIÈRE ; l'humain vérifie (tests, diff, écran) puis committe — voir PROCHAIN PAS. La slice 1
+> est MERGÉE depuis la veille (PR #167, squash `8fab1a8`). ℹ️ Une branche de worktree d'agent
+> `claude/fervent-stonebraker-bfa5b9` existe (infrastructure Claude Code, pas un chantier). La
+> prod tourne (8 conteneurs, ports canoniques) ; une paire dev d'une AUTRE session Claude tenait
+> 8001/5175 pendant cette clôture — elle sert le même arbre, à laisser mourir.
 
-### 🚧 CHANTIER EN COURS — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — slice 1/2 MERGÉE, slice 2 à lancer (2026-08-19)
+### ✅ CHANTIER COMPLET — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — les DEUX slices livrées, PR à ouvrir (2026-08-19)
 
-**PROCHAIN PAS : la slice 2** — créer sa branche depuis `main` (précédent 0065 : une branche par
-slice, donc `feat/restaurer-une-sauvegarde-2` ; ⚠️ pas d'`/ouverture` — le chantier est déjà
-cadré et ouvert, la commande exigerait un cadrage qui existe), puis **`/slice` avec le prompt de
-la slice 2** (`prompts/claude-code/prompts-claude-code-adr-0066.md`, § slice 2 : DELETE + surface
-§7 + runbook du re-swap). Le read-before-code de la slice 1 n'a **rien déplacé** dans son
-squelette ; deux acquis à consommer : `GET /donnees` porte déjà `restaurable`/`motif` par archive
-(le bouton « Restaurer » s'en sert), et l'état « restaurée le … » se lira du sidecar
-`.restauration.json` (champ à AJOUTER au GET en slice 2).
+**PROCHAIN PAS (humain, `WORKFLOW.md §2.4`) : vérifier puis expédier la slice 2.** Sur
+`feat/restaurer-une-sauvegarde-2` : relire le diff, relancer les suites si voulu, **regarder
+l'écran** (Réglages ▸ 💾 — le §5bis ; tout a été vu par l'agent SAUF une restauration qui
+ABOUTIT, voir résidus), puis commit (message suggéré à la clôture) → push → PR → merge → revenir
+faire l'étape **4bis** ici (squash, n° de PR, branche supprimée, résidus).
 
 **FAIT — slice 1 (le geste `backup_restore`, sur `main` via PR #167, squash `8fab1a8`) :**
 
@@ -58,6 +56,51 @@ la précondition de supervision) ; la file `media` reste hors du destructif énu
 admin du swap DOIT viser `postgres` (jamais la base qu'on renomme) · 🔴 le chemin « tête plus
 ancienne » du §5 reste NON MESURÉ (aucune archive d'une tête antérieure n'existe au 2026-08-19).
 
+**FAIT — slice 2 (l'administration, SUR LA BRANCHE — cette session) :**
+
+- Backend : `DELETE /api/settings/donnees/archives/{nom}` (`settings/router.py`) ·
+  `sauvegarde.refus_suppression` (409 : whitelist · introuvable · famille sauvegarde en vol ·
+  🔴 la dernière archive `reussie` ne se supprime pas — « jamais zéro filet ») ·
+  `supprimer_sauvegarde` (tar + TOUS les sidecars par glob `{nom}.*`, whitelist revérifiée —
+  c'est elle qui rend le glob sûr) · `_verdicts_par_archive` (une requête ; `_dernier_verdict`
+  refactoré dessus à comportement constant) · `GET /donnees` porte `restauree_le` (le
+  `termine_le` du sidecar `.restauration.json` — nul si geste interrompu) · `schemas.py` :
+  `ArchiveOut.restauree_le`, `SauvegardeSuppressionOut`.
+- Front : `packages/types/settings.ts` gagne `restaurable`/`motif` (servis depuis la slice 1,
+  jamais typés côté front) + `restauree_le` + `ArchiveSupprimee` (⚠️ ET la ligne du baril
+  `index.ts`) · `lib/settings.ts` : `lancerRestauration`, `supprimerArchive` · `DonneesTab.tsx` :
+  « ↺ Restaurer » SEULEMENT si verdict `reussie`, grisé+motif si compat défavorable ; dialogue
+  danger nommant l'archive, séquence énoncée (filet compris, réveil suspendu), **saisie
+  `RESTAURER` exigée** ; « 🗑 Supprimer » : dialogue nommé sans saisie, recharge la liste après ;
+  « ↺ restaurée le … » sous le nom ; refus 409 en ambre ; footer corrigé · `ConfirmDialog`
+  (`packages/ui`) : prop additive `confirmDisabled` (annuler reste dispo — autres consommateurs
+  intacts).
+- Docs : runbook **re-swap `zetis_avant`** dans `TROUBLESHOOTING.md` (commandes PROUVÉES en
+  conteneur jetable pg16 — témoins par base ; dit ce qu'il ne ramène PAS : les médias → passer
+  par la sauvegarde-filet) · `API_SPEC.md` (DELETE + `restauree_le`) · **`CHANGELOG 0.99.10`**
+  (l'entrée du chantier, affectée à cette slice par le prompt) · `page-parametres.md` §💾 remis
+  au réel (+ la ligne d'onglets qui disait encore « Données à venir », dérive du 0065).
+- **Tests : backend 1542→1558 (16 neufs : `test_sauvegarde_suppression.py` ×14 + `restauree_le`
+  ×2), papa 869→876 (7 neufs), massimo 920/920, `tsc -b --force` OK ×2, verrous CI rejoués
+  localement. Dans les fichiers de test EXISTANTS : 1 seule ligne supprimée (l'import élargi de
+  `DonneesTab.test.tsx`) + fixture étendue des 3 champs — ZÉRO assertion modifiée (vérifié au
+  diff).** Verrous : jamais zéro filet (409 même entouré d'exports non vérifiés) · suppression =
+  tar + sidecars Y COMPRIS un type inconnu, rien d'autre · saisie exigée (bouton inerte mesuré) ·
+  « Restaurer » absent des non vérifiées · le DELETE ne touche pas `ai_jobs`.
+- **Vu à l'ÉCRAN (paire dev, état d'essai fabriqué dans `apps/backend/storage/backups` —
+  gitignoré, NETTOYÉ ensuite, zéro écriture en base)** : les deux dialogues, le bouton inerte
+  sans saisie, les DEUX vrais 409 serveur en ambre (« pas suspendu » ; « dernière archive
+  vérifiée ») et une suppression réelle qui recharge la liste.
+
+**Verdicts du read-before-code slice 2 (à ne pas re-vérifier) :** deux `ALTER DATABASE` dans un
+même `psql -c` PASSENT sur pg16 (hypothèse de piège réfutée en conteneur — le runbook garde un
+ordre par commande pour s'arrêter au premier échec) · l'entrypoint backend rejoue
+`alembic upgrade head` à chaque boot ⇒ le stop/start du runbook couvre ⑦ · clés RQ exactes de
+rq 2.11.0 : `rq:queue:production(-priority)`, `rq:scheduled:…` · `compose -f
+docker-compose.prod.yml exec` REFUSE sans `ZETIS_BACKUP_DIR` (la dette 🔴 ci-dessous bloque
+aussi les lectures) · le baril `packages/types/src/index.ts` exporte NOMINATIVEMENT — un type
+oublié passe vitest et tombe au seul `tsc` (`TROUBLESHOOTING.md` slice 2).
+
 **Ce que l'ADR-0066 décide** (ne pas re-débattre) : restaurer ne s'offre qu'à une archive au
 verdict `reussie` — le mot se mérite dans les deux sens (§1) · préconditions toutes en 409 motivé
 AVANT d'enfiler : suspension ACTIVE posée par Papa, supervisé requis, rien en vol, compatibilité
@@ -78,21 +121,30 @@ réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaur
 terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
 est requis à la restauration (attrapé en conteneur).
 
-**EN COURS :** rien d'instable — la slice 1 est mergée, la branche supprimée ; la slice 2 n'est
-pas commencée.
+**EN COURS :** rien d'instable — tout est posé, testé et documenté sur la branche.
 
-**À FAIRE — slice 2 (l'administration), après le merge de la slice 1 :** `DELETE
-/api/settings/donnees/archives/{nom}` et ses gardes (§6 — 🔴 la dernière archive au verdict
-`reussie` ne se supprime pas ; suppression = tar + TOUS les sidecars) · la surface §7
-(« Restaurer » sur les seules archives vérifiées, dialogue à SAISIE de confirmation ;
-« Supprimer », dialogue sans saisie ; état « restaurée le … » lu du sidecar dans `GET /donnees`)
-· le runbook du re-swap `zetis_avant` (§4) dans `TROUBLESHOOTING.md`, commandes testées en
-conteneur · **l'entrée `CHANGELOG` du chantier part avec cette slice** (affectation explicite du
-prompt).
+**À FAIRE :** rien côté code — le chantier est complet. Après le merge : l'étape **4bis** (voir
+PROCHAIN PAS), et les résidus ci-dessous restent des dettes, pas des restes de travail.
 
-**PIÈGES :** `TROUBLESHOOTING.md` § `feat/restaurer-une-sauvegarde` — la fin de `run_ai_job`
-sans garde + le pool à neutraliser AVANT le terminate · la connexion admin du swap sur
-`postgres` · le verrou zéro-rejeu contre `is_transient` (+ `remove_objects` paresseux).
+**PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/restaurer-une-sauvegarde(-2)` — la fin de
+`run_ai_job` sans garde + le pool à neutraliser AVANT le terminate · la connexion admin du swap
+sur `postgres` · le verrou zéro-rejeu contre `is_transient` (+ `remove_objects` paresseux) ·
+l'export de type oublié du baril (vitest aveugle, seul `tsc` le voit) · et le 📖 RUNBOOK re-swap
+en tête du fichier.
+
+**RÉSIDUS de la clôture slice 2 (ne vivent QUE ici) :**
+
+- 🔴 **Une restauration qui ABOUTIT n'a jamais été vue à l'écran** (l'exercer = swapper la base
+  de dev — l'agent ne se l'est pas autorisé seul). Tout le reste de la surface a été vu en vrai,
+  les deux 409 compris. À jouer un jour EN DEV, suspension posée : c'est aussi ce qui exercerait
+  le chemin « restaurée le … » de bout en bout.
+- ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (état du composant,
+  comportement HÉRITÉ de la slice 3 du 0065, pas introduit) — signalé, non traité.
+- ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile dans son
+  `overflow-x-auto` — à regarder si l'iPad de Papa est une cible de cette page.
+- Le sidecar `.restauration.json` d'une archive SUPPRIMÉE part avec elle (voulu : « rien
+  d'orphelin ») — l'histoire du geste ne survit alors que dans le sidecar de la sauvegarde-filet
+  et les logs. Assumé, jamais discuté explicitement dans l'ADR.
 
 **🧾 DETTES OUVERTES** (du chantier, et REMONTÉES de l'élagage ADR-0065 fait ce jour) :
 
