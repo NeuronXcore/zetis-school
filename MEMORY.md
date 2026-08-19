@@ -6,20 +6,19 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir) — `main` = `origin/main`, rien à pousser sur `main`.
-> **UNE branche vivante : `feat/sauvegarde-qui-se-merite`** (base `e9b5143`, définitive), qui porte
-> le chantier ACTIF ci-dessous. La prod tourne (8 conteneurs, ports canoniques 8000/5173/5174) ;
-> le dev se lance à la demande sur les paires `.claude/launch.json`.
+> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante** (seul le worktree `claude/…` qui sert `:5175`).
+> La slice 1 de la sauvegarde est **MERGÉE**. La prod tourne (8 conteneurs, ports canoniques
+> 8000/5173/5174) ; le dev se lance à la demande sur les paires `.claude/launch.json`.
 
-### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slice 1/3 CODÉE, NON COMMITTÉE (2026-08-19)
+### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slice 1/3 MERGÉE (PR #164, squash `8650f26`, 2026-08-19)
 
-Branche `feat/sauvegarde-qui-se-merite`, base `e9b5143`. Le lot Décision est sur `main`
-(ADR-0065 = `dd078af`, vérifié ancêtre de `main`) ; la branche porte les prompts des trois slices
-(`prompts/claude-code/prompts-claude-code-adr-0065.md`) et, **non committé**, tout le code de la
-slice 1 + les documents de cette clôture. L'état exact : `git status` / `git log --oneline
-main..HEAD` — ne pas le recopier ici.
+Le lot Décision est sur `main` (ADR-0065 = `dd078af`) ; la **PR #164** (squash `8650f26`, CI verte
+du premier coup : pytest 3m39s · vitest 2m51s · verrous 10s) a porté la slice 1 entière, les
+prompts des trois slices ET la clôture. Branche `feat/sauvegarde-qui-se-merite` **supprimée**
+(vérifié : `ls-remote` → 0). La slice 2 repartira de `main` sur une branche neuve.
 
-**FAIT (slice 1 — le socle, prête à committer) :**
+**FAIT (slice 1 — le socle, sur `main`) :**
 
 - `modules/settings/sauvegarde.py` — refus 409 (certificat `.zetis-cible.json` absent/illisible/
   UUID égaux + doublon `backup_create` en `queued|running`), `_instantane` (connexion psycopg
@@ -59,10 +58,11 @@ d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomple
 (§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
 (les exécutants sont des adaptateurs ; direction production→settings déjà existante).
 
-**EN COURS :** rien d'instable — la slice 1 est complète, en attente de relecture humaine.
+**EN COURS :** rien — la slice 1 est mergée, aucune branche vivante, rien d'instable.
 
-**À FAIRE :** slice 2 (`backup_verify` — prompt PRÊT dans le fichier de prompts, à coller après le
-merge de la slice 1) · slice 3 (l'onglet 💾, « export non vérifié » tant que pas restauré à blanc).
+**À FAIRE :** slice 2 (`backup_verify` — prompt PRÊT dans
+`prompts/claude-code/prompts-claude-code-adr-0065.md`, branche neuve depuis `main`) · slice 3
+(l'onglet 💾, « export non vérifié » tant que pas restauré à blanc).
 
 **PIÈGES :** `TROUBLESHOOTING.md` § `feat/sauvegarde-qui-se-merite` (le bac à sable de l'agent
 GÈLE un script hôte qui lit `~/Library` — tester hors bac à sable ; un renvoi de prompt se
@@ -74,17 +74,19 @@ vérifie).
   pas) : la première vraie sauvegarde sera le premier essai — et la slice 2 est la preuve
   organisée. Idem : l'image Docker n'a pas été reconstruite en entier (la couche PGDG est
   vérifiée dans un conteneur d'essai identique, pas dans un `prod:up --build`).
-- 🔴 **Au prochain `prod:up` après merge, la prod NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR` dans le
-  `.env` racine** (`:?`, voulu — même doctrine que `POSTGRES_PASSWORD`). Le geste : poser la
-  variable vers un répertoire d'un AUTRE disque (ex. `NX-Models`), puis
-  `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
+- 🔴 **VIVANT DEPUIS LE MERGE : le prochain `prod:up` NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR`
+  dans le `.env` racine** (`:?`, voulu — même doctrine que `POSTGRES_PASSWORD`). La pile qui
+  TOURNE n'est pas affectée tant qu'on ne la recrée pas. Le geste, AVANT le prochain
+  `prod:up`/`--build` : poser la variable vers un répertoire d'un AUTRE disque (ex. `NX-Models`),
+  puis `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
 - `API_SPEC.md` ne documente toujours PAS les autres routes `/api/settings` (`/autonomy`,
   `/machine`, `/ecarts`, `/production-suspension`) — dette relevée en écrivant la section
   💾 Données ; rangement doc à part.
 
-**PROCHAIN PAS :** l'humain relit le diff, committe (message suggéré rendu à la clôture), pousse
-la branche. Puis, à sa main : PR + merge de la slice 1 — le fichier de prompts place la slice 2
-« après le merge ». **NI PR NI MERGE automatiques.**
+**PROCHAIN PAS :** coller le prompt de la **slice 2** (fichier de prompts, section « Slice 2 »)
+après `/slice`, sur une branche neuve depuis `main` — son read-before-code commence par le piège
+`CREATE DATABASE` hors transaction (connexion autocommit, l'inverse de `_instantane`). Avant le
+prochain `prod:up` : le geste `ZETIS_BACKUP_DIR` ci-dessus.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
