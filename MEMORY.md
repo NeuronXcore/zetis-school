@@ -6,19 +6,19 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir) — `main` = `origin/main`. **UNE branche vivante :
-> `feat/sauvegarde-qui-se-merite-3`** (base `7043a21`, définitive), qui porte la slice 3 — la
-> dernière — **non committée**. La prod tourne (8 conteneurs, ports canoniques 8000/5173/5174) ;
-> le dev se lance à la demande sur les paires `.claude/launch.json`.
+> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante**. **La phase B « la sauvegarde qui se mérite »
+> est SOLDÉE** : trois slices, trois PR mergées, CI verte du premier coup à chaque fois. La prod
+> tourne (8 conteneurs, ports canoniques 8000/5173/5174) ; le dev se lance à la demande sur les
+> paires `.claude/launch.json`.
 
-### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — **COMPLET** : slice 3/3 codée, NON COMMITTÉE (2026-08-19)
+### ✅ CHANTIER SOLDÉ — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — 3/3 slices MERGÉES (2026-08-19)
 
-Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1 MERGÉE** (PR #164, squash
-`8650f26`) · **Slice 2 MERGÉE** (PR #165, squash `fe95bf5`). Branches supprimées (vérifié
-`ls-remote` → 0 pour chacune). **Slice 3 sur `feat/sauvegarde-qui-se-merite-3`** (base
-`7043a21`), non committée — l'état exact : `git status` / `git log --oneline main..HEAD`.
-🎉 **Et le cycle complet a été exécuté EN VRAI sur les données de dev pendant la relecture**
-(détail au bloc slice 3) : la dette « chemin Postgres réel jamais exercé » est FERMÉE.
+Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1** (le socle) : PR #164, squash
+`8650f26` · **Slice 2** (la preuve) : PR #165, squash `fe95bf5` · **Slice 3** (la surface) :
+PR #166, squash `7a287dc`. Les trois branches sont supprimées (vérifié `ls-remote` → 0).
+🎉 **Le cycle complet a été exécuté EN VRAI sur les données de dev pendant la relecture** (détail
+au bloc slice 3) : la dette « chemin Postgres réel jamais exercé » est FERMÉE.
 
 **FAIT — slice 1 (le socle, sur `main` via #164)** : `modules/settings/sauvegarde.py`
 (`backup_create` : certificat fail-closed → 409 avant d'enfiler → dump sur instantané exporté →
@@ -64,7 +64,7 @@ d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomple
 (§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
 (les exécutants sont des adaptateurs ; direction production→settings déjà existante).
 
-**FAIT — slice 3 (la surface, prête à committer) :**
+**FAIT — slice 3 (la surface, sur `main` via #166) :**
 
 - `GET /api/settings/donnees` — métadonnées SEULEMENT, **aucun tar ouvert** (verrou structurel :
   la route répond même quand `tarfile.open` explose) : archives via sidecars, certificat
@@ -99,11 +99,11 @@ le mot « sauvegarde » à une archive qui, réellement, ne se rejouait pas. Rej
 (`postgresql@16`, 16.15 = le serveur) : **« Sauvegarde vérifiée », 9165/9165, 48/48, zéro
 écart**, `zetis_verify` détruite à chaque fois (vérifié : seule `zetis` existe).
 
-**EN COURS :** rien d'instable — la slice 3 est complète, en attente de relecture finale et de
-commit. L'écran a été REGARDÉ (§5bis) : les deux états du certificat, les trois statuts
-d'archive, le refus motivé, le cycle réel — captures dans la session.
+**EN COURS :** rien — le chantier est soldé, aucune branche vivante, rien d'instable. L'écran a
+été REGARDÉ (§5bis) : les deux états du certificat, les trois statuts d'archive, le refus motivé,
+le cycle réel — captures dans la session du 2026-08-19.
 
-**À FAIRE :** rien sur ce chantier — il est COMPLET au commit près.
+**À FAIRE :** rien sur ce chantier. La suite vit dans « PROCHAIN PAS » et « À CASER ».
 
 **PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/sauvegarde-qui-se-merite` (le bac à sable de l'agent
 GÈLE un script hôte qui lit `~/Library` ; un renvoi de prompt se vérifie), `…-2` (psycopg3 :
@@ -134,10 +134,11 @@ paire lancée à la main + panneau ouvert par URL).
 - `API_SPEC.md` ne documente toujours PAS les autres routes `/api/settings` (`/autonomy`,
   `/machine`, `/ecarts`, `/production-suspension`) — rangement doc à part.
 
-**PROCHAIN PAS :** l'humain relit le diff, committe (message rendu à la clôture), pousse
-`feat/sauvegarde-qui-se-merite-3`, **PR + merge** (chantier FINI), puis l'étape 4bis solde le
-chantier ADR-0065. Ensuite, au choix : le **cadrage de la phase E** (restaurer / supprimer —
-demande déjà consignée en À CASER, `/cadrage` cas 3) ou la petite fix sidebar (À CASER).
+**PROCHAIN PAS :** au choix de l'humain — le **cadrage de la phase E** (restaurer / supprimer /
+administrer les archives — demande déjà consignée en À CASER, `/cadrage` cas 3, l'ADR-0065 §Suivi 5
+pose que la phase E RELIRA le manifeste/l'empreinte/`zetis_verify` sans les redécider) ou la
+petite **fix sidebar** (À CASER). ⚠️ Et le geste opérationnel toujours dû AVANT le prochain
+`prod:up` : `ZETIS_BACKUP_DIR` + certification (DETTES).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
