@@ -229,12 +229,21 @@ class SuspensionOut(BaseModel):
 
 
 class SauvegardeAccepteeOut(BaseModel):
-    """Le 202 de `POST /donnees/sauvegarde` (ADR-0065 §1, §7) : des MÉTADONNÉES de travail,
+    """Le 202 des routes `POST /donnees/*` (ADR-0065 §1, §7) : des MÉTADONNÉES de travail,
     rien d'autre. Aucun octet d'archive ne passe par HTTP — ce schéma est le contrat qui
     l'empêche de dériver : y ajouter un champ de contenu ferait rougir le test-verrou."""
 
     job_id: int
     status: str
+
+
+class SauvegardeVerificationRequest(BaseModel):
+    """La désignation d'UNE archive à vérifier (ADR-0065 §6) — un NOM, jamais un chemin.
+
+    Le serveur ne fait pas confiance à ce champ : la route le confronte à la whitelist
+    `zetis-AAAA-MM-JJ-hhmm.tar` avant d'enfiler (traversée de répertoire sinon)."""
+
+    archive: str
 
 
 class SuspensionRequest(BaseModel):

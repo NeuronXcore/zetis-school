@@ -22,6 +22,7 @@ from app.modules.settings.schemas import (
     EcartsOut,
     MachineOut,
     SauvegardeAccepteeOut,
+    SauvegardeVerificationRequest,
     SuspensionOut,
     SuspensionRequest,
     TestMoteurOut,
@@ -154,3 +155,29 @@ def post_sauvegarde(db: Session = Depends(get_db)) -> dict:
     if motif:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
     return travaux.enfiler(db, job_type=sauvegarde.JOB_TYPE, payload={})
+
+
+@router.post(
+    "/donnees/verification",
+    response_model=SauvegardeAccepteeOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def post_verification(
+    req: SauvegardeVerificationRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Enfile `backup_verify` sur l'archive désignée (ADR-0065 §6, §7) — 202 ou **409 motivé**.
+
+    Le refus part AVANT `travaux.enfiler` : nom hors whitelist (le nom vient du client — une
+    traversée de répertoire sinon), archive ou sidecar `.sha256` absents, ou un travail de
+    sauvegarde déjà en file ou en cours (`backup_create` COMME `backup_verify` : vérifier pendant
+    une création lirait un tar en cours d'écriture).
+
+    ⚠️ Le VERDICT — succès ou écarts nommés — vit dans l'`output_json` du travail (§6), pas ici :
+    cette réponse ne porte que les métadonnées d'enfilement.
+    """
+    motif = sauvegarde.refus_verification(db, req.archive)
+    if motif:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
+    return travaux.enfiler(
+        db, job_type=sauvegarde.JOB_TYPE_VERIFY, payload={"archive": req.archive}
+    )
