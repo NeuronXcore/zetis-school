@@ -6,17 +6,17 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir) — `main` = `origin/main`. **UNE branche vivante :
-> `feat/sauvegarde-qui-se-merite-2`** (base `860c58b`, définitive), qui porte la slice 2 **non
-> committée**. La prod tourne (8 conteneurs, ports canoniques 8000/5173/5174) ; le dev se lance à
-> la demande sur les paires `.claude/launch.json`.
+> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante** (seul le worktree `claude/…` qui sert `:5175`).
+> Les slices 1 et 2 de la sauvegarde sont **MERGÉES**. La prod tourne (8 conteneurs, ports
+> canoniques 8000/5173/5174) ; le dev se lance à la demande sur les paires `.claude/launch.json`.
 
-### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slice 2/3 CODÉE, NON COMMITTÉE (2026-08-19)
+### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slices 1-2/3 MERGÉES, reste la SURFACE (2026-08-19)
 
 Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1 MERGÉE** (PR #164, squash
-`8650f26`, CI verte du premier coup ; branche supprimée, vérifié `ls-remote` → 0). **Slice 2 sur
-la branche `feat/sauvegarde-qui-se-merite-2`** (base `860c58b`), non committée — l'état exact :
-`git status` / `git log --oneline main..HEAD`, ne pas le recopier ici.
+`8650f26`) · **Slice 2 MERGÉE** (PR #165, squash `fe95bf5`, CI verte du premier coup : pytest
+3m20s · vitest 2m51s · verrous 8s). Les deux branches sont supprimées (vérifié `ls-remote` → 0
+pour chacune). La slice 3 repartira de `main` sur une branche neuve.
 
 **FAIT — slice 1 (le socle, sur `main` via #164)** : `modules/settings/sauvegarde.py`
 (`backup_create` : certificat fail-closed → 409 avant d'enfiler → dump sur instantané exporté →
@@ -26,7 +26,7 @@ en conteneur) · `ZETIS_BACKUP_DIR` + bind mount `:?` sur `backend` ET `worker` 
 `scripts/certifier-cible-sauvegarde.sh` prouvé sur la machine (2 cas). Détail : PR #164, ADR-0065,
 `API_SPEC` §💾.
 
-**FAIT — slice 2 (la preuve, prête à committer) :**
+**FAIT — slice 2 (la preuve, sur `main` via #165) :**
 
 - `sauvegarde.verifier_sauvegarde` — les six étapes du §6 : ① sha256 du tar vs sidecar (divergent
   ⇒ on ne restaure même pas) · manifeste **scellé DU tar** comme seule autorité (sidecar
@@ -62,8 +62,7 @@ d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomple
 (§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
 (les exécutants sont des adaptateurs ; direction production→settings déjà existante).
 
-**EN COURS :** rien d'instable — la slice 2 est complète, en attente de relecture humaine et de
-commit.
+**EN COURS :** rien — les slices 1 et 2 sont mergées, aucune branche vivante, rien d'instable.
 
 **À FAIRE :** slice 3 (la surface : `GET /donnees` — archives via sidecars, certificat, dernière
 vérification lue dans l'`output_json` du dernier `backup_verify` — et l'onglet 💾 rendu, deux
@@ -92,9 +91,12 @@ transaction implicite vs `CREATE DATABASE` — autocommit obligatoire).
   `/machine`, `/ecarts`, `/production-suspension`) — dette relevée à la slice 1 ; rangement doc à
   part.
 
-**PROCHAIN PAS :** l'humain relit le diff de la slice 2, committe (message rendu à la clôture),
-pousse `feat/sauvegarde-qui-se-merite-2`. Puis, à sa main : PR + merge. La slice 3 se colle
-ensuite après `/slice` (squelette §Slice 3 du fichier de prompts), branche neuve depuis `main`.
+**PROCHAIN PAS :** la **slice 3** (la surface) — coller le squelette §Slice 3 du fichier de
+prompts après `/slice`, branche neuve depuis `main`. Elle rend l'onglet 💾 : `GET /donnees`
+(archives via sidecars `.manifeste.json`, certificat, **dernière vérification lue dans
+l'`output_json` du dernier `backup_verify`**), deux gestes, « export non vérifié » tant que la
+restauration à blanc n'a pas réussi, règles `adr-0062` §6 — et l'entrée `CHANGELOG` de la
+phase B (due, voir DETTES). Avant le prochain `prod:up` : le geste `ZETIS_BACKUP_DIR` (DETTES).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
