@@ -144,6 +144,9 @@ export interface ReglageEnv {
 }
 
 export interface Machine {
+  /** Le geste « Redémarrer un worker » existe-t-il ici ? Sinon, le MOTIF voyage avec — le même
+   *  texte que le 409 de la route, écrit une fois côté serveur. */
+  workers_supervision: { supervised: boolean; motif: string | null };
   sondes: Sonde[];
   moteurs: MoteurTache[];
   /** 🔴 Un BOOLÉEN de présence. Jamais la valeur, jamais un préfixe. */

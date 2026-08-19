@@ -12,11 +12,18 @@ vi.mock("../../lib/settings", async (importOriginal) => ({
   fetchMachine: vi.fn(),
   testMoteur: vi.fn(),
   acquitterEchec: vi.fn(),
+  redemarrerWorker: vi.fn(),
 }));
-import { acquitterEchec, fetchMachine, testMoteur } from "../../lib/settings";
+import {
+  acquitterEchec,
+  fetchMachine,
+  redemarrerWorker,
+  testMoteur,
+} from "../../lib/settings";
 
 function machine(over: Partial<Machine> = {}): Machine {
   return {
+    workers_supervision: { supervised: false, motif: "Rien ne supervise le worker : relancez-le à la main (pnpm dev:worker)." },
     sondes: [
       { nom: "Postgres", etat: "ok", detail: "SELECT 1", latence_ms: 3 },
       { nom: "Ollama", etat: "ok", detail: "« qwen » présent", latence_ms: 21 },
@@ -302,5 +309,52 @@ describe("les deux seuls gestes", () => {
 
     await screen.findByText("TimeoutError: page.screenshot exceeded 30000ms");
     expect(screen.getByText("acquitté")).toBeInTheDocument();
+  });
+});
+
+// --- ⟳ Redémarrer un worker (chantier A1) --------------------------------------------------------
+
+describe("redémarrer un worker", () => {
+  it("🔴 non supervisé : le bouton est GRISÉ avec le motif — le cadenas parle avant le clic", async () => {
+    // Arrêter un worker que rien ne relance le tuerait pour de bon. Le serveur refuse (409) ;
+    // l'écran rend ce refus lisible AVANT que Papa clique pour l'apprendre.
+    render(<MachineTab />);
+    await screen.findByText("Ce qui tourne");
+
+    const bouton = screen.getByRole("button", { name: /Redémarrer/ });
+    expect(bouton).toBeDisabled();
+    expect(screen.getByText(/🔒 Rien ne supervise le worker/)).toBeInTheDocument();
+    expect(redemarrerWorker).not.toHaveBeenCalled();
+  });
+
+  it("supervisé : le clic envoie l'ordre et RELAIE la phrase du serveur", async () => {
+    vi.mocked(fetchMachine).mockResolvedValue(
+      machine({ workers_supervision: { supervised: true, motif: null } }),
+    );
+    vi.mocked(redemarrerWorker).mockResolvedValue({
+      detail: "Arrêt demandé au worker « worker-1 » : il termine sa pièce en cours puis sort.",
+    });
+    render(<MachineTab />);
+    await screen.findByText("Ce qui tourne");
+
+    fireEvent.click(screen.getByRole("button", { name: /Redémarrer/ }));
+
+    await screen.findByText(/il termine sa pièce en cours puis sort/);
+    expect(redemarrerWorker).toHaveBeenCalledWith("worker-1");
+  });
+
+  it("un refus du serveur s'affiche tel quel — jamais réécrit", async () => {
+    vi.mocked(fetchMachine).mockResolvedValue(
+      machine({ workers_supervision: { supervised: true, motif: null } }),
+    );
+    vi.mocked(redemarrerWorker).mockRejectedValue(
+      new Error("Aucun worker « worker-1 » sur les files de production."),
+    );
+    render(<MachineTab />);
+    await screen.findByText("Ce qui tourne");
+
+    fireEvent.click(screen.getByRole("button", { name: /Redémarrer/ }));
+
+    await screen.findByText(/Aucun worker « worker-1 »/);
   });
 });

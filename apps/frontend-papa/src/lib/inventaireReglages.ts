@@ -488,8 +488,22 @@ export const INVENTAIRE: LigneReglage[] = [
     nom: "Mise à jour (git pull + migrations) · redémarrer un service",
     concerne: "machine",
     ou: "terminal",
+    // ⚠️ Un WORKER n'est pas un service : le redémarrer est un geste borné et supervisé — il a sa
+    // propre ligne juste en dessous. Ce qui reste interdit ici, c'est le redémarrage du BACKEND
+    // ou d'un conteneur entier depuis la page qu'ils servent.
     statut: "🚫 jamais — une mise à jour ratée laisse la page incapable de se décrire",
     famille: "nulle",
+  },
+  {
+    nom: "Redémarrer un worker périmé",
+    concerne: "machine",
+    ou: "ici · La machine",
+    // Livré le 2026-08-19 (chantier A1) : arrêt gracieux, le superviseur relance avec le code à
+    // jour. Grisé AVEC son motif quand rien ne supervise — en dev, l'arrêter le tuerait pour de
+    // bon. Découvert absent de cette carte pendant la démo à l'écran du chantier voisin.
+    statut: "✅ livré — offert seulement supervisé (le cadenas dit pourquoi)",
+    famille: "ici",
+    onglet: "machine",
   },
   {
     nom: "Accès distant (VPN, HTTPS, CORS)",
