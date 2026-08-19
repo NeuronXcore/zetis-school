@@ -25,6 +25,7 @@ export const ONGLETS: OngletDef[] = [
   { id: "carte", label: "La carte", icone: "🗺" },
   { id: "autonomie", label: "Autonomie", icone: "⚡" },
   { id: "machine", label: "La machine", icone: "🧠" },
+  { id: "donnees", label: "Données", icone: "💾" },
 ];
 
 export const ONGLET_DEFAUT: OngletId = "carte";

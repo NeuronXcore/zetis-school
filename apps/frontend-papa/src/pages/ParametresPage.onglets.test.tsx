@@ -87,9 +87,12 @@ describe("le gabarit", () => {
   });
 
   it("retombe sur la carte quand l'URL nomme un onglet non construit — jamais une page blanche", async () => {
-    // Un signet, un lien gardé : `?onglet=donnees` désignera un jour un onglet réel. En attendant,
+    // Un signet, un lien gardé : `?onglet=massimo` désignera un jour un onglet réel. En attendant,
     // la carte est la bonne réponse — c'est elle qui dit où en est ce réglage-là.
-    renderPage("/parametres?onglet=donnees");
+    // ⚠️ L'exemple était `donnees` — devenu un onglet RÉEL le 2026-08-19 (ADR-0065 slice 3),
+    // exactement comme ce commentaire l'annonçait. La PROPRIÉTÉ verrouillée ne change pas :
+    // un onglet inconnu ouvre la carte, jamais une page blanche.
+    renderPage("/parametres?onglet=massimo");
 
     await screen.findByText(/Tout ce qui se règle/);
     expect(screen.getByRole("tab", { name: /La carte/ })).toHaveAttribute("aria-selected", "true");

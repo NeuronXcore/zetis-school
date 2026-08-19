@@ -178,3 +178,57 @@ export interface TestMoteur {
   modele: string;
   detail: string;
 }
+
+// --- 💾 Données (ADR-0065 §7) — l'état de la sauvegarde, jamais un contenu ------------------------
+//
+// 🔴 Aucun octet d'archive ne passe par HTTP (§1) : ces types ne portent que des noms, des
+// tailles, des empreintes et des verdicts. Un champ de contenu qui apparaîtrait ici est une
+// violation du périmètre de l'ADR, pas une évolution.
+
+export interface CertificatCible {
+  /** La cible est-elle certifiée ET sur un autre volume que les données ? Le refus vient du
+   *  serveur, avec son motif — l'UI ne fait que le rendre lisible (adr-0062 §6). */
+  valable: boolean;
+  motif: string | null;
+  /** OÙ la sauvegarde s'écrit — le chemin HÔTE consigné par le certificat. `null` tant que la
+   *  cible n'est pas certifiée. Relevé à la relecture d'écran : « certifiée » sans dire où
+   *  obligeait Papa à demander. */
+  cible: string | null;
+}
+
+export interface VerificationArchive {
+  archive: string;
+  /** `reussie` | `echec`. C'est CE verdict qui donne le mot « sauvegarde » (§7) : sans
+   *  restauration à blanc réussie, une archive reste un « export non vérifié ». */
+  verdict: string | null;
+  verifie_le: string | null;
+  /** Le COMPTE des écarts — le détail vit dans l'`output_json` du travail. */
+  ecarts: number;
+}
+
+export interface ArchiveSauvegarde {
+  nom: string;
+  taille: number;
+  /** De l'horodatage du NOM (zetis-AAAA-MM-JJ-hhmm.tar), pas du mtime. */
+  cree_le: string;
+  /** Du sidecar `.sha256` ; `null` = sidecar absent ou illisible — l'archive s'affiche quand
+   *  même, cacher un fichier présent sur la cible serait un mensonge. */
+  sha256: string | null;
+  lignes: number | null;
+  tables: number | null;
+  /** `null` = jamais vérifiée — « export non vérifié » à l'écran, et c'est le point du §7. */
+  verification: VerificationArchive | null;
+}
+
+export interface Donnees {
+  certificat: CertificatCible;
+  archives: ArchiveSauvegarde[];
+  derniere_verification: VerificationArchive | null;
+}
+
+/** Le 202 des deux gestes (`POST /donnees/sauvegarde`, `POST /donnees/verification`) : des
+ *  métadonnées d'enfilement — le suivi passe par la barre du header, comme tout travail de file. */
+export interface SauvegardeAcceptee {
+  job_id: number;
+  status: string;
+}

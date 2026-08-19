@@ -11,8 +11,10 @@ import {
   type Autonomy,
   type AutonomyPalier,
   type AutonomyNiveau,
+  type Donnees,
   type Ecarts,
   type Machine,
+  type SauvegardeAcceptee,
   type TestMoteur,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
@@ -204,6 +206,36 @@ export async function setProductionSuspension(suspended: boolean): Promise<{ sus
       method: "PUT",
       headers: jsonHeaders(),
       body: JSON.stringify({ suspended }),
+    }),
+  );
+}
+
+// --- 💾 Données (ADR-0065 §7) ---------------------------------------------------------------------
+
+/** L'état de la sauvegarde : archives (via sidecars), certificat, dernière vérification.
+ *
+ *  Des MÉTADONNÉES — aucun octet d'archive ne passe par HTTP (§1). Aucun sondage : lecture au
+ *  montage et sur le bouton ⟳, comme la machine. */
+export async function fetchDonnees(): Promise<Donnees> {
+  return asJson(await fetch(`${BASE}/donnees`, { headers: authHeader() }));
+}
+
+/** Enfile `backup_create` — 202 métadonnées, ou 409 MOTIVÉ (certificat absent/illisible/même
+ *  volume, sauvegarde déjà en file). Le motif se reconnaît au CODE (`estRefus`), jamais au texte. */
+export async function lancerSauvegarde(): Promise<SauvegardeAcceptee> {
+  return asJson(
+    await fetch(`${BASE}/donnees/sauvegarde`, { method: "POST", headers: jsonHeaders() }),
+  );
+}
+
+/** Enfile `backup_verify` sur UNE archive — le verdict arrivera dans l'`output_json` du travail
+ *  (§6), pas dans cette réponse ; la page le relit au ⟳ suivant. */
+export async function lancerVerification(archive: string): Promise<SauvegardeAcceptee> {
+  return asJson(
+    await fetch(`${BASE}/donnees/verification`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ archive }),
     }),
   );
 }

@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
 import { AutonomieTab } from "../components/parametres/AutonomieTab";
 import { CarteReglages } from "../components/parametres/CarteReglages";
+import { DonneesTab } from "../components/parametres/DonneesTab";
 import { MachineTab } from "../components/parametres/MachineTab";
 import {
   ONGLET_DEFAUT,
@@ -132,6 +133,12 @@ export function ParametresPage() {
       {actif === "machine" && (
         <div role="tabpanel" id="panneau-machine" aria-labelledby="onglet-machine">
           <MachineTab />
+        </div>
+      )}
+
+      {actif === "donnees" && (
+        <div role="tabpanel" id="panneau-donnees" aria-labelledby="onglet-donnees">
+          <DonneesTab />
         </div>
       )}
     </div>

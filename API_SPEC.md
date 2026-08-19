@@ -2997,5 +2997,23 @@ dispositif n'a pas pu vérifier » (archive disparue, Postgres injoignable), jam
 mauvaise ». L'autorité des comparaisons est le **manifeste scellé DANS le tar** — le sidecar
 `.manifeste.json` n'est qu'une copie de lecture, le falsifier ne change pas le verdict.
 
-> Slice 3 : `GET /donnees` (l'état — archives via sidecars, certificat, dernière vérification lue
-> dans l'`output_json` du dernier `backup_verify`).
+### GET `/api/settings/donnees`
+
+L'état de l'onglet 💾 (ADR-0065 §7) — des MÉTADONNÉES, et 🔴 **aucun tar n'est ouvert** (verrou
+structurel : la route répond même quand `tarfile.open` explose). Tailles par `stat`, empreintes
+par le sidecar `.sha256`, comptes par le sidecar `.manifeste.json` (la copie de lecture créée
+pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify` qui la confronte).
+
+```txt
+{ certificat: { valable, motif?, cible? },      # cible = le chemin HÔTE consigné (§3) — OÙ ça
+                                                 # s'écrit ; le motif = le même texte que le 409
+  archives: [ { nom, taille, cree_le,            # cree_le vient du NOM (zetis-AAAA-MM-JJ-hhmm),
+                sha256?, lignes?, tables?,       #   pas du mtime ; sidecar illisible ⇒ champs
+                verification? } ],               #   null, l'archive s'affiche quand même
+  derniere_verification? }                       # résumé du dernier backup_verify réussi
+```
+
+`verification` (et `derniere_verification`) : `{archive, verdict, verifie_le, ecarts}` — le
+verdict le plus récent par archive, lu dans l'`output_json` des travaux `backup_verify`
+`succeeded`. `verification: null` = jamais vérifiée : c'est l'archive que la page appelle
+« **export non vérifié** » — le mot « sauvegarde » n'apparaît qu'après un verdict `reussie` (§7).

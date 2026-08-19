@@ -738,3 +738,104 @@ def verifier_sauvegarde(nom: str) -> dict:
     verdict = _verdict(empreinte)
     logger.info("sauvegarde: vérification de %s — %s (%d écart(s))", nom, verdict["verdict"], len(ecarts))
     return verdict
+
+
+# --- L'état de l'onglet 💾 (§7) : des MÉTADONNÉES, sans ouvrir un seul tar ------------------------
+
+
+def _resume_verdict(sortie: dict) -> dict:
+    """Ce que la page affiche d'un verdict — jamais le détail complet des écarts (il reste dans
+    l'`output_json` du travail, la barre et les échecs le portent déjà)."""
+    return {
+        "archive": sortie["archive"],
+        "verdict": sortie.get("verdict"),
+        "verifie_le": sortie.get("verifie_le"),
+        "ecarts": len(sortie.get("ecarts") or []),
+    }
+
+
+def etat_donnees(db: Session) -> dict:
+    """`GET /donnees` (§7) : archives, certificat, dernière vérification.
+
+    🔴 **Aucun tar n'est ouvert ici, et c'est structurel** (§1 : aucun octet d'archive ne sort ;
+    et une lecture d'état doit rester bon marché quel que soit le poids des archives) : la taille
+    vient de `stat`, l'empreinte du sidecar `.sha256`, les comptes du sidecar `.manifeste.json` —
+    la copie de LECTURE que le §5 a créée exactement pour ça. La vérité scellée reste celle de
+    l'intérieur, et c'est `backup_verify` qui la confronte, pas cette route.
+
+    « Vérifiée ou non » vient des travaux `backup_verify` réussis (leur verdict vit dans
+    `output_json`, §6) — la plus récente vérification par archive. Une archive sans verdict rend
+    `verification: null` : c'est elle que la page appelle « export non vérifié ».
+    """
+    dossier = Path(settings.backup_dir)
+    motif = _certificat_refus(dossier)
+    # OÙ la sauvegarde s'écrit — le chemin HÔTE que le certificat a consigné (§3), pas le chemin
+    # conteneur (`/backups` ne dit rien à Papa). Relevé à la relecture d'écran du 2026-08-19 :
+    # « certifiée » sans dire où obligeait à demander.
+    cible = None
+    if motif is None:
+        try:
+            cible = json.loads((dossier / CERTIFICAT).read_text(encoding="utf-8")).get(
+                "chemin_cible"
+            )
+        except (OSError, ValueError, TypeError):  # déjà qualifié par _certificat_refus
+            cible = None
+
+    verdicts: dict[str, dict] = {}
+    derniere: dict | None = None
+    sorties = db.execute(
+        select(AIJob.output_json)
+        .where(AIJob.job_type == JOB_TYPE_VERIFY, AIJob.status == "succeeded")
+        .order_by(AIJob.id.desc())
+        .limit(200)
+    ).scalars()
+    for sortie in sorties:
+        if not isinstance(sortie, dict) or not sortie.get("archive"):
+            continue
+        resume = _resume_verdict(sortie)
+        if derniere is None:
+            derniere = resume
+        # Lecture du plus récent au plus ancien : le premier verdict vu par archive est le bon.
+        verdicts.setdefault(resume["archive"], resume)
+
+    archives: list[dict] = []
+    if dossier.is_dir():
+        # Le nom porte l'horodatage : trier les noms en ordre inverse = la plus récente d'abord.
+        for chemin in sorted(dossier.glob("zetis-*.tar"), reverse=True):
+            nom = chemin.name
+            if not _NOM_ARCHIVE.match(nom):
+                continue
+            empreinte = None
+            sidecar_sha = dossier / f"{nom}.sha256"
+            if sidecar_sha.is_file():
+                morceaux = sidecar_sha.read_text(encoding="utf-8").split()
+                empreinte = morceaux[0] if morceaux else None
+            lignes = tables = None
+            sidecar_manifeste = dossier / f"{nom}.manifeste.json"
+            if sidecar_manifeste.is_file():
+                try:
+                    base = json.loads(sidecar_manifeste.read_text(encoding="utf-8"))["base"]
+                    lignes, tables = base.get("lignes"), base.get("tables")
+                except (ValueError, TypeError, KeyError):
+                    # Sidecar illisible : l'archive s'affiche quand même, sans ses comptes —
+                    # la page ne cache jamais un fichier qui existe sur la cible.
+                    pass
+            archives.append(
+                {
+                    "nom": nom,
+                    "taille": chemin.stat().st_size,
+                    # Du NOM (zetis-AAAA-MM-JJ-hhmm.tar), pas du mtime : c'est l'horodatage que
+                    # `creer_sauvegarde` a posé, un `cp` de l'archive ne doit pas le changer.
+                    "cree_le": f"{nom[6:16]}T{nom[17:19]}:{nom[19:21]}",
+                    "sha256": empreinte,
+                    "lignes": lignes,
+                    "tables": tables,
+                    "verification": verdicts.get(nom),
+                }
+            )
+
+    return {
+        "certificat": {"valable": motif is None, "motif": motif, "cible": cible},
+        "archives": archives,
+        "derniere_verification": derniere,
+    }

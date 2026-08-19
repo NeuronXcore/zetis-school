@@ -246,6 +246,57 @@ class SauvegardeVerificationRequest(BaseModel):
     archive: str
 
 
+# --- 💾 Données (ADR-0065 §7) — l'état, jamais un contenu -----------------------------------------
+
+
+class CertificatCibleOut(BaseModel):
+    """La cible est-elle certifiée et valable ? Le MOTIF voyage avec le refus (adr-0062 §6 :
+    un cadenas muet se lit comme une panne) — c'est le même texte que le 409 de la route."""
+
+    valable: bool
+    motif: str | None = None
+    #: OÙ la sauvegarde s'écrit — le chemin HÔTE consigné par le certificat (§3). `None` tant
+    #: que la cible n'est pas certifiée. Relevé à la relecture d'écran : « certifiée » sans dire
+    #: où obligeait Papa à demander.
+    cible: str | None = None
+
+
+class VerificationArchiveOut(BaseModel):
+    """Le résumé d'un verdict de `backup_verify` (§6) — le DÉTAIL des écarts reste dans
+    l'`output_json` du travail ; la page n'en montre que le compte."""
+
+    archive: str
+    #: `reussie` | `echec` — c'est ce verdict qui donne (ou refuse) le mot « sauvegarde » (§7).
+    verdict: str | None = None
+    verifie_le: str | None = None
+    ecarts: int = 0
+
+
+class ArchiveOut(BaseModel):
+    """Une archive telle que la CIBLE la porte — métadonnées de sidecars, jamais un contenu.
+
+    `sha256`, `lignes`, `tables` sont `None` quand le sidecar manque ou est illisible : la page
+    montre l'archive quand même — cacher un fichier présent sur la cible serait un mensonge."""
+
+    nom: str
+    taille: int
+    cree_le: str
+    sha256: str | None = None
+    lignes: int | None = None
+    tables: int | None = None
+    #: `None` = jamais vérifiée — « export non vérifié » à l'écran, et c'est le point du §7.
+    verification: VerificationArchiveOut | None = None
+
+
+class DonneesOut(BaseModel):
+    """Le 200 de `GET /donnees` (ADR-0065 §7). Des listes, des tailles, des empreintes, des
+    verdicts — AUCUN octet d'archive ne passe par HTTP (§1), ni ici ni ailleurs."""
+
+    certificat: CertificatCibleOut
+    archives: list[ArchiveOut]
+    derniere_verification: VerificationArchiveOut | None = None
+
+
 class SuspensionRequest(BaseModel):
     """La bascule, dans les deux sens. Pas d'expiration, pas de durée : un suspend ne se lève que
     par le geste inverse (ADR-0063 §5) — un champ « pendant N minutes » en ferait un minuteur."""

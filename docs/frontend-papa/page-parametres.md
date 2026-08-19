@@ -51,6 +51,25 @@ seul geste, et il ne persiste rien.
 présent — c'est le piège du lien symbolique, où un SSD débranché rend le message d'un modèle mal
 nommé.
 
+### 💾 Données — la sauvegarde qui se mérite (`adr-0065`, livré le 2026-08-19)
+
+Trois blocs, aucun contenu d'archive : le badge **certificat** (valable + le chemin de la cible,
+ou le motif du refus — le même texte que le 409), le geste **💾 Sauvegarder** (202 → travail de
+file, la barre du header suit ; grisé AVEC le motif quand la cible n'est pas certifiée), et la
+liste des **archives** (nom, date du nom, taille, empreinte du sidecar, statut) avec le geste
+**✓ Vérifier** par ligne.
+
+🔴 **Le mot « sauvegarde » se mérite** : une archive jamais restaurée à blanc s'affiche
+« **export non vérifié** » ; « Sauvegarde vérifiée · date » n'apparaît qu'après un verdict
+`reussie` de `backup_verify` ; un verdict d'échec se dit « vérification en échec (N écarts) ».
+Un test-verrou tient les trois libellés.
+
+🔴 **Aucun octet d'archive ne passe par HTTP** (`adr-0065` §1) : pas de bouton « Télécharger »,
+et le pied de page dit pourquoi. La **destination ne se choisit pas ici** — elle se certifie sur
+l'hôte (`ZETIS_BACKUP_DIR` + `scripts/certifier-cible-sauvegarde.sh`), l'écran affiche le chemin
+et l'explique. Un refus (409) s'affiche en **ambre avec son motif**, jamais en panne rouge
+(`estRefus` distingue au code, pas au texte). Restaurer / supprimer : phase E, hors de cette page.
+
 ### Les règles transverses (`adr-0062` §6)
 
 | Règle | Ce qu'elle interdit |
