@@ -277,8 +277,21 @@ def _curriculum_skills_backfill(db, payload: dict, _llm, _embedder) -> dict:
     )
 
 
+def _backup_create(_db, _payload: dict, _llm, _embedder) -> dict:
+    """La sauvegarde (ADR-0065 §4) — le seul exécutant qui n'utilise NI le LLM NI la session.
+
+    La session du worker lirait la base VIVANTE ; or le manifeste doit être compté sur
+    l'instantané exporté du dump (§5) — le module ouvre sa propre connexion dédiée. Placé dans
+    cette file exprès : concurrence 1, donc aucun générateur n'écrit pendant la sauvegarde.
+    """
+    from app.modules.settings import sauvegarde
+
+    return sauvegarde.creer_sauvegarde()
+
+
 # `job_type` → l'exécutant, qui reçoit `input_json`.
 _EXECUTANTS = {
+    "backup_create": _backup_create,
     "srs_cards_generate": _srs_cards_generate,
     "capsule_generate": _capsule_generate,
     "capsule_regenerate": _capsule_regenerate,

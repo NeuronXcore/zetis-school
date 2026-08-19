@@ -8,19 +8,20 @@ dette immédiate — le premier réglage transversal appelle son propre lieu.
 à Massimo, ce serait lui apprendre qu'un contenu peut disparaître.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.modules.ai import get_provider
+from app.modules.ai import get_provider, travaux
 from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import require_parent
-from app.modules.settings import ecarts, machine, service
+from app.modules.settings import ecarts, machine, sauvegarde, service
 from app.modules.settings.schemas import (
     AutonomyOut,
     AutonomyRequest,
     EcartsOut,
     MachineOut,
+    SauvegardeAccepteeOut,
     SuspensionOut,
     SuspensionRequest,
     TestMoteurOut,
@@ -131,3 +132,25 @@ def set_production_suspension(req: SuspensionRequest, db: Session = Depends(get_
     s'écourte entre deux pièces et se raconte au journal ; les lots en file repartiront à la levée.
     """
     return {"suspended": service.set_production_suspended(db, suspended=req.suspended)}
+
+
+@router.post(
+    "/donnees/sauvegarde",
+    response_model=SauvegardeAccepteeOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def post_sauvegarde(db: Session = Depends(get_db)) -> dict:
+    """Enfile `backup_create` (ADR-0065 §4, §7) — 202 métadonnées, ou **409 fail-closed**.
+
+    Le refus part **AVANT** `travaux.enfiler` : quand le certificat manque, est illisible, porte
+    des UUID égaux (§3), ou qu'une sauvegarde est déjà en file ou en cours (read-before-code :
+    rien d'autre n'empêche le doublon), AUCUN job n'est créé. C'est le précédent du 409 motivé
+    (`workers_router.py`, A1) : le verrou vient du serveur, avec son motif.
+
+    ⚠️ La réponse ne porte que des métadonnées de travail (§1) : aucun octet d'archive ne passe
+    par HTTP, ni ici ni sur aucune route.
+    """
+    motif = sauvegarde.refus(db)
+    if motif:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
+    return travaux.enfiler(db, job_type=sauvegarde.JOB_TYPE, payload={})

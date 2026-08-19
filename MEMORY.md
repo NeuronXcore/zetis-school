@@ -6,692 +6,149 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-18, séance du SOIR — étape 4bis FAITE) — `main` **égal à
-> `origin/main`**, rien à pousser ; **aucune branche** vivante. **QUATRE chantiers** ce soir, tous
-> **MERGÉS** (squash), branches supprimées :
-> - **#156** (`bf148b8`) — `scripts/ci-like.sh` calibré sur le vrai runner (4 vCPU, `--cpuset-cpus`).
-> - **#157** (`b1dec13`) — l'image backend de prod embarque l'extra `[stt]` ; la dictée, morte en
->   prod (503), est réparée **dans l'image**, déployée et vérifiée.
-> - **#158** (`b12f3a0`) — flake `AtelierPage` (« un finish qui CASSE » + ses 2 jumeaux) : `findBy`
->   à 1 s parfois trop court sous la contention CI. Fusion en **admin**, car un flake SANS RAPPORT
->   bloquait alors la CI — c'est #159.
-> - **#159** (`15ea76d`) — ce flake, justement : `DiagnosticPage.observation`, une assertion
->   **synchrone** sur un `scrollIntoView` d'`useEffect` (course effet-passif / `findByRole`). Rouge
->   sur le runner, vert en local ; reproduit en différant l'effet, corrigé par `waitFor`. Mergé
->   proprement (CI verte, sans admin).
->
-> Détail #156/#157 : « LES DEUX CHANTIERS DU SOIR » ; #158/#159 : « LES DEUX FLAKES DE LA CI ».
-> 🟢 **Plus rien d'ouvert sur ces quatre chantiers.** **Résidus qui traînent** (chacun un chore/fix à
-> part) : les flakes `CouverturePage`/`DashboardPage` (jamais reproduits, donc pas de diagnostic),
-> `mise-en-route.sh` + le venv de l'hôte **toujours hors dépôt** (une machine de DEV neuve repart
-> muette côté natif), et `docs/devops/docker-compose.md` **obsolète**. Rappel : les chantiers
-> **#146→#155** ont été mergés plus tôt ce jour — détail plus bas et `CHANGELOG.md`.
->
-> 🟢 **LA PROD TOURNE** (2026-08-18, séance de vérification) — **8 conteneurs debout**, backend
-> `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**. Base de PROD à **0 leçon / 0 fiche** : un vrai
-> début d'année. Base de DEV inchangée (157 leçons, 48 fiches) sur `localhost:5432`. Les deux
-> cohabitent : DEV sur `:8001` / `:5176` / `:5175` (paires `.claude/launch.json`).
->
-> ✅ **LA SURVIE AU REDÉMARRAGE DU MAC EST PROUVÉE** (2026-08-18, reboot réel). Après redémarrage,
-> sans qu'on tape quoi que ce soit : NVMe monté, **Docker Desktop démarré seul**, **8/8 conteneurs de
-> prod revenus**, backend `healthy`, `:8000` `:5173` `:5174` en **HTTP 200**, données intactes
-> (année 2026-2027, 2 utilisateurs). Le chantier `946baba` est validé de bout en bout.
->
-> 🔴 **ET UN PIÈGE DE DIAGNOSTIC À NE PAS REFAIRE : `settings-store.json` N'EST PAS la source de
-> vérité de l'autostart.** Il dit `AutoStart: False` — **encore maintenant, alors que Docker vient
-> de démarrer tout seul**. La case « Start Docker Desktop when you sign in » passe par les
-> **éléments d'ouverture de macOS**, pas par cette clé. C'est `launchctl` (`com.docker.helper`
-> enregistré) qui disait vrai. J'ai perdu du temps à croire ce fichier ; ne pas le rejouer.
->
-> 📌 **Deux mécanismes distincts, tous deux prouvés, à ne pas confondre :** la reprise après **crash
-> de processus** (`kill -TERM 1` depuis l'intérieur → `RestartCount` 0 → 1, PID changé) et le
-> **démarrage du démon** qui relance ce qui tournait (après reboot : `RestartCount` reste à **0**).
-> Un `RestartCount` à 0 après un reboot n'est donc pas un échec — c'est l'autre mécanisme.
->
-> ✅ **L'infra de DEV n'est PAS revenue** (`zetis-postgres-1` : `Exited (255)`), **et c'est correct** :
-> `946baba` n'a posé `restart: unless-stopped` que sur la pile de PROD. Le dev se lance à la demande.
-> ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
-> qui refusera tant que la prod tient les ports (et c'est voulu).
-
-### ⏸ CADRAGE DE LA PHASE B « LA SAUVEGARDE QUI SE MÉRITE » — ADR-0065 écrit, pas encore codé (2026-08-19)
-
-**PROCHAIN PAS : l'humain relit et committe le lot Décision sur `main`** (ADR-0065 +
-`DECISIONS.md` régénéré + `BACKLOG.md` + ce fichier), **puis** `/ouverture` vers
-`feat/sauvegarde-qui-se-merite`. Rien sous `apps/` ni `packages/` n'a bougé ;
-`check_adr_refs.sh` sort en 0.
-
-**Ce que l'ADR-0065 décide** (ne pas re-débattre) : l'archive naît sur le disque cible et **aucun
-octet n'en passe par HTTP** (données de Massimo + hash de mots de passe) · elle couvre le
-**quatuor** Postgres + MinIO (par l'API S3) + volume `capsule_audio` + manifeste, exclusions
-écrites dedans (`.env`, Redis, modèles) · le refus « même volume » vient d'un **certificat écrit
-par l'hôte** (UUID lisibles de l'hôte seulement), **fail-closed** · `backup_create` et
-`backup_verify` sont des travaux de la **file existante** (`travaux.enfiler`,
-`created_by="file"`, concurrence 1 — la sérialisation achète la cohérence du couple ; ordre
-imposé : dump d'abord, objets ensuite) · le manifeste compte **sur l'instantané du dump**
-(`pg_export_snapshot` + `pg_dump --snapshot`) et la création **refuse** une archive au couple
-incomplet · la vérification restaure à blanc dans `zetis_verify` (détruite en `finally`, la base
-`zetis` jamais touchée) · l'export RGPD = **deux gestes**, le lisible reste en phase E ·
-**« Suspendre ZETIS » (ADR-0063) n'est PAS consommé** — la sauvegarde est additive, c'est la
-restauration (E) qui suspendra.
-
-🔴 **CE QUE LE READ-BEFORE-CODE A CORRIGÉ (la maquette a encore menti, 5 fois) :**
-
-1. « La donnée vit dans trois endroits » — **quatre** : le volume `capsule_audio` (WAV Piper sur
-   disque, jamais dans MinIO) était oublié.
-2. « PDF importés 96 Mo, seul poste irremplaçable » — **le poste n'existe pas** : `rag/upload`
-   extrait le texte vers Postgres, le fichier n'est jamais persisté.
-3. KPI « 1,86 Go · 41 812 lignes · 37 tables · 1 204 objets » — **inventés** : prod réelle
-   12 Mo · 219 lignes · 48 tables · 0 objet.
-4. Disques « ZETIS-SSD / LLM-SSD » — noms inventés ; réel : `NX-Projects` (données + `Docker.raw`,
-   15 Go réels) et `NX-Models`, **deux disques physiques distincts** (UUID mesurés).
-5. « la page compare les UUID » — illisibles du conteneur, **lisibles de l'hôte** (`diskutil`) —
-   d'où le certificat.
-
-📌 **Mesures** (2026-08-19, les deux piles vivantes) : `pg_dump` dev **0,17 s → 2,6 Mo** (16 Mo,
-9 161 lignes) ; prod **0,13 s → 151 Ko** (12 Mo, 219 lignes) ; restauration à blanc dans
-`zetis_verify` **0,29 s**, comptage restauré **9 161/9 161**, tête Alembic identique
-(`a8a71c84f86e`), extension `vector` présente, DROP propre · `pg_dump` **absent de l'image
-backend** (seul `curl` est installé) → `postgresql-client-16` (PGDG) à baker, majeure alignée sur
-`pgvector/pgvector:pg16` · MinIO **ne se copie pas par `/data`** (format `xl.meta`) → API S3 ·
-rôle `zetis` **superuser** (dev et prod) → `CREATE/DROP DATABASE` ok · plus long lot réel fini :
-**146 s** ; timeout de file 3 600 s · **preuve que le contrôle de complétude sert** : en dev,
-8 capsules référencent une vidéo, le bucket n'en contient **1** (backends `disk`/`minio` mélangés
-au fil du temps) — une sauvegarde dev honnête refuserait aujourd'hui.
-
-⚠️ **Pièges consignés pour les slices** : le backend n'a **aucun montage hôte** aujourd'hui — la
-cible exige un bind mount neuf (`${ZETIS_BACKUP_DIR:?}` → `/backups`, sur `backend` ET `worker`) ·
-`settings-store.json` a déjà menti (AutoStart) — le script de certification vérifie la **présence
-réelle** de `Docker.raw`, il ne croit pas le réglage · les durées mesurées de la sauvegarde sont
-**sous le `PLANCHER_MS`** de la barre (2 s) — amorce à poser au-dessus, en connaissance.
-
-### ✅ PHASE A SOLDÉE — les deux gestes de 🧠 La machine sont sur `main` (2026-08-19)
-
-**PROCHAIN PAS : ✅ fait — le cadrage de la phase B est écrit (ADR-0065, bloc ci-dessus).**
-
-La journée du 2026-08-19, bout en bout : ADR-0062 → tranche 1 mergée (#160, `49a4890`) → ADR-0063
-→ A1 mergé (#161, `9e93746`) → ADR-0064 (surface, APRÈS l'écran) → A2 mergé (#162, `fb031d3`).
-Quatre PR, quatre CI vertes, deux ADR avant le code et un après l'écran — le rituel a tenu sur
-toute la ligne. Les blocs A1/A2 ci-dessous décrivent les chantiers ; leurs « prochains pas » sont
-tous SOLDÉS.
-
-⚠️ **Résidus de la journée, chacun avec son porteur :**
-- 🟡 **Flake CI NOUVEAU : `ProgrammePage.test.tsx`** (« pendant la génération : barre de
-  progression estimée ») — a rougi la PR #161 qui ne le touche pas, 0/3 sous `ci-like.sh`, vert au
-  rerun sur le même SHA. Même famille que #158/#159 (assertion qui court après un rendu async).
-  S'ajoute à la liste `CouverturePage` / `DashboardPage` / `AtelierPage`.
-- ✅ **Retouche de libellé SOLDÉE** (ADR-0064 §3, cas 2) — PR #163, squash `3d19c10`, branche
-  supprimée, CI verte du premier coup, tests inchangés. Le 202 dit « …puis sort, et le superviseur
-  le relance » ; la promesse a aussi quitté les docstrings (`workers.py`, `workers_router.py`) et
-  le commentaire client (`settings.ts`) — `MachineTab.tsx` vérifié, il ne promettait rien. Reste
-  UN écho de deux mots dans un COMMENTAIRE de test (`test_production_workers_restart.py:73`,
-  « être relancé à jour ») — laissé à dessein (tests sans modification exigés), à ramasser au
-  prochain passage dans ce fichier.
-- 🟡 **`scripts/audit_contexte.sh` est entré dans `main` par accident** (squash #162) : ce fichier
-  non suivi de l'utilisateur a fini indexé pendant la résolution du rebase, malgré l'exclusion
-  `:!` des commits individuels. **Vérifié : aucun secret** — script d'audit de docs, sain. À
-  l'utilisateur de décider s'il reste (il est utile) ou part.
-- ⚠️ **La carte a menti deux fois le jour de sa livraison** (ses propres chantiers non reportés,
-  trouvés par la démo à l'écran, corrigés). C'est le signal que l'ADR-0062 avait écrit d'avance :
-  « si elle dérive, elle doit être DÉRIVÉE, pas écrite ». Deux occurrences en un jour — à peser au
-  prochain chantier de la page.
-- Le worktree sert `main` : la page complète (carte + Autonomie + La machine avec les DEUX gestes)
-  est visible sur `:5175`.
-
-### ⏸ A2 « SUSPENDRE ZETIS » — backend LIVRÉ selon l'ADR-0063, surface LIVRÉE, en PR après le merge d'A1 #161 (2026-08-19)
-
-Branche `feat/suspendre-zetis` (depuis `main`). **Backend complet, committé `01bbf45` (rebasé).** La surface
-(bouton dans 🧠 La machine + état sidebar) attend le **merge de la tranche 1** — même situation
-que A1 slice 2, et c'est voulu : pas d'onglet, pas de bouton. ⚠️ Le bloc MEMORY d'A1 vit sur SA
-branche (`feat/redemarrer-un-worker`) — les trois branches ont chacune leur tranche de mémoire,
-elles se recolleront aux merges.
-
-**Livré, § par § de l'ADR-0063** : §1 `"suspended"` en TÊTE de `REGULATORS` + garde dans
-`create_run` (après les 404 de validation, avant `duplicate`) · §2 `triggers.py` n'enregistre
-JAMAIS ce refus (2 sites, `exc.regulator != "suspended"`) · §3 `ProductionSuspendue` levée par le
-hook `_position` (grain de la PIÈCE), attrapée DANS la boucle d'`execute` — pièces produites
-**tamponnées et comptées au journal**, notions restantes en `blocked`, statut **`done`** jamais
-`failed` · §4-5 clé `zetis_production_suspended` (patron auto_trigger) · routes GET/PUT
-`/api/settings/production-suspension`. **9 tests**, suite 1448/1448.
-
-🔴 **LE DÉTAIL QUI PORTE TOUT : `production_suspended()` lit par `select()`, JAMAIS `db.get()`.**
-Le worker lit dans SA session pendant que le PUT de Papa écrit par une autre connexion —
-`db.get` servirait l'identity map (la valeur d'il y a une heure), et un arrêt d'urgence qui obéit
-à l'état d'il y a une heure n'arrête rien. Prouvé par le test « en vol » (le fake pose la clé par
-une autre session après la 1re génération → arrêt à la pièce suivante, pièce produite conservée).
-
-⚠️ Un lot-PIÈCE (`equip_piece`) n'a pas de check en vol, et c'est écrit dans le code : une seule
-pièce ~15-45 s, le grain de l'arrêt équivaut au lot — le régulateur a déjà refusé le départ.
-
-### 🔁 A1 « REDÉMARRER UN WORKER » — backend LIVRÉ, surface DÉBLOQUÉE par le merge #160 (2026-08-19)
-
-Branche `feat/redemarrer-un-worker` (depuis `main`, **zéro fichier commun** avec la tranche 1 —
-vérifié contre le lot `1295f87`). **Cas surface (`adr-0060` cas 4) : l'ADR viendra APRÈS l'écran**,
-donc après la slice 2. Committé `f536963` (rebasé sur `49a4890`).
-
-**Livré (slice 1, mécanisme)** : `PRODUCTION_WORKER_SUPERVISED` (défaut **False** = on refuse de
-tuer ce qui ne reviendra pas ; posé `true` dans l'ancre `generation-env` de
-`docker-compose.prod.yml` — la variable décrit le DÉPLOIEMENT, vraie pour les deux conteneurs) ·
-`modules/production/workers.py` + `workers_router.py` (`POST /api/production/workers/{name}/restart`,
-routeur dédié : `activity_router` annonce « UN seul geste d'écriture », on ne fait pas mentir son
-en-tête) · 5 tests · **prouvé en vrai** : 409 motivé contre le backend-dev vivant, worker intact.
-
-📌 **Trois faits vérifiés qui portent le chantier** : ① `Worker.work()` → `bootstrap()` →
-`self.subscribe()` — **SimpleWorker écoute le canal de commandes** (ne surcharge ni work ni
-subscribe), donc `send_shutdown_command` = warm shutdown, la pièce se termine puis il sort ;
-② le piège « le réveil périodique se duplique à chaque redémarrage » est **déjà corrigé**
-(`scan_already_planned`, vérifié 3 redémarrages → 1 réveil) — le bouton n'aggrave rien ;
-③ en prod `restart: unless-stopped` → l'arrêt EST le redémarrage — du MÊME conteneur, donc du
-même code (sur-promesse corrigée par l'ADR-0064 §3, libellés retouchés par la #163 : le bouton
-répare un worker COINCÉ, le périmé se répare en déployant).
-
-⚠️ **Piège d'outillage consigné** : cette version de FastAPI monte les routeurs en
-`_IncludedRouter` PARESSEUX — `app.routes` ne contient plus d'`APIRoute` aplaties. Compter les
-routes par `getattr(r, 'path')` rend 0 et fait croire que l'include a échoué. La seule preuve est
-un appel TestClient/curl.
-
-**PROCHAIN PAS (slice 2, après merge de la tranche 1)** : exposer `supervised: bool` dans
-`GET /api/settings/machine` + le bouton « Redémarrer » par worker dans `MachineTab.tsx` (grisé avec
-le motif du 409 quand non supervisé) + l'ADR de surface. La ligne d'inventaire
-« Mise à jour / redémarrer un service · 🚫 jamais » reste vraie : un WORKER n'est pas un service —
-préciser la carte à la slice 2.
-
-### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063, pas encore codé (2026-08-19)
-
-### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063 ✅ CODÉ le jour même (voir bloc A2 ci-dessus)
-
-> Backend committé `01bbf45` sur `feat/suspendre-zetis` ; la tranche 1 est mergée depuis. Le lot Décision de ce cadrage est **écrit, non committé** :
-`docs/decisions/adr-0063-…md` + `DECISIONS.md` régénéré + `BACKLOG.md` + ce fichier.
-`check_adr_refs.sh` sort en 0, rien sous `apps/` ni `packages/` n'a bougé.
-
-**Ce que l'ADR-0063 décide** (ne pas re-débattre) : suspendre est un **sixième régulateur** de
-`runs.create_run`, évalué en premier · il **ne persiste PAS** son refus (seul refus dont Papa
-connaît la cause : il l'a causée) · le lot en cours s'arrête **entre deux pièces** et se raconte ·
-le drapeau vit dans `app_settings` et **survit au redémarrage** · il **ne se relève jamais seul** ·
-l'état se lit **dans la sidebar**, sur les 22 écrans.
-
-🔴 **DEUX PIÈGES QUE LE READ-BEFORE-CODE A ÉVITÉS, et le second n'a été vu qu'à la VÉRIFICATION
-DES FAITS** (étape §5 du `/cadrage`) :
-
-1. **`massimo_is_active` ne peut pas héberger le drapeau.** Elle est consommée par une boucle
-   d'attente **bornée** (`production_max_wait_minutes`) : un suspend posé là se **dé-suspendrait
-   tout seul**. J'avais annoncé le contraire à l'oral — c'est faux.
-2. **Le code préempte entre NOTIONS ; l'`adr-0031` §3 avait décidé la PIÈCE.** `runner.py:484` cite
-   l'ADR *en le contredisant*. Divergence **préexistante**, invisible jusqu'ici. Le crochet
-   `on_piece` existe déjà (`equipment.py:281`, posé pour la barre de progression). L'ADR-0063 prend
-   le grain **décidé** — et laisse `_wait_for_massimo` en l'état : le corriger changerait la
-   priorité de Massimo, c'est une autre décision.
-
-📌 **Mesures** : `runs.create_run` est la **porte unique** — 3 appelants (`runs_router.py:33`,
-`triggers.py:154`, `triggers.py:271`) · 5 régulateurs à vocabulaire fermé y vivent déjà · une
-notion = **69 s** mesurés le 2026-08-02, reconfirmés **77 s** le 2026-08-06 · une pièce = **~15 s**
-(fiche) et **~17 s** (carte mentale), mesurées le 2026-08-03 · les autres durées sont des
-**amorces jamais mesurées**, et l'ADR le dit. ⚠️ **Aucun de ces chiffres n'a été re-mesuré** : la
-base de DEV ne porte aucun `equip_notion` de file (`n=0`).
-
-### 🗺 LA PAGE PARAMÈTRES EST LIVRÉE — tranche 1 MERGÉE (PR #160, squash `49a4890`, 2026-08-19)
-
-✅ **Carte + ⚡ Autonomie + 🧠 La machine sont sur `main`**, CI verte (pytest · vitest · verrous).
-ZETIS LEVELS déplacé sans une ligne changée. Le lot Décision (ADR-0062 `2742337`) a été poussé
-AVANT le merge pour que le squash ne porte que le code.
-
-**PROCHAIN PAS : les deux SURFACES débloquées par ce merge**, chacune sur sa branche existante :
-- `feat/redemarrer-un-worker` (`f536963`) — slice 2 : `supervised` dans `GET /machine` + bouton
-  par worker dans `MachineTab` (grisé avec le motif du 409) + **ADR de surface** (cas 4).
-- `feat/suspendre-zetis` (`01bbf45`) — la surface §6-§7 : geste dans La machine + état sidebar.
-  ⚠️ **Conflit ATTENDU et trivial au rebase** : `settings/router.py` et `schemas.py` — les deux
-  branches ajoutent en fin de fichier. A1, lui, a zéro fichier commun (vérifié).
-
-> Archive du cadrage (le bloc d'origine suit, conservé pour ses mesures) :
-
-Le lot Décision est **écrit et non committé** : `docs/decisions/adr-0062-…md` (neuf) +
-`DECISIONS.md` (régénéré) + ce fichier. `check_adr_refs.sh` sort en 0. **Rien sous `apps/` ni
-`packages/` n'a bougé** — c'est un cadrage, cas 3 de l'`adr-0060`.
-
-**Ce qui a été décidé** (détail dans l'ADR-0062, ne pas le re-débattre) :
-
-- La page devient **une carte + cinq onglets** : 🗺 carte · ⚡ Autonomie · 🧠 La machine ·
-  🎒 Massimo · 👤 Papa · 💾 Données. La **carte est la vue par défaut ET la navigation**.
-- *Moteurs* et *Santé* de la maquette **fusionnent** en 🧠 **La machine** : deux panneaux de lecture
-  pure pour une seule question — un diagnostic doit tenir sur un écran.
-- **Un onglet vide = un interrupteur sans effet, en plus grand.** Seuls les onglets qui ont du
-  contenu sont rendus ; les autres sont des **lignes de la carte**.
-- 🔴 **ZETIS LEVELS est déplacé, jamais réécrit.** Manual · Hybrid · Autonom intacts.
-- **🎒 assumé et marqué** : la phrase « Rien de cette page n'atteint Massimo » sera amendée **dans
-  le commit** du premier réglage qui traverse — pas à côté d'un bouton qui la contredit.
-- **Jamais bâtis, motif écrit** : journal technique · sélecteur de modèle · réinitialisation totale
-  à l'écran · sessions ouvertes et révocation.
-
-**Tranche 1 = coquille + carte + Autonomie + La machine.** Trois critères qui bornent : *aucune
-migration Alembic* · *`git diff` sur les 8 fichiers de ZETIS LEVELS ne montre que des imports et
-des chemins* · *aucun champ éditable dans La machine*.
-
-🔴 **RISQUE DE RÉGRESSION NOMMÉ D'AVANCE.** `ParametresPage.test.tsx` fait passer ~20 tests par
-`renderLoaded()` (L77), qui attend *ZETIS LEVELS* au montage. L'autonomie passant derrière un
-onglet, le helper devra **sélectionner l'onglet d'abord** — et c'est le **seul** changement autorisé
-dans ce fichier. Aucune assertion affaiblie, aucun `waitFor` allongé.
-
-⚠️ **HUIT AFFIRMATIONS DE LA MAQUETTE SONT FAUSSES**, mesurées avant l'ADR (tableau du §Contexte).
-Les trois qui coûtent le plus cher si on les rejoue : `packages/prompts/` **ne contient qu'un
-README** (les prompts sont 12 modules dans `apps/backend/app/prompts/`, tous versionnés) ·
-**aucun ADR ne porte « suspendre ZETIS »** malgré ce que la maquette annonce · **`ai_jobs`
-n'enregistre pas le provider**, donc le journal des sorties réseau sera **dérivé** de
-`job_type LIKE 'curriculum_%'`, jamais lu.
-
-📌 **Mesures faites** : 67 réglages recensés (25 ici · 7 ailleurs · 5 nulle part · **30 à décider**)
-· **8 clés `app_settings`** exactement, écrites par **deux** modules (`settings/service.py`,
-`agenda/service.py`) — c'est ce qui rend « N réglages s'écartent du défaut » gratuit : *l'absence de
-ligne EST le défaut*, donc « modifié » = « une ligne existe ».
-
-### 🌙 LES DEUX CHANTIERS DU SOIR (2026-08-18) — le harnais calibré, la dictée rendue à la prod
-
-Deux dettes déjà inscrites plus bas dans ce fichier ont été soldées ce soir. **Aucune décision
-neuve** : deux applications (ADR-0060 cas 2), sur deux branches distinctes.
-
-**1. `ci-like.sh` calibré sur le vrai runner — PR #156 (`chore/calibrer-le-harnais-ci`).** La sonde
-du job « verrous du dépôt » a mesuré le runner : **4 vCPU, 15 Gi, AMD EPYC 9V74**. La bride valait
-`--cpus=2` — mauvais chiffre ET mauvais drapeau. Deux corrections : `2 → 4` (surchargeable via
-`CPUS=`), et surtout `--cpus → --cpuset-cpus`. Mesuré : `--cpus=4` laisse voir **nproc=24** dans le
-conteneur (vitest y lance ~24 workers), `--cpuset-cpus=0-3` en montre **4**. L'ancien harnais
-sur-souscrivait pathologiquement — d'où ses 13-30 échecs/passage, un régime que la CI ne connaît
-pas. **Preuve** : `ci-like.sh 5 frontend-papa` passe de **5/5 rouges** à **0/5** (815/815 à chaque
-passage). → Ceci SOLDE le « PROCHAIN PAS 1 » de la dette CI plus bas ; le vrai flake demeure
-(`CouverturePage`, `DashboardPage`, `AtelierPage`), désormais reproductible sous le harnais calibré.
-Pastille déposée pour `AtelierPage.test.tsx` (le flake `/Ton travail est bien enregistré/` qui a
-rougi #156).
-
-**2. La dictée rendue à la prod — PR #157 (`fix/la-dictee-manque-dans-l-image-prod`).** Massimo :
-« pas de voix ». Le micro s'ouvrait, l'audio partait, `/api/student/chat/transcribe` répondait
-**503** → « La dictée n'est pas dispo ». Cause : `infra/docker/backend.Dockerfile` installait
-`apps/backend[tts]` **seul** — la voix Piper marchait (d'où `/chat/tts` à 200), mais `faster_whisper`
-était absent de l'image. C'est la MÊME panne que « la machine muette et sourde » du matin, mais dans
-un AUTRE environnement : le matin a réparé le **venv de l'hôte** (hors dépôt) ; l'image de prod ne
-l'avait jamais eu. Correctif : `[tts,stt]` + **modèle Whisper `small` baké** (comme la voix Piper) +
-verrou `test_dockerfile_backend_extras.py`. **Déployé** (image reconstruite, conteneur recréé) et
-**vérifié dans le vrai navigateur** : `/transcribe` → **200**, pipeline complet (micro → transcription
-→ tour de chat). `getUserMedia` marche côté Chrome — « pas de voix » était 100 % backend.
-
-🔴 **Deux pièges de cette séance, relogés dans `TROUBLESHOOTING.md` :**
-1. **`--cpus` ≠ `--cpuset-cpus`** : `--cpus` ne borne que le TEMPS CPU, pas le nombre de cœurs
-   visibles. Un harnais qui bride avec `--cpus` laisse vitest voir tout l'hôte.
-2. **Un correctif HORS DÉPÔT (venv, `.env`) ne couvre PAS l'image Docker.** L'image est un
-   environnement à part ; elle installe ses propres extras. La preuve venv du matin masquait le trou.
-
-⚠️ **Résidus de la séance (rien d'autre ne les porte) :**
-- ✅ Les deux PR sont **MERGÉES** (squash `bf148b8` #156, `b1dec13` #157), **4bis fait**, branches
-  supprimées, `main` = `origin/main`.
-- La CI des deux PR était **verte au merge** (le flake `AtelierPage` n'a pas rejoué ce coup-ci). Il
-  **demeure** et peut rougir d'AUTRES PR sans rapport — pastille posée.
-- La rustine « pip dans le conteneur vivant » n'a **pas** été employée (le rebuild propre l'a
-  remplacée) : aucun état manuel ne traîne dans le conteneur de prod.
-- Docker Hub a **timé out** (`DeadlineExceeded` sur le *load metadata* de `python:3.11-slim-bookworm`,
-  base non cachée) au premier `up --build` ; un `docker pull` direct l'a amorcée, puis le rebuild a
-  passé. Registre lent, pas un défaut du Dockerfile.
-
-### 🔧 LES DEUX FLAKES DE LA CI — trouvés, reproduits, corrigés (2026-08-18, soir)
-
-Deux tests instables rougissaient la CI par intermittence sur des PR **sans rapport**. Même famille
-de cause (une assertion qui court après un rendu asynchrone), deux mécanismes distincts. Méthode PR
-#147 dans les deux cas : **reproduire de façon déterministe → corriger sans affaiblir → vérifier
-sous sabotage encore actif.**
-
-**#158 (`b12f3a0`) — `AtelierPage`, le finish (3 tests d'un même `describe`).** Le message (ou la
-navigation) ne paraît qu'après DEUX `await` enchaînés (`persister` → `finishDraft`) + un re-render ;
-`findBy` à 1 s s'épuisait parfois avant, sous la contention CI. Reproduit en retardant `finishDraft`
-de 1,5 s (les trois tombent au mot près), corrigé par la fenêtre nécessaire (`timeout: 5000`) sur la
-seule assertion concernée de chacun. **Fusion en admin** : le flake #159 bloquait la CI au même
-moment.
-
-**#159 (`15ea76d`) — `DiagnosticPage.observation`, le scroll.** `scrollIntoView` est dans un
-`useEffect` (clé `erreur`), donc APRÈS le commit ; `findByRole("alert")` se résout parfois AVANT
-l'effet passif, et l'assertion **synchrone** `expect(scroll).toHaveBeenCalled()` perdait la course.
-**Rouge sur le runner, vert en local** (le « inexpliqué » de MEMORY). Reproduit de façon
-déterministe en différant l'effet d'un macrotask (`setTimeout(…,0)`, sabotage temporaire du
-composant → même échec au mot près), corrigé par `await waitFor(() => expect(scroll)…)`. Mergé
-proprement (CI verte, sans admin).
-
-📌 **Deux motifs RTL à reconnaître (relogés dans `TROUBLESHOOTING.md`) :** (1) une assertion sur un
-rendu à plusieurs `await` a besoin d'une fenêtre `findBy` suffisante, pas du défaut de 1 s ; (2) une
-assertion sur un effet d'`useEffect` (side-effect, ex. `scrollIntoView`) doit être **attendue**
-(`waitFor`), jamais synchrone — `findByRole` se résout au commit, pas après l'effet passif.
-
-⚠️ **Ce que ça n'a PAS traité :** `CouverturePage` et `DashboardPage`, **jamais reproduits** (donc
-pas de diagnostic — « trouvé ≠ actionnable »). Ils restent la dette CI ouverte.
-
-### 🟢 LA SÉANCE PROD — trois défauts que SEUL un démarrage réel pouvait trouver (2026-08-18)
-
-La pile de prod a démarré pour la **première fois**. Elle avait un seul but — voir ce qu'aucun test
-ne peut voir — et elle a rendu **trois défauts**, tous invisibles jusque-là.
-
-**1. Docker publiait dans le vide (#153, `5f1104f`).** Les 8 conteneurs `Up`, le backend `healthy`,
-et les deux frontends **injoignables** : `docker port` rendait « aucune liaison ». Un conteneur
-rattaché au seul réseau `interne` (`internal: true`) **ne peut pas publier de port** — Docker accepte
-la déclaration `ports:` et ne fait rien, sans erreur ni avertissement. Le backend marchait parce
-qu'il est aussi sur `externe`. Défaut présent depuis l'introduction des réseaux (ADR-0046).
-⚠️ `minio` garde des publications **inertes à dessein** : lui donner `externe` ouvrirait une sortie
-au magasin de données pour le confort d'une console. C'est écrit, et le verrou le nomme en exception.
-
-**2. L'avancement repartait de zéro à la première image (#154, `5d4df9a`).**
-`useEstimatedProgress` faisait `useState(0)` puis calculait dans un `useEffect` — qui s'exécute
-**après** la première peinture. L'intention contraire était écrite dans le fichier depuis l'origine.
-Sur 2 cœurs, une requête DOM gagne la course et lit « 0 % » : `DemandesPage` est tombée ainsi en CI.
-Corrigé par un initialiseur paresseux ; sonde de premier rendu en verrou.
-
-**3. Le dev pouvait écrire dans l'année réelle de Massimo (#155, `01daf25`).** Deux chemins
-silencieux : le repli codé `?? "http://localhost:8000"` (actif dès qu'aucun `.env.local` n'existe,
-donc sur toute machine clonée) et `pnpm dev`, dont le backend échoue à prendre 8000 mais dont **Vite
-démarre quand même** et appelle 8000. Repli → **8001**, `dev.sh` **refuse** si les ports canoniques
-sont pris, et pose `VITE_API_URL` explicitement.
-
-🔴 **Deux pièges laissés, que rien d'autre ne porte :**
-
-1. **`pnpm dev` REFUSE de démarrer si la prod tourne** — c'est voulu, et le message nomme le remède
-   (une paire `launch.json`, ou `pnpm prod:down`). Ne pas le « réparer ».
-2. **Les `.env.local` que j'ai posés ne voyagent pas** (gitignorés). Sur une machine neuve, c'est le
-   repli à 8001 qui protège — d'où son importance.
-
-> ❌ **UNE TROISIÈME DETTE ÉTAIT INSCRITE ICI. ELLE ÉTAIT FAUSSE — ne pas la rouvrir.**
->
-> J'avais noté que `apps/extension-zetis-clip` « vise la prod » comme si c'était un défaut, et que
-> `Options.tsx` « valide » l'URL `localhost:8000`. **Les deux sont inexacts**, vérifié le
-> 2026-08-18 :
->
-> - **Viser 8000 est l'usage CORRECT.** L'ADR-0006 fait de l'extension un *client de capture* : Papa
->   y envoie de vraies sources de cours, qui arrivent en `pending` et se valident sur sa page
->   « Sources de cours ». C'est une activité de **production**. Contrairement aux frontends,
->   l'extension DOIT parler à la prod.
-> - **`Options.tsx:29` ne valide rien — il fait l'inverse** : `if (!/localhost:8000/.test(clean))
->   → chrome.permissions.request(...)`. Autrement dit, *si ce n'est pas 8000, demande la permission
->   d'hôte*. Et `manifest.config.ts` porte bien `optional_host_permissions: ["http://*/*",
->   "https://*/*"]` pour que cette demande aboutisse. **Pointer l'extension sur `:8001` fonctionne
->   déjà.**
->
-> 📌 La leçon vaut au-delà : cette fausse dette est née d'un `grep` sur `localhost:8000` lu **sans
-> ouvrir les fichiers**. Trois occurrences, trois conclusions fausses. Un motif de recherche n'est
-> pas un diagnostic.
-
-📌 **Une leçon de méthode, née d'une erreur de la séance** : une PR a été ouverte sur une branche
-voisine de celle qui portait le correctif. Le corps décrivait trois correctifs, la PR n'en portait
-qu'un, et **la CI était verte** — elle ne pouvait rien voir. Ce qui l'a rattrapé, c'est d'avoir
-**compté les fichiers du merge** (4 listés là où le diff en annonçait 7). *Vérifier ce qui est entré
-dans `main`, pas seulement que le merge a réussi.*
-
-### 🔴 LE COMPILATEUR A TROUVÉ UN DÉFAUT PRODUIT — #151 (`e61fecf`) et #152 (`e3d4641`)
-
-Parti pour corriger trois erreurs `tsc` qui bloquaient le build des images. Le compilateur ne
-signalait pas une gêne de typage : **Papa se voyait offrir Valider / Rejeter / Éditer / Régénérer /
-Supprimer sur les fiches personnelles de son fils.** Mesuré sur la base réelle : **11 fiches**
-(5 `personal`, 6 `personal_draft`).
-
-**L'ADR-0015 (constat 5) avait prédit ce défaut mot pour mot** — *« elle apparaîtrait dans l'arbre
-de pilotage de Papa, avec ses boutons Valider / Rejeter / Éditer »* — nommé le fichier et la ligne,
-et prescrit le remède : *« pilotage_tree exclut author='massimo' »*. Le prédicat `zetis_authored()`
-existait déjà, sa docstring nommait l'usage (« la population de la production **et du pilotage** »),
-et il n'était branché nulle part.
-
-📌 **La leçon, et elle vaut au-delà de ce chantier : l'ADR n'était ni fausse ni mal formulée. Ce qui
-a manqué, c'est l'exécution — et le contrôle qui l'aurait rendue obligatoire.** Une décision juste,
-écrite, citée, mais que rien ne vérifie, se perd exactement comme une décision absente.
-
-🔴 **Deux pièges laissés derrière, que rien d'autre ne porte :**
-
-1. **NE JAMAIS renommer le job `frontends — vitest`**, malgré son nom devenu trompeur (il fait aussi
-   `tsc`). La protection de branche identifie les checks requis **par leur nom** (adr-0061 §1) :
-   renommer ferait disparaître un check requis **sans bruit**, et toute PR resterait bloquée en
-   attente d'un job inexistant. Renommer suppose de changer le réglage du dépôt dans le même geste.
-2. **`pnpm … typecheck` MENT en local.** Mesuré : une erreur ajoutée dans `packages/types` →
-   `tsc -b --noEmit` rend **exit 0**, l'erreur n'apparaît qu'avec **`--force`**. `tsc -b` se fie à
-   son `.tsbuildinfo`. En CI l'arbre est neuf, donc le cas ne se pose pas — mais **pour vérifier à
-   la main, employer `pnpm --filter … exec tsc -b --force --noEmit`**, jamais le script nu.
-
-📌 Troisième piège, du même chantier : `graphify affected` **n'a pas vu** le second appelant de
-`list_fiches_for_lesson` (l'appel passe par `service.`). C'est le `grep` de contre-vérification,
-prescrit par la cage, qui l'a trouvé — sans lui, une porte sur deux serait restée ouverte.
-
-### 🧰 L'OUTILLAGE de la journée — trois scripts neufs, et ce qu'ils ne couvrent pas
-
-Trois scripts sont entrés dans `scripts/`, tous nés du même défaut de fond : **un contrôle qui
-devine rend un faux verdict.** L'un rendait un faux positif (« machine prête » alors que le PATH
-était cassé), l'autre un faux négatif (« contenu perdu » alors qu'il était intact).
-
-| Script | Ce qu'il répond | PR |
-|---|---|---|
-| `mise-en-route.sh` | met une machine en état — installe **puis vérifie que chaque commande répond** | #148 |
-| `check_media_integrity.py` | confronte ce que la base **promet** aux fichiers réels, via le backend **réellement configuré** | #149 |
-| `migration/` (5 scripts) | le kit qui a déplacé ZETIS du MacBook, rendu portable | #150 |
-
-**Verdict du contrôle d'intégrité, au 2026-08-18** : les **8 vidéos** et les **6 documents RAG**
-(66 chunks, tous avec texte ET vecteur) sont intacts. **La migration depuis le MacBook n'a rien
-perdu** — affirmé sur mesure, plus sur espoir.
-
-🔴 **Trois dettes de cet outillage, qu'aucun test ne rattrapera :**
-
-- **`mise-en-route.sh` n'installe PAS les extras `[tts]`/`[stt]`** ni ne vérifie les chemins d'un
-  `.env` — c'est exactement le trou par lequel cette machine est restée **muette et sourde** (voir
-  la section suivante). Une machine neuve repartira avec le même défaut.
-- **Le kit `migration/` existe en DEUX copies non synchronisées** : `scripts/migration/` (relue) et
-  `/Volumes/NX-Projects/` (le point d'entrée opérationnel, laissé en place à dessein). Modifier
-  l'une n'informe pas l'autre.
-- **Aucun script du kit n'a jamais été exécuté depuis sa mise sous version.** Le correctif rsync est
-  prouvé par lecture et par la mesure de `/usr/bin/rsync --info=progress2` (**refusé** : openrsync,
-  protocole 29), *pas* par un transfert réel. La prochaine migration sera le premier essai.
-
-### 🔴 LA MACHINE ÉTAIT MUETTE ET SOURDE — réparé le 2026-08-18, HORS DÉPÔT
-
-Diagnostic de pile complet ce jour : tout était sain (48 tables, pgvector 0.8.6, base **alignée** sur
-la tête du dépôt, les deux modèles Ollama de l'ADR-0008, graphify, gh) **sauf la voix et la dictée**.
-
-- `apps/backend/.env` avait été **copié du MacBook sans être adapté** : `PIPER_BINARY` et
-  `PIPER_VOICE_MODEL` pointaient vers `/Users/andrececcoli/NeuronXcode/ZETIS/…`, inexistant ici.
-- Les extras `[tts]` et `[stt]` n'avaient **jamais été installés** sur cette machine.
-
-**Réparé** : `uv pip install -e "apps/backend[tts,stt]"` (piper-tts 1.7, faster-whisper 1.2.1) et les
-deux chemins réécrits vers `/Volumes/NX-Projects/ZETIS/…`. **Prouvé, pas supposé** : synthèse réelle
-par `PiperProvider` (voix `upmc`, speaker 1) → **122 924 octets, 2,79 s d'audio**. Le modèle Whisper
-`small` était déjà en cache et charge en 0,6 s.
-
-⚠️ **Ces deux réparations sont HORS DÉPÔT** — `.env` est gitignoré, les extras vivent dans le venv.
-Elles ne suivront **pas** au `git pull` : toute nouvelle machine repartira muette et sourde.
-
-⚠️ **La panne était SILENCIEUSE** : le backend répondait 200, les 1434 tests passaient (la CI tourne
-sans ces extras, à dessein). Rien ne la signalait — elle serait apparue devant Massimo, au premier
-appui sur le micro ou à la première capsule qui parle.
-
-> 🔴 **ET ELLE EST RÉAPPARUE EN PROD LE SOIR — puis corrigée DURABLEMENT (PR #157).** La réparation
-> ci-dessus était **hors dépôt** (venv + `.env` de l'hôte) ; l'**image Docker de prod** est un
-> environnement distinct, et elle n'installait que `[tts]`. Massimo a donc eu « pas de voix » sur la
-> prod. Cette fois le correctif est **dans l'image et versionné** (`[tts,stt]` + modèle Whisper baké
-> + verrou), donc il **suivra** au `git pull` et à la reconstruction. Voir « LES DEUX CHANTIERS DU
-> SOIR ». ⚠️ Reste hors dépôt : le venv de l'hôte (dev) et `mise-en-route.sh`, qui n'installe
-> toujours pas les extras — une machine de DEV neuve repartira muette et sourde côté natif.
-
-### ⚠️ DEUX SESSIONS `pnpm dev` tournaient en parallèle — 2026-08-18
-
-Constaté au redémarrage du backend : deux arbres `dev.sh` (13:27 et 14:03), deux paires de Vite se
-disputant 5173/5174, et le worker de la première encore vivant. Arrêté proprement après avoir
-vérifié qu'**aucun travail n'était en vol** (trois files RQ à zéro, 883 jobs tous `succeeded` ou
-`failed`). Relancé : **un seul arbre, un seul worker**, concurrence 1 conforme à l'ADR-0046 §3.
-
-🔴 **Deux pièges d'arrêt, mesurés, à ne pas réapprendre :**
-
-1. **Un `SIGTERM` sur `dev.sh` ne fait RIEN** tant que son `pnpm --parallel` tourne au premier plan :
-   bash **diffère** l'exécution d'un trap jusqu'à la fin de l'enfant. Il faut tuer les **feuilles**
-   (uvicorn, vite, worker) pour que les traps se déroulent.
-2. Un shell zsh **interactif ignore SIGTERM** — viser le mauvais PID ne produit aucun effet visible,
-   donc aucune alerte. Vérifier la cible par `ps -o command=` avant de signaler.
-
-📌 **Au démarrage, un avertissement légitime** : *« watchdog production actif mais CANAL INERTE :
-ni SMTP_HOST ni ALERT_EMAIL_TO »*. `ALERT_EMAIL_TO` est pourtant dans le `.env` racine : c'est
-**`SMTP_HOST` qui manque**. Si le worker tombe, ça se verra dans le bandeau Papa et **nulle part
-ailleurs**.
-
-### ✅ EXÉCUTÉ ET PROUVÉ — la prod du Mac Studio (PR #146, squash `9d05544`)
-
-> ✅ **Ce chantier a été vérifié en vrai le 2026-08-18** (voir « LA SÉANCE PROD » plus haut). Les
-> huit conteneurs portent `restart: unless-stopped` — lu dans `docker inspect`, pas dans le fichier
-> — et la reprise après crash est prouvée : `kill -TERM 1` **depuis l'intérieur** du conteneur,
-> `RestartCount` 0 → 1, PID changé, `healthy`.
->
-> 🔴 **Ce qui reste NON prouvé : la survie au redémarrage du MAC.** Un crash de processus n'est pas
-> un arrêt de machine. ⚠️ Et `docker compose kill` ne prouverait rien non plus — un arrêt d'opérateur
-> est exclu par définition d'`unless-stopped` (faux négatif mesuré le 2026-08-08).
-
-**Pourquoi ce chantier existe.** Le Mac Studio doit héberger **la prod que Massimo utilise** *et*
-servir de machine de développement, pendant qu'un MacBook Pro sert en itinérance. Deux défauts
-l'empêchaient. Ils ont été traités séparément, dans deux commits.
-
-Deux chantiers, fusionnés dans la même PR : la seconde branche portait la première, parce que les
-deux modifiaient l'en-tête de `docker-compose.prod.yml` et que partir de `main` garantissait un
-conflit. Tout est désormais dans `main`.
-
-**1. La prod se relève seule** — ADR-0060 **cas 2** (application), aucun ADR écrit, on
-exécute l'**ADR-0046 §1**. Six des huit services de prod n'avaient **aucune** politique de
-redémarrage : après un arrêt du Mac, la base, le backend et les deux frontends ne revenaient pas,
-et le `worker` — seul supervisé — se relevait dans le vide. `restart: unless-stopped` (jamais
-`always` : un `prod:down` volontaire doit rester un arrêt).
-
-**2. Le dev et la prod cohabitent** — ADR-0060 **cas 1** (rangement), aucun ADR. Le dépôt
-affirmait « ports miroir → SOIT `pnpm dev` SOIT `pnpm prod:up` ». **C'était faux**, et le mesurer a
-réduit le chantier à deux lignes : Postgres et Redis de prod ne publient **rien** ; le navigateur ne
-parle **jamais** à MinIO (`MinioVideoBackend.read_video()` lit côté serveur, la route backend sert
-les octets, aucune URL présignée) ; `.claude/launch.json` définit déjà 14 entrées de dev sur
-8001→8004 / 5175→5180. MinIO prod prend **9002/9003**, sous des **noms de variables distincts** —
-les deux compose lisent le même `.env`, donc des défauts différents ne suffisaient pas.
-
-**Décision prise (ne pas la rouvrir) : la PROD possède les ports canoniques** 8000/5173/5174. Sur
-une machine où la prod tourne, le dev passe par une paire `launch.json` ; **`pnpm dev` y échouera,
-et c'est voulu**.
-
-**Ce qui n'a demandé AUCUNE ligne de Python**, contre ce qui était annoncé au cadrage : le CORS est
-déjà surchargeable par **`ZETIS_CORS_ORIGINS`** (la classe `Settings` porte `env_prefix="ZETIS_"`,
-mesuré), et **`ARG VITE_API_URL` existe déjà** dans `infra/docker/frontend.Dockerfile`.
-
-#### ✅ PROCHAIN PAS — ACCOMPLI le 2026-08-18
-
-Les cinq gestes de la séance sont faits : autostart armé (côté humain), `prod:up`, redémarrage
-prouvé par l'intérieur, dev relancé sur une paire `launch.json` pendant que la prod tenait ses
-ports, et **le reboot réel du Mac**. Il ne reste **rien** à prouver sur ce chantier.
-
-⚠️ La seule vigilance qui demeure : `/Volumes/NX-Projects` doit être monté **avant** le démon — il
-porte `Docker.raw`. Au reboot du 2026-08-18 il l'était, mais rien ne le garantit si le disque est
-débranché.
-
-#### 🧾 DETTES OUVERTES
-
-- 🔴 **La preuve de bout en bout n'est PAS faite** pour aucun des deux chantiers : elle demande
-  `pnpm prod:up --build` (construction des images, dont ~300 Mo de Chromium pour `worker-media`).
-  Ce qui est prouvé : le **rendu** de compose porte `unless-stopped` sur les 8 services, les ports
-  9002/9003 sont libres dev allumé, et les deux verrous échouent quand on les casse.
-- ⚠️ **Vérifier un redémarrage se fait DEPUIS L'INTÉRIEUR du conteneur** —
-  `docker exec … sh -c 'kill -TERM 1'`. `docker compose kill` rend un **faux négatif** (un arrêt
-  d'opérateur est exclu par définition d'`unless-stopped` ; mesuré le 2026-08-08).
-- ✅ **`graphify` est INSTALLÉ et la carte est construite** (2026-08-17, nuit). Paquet PyPI
-  **`graphifyy`** — deux *y*, la commande s'appelle `graphify` ; `pip install graphify` sans le
-  second *y* n'est **pas** ce paquet. Posé par `uv tool install graphifyy` (v0.9.46, isolé, hors des
-  venvs du projet). Carte : **17 740 nœuds, 35 201 arêtes, 943 communautés**, dans `graphify-out/`
-  (42 Mo, gitignoré — donc **à reconstruire sur le MacBook**, il ne vient pas au `git pull`).
-  🔴 **La commande de construction est `graphify update .`** — le CLI n'a **pas** de forme
-  `graphify .` nue (ça, c'est la skill). Elle est AST-only, sans clé API, ~2 min sur 1321 fichiers.
-- ✅ **La skill `/graphify` est posée DANS le dépôt** (`graphify install --project`) :
-  `.claude/skills/graphify/` (10 fichiers, 104 Ko) + `.claude/CLAUDE.md`, donc **versionnées** et
-  récupérées par le MacBook au `git pull`. Les deux hooks `PreToolUse` de `.claude/settings.json`
-  couvrent désormais `Bash|Grep` et `Read|Glob`.
-  🔴 **Le PATH était le vrai obstacle** : `uv tool install` pose le binaire dans `~/.local/bin`,
-  qu'aucun profil zsh ne déclarait. Réparé par `uv tool update-shell` → `~/.zshenv`. Sur le MacBook,
-  ce geste-là sera à refaire : il n'est pas dans le dépôt.
-  ⚠️ **L'installeur avait écrit un CHEMIN ABSOLU machine-spécifique** dans les deux hooks
-  (`/Users/atlas/.local/share/uv/tools/…`) — d'un fichier **versionné et partagé**. Mesuré : binaire
-  absent → **exit 127 à chaque appel** Bash/Grep/Read/Glob, ce qui aurait cassé le MacBook. Remplacé
-  par le nom court `graphify`, qui rend une sortie identique. 🔒 **Et ce n'est plus à surveiller
-  à la main** : `app/tests/test_claude_config_portable.py` refuse tout chemin de machine dans
-  `.claude/` versionné, **et** tout hook invoquant un exécutable par chemin absolu (le second
-  attrape `/opt/homebrew/…`, invisible au premier). L'installeur réécrit ce fichier : le verrou est
-  ce qui survit à la prochaine réinstallation.
-  ⚠️ Ce que le nom court ne répare PAS : les hooks d'avant étaient des one-liners `python3`
-  autonomes ; ceux-ci dépendent du binaire. Sans graphify installé, c'est 127 dans les deux cas.
-  📌 `.claude/CLAUDE.md` est un **second** fichier de doctrine (3 lignes) à côté de la section
-  `## graphify` du `CLAUDE.md` racine — resté intact, lui. Duplication à trancher un jour.
-  🔴 **`graphify-out/` (42 Mo) est gitignoré** : la carte ne voyage pas. Sur le MacBook, après le
-  clone, relancer `graphify update .`.
-- ✅ **`gh` fonctionne, et « aucune PR ouverte » est désormais VÉRIFIÉ** (`gh pr list`), plus déduit.
-  🔴 **Le piège était le même que pour graphify, et il se reproduira** : `gh` 2.97.0 était installé
-  depuis juillet, mais **non lié** — `command -v gh` ne rendait rien, et `/cloture` comme `/reprise`
-  prescrivaient un `gh pr view` impossible. `brew install gh` a simplement reposé le symlink
-  `/opt/homebrew/bin/gh`. *Un binaire présent dans le Cellar n'est pas un binaire disponible.*
-  Authentifié : compte **NeuronXcore**, scopes `repo`, `workflow`, `read:org`, `gist`.
-  ⚠️ Sur le MacBook, les deux gestes seront à refaire : `brew install gh` **et** `gh auth login`.
-  Aucun des deux n'est versionnable.
-- ✅ **Les permissions Claude Code sont réparties** : 37 règles **portables** dans le
-  `.claude/settings.json` versionné (donc reçues par le MacBook au `git pull`), 8 **liées à la
-  machine** laissées dans `settings.local.json` gitignoré — trois `Read(/Users/atlas/.claude/**)`,
-  quatre sondes `curl localhost`, un `python3 -c` qui nomme `/Volumes/NX-Projects/ZETIS`.
-  Contrôlé : l'union des deux fichiers vaut exactement les 45 règles d'origine.
-  ⚠️ **À confirmer à l'usage** : Claude Code est supposé UNIR les deux listes `allow`. Si l'un
-  remplaçait l'autre, les 37 redemanderaient une autorisation — visible aussitôt, sans dommage.
-- ⚠️ **Ne jamais lancer `graphify extract` sans réfléchir au backend.** La passe *code* est locale
-  (Tree-sitter, aucun appel) ; la passe *sémantique* sur les docs enverrait le contenu de
-  `MEMORY.md`, `TROUBLESHOOTING.md`, `API_SPEC.md`… au backend détecté depuis les clés d'env.
-  Aucune clé n'est exportée dans le shell aujourd'hui, et Ollama tourne — mais l'ADR-0009 impose
-  de le choisir explicitement, pas de le subir.
-- ⚠️ **PyYAML est dans le venv du backend mais ABSENT de `pyproject.toml`.** Un test qui l'importe
-  passerait en local et tomberait en CI. Les deux verrous de ce chantier parsent le YAML à la main
-  pour cette raison. La dette elle-même n'est pas soldée.
+> **Où en est le dépôt** (2026-08-19, soir) — `main` = `origin/main`, rien à pousser sur `main`.
+> **UNE branche vivante : `feat/sauvegarde-qui-se-merite`** (base `e9b5143`, définitive), qui porte
+> le chantier ACTIF ci-dessous. La prod tourne (8 conteneurs, ports canoniques 8000/5173/5174) ;
+> le dev se lance à la demande sur les paires `.claude/launch.json`.
+
+### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slice 1/3 CODÉE, NON COMMITTÉE (2026-08-19)
+
+Branche `feat/sauvegarde-qui-se-merite`, base `e9b5143`. Le lot Décision est sur `main`
+(ADR-0065 = `dd078af`, vérifié ancêtre de `main`) ; la branche porte les prompts des trois slices
+(`prompts/claude-code/prompts-claude-code-adr-0065.md`) et, **non committé**, tout le code de la
+slice 1 + les documents de cette clôture. L'état exact : `git status` / `git log --oneline
+main..HEAD` — ne pas le recopier ici.
+
+**FAIT (slice 1 — le socle, prête à committer) :**
+
+- `modules/settings/sauvegarde.py` — refus 409 (certificat `.zetis-cible.json` absent/illisible/
+  UUID égaux + doublon `backup_create` en `queued|running`), `_instantane` (connexion psycopg
+  DÉDIÉE hors pool, `pg_export_snapshot` → `pg_dump --snapshot`, comptes + références lus sur le
+  MÊME snapshot), archive `zetis-AAAA-MM-JJ-hhmm.tar` dans l'ordre imposé §4 (dump → objets S3 →
+  audio → manifeste scellé), sidecars `.sha256` + `.manifeste.json`, **archive SUPPRIMÉE sur tout
+  échec** (couple incomplet compris).
+- Route `POST /api/settings/donnees/sauvegarde` (202 métadonnées / 409 motivé AVANT d'enfiler) ·
+  exécutant `backup_create` dans `_EXECUTANTS` (adaptateur sans db ni llm) · amorce
+  `AMORCES_MS["backup_create"] = 10_000` (> `PLANCHER_MS`, voulu).
+- `ZETIS_BACKUP_DIR` (config + `.env.example`) · compose prod : env `/backups` dans l'ancre
+  `generation-env`, bind mount **fail-closed `:?` sur `backend` ET `worker`**.
+- `backend.Dockerfile` : `postgresql-client-16` via PGDG (recette **vérifiée en conteneur
+  d'essai** : 16.15-1.pgdg12+2 = la 16.15 du serveur `pgvector:pg16`).
+- `scripts/certifier-cible-sauvegarde.sh` (hôte, bash 3.2) — **prouvé sur cette machine** : cas
+  UUID distincts (exit 0, `Docker.raw` trouvé via `DataFolder` ET vérifié par présence réelle) et
+  cas même-volume (certificat honnête, exit 2).
+- **Tests : backend 1494/1494 (dont 14 neufs : `test_sauvegarde.py`,
+  `test_dockerfile_backend_pgclient.py`, `test_compose_prod_backup.py`), frontend-massimo
+  920/920, frontend-papa 860/860 — zéro test existant modifié.** `docker compose config` prouvé
+  dans les deux sens (avec la variable : env + montages ; sans : refus motivé sur les 2 services).
+- Clôture : entrées `CHANGELOG` 0.99.7/0.99.8 (rattrapage des chantiers mergés sans entrée),
+  section `TROUBLESHOOTING` 2026-08-19, `API_SPEC` §💾 Données, `ARCHITECTURE` §Sauvegarde,
+  **prompt de la slice 2 RÉDIGÉ** dans le fichier de prompts (comme le fichier le programmait).
+
+**Verdicts du read-before-code (à ne pas re-vérifier) :** rien n'empêche deux `backup_create`
+(le régulateur `duplicate` ne couvre que les LOTS) → c'est la ROUTE qui refuse · `video_url`/
+`audio_url` sont des **chemins d'API**, la dérivation média se fait par id de capsule via les
+conventions de `capsules/storage.py` (vidéo `capsules/{id}/video.mp4`, audio
+`capsules/{id}/scene_0.wav`) · le piège `idle in transaction` n'était PAS dans
+`TROUBLESHOOTING.md` (renvoi faux du prompt — consigné).
+
+**DÉCISIONS ACTIVES (ADR-0065, relire jamais rouvrir) :** aucun octet d'archive sur HTTP · quatuor
+Postgres + MinIO (API S3) + `capsule_audio` + manifeste, exclusions écrites dedans (`.env`, Redis,
+modèles) · certificat hôte fail-closed (§3) · travaux de la file existante, concurrence 1, dump
+d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomplet REFUSÉE et détruite
+(§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
+(les exécutants sont des adaptateurs ; direction production→settings déjà existante).
+
+**EN COURS :** rien d'instable — la slice 1 est complète, en attente de relecture humaine.
+
+**À FAIRE :** slice 2 (`backup_verify` — prompt PRÊT dans le fichier de prompts, à coller après le
+merge de la slice 1) · slice 3 (l'onglet 💾, « export non vérifié » tant que pas restauré à blanc).
+
+**PIÈGES :** `TROUBLESHOOTING.md` § `feat/sauvegarde-qui-se-merite` (le bac à sable de l'agent
+GÈLE un script hôte qui lit `~/Library` — tester hors bac à sable ; un renvoi de prompt se
+vérifie).
+
+**🧾 DETTES OUVERTES du chantier :**
+
+- 🔴 **Le chemin Postgres réel de `_instantane` n'est exercé par aucun test** (SQLite ne peut
+  pas) : la première vraie sauvegarde sera le premier essai — et la slice 2 est la preuve
+  organisée. Idem : l'image Docker n'a pas été reconstruite en entier (la couche PGDG est
+  vérifiée dans un conteneur d'essai identique, pas dans un `prod:up --build`).
+- 🔴 **Au prochain `prod:up` après merge, la prod NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR` dans le
+  `.env` racine** (`:?`, voulu — même doctrine que `POSTGRES_PASSWORD`). Le geste : poser la
+  variable vers un répertoire d'un AUTRE disque (ex. `NX-Models`), puis
+  `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
+- `API_SPEC.md` ne documente toujours PAS les autres routes `/api/settings` (`/autonomy`,
+  `/machine`, `/ecarts`, `/production-suspension`) — dette relevée en écrivant la section
+  💾 Données ; rangement doc à part.
+
+**PROCHAIN PAS :** l'humain relit le diff, committe (message suggéré rendu à la clôture), pousse
+la branche. Puis, à sa main : PR + merge de la slice 1 — le fichier de prompts place la slice 2
+« après le merge ». **NI PR NI MERGE automatiques.**
+
+### 📥 À CASER (hors chantier) — demandes notées en session
+
+- **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
+  Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
+  clôture de la slice 1). Chore/fix à part, hors périmètre sauvegarde.
+
+## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
+
+> Retirés : **la prod du Mac Studio** (#146, cohabitation dev/prod + `restart: unless-stopped`,
+> CHANGELOG 0.99.3/0.99.4), **l'outillage** (#148 `mise-en-route.sh`, #149
+> `check_media_integrity.py`, #150 kit `migration/`), **le compilateur** (#151/#152, CHANGELOG
+> 0.99.7), **la séance prod** (#153-#155, CHANGELOG 0.99.7), **harnais CI + dictée** (#156/#157,
+> CHANGELOG 0.99.2/0.99.6), **les deux flakes RTL** (#158/#159, tests seuls), **la phase A**
+> (#160 page paramètres · #161 redémarrer un worker · #162 suspendre ZETIS · #163 libellé,
+> CHANGELOG 0.99.8, ADR-0062/0063/0064), et les récits « machine muette et sourde » / « deux
+> sessions pnpm dev » (2026-08-18, pièges relogés dans `TROUBLESHOOTING.md`). Les quatre
+> contrôles passent — ⚠️ dont DEUX entrées `CHANGELOG` écrites à CETTE clôture (0.99.7, 0.99.8) :
+> quatre PR de comportement avaient été mergées sans entrée. Voici ce qui reste **OUVERT**.
+
+- 🟡 **Dette CI — quatre flakes NON REPRODUITS, donc sans diagnostic** : `CouverturePage`,
+  `DashboardPage`, `ChatPage` › « offre implicite », et `ProgrammePage.test.tsx` › « pendant la
+  génération : barre de progression estimée » (a rougi la PR #161 qui ne le touche pas ; 0/3 sous
+  `ci-like.sh`, vert au rerun). Règle : **trouvé ≠ actionnable** — pas de correctif sans
+  reproduction déterministe (méthode des #147/#158/#159). L'instrument est calibré (#156 :
+  `--cpuset-cpus`, 4 vCPU).
+- 🔴 **Une machine de DEV neuve repart muette et sourde côté natif** : `mise-en-route.sh`
+  n'installe pas les extras `[tts]`/`[stt]` et ne vérifie pas les chemins d'un `.env` copié.
+  Gestes à refaire sur le MacBook, non versionnables : `uv tool update-shell` (PATH graphify),
+  `brew install gh` + `gh auth login`, `graphify update .` (la carte, 42 Mo, est gitignorée).
+- ⚠️ **Kit `migration/` : deux copies non synchronisées** (`scripts/migration/` relue ;
+  `/Volumes/NX-Projects/` opérationnelle) — et **aucun script du kit n'a jamais été exécuté**
+  depuis sa mise sous version : la prochaine migration sera le premier essai.
 - 📌 **`docs/devops/docker-compose.md` est un placeholder obsolète** (services `api`/`worker-ai`,
-  réseau `zetis-net` — rien de tout ça n'existe). Rangement `chore/` à part, hors périmètre ici.
-
-#### 🔴 DETTE HÉRITÉE, ET LE CHIFFRE ÉTAIT FAUX — l'instabilité de la CI (2026-08-18)
-
-⚠️ **Ce qui était écrit ici — « deux tests instables restants » — est DÉMENTI.** Le chiffre venait
-de `scripts/ci-like.sh`, qui codait en dur `cd apps/frontend-massimo` : **l'instrument était aveugle
-à Papa**. Le registre ne sous-comptait pas par négligence, il sous-comptait *par construction*.
-C'est le motif que l'ADR-0046 §4 nomme déjà : un dispositif attaché à une seule porte d'entrée.
-
-**Mesuré le 2026-08-18** (`ci-like.sh 5 frontend-papa`, code d'avant correctif) :
-
-| Passage | 2 | 3 | 4 | 5 |
-|---|---|---|---|---|
-| tests en échec / 814 | 26 | 30 | 19 | 13 |
-
-**Cinq passages rouges sur cinq.** Neuf fichiers distincts, très inégalement : `CouverturePage`
-(11 occurrences), `DashboardPage` (5), puis une traîne — `FicheEditorModal`, `PapaSidebar`,
-`ConfirmDialog`, `MindmapEditorModal`, `ProductionPopover`, `CartesRevisionPage`.
-
-✅ **CALIBRAGE FAIT le 2026-08-18 (PR #156) — ce paragraphe est CONSERVÉ pour la leçon.** Le harnais
-tournait à `--cpus=2`, que **personne n'avait vérifié** ; le runner a **4 vCPU** (mesuré par la
-sonde). Pire, `--cpus` ne bride pas les cœurs visibles : le conteneur voyait **24 cœurs**, vitest
-sur-souscrivait, et les 13-30 échecs/passage étaient l'artefact — la CI réelle n'en faisait tomber
-qu'**un**. On chassait bien des fantômes. Corrigé en `--cpuset-cpus=0-3` ; `frontend-papa` : **0/5**.
-
-✅ **Un cas est SOLDÉ** (PR #147, squash `1c7b21a`) : `AnneesScolairesPage` › « création ». Cause
-mécanique, pas un aléa — le bouton `+ Créer une année` est `disabled` pendant `data.loading` ;
-`findByRole` le rend dès qu'il entre dans le DOM (RTL ne filtre pas les désactivés) et un
-`fireEvent.click` sur un bouton désactivé **ne déclenche rien**. **Trouvé ≠ actionnable.**
-
-🔧 **Et la MÉTHODE a changé** — c'est le gain durable. On ne guette plus un aléa d'une fois sur six :
-on **sabote de façon déterministe** (retarder le mock de 50 ms), l'échec se reproduit sur macOS au
-mot près, et on vérifie que le correctif tient **le sabotage encore actif**. Détail dans
-`TROUBLESHOOTING.md`.
-
-Le registre listait `AtelierPage` › « un finish qui CASSE » et `DiagnosticPage.observation` : les
-DEUX sont désormais **reproduits et corrigés** (#158, #159 — voir « LES DEUX FLAKES DE LA CI »).
-Reste `ChatPage` › « offre implicite » (`getByRole` synchrone sur le micro ?), **NON REPRODUIT, donc
-pas de diagnostic** — comme `CouverturePage` et `DashboardPage`.
-
-#### ▶ PROCHAIN PAS de cette dette (chantier À PART, pas dans #146)
-
-1. ✅ **FAIT le 2026-08-18 (PR #156)** : `ci-like.sh` calibré à **4 vCPU** + `--cpuset-cpus`. Les
-   13-30 échecs/passage étaient un artefact de sur-souscription (`--cpus=2` laissait voir 24 cœurs) ;
-   à 4 cœurs réels, `frontend-papa` rend **0/5**. Sous-comptage (aveugle à Papa) ET sur-comptage
-   (sur-souscription) sont donc corrigés — mais le **vrai flake demeure** (voir 2, 3).
-2. ✅ **`AtelierPage` (#158) et `DiagnosticPage.observation` (#159) sont SOLDÉS** (voir « LES DEUX
-   FLAKES DE LA CI »). Restent `CouverturePage` et `DashboardPage`, **jamais reproduits** — la règle
-   « trouvé ≠ actionnable » tient : pas de correctif sans reproduction.
-3. Ne « corriger » aucun test sans l'avoir reproduit — la règle n'a pas changé, elle a juste
-   maintenant un instrument qui marche.
-
-⚠️ **Ne pas lire un run vert comme une guérison.** La CI de #146 est repassée verte après le
-rapatriement de `main` : ça ne dit pas que la suite est saine, seulement qu'elle n'a pas été tirée
-au sort ce coup-là.
-
+  réseau `zetis-net` — rien n'existe). Rangement `chore/` à part.
+- ⚠️ **PyYAML est dans le venv mais ABSENT de `pyproject.toml`** : tout verrou compose parse le
+  YAML à la main (y compris le nouveau `test_compose_prod_backup.py`, à dessein). La dette
+  elle-même n'est pas soldée.
+- ⚠️ **Le watchdog de production a un CANAL INERTE** : `ALERT_EMAIL_TO` est dans le `.env` racine
+  mais **`SMTP_HOST` manque**. Si le worker tombe, ça ne se voit que dans le bandeau Papa.
+- 🟡 **`scripts/audit_contexte.sh` est entré dans `main` par accident** (squash de la #162).
+  Vérifié sain (audit de docs, aucun secret). Décision utilisateur : le garder ou le retirer.
+- 📌 **Un écho de la sur-promesse « à jour » subsiste** dans UN commentaire de test
+  (`test_production_workers_restart.py:72`, « être relancé à jour » — la ligne 73 citée avant
+  l'élagage était fausse d'une ligne, vérifié à cette clôture) — laissé à dessein (tests
+  sans modification exigés par la #163) ; à ramasser au prochain passage dans ce fichier.
+- ⚠️ **La carte de la page paramètres a menti deux fois le jour de sa livraison** (ses propres
+  chantiers non reportés). Le signal écrit d'avance par l'ADR-0062 : « si elle dérive, elle doit
+  être DÉRIVÉE, pas écrite » — à peser au prochain chantier de la page.
+- 📌 **Pièges vivants sans section `TROUBLESHOOTING`, gardés ici** : `pnpm … typecheck` **ment en
+  local** (`tsc -b` sert son `.tsbuildinfo`, exit 0 sur erreur — vérifier avec
+  `exec tsc -b --force --noEmit`) · les `.env.local` posés sur le Mac Studio **ne voyagent pas**
+  (machine neuve : c'est le repli 8001 qui protège) · `pnpm dev` **refuse** si la prod tient les
+  ports canoniques — voulu, ne pas « réparer » · **ne jamais renommer** le job CI
+  `frontends — vitest` (checks requis par NOM, `adr-0061` §1) · un redémarrage de conteneur se
+  prouve **depuis l'intérieur** (`docker exec … kill -TERM 1`) — `docker compose kill` rend un
+  faux négatif (`unless-stopped` exclut l'arrêt d'opérateur) · ne pas lancer `graphify extract`
+  (passe sémantique) sans choisir explicitement le backend — les docs sensibles partiraient au
+  backend détecté (ADR-0009) · la répartition des permissions Claude Code
+  (`settings.json` versionné / `settings.local.json` machine) suppose que les listes `allow`
+  s'UNISSENT — à confirmer à l'usage · `/Volumes/NX-Projects` doit être monté **avant** le démon
+  Docker (il porte `Docker.raw`).
+- 📌 **Doctrine graphify en double** : `.claude/CLAUDE.md` (3 lignes) à côté du `## graphify` du
+  `CLAUDE.md` racine — duplication à trancher un jour.
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-17 (soir) — trois chantiers clos
 

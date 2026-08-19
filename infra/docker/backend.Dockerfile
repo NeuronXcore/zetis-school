@@ -7,6 +7,22 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# pg_dump / psql / pg_restore : la sauvegarde (ADR-0065) dumpe — et restaurera à blanc (slice 2) —
+# depuis CE conteneur. Bookworm ne porte que pg15 : le client vient du dépôt PGDG, majeure
+# ÉPINGLÉE sur celle du serveur (`pgvector/pgvector:pg16` de docker-compose.prod.yml) — un
+# pg_dump plus vieux que son serveur refuse de servir. Le jour où le serveur passe en pg17,
+# cette ligne suit (test-verrou : test_dockerfile_backend_pgclient.py, qui compare les deux).
+# Recette VÉRIFIÉE en conteneur d'essai le 2026-08-19 : paquet `postgresql-client-16`,
+# version 16.15-1.pgdg12+2 = la 16.15 du serveur mesurée au cadrage.
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
+    && apt-get purge -y --auto-remove gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/repo/apps/backend

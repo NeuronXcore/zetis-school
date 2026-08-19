@@ -138,8 +138,17 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-zetis_minio_password}
       MINIO_BUCKET_CAPSULES: ${MINIO_BUCKET_CAPSULES:-capsules}
       AUDIO_STORAGE_DIR: /shared/audio
+      # Sauvegarde (ADR-0065 §2) : DANS l'ancre — le chemin CONTENEUR de la cible est le même
+      # pour les deux services qui la liront (le worker écrit l'archive, le backend liste).
+      # Le chemin HÔTE, lui, vit dans les `volumes:` de chaque service ci-dessous.
+      ZETIS_BACKUP_DIR: /backups
     volumes:
       - capsule_audio:/shared/audio
+      # 🔴 `:?` et non `:-`, doctrine de ce compose (cf. POSTGRES_PASSWORD) : une prod sans cible
+      # de sauvegarde ne démarre pas en silence. La variable vient du `.env` de la racine et
+      # désigne un répertoire sur un AUTRE disque physique, certifié par
+      # `scripts/certifier-cible-sauvegarde.sh` (le backend refuse en 409 sinon).
+      - ${ZETIS_BACKUP_DIR:?definis la cible de sauvegarde dans le .env de la racine — une prod sans sauvegarde ne demarre pas en silence (ADR-0065)}:/backups
     ports:
       - "${API_PORT:-8000}:8000"
     # `externe` EN PLUS de `interne` : il joint Ollama sur l'hôte et l'API Anthropic pour les
@@ -211,6 +220,10 @@ services:
     environment: *generation-env
     volumes:
       - capsule_audio:/shared/audio
+      # La cible de sauvegarde, comme sur `backend` : c'est CE conteneur qui exécute
+      # `backup_create` (l'ancre ne porte que l'environnement — les volumes se déclarent par
+      # service). Même `:?` : le worker sans cible ne démarre pas en silence (ADR-0065 §2).
+      - ${ZETIS_BACKUP_DIR:?definis la cible de sauvegarde dans le .env de la racine — une prod sans sauvegarde ne demarre pas en silence (ADR-0065)}:/backups
     # Mêmes réseaux que le backend, et pour la même raison : Ollama sur l'hôte + Anthropic.
     networks: [interne, externe]
     # Limite MESURÉE, pas devinée : relevé à vide le 2026-08-08 — backend 92 Mio, worker 41 Mio

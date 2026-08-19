@@ -2950,3 +2950,30 @@ grounding?, recall?}`
   `null` quand le tour n'était pas une question de fond.
 - **`recall`** — `{asked, total, skill_name, finished}` pendant une interrogation orale, sinon
   `null`. ⚠️ **Un repère, jamais un score** : aucun compteur d'erreurs n'est servi.
+
+## Réglages — 💾 Données (`/api/settings`, ADR-0065)
+
+> Routeur `/api/settings`, `require_parent` d'office. ⚠️ Les autres routes de ce routeur
+> (`/autonomy`, `/machine`, `/ecarts`, `/production-suspension`) ne sont **pas encore documentées
+> ici** — dette relevée à la clôture du 2026-08-19 ; leurs contrats vivent dans les ADR-0032,
+> 0062, 0063.
+
+### POST `/api/settings/donnees/sauvegarde`
+
+Enfile le travail `backup_create` (file prioritaire, `created_by="file"`, concurrence 1).
+
+- **202** `{job_id, status}` — des **métadonnées de travail, rien d'autre**. 🔴 **Aucun octet
+  d'archive ne passe par HTTP** (ADR-0065 §1), ni ici ni sur aucune route : l'archive naît sur la
+  cible montée (`ZETIS_BACKUP_DIR`) et y reste. Le suivi passe par la barre du header
+  (`GET /ai/jobs/{id}`), comme tout travail de file.
+- **409 fail-closed, AVANT d'enfiler** — aucun job créé, motif dans `detail` :
+  certificat `.zetis-cible.json` **absent** (le motif nomme `scripts/certifier-cible-sauvegarde.sh`)
+  · certificat **illisible ou incomplet** · **UUID de volume identiques** (la cible vit sur le
+  disque des données) · une sauvegarde **déjà en `queued|running`** (rien d'autre n'empêche le
+  doublon — le régulateur `duplicate` ne couvre que les lots).
+
+Le résultat du travail (`output_json`) porte : `archive` (nom du tar), `taille`, `sha256`,
+`lignes`, `tables`, `objets_minio`, `fichiers_audio`, `tete_alembic`.
+
+> Slice 2 ajoutera `POST /donnees/verification` (`backup_verify`) ; slice 3, `GET /donnees`
+> (l'état : archives via sidecars, certificat, dernière vérification).
