@@ -1,17 +1,20 @@
 """Redémarrer un worker de production — le geste sur le PROCESSUS, jamais sur la politique.
 
-## La panne que ce geste répare
+## La panne qui a motivé le geste — et celle qu'il répare vraiment
 
 Un `SimpleWorker` RQ ne recharge **jamais** le code. Le 2026-08-16, un worker de 163 minutes a
 répondu « Aucun exécutant pour "srs_cards_generate" » — un message qui se lit exactement comme un
-bug du code, alors que seul le processus était périmé. La colonne « âge » de 🧠 La machine rend le
-diagnostic lisible ; ce module fournit le geste qui va avec.
+bug du code, alors que seul le processus était périmé. La colonne « âge » de 🧠 La machine rend ce
+diagnostic lisible. ⚠️ Mais le remède du worker *périmé* est le **déploiement**, pas ce geste :
+le code est baké dans l'image, un restart rend le même code (ADR-0064 §3). Ce que ce module
+répare vraiment : un worker **coincé** — zombie, mémoire, connexion Redis morte.
 
 ## Pourquoi « redémarrer » n'est offert QUE supervisé
 
 `send_shutdown_command` ARRÊTE un worker ; c'est le superviseur qui le fait revenir. En prod,
-`restart: unless-stopped` relance le conteneur **avec le code à jour** — l'arrêt EST le
-redémarrage. En dev, le worker est un fils de shell sous `trap` : rien ne le relance, et le même
+`restart: unless-stopped` relance le **même** conteneur — même image, donc même code — l'arrêt
+EST le redémarrage, pas une mise à jour. En dev, le worker est un fils de shell sous `trap` :
+rien ne le relance, et le même
 bouton le tuerait pour de bon. Le backend ne peut pas deviner le déploiement — d'où
 `PRODUCTION_WORKER_SUPERVISED`, posé par `docker-compose.prod.yml` et absent partout ailleurs.
 **Défaut : refusé, avec son motif** — un cadenas muet se lit comme une panne.
@@ -90,7 +93,7 @@ def redemarrer(name: str) -> dict:
     return {
         "detail": (
             f"Arrêt demandé au worker « {name} » : il termine sa pièce en cours puis sort, "
-            "et le superviseur le relance avec le code à jour."
+            "et le superviseur le relance."
         )
     }
 
