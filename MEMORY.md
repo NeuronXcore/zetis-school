@@ -22,10 +22,15 @@
 **PROCHAIN PAS : rien n'est dû dans CE chantier — il est soldé.** Les candidats du pas suivant,
 à l'arbitrage du commanditaire :
 
-- 🔴 **la dette bloquante d'abord** : poser `ZETIS_BACKUP_DIR` dans le `.env` racine + certifier
-  la cible (`scripts/certifier-cible-sauvegarde.sh`) — sans elle le prochain `prod:up` REFUSE et
-  tout `docker compose -f docker-compose.prod.yml exec` échoue (vécu deux fois, dont à la
-  clôture de la slice 2) ;
+- ✅ ~~la dette bloquante `ZETIS_BACKUP_DIR`~~ — **SOLDÉE le 2026-08-19 (après le 4bis)** :
+  variable posée dans le `.env` racine → `/Volumes/NX-Models/zetis-sauvegardes`, cible certifiée
+  (UUID `0C07D1DA…` ≠ `C11283B0…`, deux disques physiques distincts vérifiés `diskutil` :
+  `disk7` vs `disk6`), `compose -f docker-compose.prod.yml config` interpole de nouveau. ⚠️ La
+  cible démarre VIDE (aucune archive réelle sur aucun volume — les verdicts en base de dev
+  pointent des tars disparus) ; la prod qui TOURNE ne monte pas encore `/backups` (conteneurs
+  antérieurs à la variable) — c'est le prochain `prod:up` qui l'appliquera, et il reste la
+  preuve d'image (dette ci-dessous). Piège TCC rencontré au passage :
+  `TROUBLESHOOTING.md` § « certifier la cible depuis une session Claude Code » ;
 - ⚠️ la relecture §5bis restante : jouer EN DEV une restauration qui **aboutit** (résidu n°1
   ci-dessous — c'est aussi elle qui exercerait « restaurée le … » de bout en bout) ;
 - le chore « À CASER » (l'emoji sidebar → onglet Autonomie), ou le prochain sous-chantier de la
@@ -158,9 +163,9 @@ en tête du fichier.
 
 **🧾 DETTES OUVERTES** (du chantier, et REMONTÉES de l'élagage ADR-0065 fait ce jour) :
 
-- 🔴 **Le prochain `prod:up` NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR` dans le `.env` racine**
-  (`:?`, voulu — ADR-0065 §2). Le geste : poser la variable vers un répertoire d'un AUTRE disque
-  durable, puis `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
+- ✅ ~~Le prochain `prod:up` ne démarrera pas sans `ZETIS_BACKUP_DIR`~~ — **SOLDÉE le
+  2026-08-19** : variable posée (`/Volumes/NX-Models/zetis-sauvegardes`), cible certifiée exit 0,
+  interpolation compose vérifiée. Voir le détail dans PROCHAIN PAS ci-dessus.
 - **L'image Docker n'a jamais été reconstruite en entier** depuis la couche PGDG (vérifiée en
   conteneur identique) : le premier `prod:up --build` sera la preuve d'image.
 - **Ménage de la relecture 0065, sur cette machine** : le job d'essai `#890` (`failed` « Aucun

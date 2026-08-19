@@ -102,6 +102,26 @@ adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de
 reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
 Relever avec « Suspendre ZETIS » quand tout est contrôlé.
 
+## Hôte — certifier la cible depuis une session Claude Code : le script PEND sur TCC — 2026-08-19
+
+`scripts/certifier-cible-sauvegarde.sh` lit `~/Library/Group Containers/group.com.docker/
+settings-store.json` pour localiser `Docker.raw`. Depuis le shell d'une session Claude Code, ce
+chemin est **protégé (TCC/sandbox)** : le simple `[ -r … ]` ne rend ni vrai ni faux — il **pend
+indéfiniment** (observé : sous-shell bloqué sans aucun processus enfant, zéro CPU). Depuis le
+Terminal de l'utilisateur (droits TCC accordés), le même script passe.
+
+**Parade (celle qui a servi, exit 0)** : donner le dossier de `Docker.raw` en **2ᵉ argument** —
+prévu par le script — ET détourner `HOME` vers un répertoire jetable pour que le test du
+`settings-store.json` tombe sur un chemin inexistant (réponse instantanée) :
+
+```bash
+HOME=/tmp/jetable bash scripts/certifier-cible-sauvegarde.sh /Volumes/NX-Models/zetis-sauvegardes /Volumes/NX-Projects/_docker/DockerDesktop
+```
+
+⚠️ Le 2ᵉ argument seul ne suffit PAS : la lecture du `settings-store.json` a lieu AVANT la
+boucle des candidats, inconditionnellement. Localiser `Docker.raw` sans TCC :
+`find /Volumes/NX-Projects -maxdepth 4 -name Docker.raw` (le volume de projet n'est pas gardé).
+
 ## `feat/restaurer-une-sauvegarde-2` — slice 2 (l'administration) — 2026-08-19
 
 ### 🔴 Un import DE TYPE absent du baril `@zetis/types` : vitest VERT, `tsc` seul le voit
