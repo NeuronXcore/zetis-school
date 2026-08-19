@@ -212,3 +212,15 @@ class TestMoteurOut(BaseModel):
     latence_ms: int
     modele: str
     detail: str
+
+class SuspensionOut(BaseModel):
+    """ZETIS est-il suspendu ? (ADR-0063) — lu par la page et par la sidebar."""
+
+    suspended: bool
+
+
+class SuspensionRequest(BaseModel):
+    """La bascule, dans les deux sens. Pas d'expiration, pas de durée : un suspend ne se lève que
+    par le geste inverse (ADR-0063 §5) — un champ « pendant N minutes » en ferait un minuteur."""
+
+    suspended: bool

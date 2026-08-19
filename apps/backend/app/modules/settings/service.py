@@ -311,3 +311,46 @@ def regime_is_autonomous(db: Session) -> bool:
 def derivatives_are_served(db: Session) -> bool:
     """A0a ≥ 3 → les dérivés produits en lot sont validés d'office ; sinon ils restent `pending`."""
     return read_autonomy(db)[A0A] >= SERVE
+
+
+# --- La 8ᵉ clé : ZETIS est-il SUSPENDU ? (ADR-0063) --------------------------------------------
+#
+# Suspendre n'est ni un palier (pas un degré 0-3), ni le déclencheur (qui dit « démarrer sans
+# clic » — celui-ci dit « ne démarre plus DU TOUT, même sur clic »). Troisième question, troisième
+# clé — et le même préfixe distinct qui la met hors d'atteinte de `write_autonomy`.
+#
+# ⚠️ **Elle survit au redémarrage, et c'est la décision** (ADR-0063 §4) : un suspend qui
+# s'évaporerait au premier `docker compose up` rendrait la machine bavarde exactement quand Papa
+# la croit muette. Et **elle ne se relève jamais seule** (§5) : aucune expiration nulle part.
+PRODUCTION_SUSPENDED_KEY = "zetis_production_suspended"
+
+PRODUCTION_SUSPENDED_DEFAULT = False
+
+
+def production_suspended(db: Session) -> bool:
+    """ZETIS est-il suspendu ? — lu par le régulateur ET entre deux pièces d'un lot en vol.
+
+    🔴 **`select()` et jamais `db.get()`, et c'est ce qui rend l'arrêt d'urgence possible** : le
+    worker lit cette clé DANS sa session de travail, pendant qu'un PUT de Papa l'écrit par une
+    autre connexion. `db.get` servirait l'identity map — la valeur d'il y a une heure — et un
+    arrêt d'urgence qui obéit à l'état d'il y a une heure n'arrête rien. Un `select()` refait la
+    requête SQL à chaque appel.
+    """
+    from sqlalchemy import select
+
+    value = db.scalar(select(AppSetting.value).where(AppSetting.key == PRODUCTION_SUSPENDED_KEY))
+    if value is None:
+        return PRODUCTION_SUSPENDED_DEFAULT
+    return value == "true"
+
+
+def set_production_suspended(db: Session, *, suspended: bool) -> bool:
+    """Bascule explicite par Papa — le seul chemin d'écriture, dans les deux sens (ADR-0063 §5)."""
+    row = db.get(AppSetting, PRODUCTION_SUSPENDED_KEY)
+    value = "true" if suspended else "false"
+    if row is None:
+        db.add(AppSetting(key=PRODUCTION_SUSPENDED_KEY, value=value))
+    else:
+        row.value = value
+    db.commit()
+    return suspended
