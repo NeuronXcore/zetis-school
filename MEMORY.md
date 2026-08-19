@@ -53,10 +53,9 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
-### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063, pas encore codé (2026-08-19)
+### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063 ✅ CODÉ le jour même (voir bloc A2 ci-dessus)
 
-**PROCHAIN PAS : merger la tranche 1 (`feat/parametres-carte-et-onglets`), puis ouvrir
-`feat/suspendre-zetis`.** Le lot Décision de ce cadrage est **écrit, non committé** :
+> Backend committé `01bbf45` sur `feat/suspendre-zetis` ; la tranche 1 est mergée depuis. Le lot Décision de ce cadrage est **écrit, non committé** :
 `docs/decisions/adr-0063-…md` + `DECISIONS.md` régénéré + `BACKLOG.md` + ce fichier.
 `check_adr_refs.sh` sort en 0, rien sous `apps/` ni `packages/` n'a bougé.
 
@@ -85,9 +84,20 @@ notion = **69 s** mesurés le 2026-08-02, reconfirmés **77 s** le 2026-08-06 ·
 **amorces jamais mesurées**, et l'ADR le dit. ⚠️ **Aucun de ces chiffres n'a été re-mesuré** : la
 base de DEV ne porte aucun `equip_notion` de file (`n=0`).
 
-### 🗺 CADRAGE FAIT, CODE PAS ENCORE ÉCRIT — la page Paramètres (2026-08-19)
+### 🗺 LA PAGE PARAMÈTRES EST LIVRÉE — tranche 1 MERGÉE (PR #160, squash `49a4890`, 2026-08-19)
 
-**PROCHAIN PAS : committer le lot Décision, puis ouvrir `feat/parametres-carte-et-onglets`.**
+✅ **Carte + ⚡ Autonomie + 🧠 La machine sont sur `main`**, CI verte (pytest · vitest · verrous).
+ZETIS LEVELS déplacé sans une ligne changée. Le lot Décision (ADR-0062 `2742337`) a été poussé
+AVANT le merge pour que le squash ne porte que le code.
+
+**PROCHAIN PAS : les deux SURFACES débloquées par ce merge**, chacune sur sa branche existante :
+- `feat/redemarrer-un-worker` (`f536963`) — slice 2 : `supervised` dans `GET /machine` + bouton
+  par worker dans `MachineTab` (grisé avec le motif du 409) + **ADR de surface** (cas 4).
+- `feat/suspendre-zetis` (`01bbf45`) — la surface §6-§7 : geste dans La machine + état sidebar.
+  ⚠️ **Conflit ATTENDU et trivial au rebase** : `settings/router.py` et `schemas.py` — les deux
+  branches ajoutent en fin de fichier. A1, lui, a zéro fichier commun (vérifié).
+
+> Archive du cadrage (le bloc d'origine suit, conservé pour ses mesures) :
 
 Le lot Décision est **écrit et non committé** : `docs/decisions/adr-0062-…md` (neuf) +
 `DECISIONS.md` (régénéré) + ce fichier. `check_adr_refs.sh` sort en 0. **Rien sous `apps/` ni
