@@ -6,11 +6,12 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, nuit — clôture du chantier « le réveil clôt les
-> fantômes ») — `main` = `origin/main` (tête = le cadrage de l'Amendement 1, `8c72ddc`). **Une
-> branche de chantier vivante : `fix/reveil-clot-les-fantomes`** (base `8c72ddc` = la tête de
-> `main` — vérifié), qui porte la slice ENTIÈRE ; l'humain vérifie puis committe — voir PROCHAIN
-> PAS. L'ADR-0066 (2 slices, PR #167/#168) est mergé et soldé depuis ce soir. ℹ️ Branche de
+> **Où en est le dépôt** (2026-08-19, nuit — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante** (`fix/reveil-clot-les-fantomes` supprimée au
+> merge, locale ET distante — vérifié). **Le chantier « le réveil clôt les fantômes » est
+> MERGÉ** : PR #169, squash `0b7bdde`, CI verte du premier coup — et le run de `main` sur
+> `0b7bdde` a été attendu VERT avant de pousser ce 4bis (parade `b29a985`). L'ADR-0066 est donc
+> soldé DE BOUT EN BOUT : 2 slices (#167/#168) + Amendement 1 appliqué (#169). ℹ️ Branche de
 > worktree d'agent `claude/fervent-stonebraker-bfa5b9` toujours là (infrastructure Claude Code).
 > La prod tourne (8 conteneurs, ports canoniques). Côté dev : la paire 8001/5175 d'une autre
 > session tourne SANS worker ; **la paire d'essai `backend-restauration`/`papa-restauration`
@@ -19,16 +20,16 @@
 > (`preview_stop`, ou laisser mourir). ⚠️ **La base dev est un état restauré** (de l'archive
 > `…-1844.tar`) : `zetis_avant` vit sur le serveur dev, suspension LEVÉE, plus rien en vol.
 
-### ✅ CHANTIER COMPLET — « LE RÉVEIL CLÔT LES FANTÔMES » (ADR-0066 Amendement 1, cas 2) — slice unique livrée et PROUVÉE, PR à ouvrir (2026-08-19)
+### ✅ CHANTIER SOLDÉ — « LE RÉVEIL CLÔT LES FANTÔMES » (ADR-0066 Amendement 1, cas 2) — MERGÉ (PR #169, squash `0b7bdde`), 4bis fait (2026-08-19)
 
-**PROCHAIN PAS (humain, `WORKFLOW.md §2.4`) : vérifier puis expédier.** Sur
-`fix/reveil-clot-les-fantomes` : relire le diff (5 fichiers), relancer les suites si voulu,
-puis commit (message suggéré à la clôture) → push → PR → merge → revenir faire l'étape **4bis**
-ici. Après lui, les candidats : le chore sidebar (À CASER), le toast + le lien Journal de la
-barre (À CASER, même famille), ou le prochain sous-chantier de la phase E (occupation disque ·
-purges/rétention · remises à zéro · export RGPD) — chacun avec son cas `adr-0060` déclaré.
+**PROCHAIN PAS : rien n'est dû dans CE chantier — il est soldé.** Les candidats du pas suivant,
+à l'arbitrage du commanditaire : le chore sidebar (À CASER) · le toast + le lien Journal de la
+barre (À CASER, même famille — « comment un geste sauvegarde se raconte à Papa ») · le prochain
+sous-chantier de la phase E (occupation disque · purges/rétention · remises à zéro · export
+RGPD) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3 · ou le
+premier `prod:up --build` (preuve d'image + montage `/backups`, dettes ci-dessous).
 
-**FAIT (tout est sur la branche — 5 fichiers, +154/−14) :**
+**FAIT (MERGÉ : PR #169, squash `0b7bdde` — 7 fichiers avec la clôture, +275/−214) :**
 
 - `settings/sauvegarde.py` : `_ecrire_reveil(base, archive)` — après les upserts du réveil, sur
   la MÊME connexion, la **clôture des travaux d'une autre époque** : `ai_jobs` et
@@ -66,9 +67,10 @@ famille sauvegarde (observation utilisateur, pré-existant — voir À CASER).
 vivent dans l'ADR) : clore n'est pas falsifier (frontière du §3 précisée) · aucune ligne
 insérée, aucun statut neuf, aucune migration · Échecs existant fait foi.
 
-**EN COURS :** rien d'instable — tout est posé, testé et prouvé sur la branche.
+**EN COURS :** rien — le chantier est mergé, la branche supprimée, le 4bis fait.
 
-**À FAIRE :** rien côté code. Après le merge : l'étape **4bis** (voir PROCHAIN PAS).
+**À FAIRE :** rien dans ce chantier. Les RÉSIDUS et DETTES ci-dessous restent des dettes
+vivantes, pas des restes de travail.
 
 **PIÈGES :** `TROUBLESHOOTING.md`, dans l'ordre du fichier — `graphify update .` depuis un
 sous-dossier rebâtit une carte PARTIELLE sans un mot · le § essai (l'alias d'env
