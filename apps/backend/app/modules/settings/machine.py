@@ -449,8 +449,17 @@ def lire(db: Session) -> dict:
     """Un seul appel, un instantané cohérent (ADR-0062 §5 — aucun sondage, un bouton explicite)."""
     from app.modules.production import activity
 
+    from app.modules.production.workers import MOTIF_NON_SUPERVISE
+
     etat = activity.read(db)
     return {
+        # Le geste « Redémarrer » n'existe que supervisé — et quand il n'existe pas, le MOTIF
+        # voyage avec (chantier A1) : un cadenas muet se lit comme une panne. C'est le même texte
+        # que le 409 de la route — écrit UNE fois, dans workers.py.
+        "workers_supervision": {
+            "supervised": settings.production_worker_supervised,
+            "motif": None if settings.production_worker_supervised else MOTIF_NON_SUPERVISE,
+        },
         "sondes": sondes(db),
         "moteurs": moteurs(),
         "cle_anthropic_presente": cle_anthropic_presente(),

@@ -180,3 +180,16 @@ export async function acquitterEchec(jobId: number): Promise<void> {
   });
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
 }
+
+/** Arrêt gracieux d'un worker périmé — le superviseur le relance avec le code à jour (A1).
+ *
+ *  202 = l'ordre est ACCEPTÉ, pas exécuté : la pièce en cours se termine d'abord (jusqu'à ~77 s).
+ *  Un 409 veut dire « rien ne supervise » — son `detail` porte le geste de remplacement. */
+export async function redemarrerWorker(name: string): Promise<{ detail: string }> {
+  return asJson(
+    await fetch(`${API_URL}/api/production/workers/${encodeURIComponent(name)}/restart`, {
+      method: "POST",
+      headers: jsonHeaders(),
+    }),
+  );
+}

@@ -53,6 +53,39 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### 🔁 A1 « REDÉMARRER UN WORKER » — backend LIVRÉ, surface DÉBLOQUÉE par le merge #160 (2026-08-19)
+
+Branche `feat/redemarrer-un-worker` (depuis `main`, **zéro fichier commun** avec la tranche 1 —
+vérifié contre le lot `1295f87`). **Cas surface (`adr-0060` cas 4) : l'ADR viendra APRÈS l'écran**,
+donc après la slice 2. Committé `f536963` (rebasé sur `49a4890`).
+
+**Livré (slice 1, mécanisme)** : `PRODUCTION_WORKER_SUPERVISED` (défaut **False** = on refuse de
+tuer ce qui ne reviendra pas ; posé `true` dans l'ancre `generation-env` de
+`docker-compose.prod.yml` — la variable décrit le DÉPLOIEMENT, vraie pour les deux conteneurs) ·
+`modules/production/workers.py` + `workers_router.py` (`POST /api/production/workers/{name}/restart`,
+routeur dédié : `activity_router` annonce « UN seul geste d'écriture », on ne fait pas mentir son
+en-tête) · 5 tests · **prouvé en vrai** : 409 motivé contre le backend-dev vivant, worker intact.
+
+📌 **Trois faits vérifiés qui portent le chantier** : ① `Worker.work()` → `bootstrap()` →
+`self.subscribe()` — **SimpleWorker écoute le canal de commandes** (ne surcharge ni work ni
+subscribe), donc `send_shutdown_command` = warm shutdown, la pièce se termine puis il sort ;
+② le piège « le réveil périodique se duplique à chaque redémarrage » est **déjà corrigé**
+(`scan_already_planned`, vérifié 3 redémarrages → 1 réveil) — le bouton n'aggrave rien ;
+③ en prod `restart: unless-stopped` → l'arrêt EST le redémarrage, code à jour.
+
+⚠️ **Piège d'outillage consigné** : cette version de FastAPI monte les routeurs en
+`_IncludedRouter` PARESSEUX — `app.routes` ne contient plus d'`APIRoute` aplaties. Compter les
+routes par `getattr(r, 'path')` rend 0 et fait croire que l'include a échoué. La seule preuve est
+un appel TestClient/curl.
+
+**PROCHAIN PAS (slice 2, après merge de la tranche 1)** : exposer `supervised: bool` dans
+`GET /api/settings/machine` + le bouton « Redémarrer » par worker dans `MachineTab.tsx` (grisé avec
+le motif du 409 quand non supervisé) + l'ADR de surface. La ligne d'inventaire
+« Mise à jour / redémarrer un service · 🚫 jamais » reste vraie : un WORKER n'est pas un service —
+préciser la carte à la slice 2.
+
+### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063, pas encore codé (2026-08-19)
+
 ### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063 ✅ CODÉ le jour même (voir bloc A2 ci-dessus)
 
 > Backend committé `01bbf45` sur `feat/suspendre-zetis` ; la tranche 1 est mergée depuis. Le lot Décision de ce cadrage est **écrit, non committé** :

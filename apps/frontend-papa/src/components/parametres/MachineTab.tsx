@@ -15,7 +15,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, cn } from "@zetis/ui";
 import { type EtatSonde, type Machine, type TestMoteur } from "@zetis/types";
 
-import { acquitterEchec, fetchMachine, testMoteur } from "../../lib/settings";
+import {
+  acquitterEchec,
+  fetchMachine,
+  redemarrerWorker,
+  testMoteur,
+} from "../../lib/settings";
 
 const TON_SONDE: Record<EtatSonde, string> = {
   ok: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
@@ -42,6 +47,8 @@ export function MachineTab() {
   const [machine, setMachine] = useState<Machine | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [essai, setEssai] = useState<TestMoteur | "en-cours" | null>(null);
+  // Le retour du POST restart, par worker — 202 comme 409 sont des PHRASES à afficher.
+  const [redemarrage, setRedemarrage] = useState<{ nom: string; detail: string } | null>(null);
 
   const charger = useCallback(() => {
     setErreur(null);
@@ -287,9 +294,50 @@ export function MachineTab() {
                         démarré il y a {w.age_minutes} min
                       </span>
                     )}
+                    {/* Le geste qui va avec l'âge (chantier A1). Grisé AVEC son motif quand rien
+                        ne supervise : arrêter un worker que rien ne relance le tuerait pour de
+                        bon — le serveur refuse (409), l'écran rend le refus lisible AVANT le
+                        clic. */}
+                    <button
+                      type="button"
+                      disabled={!machine.workers_supervision.supervised}
+                      title={machine.workers_supervision.motif ?? undefined}
+                      onClick={() => {
+                        setRedemarrage({ nom: w.nom, detail: "arrêt demandé…" });
+                        redemarrerWorker(w.nom)
+                          .then((r) => setRedemarrage({ nom: w.nom, detail: r.detail }))
+                          .catch((e: unknown) =>
+                            setRedemarrage({
+                              nom: w.nom,
+                              // Le detail du serveur (409/404/503) est une phrase complète —
+                              // relayée telle quelle, jamais réécrite.
+                              detail: e instanceof Error ? e.message : "l'ordre n'a pas abouti",
+                            }),
+                          );
+                      }}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1 text-xs font-semibold",
+                        machine.workers_supervision.supervised
+                          ? "border-papa-border bg-papa-surface/60 text-papa-muted hover:text-papa-text"
+                          : "cursor-not-allowed border-papa-border/60 text-papa-muted opacity-40",
+                      )}
+                    >
+                      ⟳ Redémarrer
+                    </button>
                   </li>
                 ))}
               </ul>
+            )}
+            {redemarrage && (
+              <p className="mt-2 text-xs text-papa-muted">
+                <span className="font-mono">{redemarrage.nom}</span> — {redemarrage.detail}
+              </p>
+            )}
+            {!machine.workers_supervision.supervised && machine.workers.length > 0 && (
+              // Le cadenas parle : même texte que le 409 de la route, écrit une fois côté serveur.
+              <p className="mt-2 text-xs text-papa-muted">
+                🔒 {machine.workers_supervision.motif}
+              </p>
             )}
             <p className="mt-3 text-xs text-papa-muted">
               🔴 « Vivant » ne veut pas dire « à jour » : un <code>SimpleWorker</code> RQ ne

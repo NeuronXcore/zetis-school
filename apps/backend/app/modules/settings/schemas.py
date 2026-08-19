@@ -170,6 +170,16 @@ class FileOut(BaseModel):
     en_cours: int
 
 
+class SupervisionOut(BaseModel):
+    """Le geste « Redémarrer un worker » existe-t-il ici ? — et sinon, POURQUOI (chantier A1).
+
+    Le motif est celui du 409 de la route, écrit une fois dans `workers.py` : l'écran grise le
+    bouton AVEC ce texte au lieu de laisser Papa cliquer pour apprendre le refus."""
+
+    supervised: bool
+    motif: str | None = None
+
+
 class MachineOut(BaseModel):
     """L'instantané complet. Un seul appel, une seule vérité à l'instant t.
 
@@ -177,6 +187,7 @@ class MachineOut(BaseModel):
     valeur ni un préfixe, et aucune URL de service ne porte d'identifiant. Un test le verrouille.
     """
 
+    workers_supervision: SupervisionOut
     sondes: list[SondeOut]
     moteurs: list[MoteurOut]
     cle_anthropic_presente: bool
