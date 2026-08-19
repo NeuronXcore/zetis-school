@@ -25,12 +25,13 @@
 
 ### ✅ CHANTIER SOLDÉ — « LE RÉVEIL CLÔT LES FANTÔMES » (ADR-0066 Amendement 1, cas 2) — MERGÉ (PR #169, squash `0b7bdde`), 4bis fait (2026-08-19)
 
-**PROCHAIN PAS : rien n'est dû dans CE chantier — il est soldé.** Les candidats du pas suivant,
-à l'arbitrage du commanditaire : le chore sidebar (À CASER) · le toast + le lien Journal de la
+**PROCHAIN PAS : rien n'est dû — le chantier est soldé, et le `prod:up --build` qui restait en
+candidat a été JOUÉ le soir même** (preuve d'image + `/backups` + première archive prod
+vérifiée — voir l'en-tête et les dettes ✅ ci-dessous). Les candidats du pas suivant, à
+l'arbitrage du commanditaire : le chore sidebar (À CASER) · le toast + le lien Journal de la
 barre (À CASER, même famille — « comment un geste sauvegarde se raconte à Papa ») · le prochain
 sous-chantier de la phase E (occupation disque · purges/rétention · remises à zéro · export
-RGPD) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3 · ou le
-premier `prod:up --build` (preuve d'image + montage `/backups`, dettes ci-dessous).
+RGPD) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
 
 **FAIT (MERGÉ : PR #169, squash `0b7bdde` — 7 fichiers avec la clôture, +275/−214) :**
 

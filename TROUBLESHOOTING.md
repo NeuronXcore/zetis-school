@@ -102,6 +102,18 @@ adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de
 reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
 Relever avec « Suspendre ZETIS » quand tout est contrôlé.
 
+## Un `git push` qui « pend » n'est pas toujours un blocage : le hook `pre-push` joue les TROIS suites, et à froid ça dépasse toute patience courte — 2026-08-19
+
+Après le reboot du Mac, trois `git push` de suite ont semblé pendre (tués à 60-120 s, exit 143,
+**zéro octet de sortie**) — trousseau et réseau soupçonnés à tort (lecture `git ls-remote`
+instantanée, `gh api` OK). La vraie cause : le hook `pre-push` versionné lance **les trois
+suites complètes** avant chaque push (~40 s à CHAUD) — caches froids post-reboot, ça devient
+plusieurs minutes, et c'était MON timeout qui tuait le push en plein test. **Parade** : donner
+au push un délai généreux (10 min) et le laisser finir ; le hook annonce lui-même « ≈ 40 s » et
+l'échappatoire consciente (`--no-verify`, réservée aux branches qui portent du rouge à dessein).
+Sa sortie n'arrive qu'à la fin quand elle est capturée par un pipe — le silence n'est pas un
+blocage.
+
 ## 🔴 VM Docker Desktop : « storage device attachment is invalid » — toute CRÉATION de conteneur pend en silence, et ça survit aux redémarrages du Desktop — 2026-08-19
 
 Vécu au premier `prod:up --build` : les images se bâtissent, puis backend/worker/frontends
