@@ -6,207 +6,112 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
-> pousser, **aucune branche de chantier vivante** (`feat/restaurer-une-sauvegarde-2` supprimée au
-> merge, locale ET distante — vérifié : GitHub ne porte que `main`). **L'ADR-0066 est COMPLET et
-> MERGÉ** : slice 1 = PR #167 (squash `8fab1a8`), slice 2 = PR #168 (squash `3c37c7b`), CI verte
-> du premier coup les deux fois — et le run de `main` sur `3c37c7b` a été attendu VERT avant de
-> pousser ce 4bis (parade au piège `b29a985` : un push arrivé trop tôt fait annuler le run du
-> squash par `cancel-in-progress`). ℹ️ La branche de worktree d'agent
-> `claude/fervent-stonebraker-bfa5b9` existe toujours (infrastructure Claude Code, pas un
-> chantier). La prod tourne (8 conteneurs, ports canoniques) ; une paire dev d'une autre session
-> Claude tient encore 8001/5175 (même arbre) — **SANS worker de production** : le sien a été
-> remplacé pour l'essai restauration, et le remplaçant est mort au recyclage ⑧ (`pnpm
-> dev:worker` pour en relancer un). ⚠️ **La base dev EST désormais un état restauré** :
-> `zetis_avant` vit sur le serveur dev, et la ligne fantôme #896 (`running`) bloque les gestes
-> sauvegarde (voir RÉSIDUS). La cible d'essai `/Volumes/NX-Models/zetis-sauvegardes-dev` porte
-> 2 archives réelles + sidecars.
+> **Où en est le dépôt** (2026-08-19, nuit — clôture du chantier « le réveil clôt les
+> fantômes ») — `main` = `origin/main` (tête = le cadrage de l'Amendement 1, `8c72ddc`). **Une
+> branche de chantier vivante : `fix/reveil-clot-les-fantomes`** (base `8c72ddc` = la tête de
+> `main` — vérifié), qui porte la slice ENTIÈRE ; l'humain vérifie puis committe — voir PROCHAIN
+> PAS. L'ADR-0066 (2 slices, PR #167/#168) est mergé et soldé depuis ce soir. ℹ️ Branche de
+> worktree d'agent `claude/fervent-stonebraker-bfa5b9` toujours là (infrastructure Claude Code).
+> La prod tourne (8 conteneurs, ports canoniques). Côté dev : la paire 8001/5175 d'une autre
+> session tourne SANS worker ; **la paire d'essai `backend-restauration`/`papa-restauration`
+> (8005/5181, `launch.json`) tourne AVEC le worker de la machine** — elle porte le mensonge
+> d'essai `PRODUCTION_WORKER_SUPERVISED=true`, à éteindre quand on n'en a plus besoin
+> (`preview_stop`, ou laisser mourir). ⚠️ **La base dev est un état restauré** (de l'archive
+> `…-1844.tar`) : `zetis_avant` vit sur le serveur dev, suspension LEVÉE, plus rien en vol.
 
-### ✅ CHANTIER SOLDÉ — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — les DEUX slices MERGÉES, 4bis fait (2026-08-19)
+### ✅ CHANTIER COMPLET — « LE RÉVEIL CLÔT LES FANTÔMES » (ADR-0066 Amendement 1, cas 2) — slice unique livrée et PROUVÉE, PR à ouvrir (2026-08-19)
 
-**PROCHAIN PAS : rien n'est dû dans CE chantier — il est soldé.** Les candidats du pas suivant,
-à l'arbitrage du commanditaire :
+**PROCHAIN PAS (humain, `WORKFLOW.md §2.4`) : vérifier puis expédier.** Sur
+`fix/reveil-clot-les-fantomes` : relire le diff (5 fichiers), relancer les suites si voulu,
+puis commit (message suggéré à la clôture) → push → PR → merge → revenir faire l'étape **4bis**
+ici. Après lui, les candidats : le chore sidebar (À CASER), le toast + le lien Journal de la
+barre (À CASER, même famille), ou le prochain sous-chantier de la phase E (occupation disque ·
+purges/rétention · remises à zéro · export RGPD) — chacun avec son cas `adr-0060` déclaré.
 
-- ✅ ~~la dette bloquante `ZETIS_BACKUP_DIR`~~ — **SOLDÉE le 2026-08-19 (après le 4bis)** :
-  variable posée dans le `.env` racine → `/Volumes/NX-Models/zetis-sauvegardes`, cible certifiée
-  (UUID `0C07D1DA…` ≠ `C11283B0…`, deux disques physiques distincts vérifiés `diskutil` :
-  `disk7` vs `disk6`), `compose -f docker-compose.prod.yml config` interpole de nouveau. ⚠️ La
-  cible démarre VIDE (aucune archive réelle sur aucun volume — les verdicts en base de dev
-  pointent des tars disparus) ; la prod qui TOURNE ne monte pas encore `/backups` (conteneurs
-  antérieurs à la variable) — c'est le prochain `prod:up` qui l'appliquera, et il reste la
-  preuve d'image (dette ci-dessous). Piège TCC rencontré au passage :
-  `TROUBLESHOOTING.md` § « certifier la cible depuis une session Claude Code » ;
-- ✅ ~~la relecture §5bis restante~~ — **JOUÉE le 2026-08-19 au soir** : la restauration a
-  ABOUTI en dev, 8/8 étapes, « restaurée le … » vu à l'écran (résidu n°1 ci-dessous, soldé —
-  avec DEUX découvertes : le travail fantôme 🔴 et le piège d'alias d'env) ;
-- 🎯 **le chantier CADRÉ et prêt : « le réveil clôt les fantômes »** (Amendement 1 de
-  l'ADR-0066, cadré le 2026-08-19 au soir) — application directe (cas 2) : branche
-  `fix/reveil-clot-les-fantomes` depuis `main`, périmètre au premier message, `/slice` avec un
-  prompt qui cite l'amendement (le prompt s'écrit sur la branche — lot Exécution, WORKFLOW
-  §2bis) ; test-verrous et preuve vivante listés au §Suivi de l'amendement ;
-- le chore « À CASER » (l'emoji sidebar → onglet Autonomie), ou le prochain sous-chantier de la
-  phase E (occupation disque · purges/rétention · remises à zéro · export RGPD) — chacun avec
-  son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
+**FAIT (tout est sur la branche — 5 fichiers, +154/−14) :**
 
-**FAIT — slice 1 (le geste `backup_restore`, sur `main` via PR #167, squash `8fab1a8`) :**
+- `settings/sauvegarde.py` : `_ecrire_reveil(base, archive)` — après les upserts du réveil, sur
+  la MÊME connexion, la **clôture des travaux d'une autre époque** : `ai_jobs` et
+  `production_runs` en `queued|running` → `failed` + motif nommant l'archive + `finished_at`,
+  `RETURNING id` → le détail de l'étape `reveil` du sidecar porte `travaux_clos`/`lots_clos`.
+  Rien d'inséré, `succeeded`/`done` jamais touchés (le WHERE le garantit) — les critères de
+  l'amendement mordent.
+- Tests : l'ordre SQL asserté de `test_le_reveil_est_ecrit_avant_le_swap` intègre la clôture
+  (upserts → UPDATE `ai_jobs` → UPDATE `production_runs` → terminate, WHERE `queued|running`
+  seul, motif nommé) — **le SEUL test modifié, l'évolution que le §Suivi de l'amendement
+  autorisait nommément** · un verrou unitaire neuf (`test_la_cloture_rend_les_ids…`, faux
+  psycopg à curseur non vide : ids remontés, motif vérifié).
+- Docs : `CHANGELOG 0.99.11` · `TROUBLESHOOTING.md` § essai (parade « à cadrer » → appliquée +
+  le constat du chemin de preuve) · `API_SPEC.md` (la description du ③ dit la clôture) · le
+  § chantier dans `prompts/claude-code/prompts-claude-code-adr-0066.md` (lot branche).
+- **Tests : backend 1559/1559 (1558 + 1 neuf), papa 876/876, massimo 920/920 (zéro fichier
+  front touché — les chiffres le prouvent).**
 
-- `settings/sauvegarde.py` : `refus_restauration` (les 7 préconditions du §2, TOUTES en 409
-  motivé avant d'enfiler) · `restaurer_sauvegarde` (les 8 étapes dans l'ordre : filet ① →
-  `_restaurer_dans(zetis_restore)` ② → réveil ③ upserts `app_settings` DANS la base restaurée →
-  `_neutraliser_pool` + `_swap` ④ → `_remplacer_medias` ⑤ → `_purger_files_redis` ⑥ →
-  `_alembic_upgrade` ⑦ → `_arret_worker` ⑧) · sidecar `_JournalRestauration`
-  (`<archive>.restauration.json`, réécrit à CHAQUE étape — un crash laisse un fichier qui dit où
-  ça s'est arrêté) · verdict de compatibilité §5 (`_tetes_connues` via `ScriptDirectory` — le
-  CODE, jamais la base vivante) servi par archive dans `GET /donnees` (`restaurable`, `motif`) ·
-  `RestaurationInterrompue` = zéro rejeu quelle que soit l'exception.
-- `production/jobs.py` : exécutant `backup_restore` (sans db/llm) + **le garde « introuvable »
-  en FIN de `run_ai_job`** (la ligne du travail meurt au swap, §3). `ai/travaux.py` : amorce
-  20 s. `settings/router.py` + `schemas.py` : `POST /donnees/restauration` (202/409, patron
-  exact de `/verification`).
-- **Tests : backend 1542/1542 (dont 21 neufs, `test_sauvegarde_restauration.py`), papa 869/869,
-  massimo 920/920, `tsc` OK ×2 — zéro test existant modifié, zéro fichier front touché.** Les
-  verrous : jamais sans filet · réveil AVANT swap (ordre SQL exact asserté, faux psycopg) ·
-  409 paramétré ×7 · ② en échec ne swap pas · sidecar survit au crash · métadonnées seules ·
-  le garde `run_ai_job`.
-- Docs : `API_SPEC.md` (§💾 : POST restauration + champs `restaurable`/`motif` du GET),
-  `TROUBLESHOOTING.md` § `feat/restaurer-une-sauvegarde` (3 pièges).
+**PREUVE VIVANTE (jouée en dev, vue par le commanditaire en direct) :** déblocage manuel
+documenté du fantôme pré-correctif #896 (admis au prompt — la barre s'est vidée sous les yeux
+de l'utilisateur) → cycle frais : archive `…-1844.tar` (202 là où le fantôme rendait 409) →
+vérifiée `reussie` → Restaurer + saisie → **8/8, zéro écart, `travaux_clos: [897]`** au sidecar
+→ en base vivante `897 | failed | « Interrompu par la restauration… »`, **0 travail en vol**,
+la barre l'affiche en **Échec acquittable** → **💾 Sauvegarder repart : 202**, archive
+`…-1847.tar` née. Suspension levée à la fin.
 
-**Verdicts des read-before-code slice 1 (à ne pas re-vérifier) :** le seed de l'entrypoint EST
-idempotent sur base restaurée pleine (`User.count() > 0` → ignoré) · le warm shutdown de
-soi-même marche (rq 2.11 lu : SIGINT → BUSY → drapeau, la pièce se termine, statut écrit, puis
-sortie ; nom via `get_current_job().worker_name`) · clés Redis ⑥ = les DEUX files de production
-+ leurs `ScheduledJobRegistry` (le scan se réamorce au redémarrage du worker — garanti par ⑧ +
-la précondition de supervision) ; la file `media` reste hors du destructif énuméré ·
-`remove_objects` MinIO est un itérateur PARESSEUX (consommer, sinon rien ne part) · la connexion
-admin du swap DOIT viser `postgres` (jamais la base qu'on renomme) · 🔴 le chemin « tête plus
-ancienne » du §5 reste NON MESURÉ (aucune archive d'une tête antérieure n'existe au 2026-08-19).
+**Verdicts du read-before-code (à ne pas re-vérifier) :** le fantôme bloquait AUSSI « Vérifier »
+(refus famille) — le chemin de preuve de l'amendement (« rejouer `…-1756.tar` ») était
+injouable tel quel, d'où le déblocage admis · `_ecrire_reveil` n'a que deux appelants (le geste
++ 3 tests structurels) · le Journal **exclut `created_by='file'`** par construction
+(`journal_filters.py`) — le lien « Voir au Journal » de la barre mène sur du vide pour la
+famille sauvegarde (observation utilisateur, pré-existant — voir À CASER).
 
-**FAIT — slice 2 (l'administration — MERGÉE : PR #168, squash `3c37c7b`, CI verte du premier
-coup) :**
+**Ce que l'Amendement 1 décide** (ne pas re-débattre — le §Suivi, les critères et le signal
+vivent dans l'ADR) : clore n'est pas falsifier (frontière du §3 précisée) · aucune ligne
+insérée, aucun statut neuf, aucune migration · Échecs existant fait foi.
 
-- Backend : `DELETE /api/settings/donnees/archives/{nom}` (`settings/router.py`) ·
-  `sauvegarde.refus_suppression` (409 : whitelist · introuvable · famille sauvegarde en vol ·
-  🔴 la dernière archive `reussie` ne se supprime pas — « jamais zéro filet ») ·
-  `supprimer_sauvegarde` (tar + TOUS les sidecars par glob `{nom}.*`, whitelist revérifiée —
-  c'est elle qui rend le glob sûr) · `_verdicts_par_archive` (une requête ; `_dernier_verdict`
-  refactoré dessus à comportement constant) · `GET /donnees` porte `restauree_le` (le
-  `termine_le` du sidecar `.restauration.json` — nul si geste interrompu) · `schemas.py` :
-  `ArchiveOut.restauree_le`, `SauvegardeSuppressionOut`.
-- Front : `packages/types/settings.ts` gagne `restaurable`/`motif` (servis depuis la slice 1,
-  jamais typés côté front) + `restauree_le` + `ArchiveSupprimee` (⚠️ ET la ligne du baril
-  `index.ts`) · `lib/settings.ts` : `lancerRestauration`, `supprimerArchive` · `DonneesTab.tsx` :
-  « ↺ Restaurer » SEULEMENT si verdict `reussie`, grisé+motif si compat défavorable ; dialogue
-  danger nommant l'archive, séquence énoncée (filet compris, réveil suspendu), **saisie
-  `RESTAURER` exigée** ; « 🗑 Supprimer » : dialogue nommé sans saisie, recharge la liste après ;
-  « ↺ restaurée le … » sous le nom ; refus 409 en ambre ; footer corrigé · `ConfirmDialog`
-  (`packages/ui`) : prop additive `confirmDisabled` (annuler reste dispo — autres consommateurs
-  intacts).
-- Docs : runbook **re-swap `zetis_avant`** dans `TROUBLESHOOTING.md` (commandes PROUVÉES en
-  conteneur jetable pg16 — témoins par base ; dit ce qu'il ne ramène PAS : les médias → passer
-  par la sauvegarde-filet) · `API_SPEC.md` (DELETE + `restauree_le`) · **`CHANGELOG 0.99.10`**
-  (l'entrée du chantier, affectée à cette slice par le prompt) · `page-parametres.md` §💾 remis
-  au réel (+ la ligne d'onglets qui disait encore « Données à venir », dérive du 0065).
-- **Tests : backend 1542→1558 (16 neufs : `test_sauvegarde_suppression.py` ×14 + `restauree_le`
-  ×2), papa 869→876 (7 neufs), massimo 920/920, `tsc -b --force` OK ×2, verrous CI rejoués
-  localement. Dans les fichiers de test EXISTANTS : 1 seule ligne supprimée (l'import élargi de
-  `DonneesTab.test.tsx`) + fixture étendue des 3 champs — ZÉRO assertion modifiée (vérifié au
-  diff).** Verrous : jamais zéro filet (409 même entouré d'exports non vérifiés) · suppression =
-  tar + sidecars Y COMPRIS un type inconnu, rien d'autre · saisie exigée (bouton inerte mesuré) ·
-  « Restaurer » absent des non vérifiées · le DELETE ne touche pas `ai_jobs`.
-- **Vu à l'ÉCRAN (paire dev, état d'essai fabriqué dans `apps/backend/storage/backups` —
-  gitignoré, NETTOYÉ ensuite, zéro écriture en base)** : les deux dialogues, le bouton inerte
-  sans saisie, les DEUX vrais 409 serveur en ambre (« pas suspendu » ; « dernière archive
-  vérifiée ») et une suppression réelle qui recharge la liste.
+**EN COURS :** rien d'instable — tout est posé, testé et prouvé sur la branche.
 
-**Verdicts du read-before-code slice 2 (à ne pas re-vérifier) :** deux `ALTER DATABASE` dans un
-même `psql -c` PASSENT sur pg16 (hypothèse de piège réfutée en conteneur — le runbook garde un
-ordre par commande pour s'arrêter au premier échec) · l'entrypoint backend rejoue
-`alembic upgrade head` à chaque boot ⇒ le stop/start du runbook couvre ⑦ · clés RQ exactes de
-rq 2.11.0 : `rq:queue:production(-priority)`, `rq:scheduled:…` · `compose -f
-docker-compose.prod.yml exec` REFUSE sans `ZETIS_BACKUP_DIR` (la dette 🔴 ci-dessous bloque
-aussi les lectures) · le baril `packages/types/src/index.ts` exporte NOMINATIVEMENT — un type
-oublié passe vitest et tombe au seul `tsc` (`TROUBLESHOOTING.md` slice 2).
+**À FAIRE :** rien côté code. Après le merge : l'étape **4bis** (voir PROCHAIN PAS).
 
-**Ce que l'ADR-0066 décide** (ne pas re-débattre) : restaurer ne s'offre qu'à une archive au
-verdict `reussie` — le mot se mérite dans les deux sens (§1) · préconditions toutes en 409 motivé
-AVANT d'enfiler : suspension ACTIVE posée par Papa, supervisé requis, rien en vol, compatibilité
-favorable (§2) · la séquence en 8 étapes : filet `backup_create` non négociable → restore dans
-`zetis_restore` → écritures de réveil DANS la base restaurée (suspendue + MANUAL + déclencheur
-désarmé) → **SWAP** (terminate + double RENAME, `zetis` → `zetis_avant`) → médias remplacés en
-couple → files Redis purgées → `alembic upgrade head` → le worker se recycle (§2) · **le journal
-du geste vit en sidecar `.restauration.json`** — la ligne `ai_jobs` meurt au swap, structurel et
-assumé (§3) · `zetis_avant` = UN filet immédiat, écrasé au geste suivant, re-swap en runbook —
-pas de bouton « annuler » en v1 (§4) · compatibilité : tête identique OK, plus ancienne OK avec
-upgrade, inconnue REFUS (§5) · DELETE d'archive explicite, jamais de rotation, et **la dernière
-archive vérifiée ne se supprime pas** (§6) · surface dans l'onglet 💾, confirmation par SAISIE
-pour restaurer, dialogue simple pour supprimer, toast = retour d'action seulement (§7).
+**PIÈGES :** `TROUBLESHOOTING.md`, dans l'ordre du fichier — `graphify update .` depuis un
+sous-dossier rebâtit une carte PARTIELLE sans un mot · le § essai (l'alias d'env
+`PRODUCTION_WORKER_SUPERVISED` SANS préfixe · le fantôme et sa parade appliquée) · le § TCC du
+script de certification · le 📖 RUNBOOK re-swap · les §§ `feat/restaurer-une-sauvegarde(-2)`
+des slices mergées.
 
-📌 **Mesures du cadrage** (conteneur d'essai, VRAI dump de l'archive vérifiée du jour) :
-restauration 0,234 s / 48 tables · **SWAP 8 ms** (terminate + 2 RENAME), témoin `AdminShutdown`,
-réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaurée · connexions à
-terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
-est requis à la restauration (attrapé en conteneur).
+**RÉSIDUS de cette clôture (ne vivent QUE ici) :**
 
-**EN COURS :** rien — le chantier est mergé, la branche supprimée, le 4bis fait.
+- **L'état DEV laissé par les essais du jour** : la base dev = l'état restauré de `…-1844.tar`
+  (`zetis_avant` sur le serveur, suspension LEVÉE, 0 en vol) · dans ses `ai_jobs` : #896
+  `failed` « Débloqué à la main… » (le fantôme pré-correctif, motif honnête) et #897 `failed`
+  « Interrompu par la restauration… » (clos par le réveil amendé) — **tous deux à ACQUITTER par
+  Papa dans Échecs** quand il veut · la cible dev `/Volumes/NX-Models/zetis-sauvegardes-dev`
+  porte 3 archives réelles (`1844` restaurée · `1846` = filet du geste · `1847` = la preuve
+  « repart ») + sidecars · l'utilisateur a supprimé `1756`/`1807` à la main via l'UI pendant
+  l'essai (le sidecar de la 1re restauration est parti avec — « rien d'orphelin », voulu).
+- **La paire d'essai 8005/5181 tourne encore** (worker de la machine compris, mensonge
+  `SUPERVISED=true`) — l'éteindre quand plus utile ; la paire 8001/5175 de l'autre session
+  tourne SANS worker ; les vieilles paires squattent toujours 8002/5178 (pids 48287/46329 — le
+  classifieur de permissions a refusé mes `kill`, gestes à vous).
+- ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (hérité de la
+  slice 3 du 0065) — signalé, non traité.
+- ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile
+  (`overflow-x-auto`) — à juger si l'iPad de Papa est une cible.
 
-**À FAIRE :** rien dans ce chantier. Les RÉSIDUS ci-dessous restent des dettes vivantes, pas des
-restes de travail.
+**🧾 DETTES OUVERTES (REMONTÉES des élagages 0065 et 0066) :**
 
-**PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/restaurer-une-sauvegarde(-2)` — la fin de
-`run_ai_job` sans garde + le pool à neutraliser AVANT le terminate · la connexion admin du swap
-sur `postgres` · le verrou zéro-rejeu contre `is_transient` (+ `remove_objects` paresseux) ·
-l'export de type oublié du baril (vitest aveugle, seul `tsc` le voit) · et le 📖 RUNBOOK re-swap
-en tête du fichier.
-
-**RÉSIDUS de la clôture slice 2 (ne vivent QUE ici) :**
-
-- ✅ ~~Une restauration qui ABOUTIT n'a jamais été vue à l'écran~~ — **JOUÉE EN VRAI le
-  2026-08-19 au soir, sur ordre explicite** (paire d'essai `backend-restauration`/
-  `papa-restauration` de `launch.json`, 8005/5181, cible dev certifiée
-  `/Volumes/NX-Models/zetis-sauvegardes-dev`) : archive réelle de la base dev (48,2 Mo,
-  9168 lignes) → vérifiée `reussie` → **Restaurer apparu** → saisie `RESTAURER` → 202 →
-  **les 8 étapes franchies, zéro écart** (sidecar), **« ↺ restaurée le … » à l'écran ET dans le
-  GET**, `zetis_avant` née, réveil suspendu+désarmé lu en base, **filet réel créé** (2ᵉ archive),
-  76 audio remplacés (`storage/generated`), files purgées (1 réveil de scan), worker **mort au
-  ⑧**. Suspension posée puis LEVÉE par le bouton (le monde ne se relève jamais seul). Le premier
-  essai est tombé en **409 adr-0064** — piège d'alias d'env, voir `TROUBLESHOOTING.md` § essai.
-- 🔴 **DÉCOUVERT à l'essai — le travail FANTÔME (systématique)** : toute archive du produit
-  contient SA PROPRE ligne `ai_jobs` en `running` (dump pris pendant le travail) ; restaurée,
-  cette ligne revit en éternel « en cours » — la barre l'affiche, et **les préconditions « rien
-  en vol » refuseront tout geste sauvegarde suivant** (mesuré : même 💾 Sauvegarder rend 409 au
-  motif menteur « attendez sa fin »). ⚠️ **État LAISSÉ dans la base dev** : la ligne #896
-  (`backup_create`, `running`) y vit — voulu, c'est la **preuve vivante** du chantier correctif.
-  ✅ **CADRÉ le soir même : Amendement 1 de l'ADR-0066** (« Le réveil clôt les travaux d'une
-  autre époque ») — le ③ clôt les `queued|running` restaurés (`failed` + motif + `finished_at`,
-  travaux ET lots), aucune ligne insérée, aucun statut neuf, Échecs existant fait foi. Chantier
-  d'application (cas 2) : branche directe `fix/reveil-clot-les-fantomes`, preuve = rejouer
-  `…-1756.tar` en dev → #896 clos, 💾 repart.
-- ⚠️ **La machine finit SANS worker de production** (le ⑧ a consommé le mien, j'avais remplacé
-  celui de l'autre session par le geste documenté du module) : `pnpm dev:worker` pour en relancer
-  un ; le backend 8001 de l'autre session tourne toujours, sans worker.
-- ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (état du composant,
-  comportement HÉRITÉ de la slice 3 du 0065, pas introduit) — signalé, non traité.
-- ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile dans son
-  `overflow-x-auto` — à regarder si l'iPad de Papa est une cible de cette page.
-- Le sidecar `.restauration.json` d'une archive SUPPRIMÉE part avec elle (voulu : « rien
-  d'orphelin ») — l'histoire du geste ne survit alors que dans le sidecar de la sauvegarde-filet
-  et les logs. Assumé, jamais discuté explicitement dans l'ADR.
-
-**🧾 DETTES OUVERTES** (du chantier, et REMONTÉES de l'élagage ADR-0065 fait ce jour) :
-
-- ✅ ~~Le prochain `prod:up` ne démarrera pas sans `ZETIS_BACKUP_DIR`~~ — **SOLDÉE le
-  2026-08-19** : variable posée (`/Volumes/NX-Models/zetis-sauvegardes`), cible certifiée exit 0,
-  interpolation compose vérifiée. Voir le détail dans PROCHAIN PAS ci-dessus.
-- **L'image Docker n'a jamais été reconstruite en entier** depuis la couche PGDG (vérifiée en
-  conteneur identique) : le premier `prod:up --build` sera la preuve d'image.
-- **Ménage de la relecture 0065, sur cette machine** : le job d'essai `#890` (`failed` « Aucun
-  exécutant ») reste à ACQUITTER dans les `ai_jobs` de DEV · la paire d'essai 8002/5178
-  (Redis db2) peut encore tourner — l'arrêter ou la laisser mourir · kegs brew : `postgresql@16`
-  (le BON) et `libpq` (redondant, désinstallable).
+- 🔴 **Le chemin « tête plus ancienne » du §5 de l'ADR-0066 reste NON MESURÉ** — aucune archive
+  d'une tête Alembic antérieure n'existe ; il se mesurera au premier vrai déploiement qui migre.
+- **L'image Docker n'a jamais été reconstruite en entier** depuis la couche PGDG : le premier
+  `prod:up --build` sera la preuve d'image — et il montera enfin `/backups` (la prod qui TOURNE
+  est antérieure à `ZETIS_BACKUP_DIR` ; la cible prod certifiée démarre VIDE).
+- **Ménage machine** : le job d'essai `#890` (`failed` « Aucun exécutant ») traverse les
+  restaurations dans les `ai_jobs` de DEV — à acquitter avec #896/#897 · kegs brew :
+  `postgresql@16` (le BON) et `libpq` (redondant, désinstallable).
 - **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16` (jamais
-  `libpq` — TROUBLESHOOTING slice 3 du 0065). Dette outillage, chore à part.
+  `libpq`). Dette outillage, chore à part.
 - `API_SPEC.md` ne documente toujours pas les autres routes `/api/settings` (`/autonomy`,
   `/machine`, `/ecarts`, `/production-suspension`) — la note en tête de sa section 💾 le dit.
+- 📌 `gen_tableau_amendements.py` **ne crée jamais le bloc** `> ### Amendements` : le premier
+  amendement d'un ADR s'amorce à la main (vécu au cadrage de l'Amendement 1) — à documenter
+  dans le script un jour.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
@@ -220,7 +125,12 @@ en tête du fichier.
   interdit par adr-0062 §5) · « toast = retour d'action SEULEMENT » (ADR-0066 §7) — un toast de
   RÉSULTAT est une extension de doctrine à écrire · aucun système de toast n'existe chez Papa
   (les retours sont des `MessageGeste` inline). Cas `adr-0060` à déclarer (probablement 4 —
-  surface — voire 3 si le mécanisme de découverte de fin devient une décision).
+  surface — voire 3 si le mécanisme de découverte de fin devient une décision). **Même famille,
+  observé par l'utilisateur le 2026-08-19 au soir** : le lien « Voir au Journal → » de la barre
+  mène sur du VIDE pour la famille sauvegarde — le Journal exclut `created_by='file'` par
+  construction (`journal_filters.py` : « les traces ne sont pas des travaux ») ; la barre, elle,
+  affiche tout `queued|running`. À trancher ensemble : comment la fin (et la vie) d'un geste
+  sauvegarde se raconte à Papa.
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 

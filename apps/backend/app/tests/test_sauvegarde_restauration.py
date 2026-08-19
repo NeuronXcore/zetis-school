@@ -6,8 +6,10 @@ Les propriétés tenues ici, et qu'aucune retouche ne doit affaiblir :
    swap n'est jamais appelé, et le sidecar dit « filet : échec ».
 2. 🔴 **Le réveil est écrit AVANT le swap** — sur le VRAI code de `restaurer_sauvegarde` (faux
    module psycopg, patron de la slice 2 du 0065) : l'ordre exact des ordres SQL est asserté —
-   upserts de réveil sur `zetis_restore` PUIS terminate PUIS les RENAME, et `zetis_avant` est
-   DROP-é avant le premier RENAME.
+   upserts de réveil sur `zetis_restore`, PUIS la clôture des travaux d'une autre époque
+   (Amendement 1 : `ai_jobs` et `production_runs` en `queued|running` → `failed`, jamais
+   l'histoire accomplie), PUIS terminate PUIS les RENAME, et `zetis_avant` est DROP-é avant le
+   premier RENAME.
 3. 🔴 **409 fail-closed sur CHAQUE précondition** (§2, paramétré) : AUCUN job créé.
 4. **Une restauration ② qui échoue ne swap pas** : `zetis` intacte (aucun terminate, aucun
    RENAME — structurel, faux psycopg).
@@ -261,10 +263,26 @@ def test_le_reveil_est_ecrit_avant_le_swap(client_db, cible, media, monkeypatch)
     ]
     assert [params[1] for _, params in upserts] == ["true", "false", "2", "2"]
 
-    # ④ Le swap : terminate PUIS drop de `zetis_avant` PUIS les deux RENAME — et TOUS après le
-    # dernier upsert du réveil (la base restaurée se réveille suspendue, jamais l'inverse).
+    # ③ bis — la clôture des travaux d'une autre époque (Amendement 1) : DANS `zetis_restore`,
+    # APRÈS les upserts du réveil, AVANT le terminate — et le WHERE ne vise que `queued|running`
+    # (l'histoire accomplie ne se réécrit JAMAIS). Le motif nomme l'archive restaurée.
     i_reveil = max(i for i, sql in enumerate(sqls) if sql.startswith("INSERT INTO app_settings"))
+    i_clot_travaux = next(i for i, sql in enumerate(sqls) if sql.startswith("UPDATE ai_jobs"))
+    i_clot_lots = next(i for i, sql in enumerate(sqls) if sql.startswith("UPDATE production_runs"))
+    assert bases[i_clot_travaux] == sauvegarde.RESTORE_DB
+    assert bases[i_clot_lots] == sauvegarde.RESTORE_DB
+    for i in (i_clot_travaux, i_clot_lots):
+        assert "SET status = 'failed'" in sqls[i]
+        assert "WHERE status IN ('queued', 'running')" in sqls[i]
+        assert "succeeded" not in sqls[i] and "done" not in sqls[i]
+    assert nom in ordres[i_clot_travaux][2][0]  # le motif nomme l'archive
+    assert i_reveil < i_clot_travaux < i_clot_lots
+
+    # ④ Le swap : terminate PUIS drop de `zetis_avant` PUIS les deux RENAME — et TOUS après le
+    # dernier upsert du réveil ET la clôture (la base restaurée se réveille suspendue et sans
+    # fantôme, jamais l'inverse).
     i_terminate = next(i for i, sql in enumerate(sqls) if "pg_terminate_backend" in sql)
+    assert i_clot_lots < i_terminate
     i_drop_avant = sqls.index(f"DROP DATABASE IF EXISTS {sauvegarde.AVANT_DB} WITH (FORCE)")
     i_rename_avant = sqls.index(f"ALTER DATABASE zetis RENAME TO {sauvegarde.AVANT_DB}")
     i_rename_cible = sqls.index(f"ALTER DATABASE {sauvegarde.RESTORE_DB} RENAME TO zetis")
@@ -282,6 +300,52 @@ def test_le_reveil_est_ecrit_avant_le_swap(client_db, cible, media, monkeypatch)
     assert _etapes(cible, nom) == [(e, "franchie") for e in sauvegarde.ETAPES_RESTAURATION]
     sidecar = json.loads((cible / f"{nom}.restauration.json").read_text(encoding="utf-8"))
     assert sidecar["termine_le"] is not None
+
+
+# --- La clôture des fantômes rend les ids, et ne touche QUE le vol (Amendement 1) -----------------
+
+
+def test_la_cloture_rend_les_ids_et_le_motif_nomme_l_archive(monkeypatch) -> None:
+    """Unité de `_ecrire_reveil` : les `RETURNING id` remontent dans le détail du sidecar
+    (travaux ET lots), et le motif écrit nomme l'archive — un faux psycopg dont le curseur
+    rend des lignes, contrairement au faux global (fetchall vide)."""
+    ordres: list[tuple[str, tuple | None]] = []
+
+    class _Curseur:
+        def __init__(self, sql: str):
+            self._sql = sql
+
+        def fetchall(self):
+            if self._sql.startswith("UPDATE ai_jobs"):
+                return [(896,), (901,)]
+            if self._sql.startswith("UPDATE production_runs"):
+                return [(7,)]
+            return []
+
+    class _Connexion:
+        def __init__(self, dsn, autocommit=False):
+            pass
+
+        def execute(self, sql, params=None):
+            ordres.append((sql, params))
+            return _Curseur(sql)
+
+        def close(self):
+            pass
+
+    module = types.ModuleType("psycopg")
+    module.Error = type("Error", (Exception,), {})
+    module.connect = _Connexion
+    monkeypatch.setitem(sys.modules, "psycopg", module)
+
+    detail = sauvegarde._ecrire_reveil("zetis_restore", "zetis-2026-01-01-0000.tar")
+
+    assert detail["travaux_clos"] == [896, 901]
+    assert detail["lots_clos"] == [7]
+    assert len(detail["cles"]) == 4  # les upserts du réveil n'ont pas bougé
+    motif = next(p[0] for s, p in ordres if s.startswith("UPDATE ai_jobs"))
+    assert "zetis-2026-01-01-0000.tar" in motif
+    assert "ne reprendra pas" in motif
 
 
 # --- 🔴 409 fail-closed sur CHAQUE précondition (§2) ----------------------------------------------

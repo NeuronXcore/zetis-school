@@ -1,5 +1,20 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.11 — Le réveil clôt les travaux d'une autre époque
+
+> ADR-0066 Amendement 1, né du premier essai réel du geste (2026-08-19) : toute archive du
+> produit contient SA propre ligne de travail « en cours » (le dump est pris pendant le travail
+> qui le crée — le filet embarque même le `backup_restore` qui le commande). Restaurée, cette
+> ligne revivait en **fantôme éternel** : barre « ZETIS produit » à demeure, et toute la famille
+> sauvegarde refusée en 409 au motif menteur « attendez sa fin » — l'état post-catastrophe ne
+> pouvait même plus se sauvegarder.
+
+Le réveil ③ de la restauration clôt désormais, dans la base restaurée avant la bascule, les
+travaux et lots d'une autre époque : `failed`, motif qui nomme la restauration et l'archive,
+date de fin posée. Rien n'est inséré, l'histoire accomplie n'est jamais réécrite — clore n'est
+pas falsifier. Les lignes closes tombent dans **Échecs** tel qu'il existe : Papa les voit, lit
+le motif, acquitte. Le sidecar `.restauration.json` porte les ids clos.
+
 ## 0.99.10 — Restaurer : un swap à réveil suspendu (phase E, premier geste destructif)
 
 > ADR-0066, deux slices : #167 (le geste `backup_restore`) · l'administration — DELETE, surface,

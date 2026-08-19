@@ -1065,11 +1065,29 @@ def _cles_reveil() -> list[tuple[str, str]]:
     return cles
 
 
-def _ecrire_reveil(base: str) -> list[str]:
-    """③ : upserts `app_settings` DANS la base restaurée, avant le swap (mesuré au cadrage).
-    Rend les clés écrites (le détail du sidecar)."""
+def _ecrire_reveil(base: str, archive: str) -> dict:
+    """③ : upserts `app_settings` DANS la base restaurée, avant le swap (mesuré au cadrage) —
+    puis la **clôture des travaux d'une autre époque** (ADR-0066 Amendement 1) : les `ai_jobs`
+    et `production_runs` restaurés en `queued|running` passent à `failed`, motivés et datés.
+
+    🔴 **Clore n'est pas falsifier** (frontière du §3, précisée par l'amendement) : aucune ligne
+    n'est insérée, et l'histoire accomplie (`succeeded`/`done`/`failed`) n'est jamais réécrite —
+    le WHERE le garantit. Sans cette clôture, toute archive fait revivre son propre créateur en
+    éternel « en cours » (le dump est pris PENDANT le travail qui le crée) : barre fantôme, et
+    TOUTE la famille sauvegarde refuse en 409 au motif menteur « attendez sa fin » — mesuré le
+    2026-08-19 : l'état post-restauration ne pouvait même plus se sauvegarder.
+
+    Les lignes closes tombent dans **Échecs** tel qu'il existe (`status='failed'` +
+    `error_message`, acquittement adr-0041 §8) : aucune surface neuve.
+
+    Rend le détail du sidecar : clés écrites, ids des travaux et des lots clos.
+    """
     import psycopg
 
+    motif = (
+        f"Interrompu par la restauration de « {archive} » : ce travail vivait dans l'archive "
+        "restaurée — une autre époque ; il ne reprendra pas."
+    )
     ecrit: list[str] = []
     conn = psycopg.connect(_dsn_pour(base), autocommit=True)
     try:
@@ -1081,9 +1099,22 @@ def _ecrire_reveil(base: str) -> list[str]:
                 (cle, valeur),
             )
             ecrit.append(cle)
+        travaux = conn.execute(
+            "UPDATE ai_jobs SET status = 'failed', error_message = %s, finished_at = now() "
+            "WHERE status IN ('queued', 'running') RETURNING id",
+            (motif,),
+        ).fetchall()
+        lots = conn.execute(
+            "UPDATE production_runs SET status = 'failed', finished_at = now() "
+            "WHERE status IN ('queued', 'running') RETURNING id"
+        ).fetchall()
     finally:
         conn.close()
-    return ecrit
+    return {
+        "cles": ecrit,
+        "travaux_clos": [ligne[0] for ligne in travaux],
+        "lots_clos": [ligne[0] for ligne in lots],
+    }
 
 
 def _neutraliser_pool() -> None:
@@ -1320,10 +1351,11 @@ def restaurer_sauvegarde(nom: str) -> dict:
                 _restaurer_dans(RESTORE_DB, dump_path)
         journal.franchir("restauration", base=RESTORE_DB)
 
-        # ③ Le réveil, écrit DANS la base restaurée AVANT le swap.
+        # ③ Le réveil, écrit DANS la base restaurée AVANT le swap — suspension, régime,
+        # déclencheur, ET la clôture des travaux d'une autre époque (Amendement 1).
         with _etape(journal, "reveil"):
-            cles = _ecrire_reveil(RESTORE_DB)
-        journal.franchir("reveil", cles=cles)
+            reveil = _ecrire_reveil(RESTORE_DB, nom)
+        journal.franchir("reveil", **reveil)
 
         # ④ Le swap — 8 ms mesurés. Le pool du worker est neutralisé d'abord (voir la fonction).
         with _etape(journal, "swap"):
