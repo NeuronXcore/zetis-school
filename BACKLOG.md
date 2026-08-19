@@ -246,8 +246,8 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
 
 ### Détail
 
-- **A** — A1 redémarrer un worker (*cas surface* : ADR après l'écran) · A2 suspendre ZETIS (*cas 3* :
-  ADR avant). **Read-before-code fait le 2026-08-19**, et il corrige deux choses :
+- **A** — A1 redémarrer un worker (*cas surface* : ADR après l'écran) · A2 suspendre ZETIS —
+  ✅ **cadré le 2026-08-19 par l'`adr-0063`**. Le read-before-code corrige trois choses :
 
   - 🔴 **A2 ne se branche PAS sur `massimo_is_active`**, contrairement à ce qu'on croyait. Cette
     fonction est consommée par une **boucle d'attente BORNÉE**
@@ -255,6 +255,13 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
     à un lot qui attend pour toujours »*). Un « Suspendre » posé là **se dé-suspendrait tout seul**
     au bout de N minutes — un interrupteur qui se relève est pire qu'un interrupteur absent. Le
     drapeau doit être lu **avant de PRENDRE un travail**, et refuser de démarrer, pas attendre.
+    ➜ L'`adr-0063` en fait un **sixième régulateur** de `runs.create_run`, qui est la **porte
+    unique** (3 appelants, mesuré) et porte déjà cinq régulateurs à vocabulaire fermé.
+  - 🔴 **Le code préempte entre NOTIONS, alors que l'`adr-0031` §3 avait décidé la PIÈCE.**
+    Divergence préexistante, trouvée en vérifiant les faits du cadrage. Mesuré : une notion =
+    **69 s** (reconfirmé 77 s), une pièce = **~15 s** (fiche) / **~17 s** (carte mentale). Le
+    crochet `on_piece` existe déjà. L'`adr-0063` prend le grain **décidé**, pas le grain **codé** —
+    et laisse la divergence de `_wait_for_massimo` ouverte, écrite, non soldée.
   - ✅ **A1 est faisable et son primitif existe** : `rq.command.send_shutdown_command(connection,
     worker_name)` (rq 2.11.0) demande un arrêt **gracieux** — le worker finit sa pièce en cours puis
     sort. Il n'interrompt jamais un appel LLM en vol, ce qui respecte *« le grain de l'interruption

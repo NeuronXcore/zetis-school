@@ -53,6 +53,38 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### ⏸ CADRAGE DE « SUSPENDRE ZETIS » — ADR-0063, pas encore codé (2026-08-19)
+
+**PROCHAIN PAS : merger la tranche 1 (`feat/parametres-carte-et-onglets`), puis ouvrir
+`feat/suspendre-zetis`.** Le lot Décision de ce cadrage est **écrit, non committé** :
+`docs/decisions/adr-0063-…md` + `DECISIONS.md` régénéré + `BACKLOG.md` + ce fichier.
+`check_adr_refs.sh` sort en 0, rien sous `apps/` ni `packages/` n'a bougé.
+
+**Ce que l'ADR-0063 décide** (ne pas re-débattre) : suspendre est un **sixième régulateur** de
+`runs.create_run`, évalué en premier · il **ne persiste PAS** son refus (seul refus dont Papa
+connaît la cause : il l'a causée) · le lot en cours s'arrête **entre deux pièces** et se raconte ·
+le drapeau vit dans `app_settings` et **survit au redémarrage** · il **ne se relève jamais seul** ·
+l'état se lit **dans la sidebar**, sur les 22 écrans.
+
+🔴 **DEUX PIÈGES QUE LE READ-BEFORE-CODE A ÉVITÉS, et le second n'a été vu qu'à la VÉRIFICATION
+DES FAITS** (étape §5 du `/cadrage`) :
+
+1. **`massimo_is_active` ne peut pas héberger le drapeau.** Elle est consommée par une boucle
+   d'attente **bornée** (`production_max_wait_minutes`) : un suspend posé là se **dé-suspendrait
+   tout seul**. J'avais annoncé le contraire à l'oral — c'est faux.
+2. **Le code préempte entre NOTIONS ; l'`adr-0031` §3 avait décidé la PIÈCE.** `runner.py:484` cite
+   l'ADR *en le contredisant*. Divergence **préexistante**, invisible jusqu'ici. Le crochet
+   `on_piece` existe déjà (`equipment.py:281`, posé pour la barre de progression). L'ADR-0063 prend
+   le grain **décidé** — et laisse `_wait_for_massimo` en l'état : le corriger changerait la
+   priorité de Massimo, c'est une autre décision.
+
+📌 **Mesures** : `runs.create_run` est la **porte unique** — 3 appelants (`runs_router.py:33`,
+`triggers.py:154`, `triggers.py:271`) · 5 régulateurs à vocabulaire fermé y vivent déjà · une
+notion = **69 s** mesurés le 2026-08-02, reconfirmés **77 s** le 2026-08-06 · une pièce = **~15 s**
+(fiche) et **~17 s** (carte mentale), mesurées le 2026-08-03 · les autres durées sont des
+**amorces jamais mesurées**, et l'ADR le dit. ⚠️ **Aucun de ces chiffres n'a été re-mesuré** : la
+base de DEV ne porte aucun `equip_notion` de file (`n=0`).
+
 ### 🗺 CADRAGE FAIT, CODE PAS ENCORE ÉCRIT — la page Paramètres (2026-08-19)
 
 **PROCHAIN PAS : committer le lot Décision, puis ouvrir `feat/parametres-carte-et-onglets`.**
