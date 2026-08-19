@@ -222,6 +222,80 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 - App iOS native.
 - Mode SaaS éventuel.
 
+## 🗺 ROUTE DES PARAMÈTRES — les 4 tranches qui restent (posée le 2026-08-19, ADR-0062)
+
+> **Tranche 1 LIVRÉE** : la carte + ⚡ Autonomie + 🧠 La machine. Ce qui suit est le reste, **trié
+> par ce que ça coûte de NE PAS l'avoir** — pas par valeur ajoutée. L'intérêt ressenti va dans
+> l'ordre exactement inverse, et c'est pour ça que l'ordre est écrit ici plutôt que redécidé à
+> chaque session.
+
+| Phase | Contenu | Sessions | Pourquoi à cette place |
+|---|---|---|---|
+| **A** | Solder 🧠 La machine — redémarrer un worker · suspendre ZETIS | **2,5** | *Suspendre* est une **précondition de E4** (une restauration suspend avant de remplacer). Et l'onglet est déjà vivant. |
+| **B** | 💾 La sauvegarde qui se mérite — sauvegarder + vérifier à blanc | **4** | Le **seul risque irréversible** du projet. Rien de destructif : ni restore, ni zone rouge. |
+| **C** | 👤 La serrure parentale — code · verrou d'inactivité · alertes | **3,5** | *« Le manque le plus sérieux »* (ADR-0062). Autonome. |
+| **D** | 🎒 Massimo — prénom · accessibilité · voix | **4–5** | La seule qui améliore son quotidien. Casse la phrase « rien n'atteint Massimo » → page stabilisée d'abord. |
+| **E** | 💾 Le reste de Données — disque · purges · remises à zéro · restaurer | **7,5** | Le plus lourd, le seul destructif. Dépend de A et B. |
+
+**Le tri, en trois lignes.** Pas de sauvegarde vérifiée → perte **irréversible** d'une année de
+travail. Pas de serrure → Massimo lit des textes d'adulte à son sujet : grave, **réversible**. Pas
+d'accessibilité → inconfort, **aucun dommage**.
+
+🔴 **Le minimum vital est A + B, soit 6,5 sessions.** Après elles, plus rien d'irréversible ne
+menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
+
+### Détail
+
+- **A** — A1 redémarrer un worker (*cas surface* : ADR après l'écran) · A2 suspendre ZETIS (*cas 3* :
+  ADR avant). **Read-before-code fait le 2026-08-19**, et il corrige deux choses :
+
+  - 🔴 **A2 ne se branche PAS sur `massimo_is_active`**, contrairement à ce qu'on croyait. Cette
+    fonction est consommée par une **boucle d'attente BORNÉE**
+    (`while massimo_is_active(...)` + `production_max_wait_minutes`, *« on préfère un lot qui finit
+    à un lot qui attend pour toujours »*). Un « Suspendre » posé là **se dé-suspendrait tout seul**
+    au bout de N minutes — un interrupteur qui se relève est pire qu'un interrupteur absent. Le
+    drapeau doit être lu **avant de PRENDRE un travail**, et refuser de démarrer, pas attendre.
+  - ✅ **A1 est faisable et son primitif existe** : `rq.command.send_shutdown_command(connection,
+    worker_name)` (rq 2.11.0) demande un arrêt **gracieux** — le worker finit sa pièce en cours puis
+    sort. Il n'interrompt jamais un appel LLM en vol, ce qui respecte *« le grain de l'interruption
+    est la pièce »*.
+  - 🔴 **Mais « redémarrer » n'existe qu'en PROD** : `docker-compose.prod.yml` porte
+    `restart: unless-stopped` sur `worker`, donc l'arrêt le fait revenir **avec le code à jour**.
+    En DEV (`launch.json`), le worker est un fils de shell sous `trap` : **rien ne le relance**, et
+    le bouton le tuerait pour de bon. Il faut donc un **marqueur explicite** — aucun n'existe
+    aujourd'hui (`config.py` n'a ni `ZETIS_ENV`, ni `environment`) — et le bouton doit être
+    **désactivé AVEC son motif** quand rien ne supervise le worker. C'est la doctrine de la page :
+    un cadenas dit pourquoi.
+- **B** — cadrage (1) · sauvegarder : travail de file, manifeste, empreinte, **refus si la cible et
+  les données partagent un UUID de volume** (2) · vérifier par restauration à blanc dans
+  `zetis_verify` (1).
+- **C** — cadrage (1) · code parental haché + verrou après inactivité (1,5) · alertes (1).
+  ✅ **`app/core/mailer.py` et la config SMTP existent déjà** (le watchdog s'en sert) : le canal
+  n'est pas à construire.
+- **D** — cadrage (1) · le prénom vient de la donnée (1) · accessibilité : animations à **trois
+  états**, taille, espacement, sons (2) · voix TTS **conditionnelle** (0–1).
+  ✅ **Mesuré le 2026-08-19** : le prénom, ce sont **52 lignes sur 26 fichiers** hors tests, hors
+  identifiants, hors commentaires — pas les 508 occurrences brutes. Et `/api/student/motivation`
+  sert **déjà** `first_name` : la donnée arrive, il reste à l'employer.
+- **E** — occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
+  remises à zéro **portées** (2) · restaurer (2) · export RGPD (1).
+
+### Trois décisions à trancher, une par cadrage
+
+1. **B** — les **SSD et UUID de volume sont illisibles depuis le conteneur** (`diskutil` absent,
+   volume hôte inaccessible). Sonde côté hôte, ou on abandonne ces lignes ?
+2. **D** — une **route de lecture enfant** sert-elle l'accessibilité ? ⚠️ L'« aucune route élève »
+   de l'ADR-0032 visait les **paliers d'autonomie**, pas tout réglage — et **8 familles
+   `/api/student/*`** font précédent.
+3. **E** — l'export RGPD : **un geste ou deux** ? Ni le même contenu, ni le même public.
+
+### Ce qui ne sera JAMAIS bâti (ADR-0062, ne pas redébattre)
+
+Journal technique · sélecteur de modèle de génération · réinitialisation **totale** à l'écran
+(un `scripts/reset.py` documenté est la bonne place) · sessions ouvertes et révocation · sélecteur
+d'élève · curseurs de ton/longueur · seuils de lacune · alerte d'inactivité de Massimo · clé API
+dans l'UI · redémarrer un **service** ou lancer `git pull` depuis la page.
+
 ## ✅ CHANTIER FAIT — le worker de production est un service (ADR-0046)
 
 > **Cadré et livré le 2026-08-08.** `docs/decisions/adr-0046-le-worker-de-production-est-un-service.md`,
