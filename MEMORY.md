@@ -13,12 +13,15 @@
 > `0b7bdde` a été attendu VERT avant de pousser ce 4bis (parade `b29a985`). L'ADR-0066 est donc
 > soldé DE BOUT EN BOUT : 2 slices (#167/#168) + Amendement 1 appliqué (#169). ℹ️ Branche de
 > worktree d'agent `claude/fervent-stonebraker-bfa5b9` toujours là (infrastructure Claude Code).
-> La prod tourne (8 conteneurs, ports canoniques). Côté dev : la paire 8001/5175 d'une autre
-> session tourne SANS worker ; **la paire d'essai `backend-restauration`/`papa-restauration`
-> (8005/5181, `launch.json`) tourne AVEC le worker de la machine** — elle porte le mensonge
-> d'essai `PRODUCTION_WORKER_SUPERVISED=true`, à éteindre quand on n'en a plus besoin
-> (`preview_stop`, ou laisser mourir). ⚠️ **La base dev est un état restauré** (de l'archive
-> `…-1844.tar`) : `zetis_avant` vit sur le serveur dev, suspension LEVÉE, plus rien en vol.
+> **La prod est RECONSTRUITE et vérifiée à l'écran** (2026-08-19, nuit — après l'incident VM et
+> le reboot du Mac) : 8/8 conteneurs `healthy` sur images neuves, `/backups` monté, cible
+> certifiée lue à travers, **première archive prod vérifiée** (`zetis-2026-08-19-1817.tar`,
+> « réussie »), Massimo et Papa rendus au vrai écran, consoles propres. Côté dev : **le reboot a
+> tout fermé** — aucune paire (8001/5175, 8002/5178, 8005/5181 : ports libres, vérifié), aucun
+> worker hôte ; le dev se relance à la demande (`launch.json` — la paire `*-restauration` y
+> reste, avec son mensonge d'essai `SUPERVISED=true` commenté en face). ⚠️ **La base dev est un
+> état restauré** (de l'archive `…-1844.tar`) : `zetis_avant` vit sur le serveur dev, suspension
+> LEVÉE, plus rien en vol.
 
 ### ✅ CHANTIER SOLDÉ — « LE RÉVEIL CLÔT LES FANTÔMES » (ADR-0066 Amendement 1, cas 2) — MERGÉ (PR #169, squash `0b7bdde`), 4bis fait (2026-08-19)
 
@@ -88,10 +91,9 @@ des slices mergées.
   porte 3 archives réelles (`1844` restaurée · `1846` = filet du geste · `1847` = la preuve
   « repart ») + sidecars · l'utilisateur a supprimé `1756`/`1807` à la main via l'UI pendant
   l'essai (le sidecar de la 1re restauration est parti avec — « rien d'orphelin », voulu).
-- **La paire d'essai 8005/5181 tourne encore** (worker de la machine compris, mensonge
-  `SUPERVISED=true`) — l'éteindre quand plus utile ; la paire 8001/5175 de l'autre session
-  tourne SANS worker ; les vieilles paires squattent toujours 8002/5178 (pids 48287/46329 — le
-  classifieur de permissions a refusé mes `kill`, gestes à vous).
+- ✅ ~~Paires d'essai et squatteurs~~ — **TOUT FERMÉ par le reboot du Mac** (2026-08-19, nuit) :
+  8001/5175, 8002/5178, 8005/5181 libres et aucun worker hôte — vérifié port par port. Le
+  ménage des vieilles paires (dette 0065) est soldé par la même occasion.
 - ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (hérité de la
   slice 3 du 0065) — signalé, non traité.
 - ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile
