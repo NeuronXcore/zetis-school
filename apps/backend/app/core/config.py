@@ -333,6 +333,23 @@ class Settings(BaseSettings):
     production_max_pending: int = Field(
         default=30, validation_alias="PRODUCTION_MAX_PENDING"
     )
+    # 🔴 QUELQUE CHOSE RELANCE-T-IL le worker de production s'il s'arrête ? (chantier
+    # « redémarrer un worker », 2026-08-19)
+    #
+    # La question n'est PAS « le worker tourne-t-il ? » (ça, Redis le sait) mais « ai-je le droit
+    # de l'arrêter sans le perdre ? ». La réponse dépend du DÉPLOIEMENT, pas du code — le backend
+    # ne peut pas la deviner, on la lui dit :
+    #   - prod compose : `restart: unless-stopped` → l'arrêt EST un redémarrage, avec le code à
+    #     jour. `docker-compose.prod.yml` pose `true` dans l'ancre `generation-env`.
+    #   - dev (`launch.json`, `pnpm dev:worker`) : le worker est un fils de shell sous `trap`,
+    #     RIEN ne le relance — l'arrêter le tue pour de bon.
+    #
+    # ⚠️ **Défaut `False`, et c'est le sens sûr** : on refuse de tuer ce qui ne reviendra pas.
+    # Même patron que le verrou d'autonomie — le serveur refuse, l'UI rend le refus lisible avec
+    # son motif.
+    production_worker_supervised: bool = Field(
+        default=False, validation_alias="PRODUCTION_WORKER_SUPERVISED"
+    )
     # « Massimo passe devant » : s'il a une activité plus récente que ça, le worker attend —
     # ENTRE deux notions, jamais pendant (un appel LLM n'est pas préemptible).
     production_pause_if_active_minutes: int = Field(

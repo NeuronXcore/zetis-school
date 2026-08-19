@@ -114,6 +114,11 @@ services:
     # divergence ne se verrait qu'en production, sur un travail qui échoue. L'ancre rend
     # l'invariant structurel au lieu de le confier à un commentaire.
     environment: &generation-env
+      # Le worker de CE déploiement est supervisé (`restart: unless-stopped` plus bas) : l'arrêter
+      # le fait revenir avec le code à jour. C'est ce qui ouvre le geste « Redémarrer ce worker »
+      # côté Papa. ⚠️ Volontairement DANS l'ancre : la variable décrit le déploiement, et elle est
+      # vraie pour les deux conteneurs qui la liront.
+      PRODUCTION_WORKER_SUPERVISED: "true"
       ZETIS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zetis}:${POSTGRES_PASSWORD:?definis-le dans le .env de la racine — pas de mot de passe de dev en prod}@postgres:5432/${POSTGRES_DB:-zetis}
       # Ollama sur l'hôte (le modèle doit y être pull).
       OLLAMA_BASE_URL: http://host.docker.internal:11434
