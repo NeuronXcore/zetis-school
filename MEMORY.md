@@ -71,9 +71,13 @@ tous SOLDÉS.
   progression estimée ») — a rougi la PR #161 qui ne le touche pas, 0/3 sous `ci-like.sh`, vert au
   rerun sur le même SHA. Même famille que #158/#159 (assertion qui court après un rendu async).
   S'ajoute à la liste `CouverturePage` / `DashboardPage` / `AtelierPage`.
-- 🟡 **Retouche de libellé due** (ADR-0064 §3, cas 2) : retirer « avec le code à jour » du 202 —
-  le code est baké dans l'image, restart relance le même conteneur. **Chip posé**
-  (`task_6edd9147`), part en un clic.
+- ✅ **Retouche de libellé SOLDÉE** (ADR-0064 §3, cas 2) — PR #163, squash `3d19c10`, branche
+  supprimée, CI verte du premier coup, tests inchangés. Le 202 dit « …puis sort, et le superviseur
+  le relance » ; la promesse a aussi quitté les docstrings (`workers.py`, `workers_router.py`) et
+  le commentaire client (`settings.ts`) — `MachineTab.tsx` vérifié, il ne promettait rien. Reste
+  UN écho de deux mots dans un COMMENTAIRE de test (`test_production_workers_restart.py:73`,
+  « être relancé à jour ») — laissé à dessein (tests sans modification exigés), à ramasser au
+  prochain passage dans ce fichier.
 - 🟡 **`scripts/audit_contexte.sh` est entré dans `main` par accident** (squash #162) : ce fichier
   non suivi de l'utilisateur a fini indexé pendant la résolution du rebase, malgré l'exclusion
   `:!` des commits individuels. **Vérifié : aucun secret** — script d'audit de docs, sain. À
@@ -128,7 +132,9 @@ en-tête) · 5 tests · **prouvé en vrai** : 409 motivé contre le backend-dev 
 subscribe), donc `send_shutdown_command` = warm shutdown, la pièce se termine puis il sort ;
 ② le piège « le réveil périodique se duplique à chaque redémarrage » est **déjà corrigé**
 (`scan_already_planned`, vérifié 3 redémarrages → 1 réveil) — le bouton n'aggrave rien ;
-③ en prod `restart: unless-stopped` → l'arrêt EST le redémarrage, code à jour.
+③ en prod `restart: unless-stopped` → l'arrêt EST le redémarrage — du MÊME conteneur, donc du
+même code (sur-promesse corrigée par l'ADR-0064 §3, libellés retouchés par la #163 : le bouton
+répare un worker COINCÉ, le périmé se répare en déployant).
 
 ⚠️ **Piège d'outillage consigné** : cette version de FastAPI monte les routeurs en
 `_IncludedRouter` PARESSEUX — `app.routes` ne contient plus d'`APIRoute` aplaties. Compter les
