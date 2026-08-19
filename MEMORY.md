@@ -53,6 +53,49 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### 🗺 CADRAGE FAIT, CODE PAS ENCORE ÉCRIT — la page Paramètres (2026-08-19)
+
+**PROCHAIN PAS : committer le lot Décision, puis ouvrir `feat/parametres-carte-et-onglets`.**
+
+Le lot Décision est **écrit et non committé** : `docs/decisions/adr-0062-…md` (neuf) +
+`DECISIONS.md` (régénéré) + ce fichier. `check_adr_refs.sh` sort en 0. **Rien sous `apps/` ni
+`packages/` n'a bougé** — c'est un cadrage, cas 3 de l'`adr-0060`.
+
+**Ce qui a été décidé** (détail dans l'ADR-0062, ne pas le re-débattre) :
+
+- La page devient **une carte + cinq onglets** : 🗺 carte · ⚡ Autonomie · 🧠 La machine ·
+  🎒 Massimo · 👤 Papa · 💾 Données. La **carte est la vue par défaut ET la navigation**.
+- *Moteurs* et *Santé* de la maquette **fusionnent** en 🧠 **La machine** : deux panneaux de lecture
+  pure pour une seule question — un diagnostic doit tenir sur un écran.
+- **Un onglet vide = un interrupteur sans effet, en plus grand.** Seuls les onglets qui ont du
+  contenu sont rendus ; les autres sont des **lignes de la carte**.
+- 🔴 **ZETIS LEVELS est déplacé, jamais réécrit.** Manual · Hybrid · Autonom intacts.
+- **🎒 assumé et marqué** : la phrase « Rien de cette page n'atteint Massimo » sera amendée **dans
+  le commit** du premier réglage qui traverse — pas à côté d'un bouton qui la contredit.
+- **Jamais bâtis, motif écrit** : journal technique · sélecteur de modèle · réinitialisation totale
+  à l'écran · sessions ouvertes et révocation.
+
+**Tranche 1 = coquille + carte + Autonomie + La machine.** Trois critères qui bornent : *aucune
+migration Alembic* · *`git diff` sur les 8 fichiers de ZETIS LEVELS ne montre que des imports et
+des chemins* · *aucun champ éditable dans La machine*.
+
+🔴 **RISQUE DE RÉGRESSION NOMMÉ D'AVANCE.** `ParametresPage.test.tsx` fait passer ~20 tests par
+`renderLoaded()` (L77), qui attend *ZETIS LEVELS* au montage. L'autonomie passant derrière un
+onglet, le helper devra **sélectionner l'onglet d'abord** — et c'est le **seul** changement autorisé
+dans ce fichier. Aucune assertion affaiblie, aucun `waitFor` allongé.
+
+⚠️ **HUIT AFFIRMATIONS DE LA MAQUETTE SONT FAUSSES**, mesurées avant l'ADR (tableau du §Contexte).
+Les trois qui coûtent le plus cher si on les rejoue : `packages/prompts/` **ne contient qu'un
+README** (les prompts sont 12 modules dans `apps/backend/app/prompts/`, tous versionnés) ·
+**aucun ADR ne porte « suspendre ZETIS »** malgré ce que la maquette annonce · **`ai_jobs`
+n'enregistre pas le provider**, donc le journal des sorties réseau sera **dérivé** de
+`job_type LIKE 'curriculum_%'`, jamais lu.
+
+📌 **Mesures faites** : 67 réglages recensés (25 ici · 7 ailleurs · 5 nulle part · **30 à décider**)
+· **8 clés `app_settings`** exactement, écrites par **deux** modules (`settings/service.py`,
+`agenda/service.py`) — c'est ce qui rend « N réglages s'écartent du défaut » gratuit : *l'absence de
+ligne EST le défaut*, donc « modifié » = « une ligne existe ».
+
 ### 🌙 LES DEUX CHANTIERS DU SOIR (2026-08-18) — le harnais calibré, la dictée rendue à la prod
 
 Deux dettes déjà inscrites plus bas dans ce fichier ont été soldées ce soir. **Aucune décision

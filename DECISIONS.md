@@ -4,7 +4,7 @@
 > Le motif d'une décision vit dans son ADR, jamais ici — un index qui recopie
 > le contenu se périme deux fois plus vite et ne s'utilise plus.
 
-61 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
+62 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
 
 ## Décisions d'architecture
 
@@ -87,4 +87,5 @@
 | [0057](docs/decisions/adr-0057-une-seule-facon-de-trouver.md) | Une seule façon de trouver | 🟡 Proposé | 2026-08-14 |
 | [0058](docs/decisions/adr-0058-la-fiche-repond-quand-on-la-touche.md) | La fiche répond quand on la touche | 🟡 Proposé | 2026-08-14 |
 | [0059](docs/decisions/adr-0059-zetis-repond-vite-et-interroge.md) | ZETIS répond vite, ouvre la ressource exacte, et interroge | 🟡 Proposé | 2026-08-15 |
+| [0062](docs/decisions/adr-0062-la-page-parametres-devient-une-carte-et-cinq-onglets.md) | La page Paramètres devient une carte, et cinq onglets | 🟡 Proposé | 2026-08-19 |
 
