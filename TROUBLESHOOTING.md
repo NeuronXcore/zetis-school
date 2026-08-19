@@ -102,6 +102,29 @@ adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de
 reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
 Relever avec « Suspendre ZETIS » quand tout est contrôlé.
 
+## 🔴 VM Docker Desktop : « storage device attachment is invalid » — toute CRÉATION de conteneur pend en silence, et ça survit aux redémarrages du Desktop — 2026-08-19
+
+Vécu au premier `prod:up --build` : les images se bâtissent, puis backend/worker/frontends
+restent **« Created »** pour toujours — aucun message. Les conteneurs EXISTANTS tournent et
+redémarrent ; seule la **création** pend (même un `docker run --rm … echo` avec bind, même sans
+bind derrière un montage coincé : chaque démarrage fait la queue derrière le premier pendu).
+Trois redémarrages de Docker Desktop n'y ont rien fait — l'état malade vit dans
+**Virtualization.framework côté macOS** (XPC), pas dans le Desktop — jusqu'au crash franc :
+*« the Docker Desktop VM stopped unexpectedly: Invalid virtual machine configuration. The
+storage device attachment is invalid »* (le disque = `Docker.raw` sur NX-Projects).
+
+**Diagnostic utile** : `diskutil verifyVolume /Volumes/NX-Projects` → **volume SAIN** (exit 0) —
+ni le fichier ni le disque ; fausse piste également : le File Sharing de NX-Models (le premier
+montage à pendre n'était qu'une victime, pas la cause). **Remède : redémarrer le Mac** — en
+veillant à ce que `/Volumes/NX-Projects` soit monté AVANT Docker (il porte `Docker.raw`).
+Après reboot : la VM attache, le bind NX-Models monte instantanément, la pile part `healthy`.
+
+⚠️ Deux leçons de manœuvre : pendant la panne, **une copie de secours de `Docker.raw` à froid**
+est le bon réflexe (il contient la base prod ; aucune archive n'existait encore) — mais le
+`rsync` de macOS (2.6.9) **ne préserve pas les trous** : 80 G écrits pour 19 G utiles, parti
+pour copier les 926 G logiques. Le VRAI filet, dès que la pile respire : **💾 Sauvegarder dans
+le produit** (fait — première archive prod vérifiée le soir même).
+
 ## `graphify update .` depuis un SOUS-DOSSIER rebâtit une carte PARTIELLE — sans un mot — 2026-08-19
 
 Lancé par mégarde depuis `apps/frontend-massimo` (le cwd traînait d'un `vitest`), `graphify

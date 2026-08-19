@@ -101,9 +101,16 @@ des slices mergées.
 
 - 🔴 **Le chemin « tête plus ancienne » du §5 de l'ADR-0066 reste NON MESURÉ** — aucune archive
   d'une tête Alembic antérieure n'existe ; il se mesurera au premier vrai déploiement qui migre.
-- **L'image Docker n'a jamais été reconstruite en entier** depuis la couche PGDG : le premier
-  `prod:up --build` sera la preuve d'image — et il montera enfin `/backups` (la prod qui TOURNE
-  est antérieure à `ZETIS_BACKUP_DIR` ; la cible prod certifiée démarre VIDE).
+- ✅ ~~L'image Docker jamais reconstruite / `/backups` jamais monté~~ — **SOLDÉES le 2026-08-19
+  au soir** : `prod:up --build` joué — images reconstruites (couche PGDG comprise), 8/8
+  conteneurs `healthy`, `/backups` monté, certificat lu À TRAVERS le montage
+  (`valable: True`, cible `/Volumes/NX-Models/zetis-sauvegardes`), et **la PREMIÈRE archive de
+  PROD créée ET VÉRIFIÉE** (`zetis-2026-08-19-1817.tar`, verdict `reussie`, 0 écart,
+  restaurable). ⚠️ Le chemin a traversé une vraie panne : VM Docker « storage device attachment
+  is invalid » — créations de conteneurs pendues en silence, remède = reboot du Mac
+  (`TROUBLESHOOTING.md`, section dédiée — volume vérifié SAIN, fausse piste File Sharing).
+  Résidu : `/Volumes/NX-Models/secours/` existe et est VIDE (copie brute abandonnée au profit
+  du filet produit) — à supprimer ou garder comme emplacement de secours.
 - **Ménage machine** : le job d'essai `#890` (`failed` « Aucun exécutant ») traverse les
   restaurations dans les `ai_jobs` de DEV — à acquitter avec #896/#897 · kegs brew :
   `postgresql@16` (le BON) et `libpq` (redondant, désinstallable).
