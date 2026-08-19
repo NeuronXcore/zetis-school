@@ -119,6 +119,25 @@
       "port": 5177
     },
     {
+      "// essai restauration": "Paire d'ESSAI du geste backup_restore en dev (ADR-0066, résidu n°1 de la slice 2). ⚠️ SUPERVISED=true est un MENSONGE d'essai ASSUMÉ : rien ne supervise ce worker — après le recyclage ⑧ il MEURT et rien ne le relance, c'est attendu (en prod, le superviseur Docker fait ce travail). Cible de sauvegarde DEV séparée de la prod : /Volumes/NX-Models/zetis-sauvegardes-dev, certifiée par le même script que la vraie.",
+      "name": "backend-restauration",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Volumes/NX-Projects/ZETIS/apps/backend || exit 1\nexport ZETIS_CORS_ORIGINS='[\"http://localhost:5181\"]'\nexport ZETIS_BACKUP_DIR=/Volumes/NX-Models/zetis-sauvegardes-dev\nexport PRODUCTION_WORKER_SUPERVISED=true\n.venv/bin/python -m app.production_worker &\nWORKER_PID=$!\ntrap 'kill \"$WORKER_PID\" 2>/dev/null || true' EXIT INT TERM\n.venv/bin/uvicorn app.main:app --port 8005"
+      ],
+      "port": 8005
+    },
+    {
+      "name": "papa-restauration",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Volumes/NX-Projects/ZETIS/apps/frontend-papa && VITE_API_URL=http://localhost:8005 npx vite --port 5181 --strictPort"
+      ],
+      "port": 5181
+    },
+    {
       "// paire LAN": "Seule paire joignable depuis un VRAI iPhone. Toutes les autres lient 127.0.0.1 : le téléphone ne peut atteindre AUCUN de leurs ports, quelle que soit l'URL tapée. Quatre choses doivent changer ENSEMBLE, et il en manque toujours une : (1) uvicorn --host 0.0.0.0, (2) vite --host 0.0.0.0, (3) VITE_API_URL sur l'IP du Mac — sur localhost le téléphone appellerait SON PROPRE localhost, (4) l'origine LAN dans ZETIS_CORS_ORIGINS, que le défaut (:5173/:5174) n'a pas. L'IP se résout au lancement : elle bouge au gré du DHCP.",
       "// piège en0": "en0 est le Wi-Fi. Le Mac a AUSSI une route par défaut sur en10 (filaire) — c'est cette adresse-là qu'on relève par réflexe, et le téléphone, qui est en Wi-Fi, ne la joint pas.",
       "name": "backend-lan",

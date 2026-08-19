@@ -102,6 +102,36 @@ adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de
 reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
 Relever avec « Suspendre ZETIS » quand tout est contrôlé.
 
+## Essai « la restauration qui aboutit » en dev (ADR-0066, résidu n°1) — 2026-08-19
+
+### 🔴 `PRODUCTION_WORKER_SUPERVISED` se règle SANS le préfixe `ZETIS_` — le préfixé est ignoré en silence
+
+Comme `REDIS_URL` et `STORAGE_BACKEND`, le champ porte un `validation_alias` qui REMPLACE le
+préfixe (`config.py:359`). `export ZETIS_PRODUCTION_WORKER_SUPERVISED=true` ne règle RIEN :
+pydantic l'ignore, `supervised` reste `False`, et le premier `POST /donnees/restauration` de
+l'essai est tombé en **409 adr-0064** (« Rien ne supervise le worker… ») — fail-closed exemplaire,
+mais une heure se perd à chercher pourquoi. **Parade** : `export PRODUCTION_WORKER_SUPERVISED=true`
+(l'entrée `backend-restauration` de `launch.json` est corrigée). Règle générale : devant tout
+réglage qui « ne prend pas », relire le `validation_alias` du champ AVANT d'accuser autre chose.
+
+### 🔴 TOUTE archive du produit contient SA PROPRE ligne `ai_jobs` en `running` — restaurée, c'est un travail FANTÔME qui bloque les gestes suivants
+
+Le dump de `backup_create` est pris PENDANT le travail : la ligne du travail qui crée l'archive
+y figure en `status='running'`. Toute restauration réveille donc un fantôme éternellement « en
+cours » — mesuré en vrai à l'essai : après le geste, la barre affiche « ZETIS produit —
+backup_create » (le #896 de l'époque de l'archive), et 🔴 **les préconditions « rien en vol »
+(restauration, suppression, famille sauvegarde) rendront 409 tant que cette ligne vit**. Le
+sidecar, lui, dit la vérité (8/8 franchies, zéro écart) — le fantôme est un artefact d'histoire,
+pas un échec du geste. **Structurel et systématique** (le filet aussi embarque la ligne du
+`backup_restore` qui le crée). Parade possible — À CADRER, pas codée : le réveil ③ pourrait
+clore les `queued|running` de la base restaurée (« interrompu par restauration », patron du
+garde « introuvable ») ; c'est une décision d'ADR, pas un correctif silencieux.
+
+### Le worker meurt au recyclage ⑧ et rien ne le relance hors superviseur — c'est le contrat
+
+En dev : `pnpm dev:worker` (le motif du 409 adr-0064 le dit mot pour mot). L'essai a fini la
+machine SANS worker de production — voulu et assumé, le bandeau Papa le montre.
+
 ## Hôte — certifier la cible depuis une session Claude Code : le script PEND sur TCC — 2026-08-19
 
 `scripts/certifier-cible-sauvegarde.sh` lit `~/Library/Group Containers/group.com.docker/

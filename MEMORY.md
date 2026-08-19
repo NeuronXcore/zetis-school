@@ -15,7 +15,12 @@
 > squash par `cancel-in-progress`). ℹ️ La branche de worktree d'agent
 > `claude/fervent-stonebraker-bfa5b9` existe toujours (infrastructure Claude Code, pas un
 > chantier). La prod tourne (8 conteneurs, ports canoniques) ; une paire dev d'une autre session
-> Claude tient encore 8001/5175 (même arbre, à laisser mourir).
+> Claude tient encore 8001/5175 (même arbre) — **SANS worker de production** : le sien a été
+> remplacé pour l'essai restauration, et le remplaçant est mort au recyclage ⑧ (`pnpm
+> dev:worker` pour en relancer un). ⚠️ **La base dev EST désormais un état restauré** :
+> `zetis_avant` vit sur le serveur dev, et la ligne fantôme #896 (`running`) bloque les gestes
+> sauvegarde (voir RÉSIDUS). La cible d'essai `/Volumes/NX-Models/zetis-sauvegardes-dev` porte
+> 2 archives réelles + sidecars.
 
 ### ✅ CHANTIER SOLDÉ — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — les DEUX slices MERGÉES, 4bis fait (2026-08-19)
 
@@ -31,8 +36,9 @@
   antérieurs à la variable) — c'est le prochain `prod:up` qui l'appliquera, et il reste la
   preuve d'image (dette ci-dessous). Piège TCC rencontré au passage :
   `TROUBLESHOOTING.md` § « certifier la cible depuis une session Claude Code » ;
-- ⚠️ la relecture §5bis restante : jouer EN DEV une restauration qui **aboutit** (résidu n°1
-  ci-dessous — c'est aussi elle qui exercerait « restaurée le … » de bout en bout) ;
+- ✅ ~~la relecture §5bis restante~~ — **JOUÉE le 2026-08-19 au soir** : la restauration a
+  ABOUTI en dev, 8/8 étapes, « restaurée le … » vu à l'écran (résidu n°1 ci-dessous, soldé —
+  avec DEUX découvertes : le travail fantôme 🔴 et le piège d'alias d'env) ;
 - le chore « À CASER » (l'emoji sidebar → onglet Autonomie), ou le prochain sous-chantier de la
   phase E (occupation disque · purges/rétention · remises à zéro · export RGPD) — chacun avec
   son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
@@ -149,10 +155,27 @@ en tête du fichier.
 
 **RÉSIDUS de la clôture slice 2 (ne vivent QUE ici) :**
 
-- 🔴 **Une restauration qui ABOUTIT n'a jamais été vue à l'écran** (l'exercer = swapper la base
-  de dev — l'agent ne se l'est pas autorisé seul). Tout le reste de la surface a été vu en vrai,
-  les deux 409 compris. À jouer un jour EN DEV, suspension posée : c'est aussi ce qui exercerait
-  le chemin « restaurée le … » de bout en bout.
+- ✅ ~~Une restauration qui ABOUTIT n'a jamais été vue à l'écran~~ — **JOUÉE EN VRAI le
+  2026-08-19 au soir, sur ordre explicite** (paire d'essai `backend-restauration`/
+  `papa-restauration` de `launch.json`, 8005/5181, cible dev certifiée
+  `/Volumes/NX-Models/zetis-sauvegardes-dev`) : archive réelle de la base dev (48,2 Mo,
+  9168 lignes) → vérifiée `reussie` → **Restaurer apparu** → saisie `RESTAURER` → 202 →
+  **les 8 étapes franchies, zéro écart** (sidecar), **« ↺ restaurée le … » à l'écran ET dans le
+  GET**, `zetis_avant` née, réveil suspendu+désarmé lu en base, **filet réel créé** (2ᵉ archive),
+  76 audio remplacés (`storage/generated`), files purgées (1 réveil de scan), worker **mort au
+  ⑧**. Suspension posée puis LEVÉE par le bouton (le monde ne se relève jamais seul). Le premier
+  essai est tombé en **409 adr-0064** — piège d'alias d'env, voir `TROUBLESHOOTING.md` § essai.
+- 🔴 **DÉCOUVERT à l'essai — le travail FANTÔME (systématique)** : toute archive du produit
+  contient SA PROPRE ligne `ai_jobs` en `running` (dump pris pendant le travail) ; restaurée,
+  cette ligne revit en éternel « en cours » — la barre l'affiche, et **les préconditions « rien
+  en vol » refuseront tout geste sauvegarde suivant**. ⚠️ **État LAISSÉ dans la base dev** : la
+  ligne #896 (`backup_create`, `running`) y vit — le prochain geste sauvegarde en dev tombera en
+  409 tant qu'elle n'est pas soldée. Parade à CADRER (le réveil ③ clôturerait les
+  `queued|running` restaurés) — décision d'ADR, pas un correctif silencieux
+  (`TROUBLESHOOTING.md` § essai, détail complet).
+- ⚠️ **La machine finit SANS worker de production** (le ⑧ a consommé le mien, j'avais remplacé
+  celui de l'autre session par le geste documenté du module) : `pnpm dev:worker` pour en relancer
+  un ; le backend 8001 de l'autre session tourne toujours, sans worker.
 - ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (état du composant,
   comportement HÉRITÉ de la slice 3 du 0065, pas introduit) — signalé, non traité.
 - ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile dans son
@@ -182,6 +205,14 @@ en tête du fichier.
 - **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
   Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
   clôture de la slice 1 du 0065). Chore/fix à part, hors périmètre sauvegarde.
+- **Un toast ÉPHÉMÈRE qui confirme la restauration ou son échec** (demande utilisateur du
+  2026-08-19 au soir, pendant l'essai du geste). À cadrer avant de coder, trois contraintes se
+  croisent : la ligne du travail MEURT au swap (ADR-0066 §3) — le front n'a AUCUN événement de
+  fin, le toast devrait naître d'une relecture qui découvre `restauree_le` (ou d'un sondage,
+  interdit par adr-0062 §5) · « toast = retour d'action SEULEMENT » (ADR-0066 §7) — un toast de
+  RÉSULTAT est une extension de doctrine à écrire · aucun système de toast n'existe chez Papa
+  (les retours sont des `MessageGeste` inline). Cas `adr-0060` à déclarer (probablement 4 —
+  surface — voire 3 si le mécanisme de découverte de fin devient une décision).
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 
