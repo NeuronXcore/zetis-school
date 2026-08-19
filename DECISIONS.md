@@ -4,7 +4,7 @@
 > Le motif d'une décision vit dans son ADR, jamais ici — un index qui recopie
 > le contenu se périme deux fois plus vite et ne s'utilise plus.
 
-64 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
+65 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
 
 ## Décisions d'architecture
 
@@ -90,4 +90,5 @@
 | [0062](docs/decisions/adr-0062-la-page-parametres-devient-une-carte-et-cinq-onglets.md) | La page Paramètres devient une carte, et cinq onglets | 🟡 Proposé | 2026-08-19 |
 | [0063](docs/decisions/adr-0063-suspendre-zetis-est-un-sixieme-regulateur.md) | Suspendre ZETIS est un sixième régulateur, pas un interrupteur | 🟡 Proposé | 2026-08-19 |
 | [0064](docs/decisions/adr-0064-redemarrer-un-worker-est-un-geste-de-superviseur.md) | Redémarrer un worker est un geste de superviseur — l'écran ne fait qu'appuyer | 🟡 Proposé | 2026-08-19 |
+| [0065](docs/decisions/adr-0065-une-archive-jamais-restauree-n-est-pas-une-sauvegarde.md) | Une archive jamais restaurée n'est pas une sauvegarde | 🟡 Proposé | 2026-08-19 |
 

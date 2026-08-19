@@ -275,7 +275,13 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
     un cadenas dit pourquoi.
 - **B** — cadrage (1) · sauvegarder : travail de file, manifeste, empreinte, **refus si la cible et
   les données partagent un UUID de volume** (2) · vérifier par restauration à blanc dans
-  `zetis_verify` (1).
+  `zetis_verify` (1). ✅ **cadré le 2026-08-19 par l'`adr-0065`**, et le read-before-code a corrigé
+  la maquette trois fois : la donnée vit dans **quatre** endroits (le volume `capsule_audio` était
+  oublié) ; le poste « PDF importés 96 Mo » **n'existe pas** (le RAG extrait le texte vers
+  Postgres, le fichier n'est jamais persisté) ; les KPI annoncés étaient faux de deux ordres de
+  grandeur (prod réelle : 12 Mo · 219 lignes · 48 tables). Le cycle complet dump → restauration à
+  blanc → comptage → drop a été **exécuté en vrai** avant d'être décidé (< 1 s à l'échelle
+  actuelle, 9 161/9 161 lignes).
 - **C** — cadrage (1) · code parental haché + verrou après inactivité (1,5) · alertes (1).
   ✅ **`app/core/mailer.py` et la config SMTP existent déjà** (le watchdog s'en sert) : le canal
   n'est pas à construire.
@@ -289,12 +295,16 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
 
 ### Trois décisions à trancher, une par cadrage
 
-1. **B** — les **SSD et UUID de volume sont illisibles depuis le conteneur** (`diskutil` absent,
-   volume hôte inaccessible). Sonde côté hôte, ou on abandonne ces lignes ?
+1. ✅ **B — tranchée par l'`adr-0065` §3** : ni sonde vivante, ni abandon — un **certificat écrit
+   par l'hôte** (script `scripts/`, `diskutil` + localisation réelle de `Docker.raw`), déposé dans
+   le répertoire cible, **fail-closed** : sans certificat ou à UUID égaux, la sauvegarde refuse
+   avec son motif. Limite écrite dans l'ADR : il prouve l'état au moment de la certification.
 2. **D** — une **route de lecture enfant** sert-elle l'accessibilité ? ⚠️ L'« aucune route élève »
    de l'ADR-0032 visait les **paliers d'autonomie**, pas tout réglage — et **8 familles
    `/api/student/*`** font précédent.
-3. **E** — l'export RGPD : **un geste ou deux** ? Ni le même contenu, ni le même public.
+3. **E** — l'export RGPD : ~~un geste ou deux ?~~ **Réponse posée d'avance par l'`adr-0065` §9 :
+   deux gestes** (l'archive technique n'est pas l'export lisible — ni le même contenu, ni le même
+   public, ni le même canal). Le cadrage de E la **relit**, il ne la rouvre pas.
 
 ### Ce qui ne sera JAMAIS bâti (ADR-0062, ne pas redébattre)
 

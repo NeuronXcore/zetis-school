@@ -53,12 +53,60 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### ⏸ CADRAGE DE LA PHASE B « LA SAUVEGARDE QUI SE MÉRITE » — ADR-0065 écrit, pas encore codé (2026-08-19)
+
+**PROCHAIN PAS : l'humain relit et committe le lot Décision sur `main`** (ADR-0065 +
+`DECISIONS.md` régénéré + `BACKLOG.md` + ce fichier), **puis** `/ouverture` vers
+`feat/sauvegarde-qui-se-merite`. Rien sous `apps/` ni `packages/` n'a bougé ;
+`check_adr_refs.sh` sort en 0.
+
+**Ce que l'ADR-0065 décide** (ne pas re-débattre) : l'archive naît sur le disque cible et **aucun
+octet n'en passe par HTTP** (données de Massimo + hash de mots de passe) · elle couvre le
+**quatuor** Postgres + MinIO (par l'API S3) + volume `capsule_audio` + manifeste, exclusions
+écrites dedans (`.env`, Redis, modèles) · le refus « même volume » vient d'un **certificat écrit
+par l'hôte** (UUID lisibles de l'hôte seulement), **fail-closed** · `backup_create` et
+`backup_verify` sont des travaux de la **file existante** (`travaux.enfiler`,
+`created_by="file"`, concurrence 1 — la sérialisation achète la cohérence du couple ; ordre
+imposé : dump d'abord, objets ensuite) · le manifeste compte **sur l'instantané du dump**
+(`pg_export_snapshot` + `pg_dump --snapshot`) et la création **refuse** une archive au couple
+incomplet · la vérification restaure à blanc dans `zetis_verify` (détruite en `finally`, la base
+`zetis` jamais touchée) · l'export RGPD = **deux gestes**, le lisible reste en phase E ·
+**« Suspendre ZETIS » (ADR-0063) n'est PAS consommé** — la sauvegarde est additive, c'est la
+restauration (E) qui suspendra.
+
+🔴 **CE QUE LE READ-BEFORE-CODE A CORRIGÉ (la maquette a encore menti, 5 fois) :**
+
+1. « La donnée vit dans trois endroits » — **quatre** : le volume `capsule_audio` (WAV Piper sur
+   disque, jamais dans MinIO) était oublié.
+2. « PDF importés 96 Mo, seul poste irremplaçable » — **le poste n'existe pas** : `rag/upload`
+   extrait le texte vers Postgres, le fichier n'est jamais persisté.
+3. KPI « 1,86 Go · 41 812 lignes · 37 tables · 1 204 objets » — **inventés** : prod réelle
+   12 Mo · 219 lignes · 48 tables · 0 objet.
+4. Disques « ZETIS-SSD / LLM-SSD » — noms inventés ; réel : `NX-Projects` (données + `Docker.raw`,
+   15 Go réels) et `NX-Models`, **deux disques physiques distincts** (UUID mesurés).
+5. « la page compare les UUID » — illisibles du conteneur, **lisibles de l'hôte** (`diskutil`) —
+   d'où le certificat.
+
+📌 **Mesures** (2026-08-19, les deux piles vivantes) : `pg_dump` dev **0,17 s → 2,6 Mo** (16 Mo,
+9 161 lignes) ; prod **0,13 s → 151 Ko** (12 Mo, 219 lignes) ; restauration à blanc dans
+`zetis_verify` **0,29 s**, comptage restauré **9 161/9 161**, tête Alembic identique
+(`a8a71c84f86e`), extension `vector` présente, DROP propre · `pg_dump` **absent de l'image
+backend** (seul `curl` est installé) → `postgresql-client-16` (PGDG) à baker, majeure alignée sur
+`pgvector/pgvector:pg16` · MinIO **ne se copie pas par `/data`** (format `xl.meta`) → API S3 ·
+rôle `zetis` **superuser** (dev et prod) → `CREATE/DROP DATABASE` ok · plus long lot réel fini :
+**146 s** ; timeout de file 3 600 s · **preuve que le contrôle de complétude sert** : en dev,
+8 capsules référencent une vidéo, le bucket n'en contient **1** (backends `disk`/`minio` mélangés
+au fil du temps) — une sauvegarde dev honnête refuserait aujourd'hui.
+
+⚠️ **Pièges consignés pour les slices** : le backend n'a **aucun montage hôte** aujourd'hui — la
+cible exige un bind mount neuf (`${ZETIS_BACKUP_DIR:?}` → `/backups`, sur `backend` ET `worker`) ·
+`settings-store.json` a déjà menti (AutoStart) — le script de certification vérifie la **présence
+réelle** de `Docker.raw`, il ne croit pas le réglage · les durées mesurées de la sauvegarde sont
+**sous le `PLANCHER_MS`** de la barre (2 s) — amorce à poser au-dessus, en connaissance.
+
 ### ✅ PHASE A SOLDÉE — les deux gestes de 🧠 La machine sont sur `main` (2026-08-19)
 
-**PROCHAIN PAS : la phase B du `BACKLOG.md` — « la sauvegarde qui se mérite »** (~4 sessions, le
-seul risque irréversible du projet). Elle commence par un `/cadrage` sur `main` (cas 3), avec sa
-question à trancher : les SSD/UUID sont illisibles du conteneur — sonde côté hôte, ou abandon de
-ces lignes ?
+**PROCHAIN PAS : ✅ fait — le cadrage de la phase B est écrit (ADR-0065, bloc ci-dessus).**
 
 La journée du 2026-08-19, bout en bout : ADR-0062 → tranche 1 mergée (#160, `49a4890`) → ADR-0063
 → A1 mergé (#161, `9e93746`) → ADR-0064 (surface, APRÈS l'écran) → A2 mergé (#162, `fb031d3`).
