@@ -19,6 +19,7 @@ from app.modules.settings import ecarts, machine, sauvegarde, service
 from app.modules.settings.schemas import (
     AutonomyOut,
     AutonomyRequest,
+    DonneesOut,
     EcartsOut,
     MachineOut,
     SauvegardeAccepteeOut,
@@ -133,6 +134,17 @@ def set_production_suspension(req: SuspensionRequest, db: Session = Depends(get_
     s'écourte entre deux pièces et se raconte au journal ; les lots en file repartiront à la levée.
     """
     return {"suspended": service.set_production_suspended(db, suspended=req.suspended)}
+
+
+@router.get("/donnees", response_model=DonneesOut)
+def get_donnees(db: Session = Depends(get_db)) -> dict:
+    """💾 L'état de la sauvegarde (ADR-0065 §7) : archives, certificat, dernière vérification.
+
+    Des MÉTADONNÉES seulement — tailles par `stat`, empreintes et comptes par les sidecars,
+    verdicts par les travaux `backup_verify` réussis. 🔴 Aucun tar n'est ouvert, aucun octet
+    d'archive ne passe par HTTP (§1). Lecture pure : le rafraîchissement est un bouton (adr-0062).
+    """
+    return sauvegarde.etat_donnees(db)
 
 
 @router.post(

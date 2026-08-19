@@ -331,6 +331,11 @@ export {
   type ReglageEnv,
   type Machine,
   type TestMoteur,
+  type CertificatCible,
+  type VerificationArchive,
+  type ArchiveSauvegarde,
+  type Donnees,
+  type SauvegardeAcceptee,
 } from "./settings";
 export {
   type ContentRequest,

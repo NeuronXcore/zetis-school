@@ -483,9 +483,12 @@ export const INVENTAIRE: LigneReglage[] = [
   {
     nom: "Volumes montés, UUID de disque, occupation",
     concerne: "machine",
-    ou: "nulle part",
-    // Corrigé : `diskutil` n'existe pas dans l'image ; l'UUID d'un volume hôte est illisible.
-    statut: "⏸ différé — illisible depuis le conteneur ; relève de la tranche Données",
+    ou: "script hôte",
+    // `diskutil` n'existe pas dans l'image : les UUID se lisent depuis l'HÔTE, et l'ADR-0065 §3
+    // en a fait un CERTIFICAT (`scripts/certifier-cible-sauvegarde.sh` → `.zetis-cible.json`
+    // dans la cible) que le backend confronte avant toute sauvegarde. L'occupation, elle,
+    // reste non couverte.
+    statut: "✅ tenu par l'hôte — certificat de cible (ADR-0065 §3) ; l'occupation reste à part",
     famille: "nulle",
   },
   {
@@ -521,29 +524,44 @@ export const INVENTAIRE: LigneReglage[] = [
   {
     nom: "Sauvegarder · vérifier par restauration à blanc",
     concerne: "machine",
-    ou: "à venir · Données",
-    statut: "⏸ tranche 4 — une archive jamais restaurée n'est pas une sauvegarde",
-    famille: "decider",
+    ou: "ici · Données",
+    // Livré par l'ADR-0065 (slices 1-3) : archive scellée sur la cible certifiée, refusée si le
+    // couple base/médias ne ferme pas ; vérification = restauration à blanc dans `zetis_verify`.
+    // Le mot « sauvegarde » ne s'affiche qu'après un verdict réussi — avant, c'est un export
+    // non vérifié.
+    statut: "✅ livré — une archive jamais restaurée n'est pas une sauvegarde",
+    famille: "ici",
+    onglet: "donnees",
   },
   {
     nom: "Restaurer une sauvegarde",
     concerne: "machine",
     ou: "à venir · Données",
-    statut: "⏸ tranche 4 — classe A4 : remplace l'état actuel",
+    // Phase E, son propre ADR : c'est elle qui suspendra avant de remplacer (ADR-0063 consommé
+    // là-bas, jamais ici — la sauvegarde est additive).
+    statut: "⏸ phase E — classe A4 : remplace l'état actuel",
     famille: "decider",
   },
   {
     nom: "Cible de sauvegarde (2ᵉ disque)",
     concerne: "machine",
-    ou: "à venir · Données",
-    statut: "⏸ tranche 4 — refuser si la cible et les données partagent un UUID de volume",
-    famille: "decider",
+    ou: "script hôte + .env",
+    // ZETIS_BACKUP_DIR (fail-closed `:?` en prod) + certificat d'UUID écrit par l'hôte : la
+    // règle « refuser si la cible et les données partagent un volume » est TENUE — par le 409
+    // de la route, pas par un réglage d'écran. L'onglet Données montre l'état du certificat.
+    statut: "✅ livré — certifiée par l'hôte, refus 409 motivé sans certificat (ADR-0065 §3)",
+    famille: "ici",
+    onglet: "donnees",
   },
   {
     nom: "Copie hors du bureau des PDF importés",
     concerne: "machine",
     ou: "nulle part",
-    statut: "🔴 question ouverte — le seul poste irremplaçable, et deux SSD ne le couvrent pas",
+    // 🔴 Corrigé par la MESURE (ADR-0065, 2026-08-19) : ce poste n'existe pas. `rag/upload`
+    // extrait le texte vers Postgres et le PDF n'est JAMAIS persisté — les cours importés sont
+    // déjà dans le dump. La question hors-site reste entière pour l'ARCHIVE complète (un geste
+    // humain sur un fichier, pas une route) — écrite au §Hors périmètre de l'ADR.
+    statut: "✅ sans objet — le poste n'existe pas : les PDF ne sont jamais persistés, le texte vit dans le dump",
     famille: "nulle",
   },
   {

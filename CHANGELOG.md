@@ -1,5 +1,32 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.9 — La sauvegarde qui se mérite (phase B complète)
+
+> ADR-0065, trois slices : #164 (le socle) · #165 (la preuve) · la surface (cette entrée part
+> avec elle). Le seul risque irréversible du projet — perdre le travail de Massimo — est couvert.
+
+Une année de travail tient désormais dans un fichier daté, empreinté, **dont on prouve qu'il se
+rejoue**. L'onglet 💾 Données de la page Paramètres porte deux gestes :
+
+- **💾 Sauvegarder** : une archive complète — base (dump pris sur un instantané cohérent), médias
+  des capsules, manifeste scellé — écrite directement sur une **cible certifiée** : un répertoire
+  d'un AUTRE disque physique, prouvé tel par un certificat que seul le Mac peut établir
+  (`scripts/certifier-cible-sauvegarde.sh`). Sans certificat, ZETIS **refuse et dit pourquoi** —
+  et une archive dont un média référencé manque n'existe pas : elle est refusée et effacée.
+- **✓ Vérifier** : l'archive est **rejouée à blanc** dans une base jetable, détruite ensuite — la
+  base vivante n'est jamais touchée. Comptes par table, version du schéma, empreinte de chaque
+  fichier : tout est confronté au manifeste scellé.
+
+**Le mot « sauvegarde » se mérite** : une archive jamais rejouée s'affiche « export non
+vérifié » ; le mot n'apparaît qu'après une restauration à blanc réussie. Prouvé sur les données
+réelles dès le premier jour : la première archive d'essai — produite avec un client PostgreSQL
+plus récent que le serveur — a été **honnêtement refusée** à la vérification (écart nommé à la
+ligne près) ; la seconde, produite avec le client aligné, est ressortie « Sauvegarde vérifiée :
+9165/9165 lignes, 48/48 tables ». Rien ne se télécharge par le navigateur : l'archive naît sur le
+disque cible et y reste — le dump porte toute la vie scolaire de Massimo.
+
+Restaurer, supprimer, faire tourner les archives : phase E, son propre chantier.
+
 ## 0.99.8 — La page Paramètres devient une carte, et la machine gagne ses deux premiers gestes
 
 > Entrée écrite le 2026-08-19 à la clôture suivante — les quatre PR étaient mergées sans entrée,

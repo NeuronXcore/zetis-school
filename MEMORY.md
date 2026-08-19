@@ -6,17 +6,19 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
-> pousser, **aucune branche de chantier vivante** (seul le worktree `claude/…` qui sert `:5175`).
-> Les slices 1 et 2 de la sauvegarde sont **MERGÉES**. La prod tourne (8 conteneurs, ports
-> canoniques 8000/5173/5174) ; le dev se lance à la demande sur les paires `.claude/launch.json`.
+> **Où en est le dépôt** (2026-08-19, soir) — `main` = `origin/main`. **UNE branche vivante :
+> `feat/sauvegarde-qui-se-merite-3`** (base `7043a21`, définitive), qui porte la slice 3 — la
+> dernière — **non committée**. La prod tourne (8 conteneurs, ports canoniques 8000/5173/5174) ;
+> le dev se lance à la demande sur les paires `.claude/launch.json`.
 
-### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — slices 1-2/3 MERGÉES, reste la SURFACE (2026-08-19)
+### 🔨 CHANTIER ACTIF — « LA SAUVEGARDE QUI SE MÉRITE » (ADR-0065, phase B) — **COMPLET** : slice 3/3 codée, NON COMMITTÉE (2026-08-19)
 
 Le lot Décision est sur `main` (ADR-0065 = `dd078af`). **Slice 1 MERGÉE** (PR #164, squash
-`8650f26`) · **Slice 2 MERGÉE** (PR #165, squash `fe95bf5`, CI verte du premier coup : pytest
-3m20s · vitest 2m51s · verrous 8s). Les deux branches sont supprimées (vérifié `ls-remote` → 0
-pour chacune). La slice 3 repartira de `main` sur une branche neuve.
+`8650f26`) · **Slice 2 MERGÉE** (PR #165, squash `fe95bf5`). Branches supprimées (vérifié
+`ls-remote` → 0 pour chacune). **Slice 3 sur `feat/sauvegarde-qui-se-merite-3`** (base
+`7043a21`), non committée — l'état exact : `git status` / `git log --oneline main..HEAD`.
+🎉 **Et le cycle complet a été exécuté EN VRAI sur les données de dev pendant la relecture**
+(détail au bloc slice 3) : la dette « chemin Postgres réel jamais exercé » est FERMÉE.
 
 **FAIT — slice 1 (le socle, sur `main` via #164)** : `modules/settings/sauvegarde.py`
 (`backup_create` : certificat fail-closed → 409 avant d'enfiler → dump sur instantané exporté →
@@ -62,47 +64,94 @@ d'abord (§4) · manifeste compté sur l'instantané, archive au couple incomple
 (§5) · `zetis_verify` détruite même en échec (§6, slice 2) · module dans `modules/settings/`
 (les exécutants sont des adaptateurs ; direction production→settings déjà existante).
 
-**EN COURS :** rien — les slices 1 et 2 sont mergées, aucune branche vivante, rien d'instable.
+**FAIT — slice 3 (la surface, prête à committer) :**
 
-**À FAIRE :** slice 3 (la surface : `GET /donnees` — archives via sidecars, certificat, dernière
-vérification lue dans l'`output_json` du dernier `backup_verify` — et l'onglet 💾 rendu, deux
-gestes, « **export non vérifié** » tant que la restauration à blanc n'a pas réussi ; squelette
-dans `prompts/claude-code/prompts-claude-code-adr-0065.md` §Slice 3, règles transverses
-`adr-0062` §6).
+- `GET /api/settings/donnees` — métadonnées SEULEMENT, **aucun tar ouvert** (verrou structurel :
+  la route répond même quand `tarfile.open` explose) : archives via sidecars, certificat
+  `{valable, motif, cible}` (le chemin HÔTE consigné — « certifiée » sans dire OÙ obligeait à
+  demander, relevé à la relecture d'écran), verdicts par archive depuis les `backup_verify`
+  réussis (le plus récent gagne).
+- **L'onglet 💾 rendu** (`DonneesTab`) : badge certificat + chemin de cible + pourquoi la
+  destination ne se choisit pas ici · geste 💾 Sauvegarder (grisé AVEC motif sans certificat,
+  `signalerEnfilement` après 202) · liste des archives avec ✓ Vérifier par ligne · **« export non
+  vérifié » / « Sauvegarde vérifiée · date » / « vérification en échec (N écarts) »** — le mot se
+  mérite, trois libellés verrouillés · refus 409 en AMBRE avec motif (`estRefus`), jamais en
+  panne · aucun sondage, ⟳ bouton · heures locales (le fuseau UTC de `verifie_le` s'affichait
+  09:43 à côté de 11:42 — vu à l'écran, corrigé).
+- La CARTE mise au réel : « Sauvegarder · vérifier » et « Cible de sauvegarde » → ✅ `onglet:
+  donnees` ; la ligne FAUSSE « PDF importés = seul poste irremplaçable » corrigée par la mesure
+  de l'ADR (le poste n'existe pas — les PDF ne sont jamais persistés).
+- ⚠️ **UN test existant retouché, prévu par son propre commentaire** : l'exemple d'onglet non
+  construit était `?onglet=donnees` — devenu réel ; bascule vers `massimo`, propriété intacte
+  (preuve en deux temps : 1 seul test tombait avant la retouche, 859/860 intacts).
+- **Tests : backend 1521/1521 (+7 : `test_sauvegarde_donnees.py`), papa 869/869 (+9 :
+  `DonneesTab.test.tsx` + le swap), massimo 920/920, `tsc -b --force` OK, `ci-like.sh 3
+  frontend-papa` → 0 rouge/3.** Docs : CHANGELOG **0.99.9** (la phase B entière), API_SPEC §GET
+  /donnees, page-parametres §💾, TROUBLESHOOTING slice 3.
+
+🎉 **LE CYCLE RÉEL, exécuté pendant la relecture humaine** (paire d'essai isolée sur Redis db2 ;
+le worker maison a été refusé par le garde anti-doublon → travaux exécutés par le VRAI
+`run_ai_job` à la main) : `backup_create` réel sur la base de dev (archives 48,2 Mo, 9163-9165
+lignes / 48 tables, tête `a8a71c84f86e`, 76 fichiers audio, couple fermé) puis `backup_verify`
+réel — **et le premier verdict fut un ÉCHEC HONNÊTE** : `pg_dump` 18.6 (keg libpq) écrit
+`SET transaction_timeout`, que le serveur pg16 refuse sous `ON_ERROR_STOP` — le produit a refusé
+le mot « sauvegarde » à une archive qui, réellement, ne se rejouait pas. Rejoué aligné
+(`postgresql@16`, 16.15 = le serveur) : **« Sauvegarde vérifiée », 9165/9165, 48/48, zéro
+écart**, `zetis_verify` détruite à chaque fois (vérifié : seule `zetis` existe).
+
+**EN COURS :** rien d'instable — la slice 3 est complète, en attente de relecture finale et de
+commit. L'écran a été REGARDÉ (§5bis) : les deux états du certificat, les trois statuts
+d'archive, le refus motivé, le cycle réel — captures dans la session.
+
+**À FAIRE :** rien sur ce chantier — il est COMPLET au commit près.
 
 **PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/sauvegarde-qui-se-merite` (le bac à sable de l'agent
-GÈLE un script hôte qui lit `~/Library` ; un renvoi de prompt se vérifie) et `…-2` (psycopg3 :
-transaction implicite vs `CREATE DATABASE` — autocommit obligatoire).
+GÈLE un script hôte qui lit `~/Library` ; un renvoi de prompt se vérifie), `…-2` (psycopg3 :
+transaction implicite vs `CREATE DATABASE` — autocommit obligatoire) et `…-3` (🔴 un `pg_dump`
+PLUS RÉCENT que le serveur écrit un dump que pg16 refuse de rejouer — l'alignement de majeure
+vaut dans les DEUX sens et pour l'HÔTE ; le runner `preview_start` bloqué TCC sur `/Volumes` →
+paire lancée à la main + panneau ouvert par URL).
 
 **🧾 DETTES OUVERTES du chantier :**
 
-- 🔴 **Le chemin Postgres réel de `_instantane` ET `_restaurer_a_blanc` n'est exercé par aucun
-  test** (SQLite ne peut pas) : chaque brique a sa preuve réelle (conteneur d'essai), mais le
-  bout-en-bout attend la première vraie sauvegarde + vérification. L'image Docker n'a pas été
-  reconstruite en entier (couche PGDG vérifiée en conteneur identique, pas en `prod:up --build`).
-- 🔴 **VIVANT DEPUIS LE MERGE DE LA SLICE 1 : le prochain `prod:up` NE DÉMARRERA PAS sans
-  `ZETIS_BACKUP_DIR` dans le `.env` racine** (`:?`, voulu). Le geste, si pas déjà fait : poser la
-  variable vers un répertoire d'un AUTRE disque (ex. `NX-Models`), puis
-  `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
-- **L'entrée `CHANGELOG` de la phase B est DUE à la slice 3** (choix de cette clôture : le
-  comportement visible de Papa — l'onglet, les deux gestes — arrive avec la surface ; une entrée
-  par slice raconterait des routes, pas un comportement). Le contrôle d'élagage la réclamera.
+- ✅ **FERMÉE pendant la relecture : le chemin Postgres réel** — `_instantane` ET
+  `_restaurer_a_blanc` exercés en vrai sur la base de dev, de bout en bout, par le vrai
+  `run_ai_job` (travaux #891/#893 create · #892 verify-échec honnête · #894/#895
+  verify-réussie). Reste : l'image Docker jamais reconstruite en entier (couche PGDG vérifiée en
+  conteneur identique) — le premier `prod:up --build` sera la preuve d'image.
+- 🔴 **Le prochain `prod:up` NE DÉMARRERA PAS sans `ZETIS_BACKUP_DIR` dans le `.env` racine**
+  (`:?`, voulu). Le geste : poser la variable vers un répertoire d'un AUTRE disque durable
+  (ex. `NX-Models`), puis `scripts/certifier-cible-sauvegarde.sh <répertoire>`.
+- **Ménage de la relecture, sur cette machine** : jobs d'essai `#890→#895` dans les `ai_jobs` de
+  DEV — **`#890` est un `failed` « Aucun exécutant » à ACQUITTER** (clic parti vers le worker de
+  l'autre session, qui tourne un code d'avant les slices), les autres sont des traces réelles
+  `succeeded` · les archives d'essai vivent dans le scratch de session `/private/tmp/…` (éphémère,
+  disparaît seul) · la paire d'essai 8002/5178 (Redis db2) peut encore tourner — l'arrêter ou la
+  laisser mourir avec la session · kegs brew posés le 2026-08-19 : **`postgresql@16`** (le BON,
+  aligné serveur) et `libpq` (redondant, désinstallable).
+- **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16` (jamais
+  `libpq` — TROUBLESHOOTING slice 3). Dette outillage, chore à part.
 - `API_SPEC.md` ne documente toujours PAS les autres routes `/api/settings` (`/autonomy`,
-  `/machine`, `/ecarts`, `/production-suspension`) — dette relevée à la slice 1 ; rangement doc à
-  part.
+  `/machine`, `/ecarts`, `/production-suspension`) — rangement doc à part.
 
-**PROCHAIN PAS :** la **slice 3** (la surface) — coller le squelette §Slice 3 du fichier de
-prompts après `/slice`, branche neuve depuis `main`. Elle rend l'onglet 💾 : `GET /donnees`
-(archives via sidecars `.manifeste.json`, certificat, **dernière vérification lue dans
-l'`output_json` du dernier `backup_verify`**), deux gestes, « export non vérifié » tant que la
-restauration à blanc n'a pas réussi, règles `adr-0062` §6 — et l'entrée `CHANGELOG` de la
-phase B (due, voir DETTES). Avant le prochain `prod:up` : le geste `ZETIS_BACKUP_DIR` (DETTES).
+**PROCHAIN PAS :** l'humain relit le diff, committe (message rendu à la clôture), pousse
+`feat/sauvegarde-qui-se-merite-3`, **PR + merge** (chantier FINI), puis l'étape 4bis solde le
+chantier ADR-0065. Ensuite, au choix : le **cadrage de la phase E** (restaurer / supprimer —
+demande déjà consignée en À CASER, `/cadrage` cas 3) ou la petite fix sidebar (À CASER).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
 - **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
   Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
   clôture de la slice 1). Chore/fix à part, hors périmètre sauvegarde.
+- **Administrer les sauvegardes : RESTAURER et SUPPRIMER une archive** (demande utilisateur du
+  2026-08-19, pendant la relecture de la slice 3). C'est la **phase E**, nommée par l'ADR-0065
+  §Hors périmètre — restaurer = son propre ADR (classe A4, consomme l'ADR-0063 « suspendre avant
+  de remplacer », verdict de compatibilité) ; supprimer/rotation = interdits par le périmètre
+  actuel (« rien de destructif, pas même pour faire de la place »). Pour le cadrage E : le vœu
+  UX est « avec des toasts de confirmation » — à traduire en **confirmation explicite** (dialogue
+  nommant l'archive, règles `adr-0062` §6) + toast de retour d'action, jamais un toast seul pour
+  du destructif.
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 

@@ -4,6 +4,32 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `feat/sauvegarde-qui-se-merite-3` — slice 3 (l'onglet 💾) — 2026-08-19
+
+### 🔴 Un `pg_dump` PLUS RÉCENT que le serveur écrit un dump que le serveur REFUSE de rejouer
+
+Vécu en vrai sur le premier cycle réel : `pg_dump` **18.6** (keg `libpq` de brew) émet
+`SET transaction_timeout = 0;` en tête de dump — un paramètre **pg17+** que le serveur **pg16**
+ne connaît pas. Sous `ON_ERROR_STOP`, la restauration à blanc s'arrête à la ligne 13 :
+l'archive `zetis-2026-08-19-1139.tar` a été **honnêtement refusée** par `backup_verify` (verdict
+`echec`, écart nommé). Dumper marche ; REJOUER non — la contrainte d'alignement de l'ADR-0065
+(« la majeure du client suit celle du serveur ») vaut donc dans **les deux sens**, et aussi pour
+l'HÔTE de dev, pas seulement pour l'image.
+
+**Parade** : sur le Mac, le bon keg est **`postgresql@16`** (pg_dump/psql 16.15 = le serveur à la
+décimale — installé le 2026-08-19), PAS `libpq` (qui suit la dernière majeure). Le cycle complet
+a été rejoué aligné : archive `…-1142.tar` → « Sauvegarde vérifiée », 9165/9165 lignes, 48/48
+tables. ⚠️ `mise-en-route.sh` n'installe ni l'un ni l'autre — dette notée dans `MEMORY.md`.
+
+### 🔴 Le runner de `preview_start` peut être bloqué par TCC sur un dépôt sous `/Volumes`
+
+`preview_start {name}` a échoué deux fois (code 126 : `shell-init: getcwd … Operation not
+permitted` puis `scripts/…: Operation not permitted`) alors que les MÊMES entrées `launch.json`
+marchent depuis une autre session : le processus du runner n'avait pas l'accès disque au volume
+externe. Même famille que le gel du bac à sable sur `~/Library` (slice 1). **Parade** : lancer la
+paire uvicorn/vite en arrière-plan à la main (dérogation dite explicitement, processus arrêtés
+après), et ouvrir le panneau par `preview_start {url}` — l'ouverture par URL, elle, marche.
+
 ## `feat/sauvegarde-qui-se-merite-2` — slice 2 (`backup_verify`) — 2026-08-19
 
 ### 🔴 psycopg3 ouvre une transaction IMPLICITE — `CREATE DATABASE` la refuse
