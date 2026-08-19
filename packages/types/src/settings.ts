@@ -218,12 +218,30 @@ export interface ArchiveSauvegarde {
   tables: number | null;
   /** `null` = jamais vérifiée — « export non vérifié » à l'écran, et c'est le point du §7. */
   verification: VerificationArchive | null;
+  /** Le verdict de COMPATIBILITÉ (ADR-0066 §5) : la tête Alembic du manifeste est-elle connue
+   *  du code installé ? Ne dit RIEN de l'intégrité (ça, c'est `verification`) — les deux
+   *  verdicts se cumulent pour « Restaurer ». */
+  restaurable: boolean;
+  /** Pourquoi pas restaurable — `null` quand `restaurable` est vrai (adr-0062 §6 : un cadenas
+   *  muet se lit comme une panne). */
+  motif: string | null;
+  /** « Restaurée le … » (ADR-0066 §7) — lu du sidecar `.restauration.json`, le seul survivant
+   *  du geste (la ligne du travail meurt au swap). `null` = jamais restaurée, ou geste
+   *  interrompu : un swap à moitié franchi n'a pas droit au mot. */
+  restauree_le: string | null;
 }
 
 export interface Donnees {
   certificat: CertificatCible;
   archives: ArchiveSauvegarde[];
   derniere_verification: VerificationArchive | null;
+}
+
+/** Le 200 du DELETE d'archive (ADR-0066 §6) : les NOMS retirés de la cible — le tar et TOUS
+ *  ses sidecars, rien d'orphelin. Des métadonnées, jamais un contenu. */
+export interface ArchiveSupprimee {
+  archive: string;
+  supprimes: string[];
 }
 
 /** Le 202 des deux gestes (`POST /donnees/sauvegarde`, `POST /donnees/verification`) : des

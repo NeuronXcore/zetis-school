@@ -830,10 +830,11 @@ def _compat_archive(dossier: Path, nom: str, connues: set[str]) -> tuple[bool, s
 # --- Le refus AVANT d'enfiler (§2 : toutes les préconditions en 409 motivé) -----------------------
 
 
-def _dernier_verdict(db: Session, nom: str) -> str | None:
-    """Le verdict de la vérification la plus récente de CETTE archive, ou `None` si jamais
-    vérifiée. Même lecture que `etat_donnees` : les `backup_verify` réussis, le plus récent
-    d'abord — le verdict vit dans `output_json` (ADR-0065 §6)."""
+def _verdicts_par_archive(db: Session) -> dict[str, str | None]:
+    """Le dernier verdict `backup_verify` par archive — même lecture que `etat_donnees` : les
+    travaux réussis du plus récent au plus ancien, le premier verdict vu par archive gagne
+    (le verdict vit dans `output_json`, ADR-0065 §6)."""
+    verdicts: dict[str, str | None] = {}
     sorties = db.execute(
         select(AIJob.output_json)
         .where(AIJob.job_type == JOB_TYPE_VERIFY, AIJob.status == "succeeded")
@@ -841,9 +842,15 @@ def _dernier_verdict(db: Session, nom: str) -> str | None:
         .limit(200)
     ).scalars()
     for sortie in sorties:
-        if isinstance(sortie, dict) and sortie.get("archive") == nom:
-            return sortie.get("verdict")
-    return None
+        if isinstance(sortie, dict) and sortie.get("archive"):
+            verdicts.setdefault(sortie["archive"], sortie.get("verdict"))
+    return verdicts
+
+
+def _dernier_verdict(db: Session, nom: str) -> str | None:
+    """Le verdict de la vérification la plus récente de CETTE archive, ou `None` si jamais
+    vérifiée."""
+    return _verdicts_par_archive(db).get(nom)
 
 
 def refus_restauration(db: Session, nom: str) -> str | None:
@@ -1366,6 +1373,70 @@ def restaurer_sauvegarde(nom: str) -> dict:
     }
 
 
+# --- La suppression d'archive (ADR-0066 §6) : un geste explicite, jamais une rotation -------------
+
+
+def refus_suppression(db: Session, nom: str) -> str | None:
+    """Le motif du 409 de `DELETE /donnees/archives/{nom}`, ou `None`. Quand il rend un motif,
+    RIEN n'est supprimé (fail-closed, patron des refus du module).
+
+    🔴 **La dernière archive au verdict `reussie` ne se supprime pas** tant qu'aucune AUTRE
+    archive vérifiée n'existe sur la cible (§6) : on ne se met jamais soi-même à zéro filet.
+    Une archive non vérifiée ou en échec, elle, se supprime dès que rien ne la lit.
+    """
+    if not _NOM_ARCHIVE.match(nom):
+        return (
+            f"Nom d'archive invalide : « {nom} » — une archive ZETIS s'appelle "
+            "zetis-AAAA-MM-JJ-hhmm.tar, sans chemin. Prenez le nom tel que la liste le rend."
+        )
+    dossier = Path(settings.backup_dir)
+    if not (dossier / nom).is_file():
+        return f"Archive « {nom} » introuvable sur la cible ({dossier})."
+    # Toute la famille bloque : une création écrit peut-être CE tar, une vérification ou une
+    # restauration le lit peut-être — supprimer sous leurs pieds n'a aucun sens.
+    en_cours = _en_file_ou_en_cours(db, (JOB_TYPE, JOB_TYPE_VERIFY, JOB_TYPE_RESTORE))
+    if en_cours is not None:
+        return (
+            f"Un travail de sauvegarde est déjà en file ou en cours "
+            f"(travail #{en_cours.id}, {en_cours.job_type}) : attendez sa fin."
+        )
+    verdicts = _verdicts_par_archive(db)
+    if verdicts.get(nom) == "reussie":
+        autres_verifiees = [
+            autre.name
+            for autre in dossier.glob("zetis-*.tar")
+            if autre.name != nom
+            and _NOM_ARCHIVE.match(autre.name)
+            and verdicts.get(autre.name) == "reussie"
+        ]
+        if not autres_verifiees:
+            return (
+                f"« {nom} » est la dernière archive au verdict « réussie » : la supprimer "
+                "laisserait ZETIS sans aucune sauvegarde prouvée (on ne se met jamais soi-même "
+                "à zéro filet). Vérifiez d'abord une autre archive, puis revenez."
+            )
+    return None
+
+
+def supprimer_sauvegarde(nom: str) -> dict:
+    """Le tar ET tous ses sidecars (`.sha256`, `.manifeste.json`, `.restauration.json`, et tout
+    sidecar futur du même nom) — rien d'orphelin (§6). Rend les NOMS retirés, jamais un contenu.
+
+    La whitelist est revérifiée ici (défense en profondeur, patron `verifier_sauvegarde`), et
+    c'est elle qui rend le glob `{nom}.*` sûr : un nom validé ne porte aucun métacaractère.
+    """
+    if not _NOM_ARCHIVE.match(nom):
+        raise SauvegardeRefusee(f"Nom d'archive invalide : « {nom} ».")
+    dossier = Path(settings.backup_dir)
+    supprimes: list[str] = []
+    for chemin in [dossier / nom, *sorted(dossier.glob(f"{nom}.*"))]:
+        if chemin.is_file():
+            chemin.unlink()
+            supprimes.append(chemin.name)
+    logger.info("sauvegarde: archive %s supprimée (%d fichier(s))", nom, len(supprimes))
+    return {"archive": nom, "supprimes": supprimes}
+
+
 # --- L'état de l'onglet 💾 (§7) : des MÉTADONNÉES, sans ouvrir un seul tar ------------------------
 
 
@@ -1454,6 +1525,18 @@ def etat_donnees(db: Session) -> dict:
                     # Sidecar illisible : l'archive s'affiche quand même, sans ses comptes —
                     # la page ne cache jamais un fichier qui existe sur la cible.
                     pass
+            # L'état « restaurée le … » (ADR-0066 §7) : lu du sidecar `.restauration.json` (§3),
+            # le seul survivant du geste — la ligne `ai_jobs` est morte au swap. `termine_le`
+            # nul (geste interrompu) ⇒ pas restaurée : un swap à moitié n'a pas droit au mot.
+            restauree_le = None
+            sidecar_restauration = dossier / f"{nom}.restauration.json"
+            if sidecar_restauration.is_file():
+                try:
+                    restauree_le = json.loads(
+                        sidecar_restauration.read_text(encoding="utf-8")
+                    ).get("termine_le")
+                except (OSError, ValueError, TypeError, AttributeError):
+                    restauree_le = None  # illisible : l'archive s'affiche sans cet état
             # ⚠️ Pas `motif` tout court : ce nom porte déjà le refus du CERTIFICAT plus haut,
             # et le `return` le relit — l'écraser ici ferait dire au certificat le verdict de
             # la dernière archive (payé une fois : suite rouge du 2026-08-19).
@@ -1477,6 +1560,7 @@ def etat_donnees(db: Session) -> dict:
                     "verification": verdicts.get(nom),
                     "restaurable": restaurable,
                     "motif": motif_compat,
+                    "restauree_le": restauree_le,
                 }
             )
 

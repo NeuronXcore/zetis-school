@@ -255,6 +255,14 @@ class SauvegardeRestaurationRequest(BaseModel):
     archive: str
 
 
+class SauvegardeSuppressionOut(BaseModel):
+    """Le 200 de `DELETE /donnees/archives/{nom}` (ADR-0066 §6) : les NOMS retirés de la
+    cible — le tar et TOUS ses sidecars, rien d'orphelin. Des métadonnées, jamais un contenu."""
+
+    archive: str
+    supprimes: list[str]
+
+
 # --- 💾 Données (ADR-0065 §7) — l'état, jamais un contenu -----------------------------------------
 
 
@@ -302,6 +310,10 @@ class ArchiveOut(BaseModel):
     #: Pourquoi pas restaurable — `None` quand `restaurable` est vrai (adr-0062 §6 : un
     #: cadenas muet se lit comme une panne).
     motif: str | None = None
+    #: « Restaurée le … » (ADR-0066 §7) — lu du sidecar `.restauration.json` (§3), le seul
+    #: survivant du geste : la ligne `ai_jobs` du travail meurt au swap. `None` = jamais
+    #: restaurée, ou geste interrompu — un swap à moitié franchi n'a pas droit au mot.
+    restauree_le: str | None = None
 
 
 class DonneesOut(BaseModel):

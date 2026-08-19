@@ -9,7 +9,7 @@
 ```
 Paramètres                                    [N réglages s'écartent du défaut →]
 
-🗺 La carte │ ⚡ Autonomie │ 🧠 La machine     (+ 🎒 Massimo · 👤 Papa · 💾 Données à venir)
+🗺 La carte │ ⚡ Autonomie │ 🧠 La machine │ 💾 Données     (+ 🎒 Massimo · 👤 Papa à venir)
 ─────────────
 ```
 
@@ -51,24 +51,36 @@ seul geste, et il ne persiste rien.
 présent — c'est le piège du lien symbolique, où un SSD débranché rend le message d'un modèle mal
 nommé.
 
-### 💾 Données — la sauvegarde qui se mérite (`adr-0065`, livré le 2026-08-19)
+### 💾 Données — la sauvegarde qui se mérite (`adr-0065`, livré le 2026-08-19 ; administration `adr-0066`, slice 2)
 
 Trois blocs, aucun contenu d'archive : le badge **certificat** (valable + le chemin de la cible,
 ou le motif du refus — le même texte que le 409), le geste **💾 Sauvegarder** (202 → travail de
 file, la barre du header suit ; grisé AVEC le motif quand la cible n'est pas certifiée), et la
-liste des **archives** (nom, date du nom, taille, empreinte du sidecar, statut) avec le geste
-**✓ Vérifier** par ligne.
+liste des **archives** (nom, date du nom, taille, empreinte du sidecar, statut) avec **trois
+gestes** par ligne : **✓ Vérifier**, **↺ Restaurer**, **🗑 Supprimer**.
 
 🔴 **Le mot « sauvegarde » se mérite** : une archive jamais restaurée à blanc s'affiche
 « **export non vérifié** » ; « Sauvegarde vérifiée · date » n'apparaît qu'après un verdict
 `reussie` de `backup_verify` ; un verdict d'échec se dit « vérification en échec (N écarts) ».
 Un test-verrou tient les trois libellés.
 
+🔴 **Restaurer se mérite dans les deux sens** (`adr-0066` §7) : le bouton **n'apparaît que** sur
+les archives au verdict `reussie` (test-verrou) ; la compatibilité de schéma défavorable (§5) le
+**grise avec son motif** — deux verdicts, deux traitements. Sa confirmation est un dialogue
+`danger` qui **nomme l'archive**, énonce la séquence (sauvegarde-filet comprise, réveil
+suspendu) et **exige la saisie de `RESTAURER`** (classe A4 — un clic seul ne part jamais,
+test-verrou). **🗑 Supprimer** : dialogue qui nomme l'archive, **sans saisie** — le serveur garde
+de toute façon la dernière archive vérifiée (409 « jamais zéro filet », `adr-0066` §6). L'état
+« **↺ restaurée le …** » s'affiche sous le nom d'archive, lu du sidecar `.restauration.json` via
+le GET (la ligne du travail meurt au swap — le sidecar est le seul survivant du geste).
+
 🔴 **Aucun octet d'archive ne passe par HTTP** (`adr-0065` §1) : pas de bouton « Télécharger »,
 et le pied de page dit pourquoi. La **destination ne se choisit pas ici** — elle se certifie sur
 l'hôte (`ZETIS_BACKUP_DIR` + `scripts/certifier-cible-sauvegarde.sh`), l'écran affiche le chemin
 et l'explique. Un refus (409) s'affiche en **ambre avec son motif**, jamais en panne rouge
-(`estRefus` distingue au code, pas au texte). Restaurer / supprimer : phase E, hors de cette page.
+(`estRefus` distingue au code, pas au texte). Purger en masse, rotation, export lisible : phase E,
+hors de cette page ; annuler une restauration = runbook `TROUBLESHOOTING.md` (re-swap
+`zetis_avant`), pas un bouton.
 
 ### Les règles transverses (`adr-0062` §6)
 

@@ -24,6 +24,7 @@ from app.modules.settings.schemas import (
     MachineOut,
     SauvegardeAccepteeOut,
     SauvegardeRestaurationRequest,
+    SauvegardeSuppressionOut,
     SauvegardeVerificationRequest,
     SuspensionOut,
     SuspensionRequest,
@@ -223,3 +224,24 @@ def post_restauration(
     return travaux.enfiler(
         db, job_type=sauvegarde.JOB_TYPE_RESTORE, payload={"archive": req.archive}
     )
+
+
+@router.delete("/donnees/archives/{nom}", response_model=SauvegardeSuppressionOut)
+def delete_archive(nom: str, db: Session = Depends(get_db)) -> dict:
+    """Supprime UNE archive — le tar et TOUS ses sidecars (ADR-0066 §6) — ou **409 motivé**.
+
+    Un geste explicite, jamais une rotation : la route ne supprime que ce que Papa désigne, sur
+    confirmation côté écran (dialogue qui nomme l'archive, §7). Le refus part AVANT de toucher
+    au disque : nom hors whitelist (le nom vient du client — traversée de répertoire sinon) ·
+    archive introuvable · un travail de sauvegarde en `queued|running` (création, vérification
+    ou restauration : supprimer sous leurs pieds n'a aucun sens) · 🔴 la dernière archive au
+    verdict `reussie` ne se supprime pas tant qu'aucune autre archive vérifiée n'existe — on ne
+    se met jamais soi-même à zéro filet.
+
+    Synchrone (pas un travail de file) : retirer quelques fichiers ne mérite pas la barre. La
+    réponse ne porte que les NOMS retirés — jamais un contenu (ADR-0065 §1).
+    """
+    motif = sauvegarde.refus_suppression(db, nom)
+    if motif:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
+    return sauvegarde.supprimer_sauvegarde(nom)

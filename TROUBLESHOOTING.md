@@ -4,6 +4,121 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 📖 RUNBOOK — re-swap `zetis_avant` : annuler une restauration à la main (ADR-0066 §4) — écrit et prouvé le 2026-08-19
+
+> **Quand** : une restauration vient d'aboutir et l'état restauré est le mauvais — revenir à
+> l'état d'AVANT le geste, à chaud, sans bouton (le bouton « annuler » est écarté par l'ADR-0066
+> §4 ; ⚠️ **si vous jouez ce runbook, notez-le** : « le re-swap a réellement servi » est le
+> signal écrit de l'ADR pour rouvrir ce choix). Une seule `zetis_avant` existe, écrasée à chaque
+> restauration : ce runbook ne remonte que d'**UN** cran.
+>
+> 🔴 **Ce que le re-swap NE ramène PAS : les médias.** Le §2.⑤ a remplacé le bucket MinIO et
+> `/shared/audio` par ceux de l'archive restaurée — l'échange de bases ne les rend pas. Si les
+> médias d'avant comptent, le chemin est le PRODUIT : **Vérifier puis Restaurer la
+> sauvegarde-filet** créée au ① (elle porte l'état complet d'avant, base ET médias). Le re-swap
+> DB seul convient quand les médias n'ont pas bougé entre les deux états.
+>
+> Commandes prouvées le 2026-08-19 en conteneur d'essai (`pgvector/pgvector:pg16`, rôle `zetis`,
+> témoins par base) : après le triple RENAME, `zetis` sert le témoin « avant »,
+> `zetis_avant` porte le témoin « restauré », et `zetis_production_suspended=true` se lit dans la
+> base re-swappée. ⚠️ `docker compose -f docker-compose.prod.yml …` exige le `.env` racine
+> complet — sans `ZETIS_BACKUP_DIR`, même un `exec` refuse (vécu à cette slice).
+
+**0. Arrêter les consommateurs** — élimine la seule course possible (un pool qui se reconnecte
+entre deux ordres ferait échouer un RENAME sur `database is being accessed by other users`) :
+
+```bash
+docker compose -f docker-compose.prod.yml stop backend worker worker-media
+```
+
+**1. Vérifier que les deux bases existent** (sinon, rien à re-swapper — s'arrêter ici) :
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d postgres -c "SELECT datname FROM pg_database WHERE datname IN ('zetis','zetis_avant') ORDER BY datname;"
+```
+
+**2. Forcer le réveil suspendu DANS `zetis_avant`** — l'état d'avant était suspendu par
+précondition du geste, mais on ne parie pas : même upsert que le ③ de la restauration
+(le régime, lui, reste tel quel : c'était la configuration vivante de Papa quelques minutes
+plus tôt, pas une archive d'un autre temps) :
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d zetis_avant -c "INSERT INTO app_settings (key, value, created_at, updated_at) VALUES ('zetis_production_suspended','true', now(), now()) ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = now();"
+```
+
+**3. Terminer les connexions restantes des deux bases** (avec la pile arrêtée, le compte attendu
+est 0 — un compte non nul dit qu'un client traîne, un `psql` oublié par exemple) :
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d postgres -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname IN ('zetis','zetis_avant');"
+```
+
+**4. Le triple RENAME** — l'échange par un troisième nom, un ordre par commande (deux `ALTER`
+dans un même `-c` passent sur pg16 — mesuré en conteneur, pas de piège de transaction
+implicite — mais un ordre par commande s'arrête au premier échec, et c'est ce qu'on veut ici) :
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d postgres -c "ALTER DATABASE zetis RENAME TO zetis_ecartee;"
+```
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d postgres -c "ALTER DATABASE zetis_avant RENAME TO zetis;"
+```
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U zetis -d postgres -c "ALTER DATABASE zetis_ecartee RENAME TO zetis_avant;"
+```
+
+Après quoi : `zetis` = l'état d'avant la restauration ; `zetis_avant` = l'état restauré,
+écarté — il REDEVIENT le repli (re-jouer ce runbook re-permuterait les deux, et la prochaine
+restauration l'écrasera).
+
+**5. Contrôler les files Redis** — attendu : 0 partout (tout était suspendu). Clés exactes de
+rq 2.11.0 (celui de l'image) :
+
+```bash
+docker compose -f docker-compose.prod.yml exec redis redis-cli LLEN rq:queue:production
+```
+
+```bash
+docker compose -f docker-compose.prod.yml exec redis redis-cli LLEN rq:queue:production-priority
+```
+
+Un compte non nul = du transitoire d'une autre histoire (même doctrine que le ⑥ du geste) :
+`DEL` la clé concernée, plus les registres `rq:scheduled:production` /
+`rq:scheduled:production-priority` (le scan se réamorce au redémarrage du worker).
+
+**6. Relancer la pile** :
+
+```bash
+docker compose -f docker-compose.prod.yml start backend worker worker-media
+```
+
+L'entrypoint backend rejoue `alembic upgrade head` à chaque boot (no-op attendu : l'état d'avant
+était déjà à la tête du code) puis le seed idempotent ; le worker repart et réamorce son scan.
+
+**7. À l'écran** : Réglages — ZETIS est **suspendu**, c'est voulu (il ne se relève jamais seul,
+adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de l'archive re-swappée
+reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
+Relever avec « Suspendre ZETIS » quand tout est contrôlé.
+
+## `feat/restaurer-une-sauvegarde-2` — slice 2 (l'administration) — 2026-08-19
+
+### 🔴 Un import DE TYPE absent du baril `@zetis/types` : vitest VERT, `tsc` seul le voit
+
+Le nouveau type `ArchiveSupprimee` était exporté de `packages/types/src/settings.ts` mais **pas
+du baril** `packages/types/src/index.ts` — qui exporte **nominativement**, pas en `export *`.
+Toute la suite Papa est passée (876 verts) : un `import { type … }` est **effacé à la
+compilation**, vitest ne le résout jamais. Seul `tsc -b --force --noEmit` a rendu le `TS2305`.
+**Parade** : tout ajout dans `packages/types/src/*.ts` s'accompagne de sa ligne dans `index.ts`,
+et le typecheck forcé des deux frontends fait partie de la fin de slice — les tests verts ne
+prouvent RIEN sur un export de type (même famille que « `pnpm … typecheck` ment en local », mais
+la cause est autre : ici ce n'est pas le cache, c'est l'effacement des types).
+
+*(Les autres constats de la slice — deux `ALTER DATABASE` dans un même `psql -c` passent sur
+pg16, `docker compose -f docker-compose.prod.yml exec` refuse sans `ZETIS_BACKUP_DIR`, clés RQ
+exactes — sont consignés DANS le runbook ci-dessus, où ils servent.)*
+
 ## `feat/restaurer-une-sauvegarde` — slice 1 (`backup_restore`) — 2026-08-19
 
 ### 🔴 La fin de `run_ai_job` écrivait le succès SANS garde — et la restauration fait MOURIR sa propre ligne

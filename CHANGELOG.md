@@ -1,5 +1,35 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.10 — Restaurer : un swap à réveil suspendu (phase E, premier geste destructif)
+
+> ADR-0066, deux slices : #167 (le geste `backup_restore`) · l'administration — DELETE, surface,
+> runbook (cette entrée part avec elle). La phase B promettait « on n'ose remplacer un état que
+> parce qu'une archive vérifiée existe » — ceci est ce remplacement.
+
+L'onglet 💾 Données porte désormais les gestes d'administration, et le premier geste
+**destructif** du produit :
+
+- **↺ Restaurer** — offert aux seules archives au verdict « réussie » (le mot se mérite dans les
+  deux sens : la restauration à blanc est le billet d'entrée du geste réel). Préconditions toutes
+  refusées en 409 motivé AVANT d'enfiler : suspension posée par Papa (le geste n'arrête jamais le
+  monde à sa place), déploiement supervisé, rien en vol, compatibilité de schéma favorable. La
+  séquence : **sauvegarde-filet d'abord** (si elle échoue, rien n'est remplacé) → archive rejouée
+  dans une base de travail → écritures de réveil DANS la base restaurée (**ZETIS se réveille
+  suspendu**, régime Manual, déclencheur désarmé — une archive Autonom ne réarme pas Autonom en
+  silence) → bascule en ~8 ms (double RENAME, l'état d'avant reste en repli `zetis_avant`) →
+  médias remplacés en couple → files purgées → migrations rejouées → le worker se recycle. Le
+  journal du geste vit en **sidecar** `.restauration.json` sur la cible — la ligne du travail,
+  elle, meurt à la bascule (structurel : le journal d'une restauration ne peut pas vivre dans la
+  base qu'elle restaure) ; la page lit « restaurée le … » du sidecar.
+- **La confirmation se mérite aussi** : dialogue qui nomme l'archive, énonce la séquence — filet
+  compris — et exige la **saisie de RESTAURER** (classe A4 : un clic ne suffit pas). Annuler une
+  restauration reste un runbook documenté (`TROUBLESHOOTING.md`, re-swap `zetis_avant`, commandes
+  prouvées en conteneur) — pas un bouton.
+- **🗑 Supprimer** — un geste explicite, jamais une rotation : dialogue qui nomme l'archive (sans
+  saisie), suppression du tar **et de tous ses sidecars**, rien d'orphelin. 🔴 **La dernière
+  archive vérifiée ne se supprime pas** tant qu'aucune autre archive vérifiée n'existe : on ne se
+  met jamais soi-même à zéro filet.
+
 ## 0.99.9 — La sauvegarde qui se mérite (phase B complète)
 
 > ADR-0065, trois slices : #164 (le socle) · #165 (la preuve) · la surface (cette entrée part

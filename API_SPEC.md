@@ -3021,8 +3021,29 @@ head` ⑦ → recyclage du worker ⑧.
 ligne `ai_jobs` du travail MEURT au swap** (elle vit dans `zetis_avant`) : la barre voit le
 travail s'évanouir, c'est structurel et assumé — aucune ligne n'est recréée dans la base
 restaurée. Zéro rejeu RQ quelle que soit l'exception (`RestaurationInterrompue`). L'état
-d'avant reste re-swappable à chaud : `zetis_avant`, écrasée au geste suivant (§4, runbook
-slice 2).
+d'avant reste re-swappable à chaud : `zetis_avant`, écrasée au geste suivant (§4 — runbook
+« re-swap `zetis_avant` » de `TROUBLESHOOTING.md`, commandes testées en conteneur).
+
+### DELETE `/api/settings/donnees/archives/{nom}`
+
+Supprime UNE archive — le tar **et TOUS ses sidecars** (`.sha256`, `.manifeste.json`,
+`.restauration.json`, et tout sidecar futur du même nom) : rien d'orphelin (ADR-0066 §6). Un
+geste **explicite**, jamais une rotation — aucune purge automatique n'existe (la rétention est
+un autre sous-chantier de la phase E). Synchrone : pas un travail de file.
+
+- **Chemin** : le NOM de l'archive, confronté à la même whitelist stricte que les POST (le nom
+  vient du client — traversée de répertoire sinon), et revérifié dans la fonction de suppression
+  (défense en profondeur : c'est la whitelist qui rend le glob des sidecars sûr).
+- **200** `{archive, supprimes: [noms]}` — les NOMS retirés de la cible, jamais un contenu.
+- **409 fail-closed, AVANT de toucher au disque** — motif dans `detail` : nom hors whitelist ·
+  archive introuvable · un travail de la famille sauvegarde en `queued|running` (`backup_create`
+  écrit peut-être CE tar, `backup_verify`/`backup_restore` le lisent peut-être) · 🔴 **la
+  dernière archive au verdict `reussie` ne se supprime pas** tant qu'aucune AUTRE archive
+  vérifiée n'existe sur la cible — on ne se met jamais soi-même à zéro filet (les exports non
+  vérifiés ne comptent pas comme filet).
+
+⚠️ Le DELETE retire des **fichiers**, jamais l'histoire : les lignes `ai_jobs` (verdicts de
+vérification compris) restent en base.
 
 ### GET `/api/settings/donnees`
 
@@ -3037,7 +3058,8 @@ pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify
   archives: [ { nom, taille, cree_le,            # cree_le vient du NOM (zetis-AAAA-MM-JJ-hhmm),
                 sha256?, lignes?, tables?,       #   pas du mtime ; sidecar illisible ⇒ champs
                 verification?,                   #   null, l'archive s'affiche quand même
-                restaurable, motif? } ],         # compatibilité ADR-0066 §5 (voir ci-dessous)
+                restaurable, motif?,             # compatibilité ADR-0066 §5 (voir ci-dessous)
+                restauree_le? } ],               # « restaurée le … » (ADR-0066 §7, ci-dessous)
   derniere_verification? }                       # résumé du dernier backup_verify réussi
 ```
 
@@ -3052,3 +3074,8 @@ la tête Alembic du sidecar `.manifeste.json` confrontée aux migrations du **co
 true` ; tête inconnue (archive plus récente que le code, ou étrangère), manifeste absent ou sans
 tête ⇒ `false` + motif (fail-closed). ⚠️ Il ne dit RIEN de l'intégrité — ça, c'est
 `verification` : la route de restauration exige **les deux** verdicts favorables.
+
+`restauree_le` (ADR-0066 §7) : « restaurée le … », lu du sidecar `<archive>.restauration.json`
+(§3) — le **seul survivant du geste**, la ligne `ai_jobs` du travail étant morte au swap. C'est
+le `termine_le` du sidecar : `null` = jamais restaurée, geste interrompu (un swap à moitié
+franchi n'a pas droit au mot) ou sidecar illisible.

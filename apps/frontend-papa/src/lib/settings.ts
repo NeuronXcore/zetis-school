@@ -8,6 +8,7 @@
 // traduit en valeurs (`paliersPourNiveau`), jamais un état qu'on envoie. Le serveur le DÉRIVE en
 // retour. Deux chemins d'écriture pour la même question, c'est ce que le §G.1 a refusé.
 import {
+  type ArchiveSupprimee,
   type Autonomy,
   type AutonomyPalier,
   type AutonomyNiveau,
@@ -236,6 +237,34 @@ export async function lancerVerification(archive: string): Promise<SauvegardeAcc
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ archive }),
+    }),
+  );
+}
+
+/** Enfile `backup_restore` — le swap à réveil suspendu (ADR-0066 §2). 202 = accepté ; toutes
+ *  les préconditions du §2 (verdict `reussie`, suspension ACTIVE, supervision, rien en vol,
+ *  compatibilité) partent en 409 motivé AVANT d'enfiler.
+ *
+ *  ⚠️ La ligne du travail MOURRA au swap (§3) : la barre la verra s'évanouir, c'est prévu — le
+ *  verdict durable vit dans le sidecar `.restauration.json`, relu ici au ⟳ (« restaurée le … »). */
+export async function lancerRestauration(archive: string): Promise<SauvegardeAcceptee> {
+  return asJson(
+    await fetch(`${BASE}/donnees/restauration`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ archive }),
+    }),
+  );
+}
+
+/** Supprime UNE archive — le tar et TOUS ses sidecars (ADR-0066 §6). Synchrone : pas un travail
+ *  de file, la réponse porte les noms retirés. 409 motivé, entre autres : 🔴 la dernière archive
+ *  au verdict `reussie` ne se supprime pas — on ne se met jamais soi-même à zéro filet. */
+export async function supprimerArchive(archive: string): Promise<ArchiveSupprimee> {
+  return asJson(
+    await fetch(`${BASE}/donnees/archives/${encodeURIComponent(archive)}`, {
+      method: "DELETE",
+      headers: authHeader(),
     }),
   );
 }

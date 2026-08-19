@@ -185,3 +185,49 @@ def test_un_sidecar_manifeste_illisible_n_efface_pas_l_archive(
     assert archive["nom"] == nom
     assert archive["lignes"] is None and archive["tables"] is None
     assert archive["sha256"] is not None  # l'autre sidecar, lui, est intact
+
+
+# --- « Restaurée le … » vient du sidecar `.restauration.json` (ADR-0066 §3 et §7) ------------------
+
+
+def test_restauree_le_est_lu_du_sidecar_restauration(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """Le seul survivant du geste : la ligne `ai_jobs` du travail meurt au swap — c'est le
+    sidecar qui dit « restaurée le … », et le GET le relaie."""
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    (cible / f"{nom}.restauration.json").write_text(
+        json_lib.dumps({"archive": nom, "termine_le": "2026-08-19T21:12:00+00:00"}),
+        encoding="utf-8",
+    )
+
+    corps = client.get(API).json()
+
+    (archive,) = corps["archives"]
+    assert archive["restauree_le"] == "2026-08-19T21:12:00+00:00"
+
+
+def test_un_geste_interrompu_ne_rend_pas_restauree_le(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """`termine_le` nul = le geste s'est arrêté en route : un swap à moitié franchi n'a pas
+    droit au mot « restaurée » — et sans sidecar du tout, même réponse."""
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+
+    corps = client.get(API).json()
+    (archive,) = corps["archives"]
+    assert archive["restauree_le"] is None  # aucun sidecar : jamais restaurée
+
+    (cible / f"{nom}.restauration.json").write_text(
+        json_lib.dumps({"archive": nom, "termine_le": None, "etapes": [{"etape": "swap"}]}),
+        encoding="utf-8",
+    )
+    corps = client.get(API).json()
+    (archive,) = corps["archives"]
+    assert archive["restauree_le"] is None
