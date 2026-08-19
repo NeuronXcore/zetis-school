@@ -38,10 +38,21 @@ _CHEMIN_MACHINE = re.compile(r"/Users/|/home/|[A-Za-z]:\\\\?Users")
 
 
 def _fichiers_versionnes() -> list[Path]:
+    """⚠️ `.claude/worktrees/` est EXCLU, et ce n'est pas une tolérance (2026-08-19).
+
+    Ce répertoire est déjà hors-dépôt (`.git/info/exclude`) : chaque worktree y est une copie
+    COMPLÈTE du projet — `MEMORY.md`, `.venv`, tout. Le balayer faisait échouer ce verrou (donc
+    TOUT `git push`, via le hook pre-push) dès qu'une session parallèle avait un worktree vivant :
+    le verrou contredisait l'exclusion que le dépôt avait déjà posée. Un verrou de config
+    VERSIONNÉE ne lit que ce qui se versionne."""
+    worktrees = CONFIG / "worktrees"
     return sorted(
         f
         for f in CONFIG.rglob("*")
-        if f.is_file() and f.name not in _HORS_VERSION and not f.name.startswith(".graphify_")
+        if f.is_file()
+        and f.name not in _HORS_VERSION
+        and not f.name.startswith(".graphify_")
+        and worktrees not in f.parents
     )
 
 
