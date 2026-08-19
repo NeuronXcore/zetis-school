@@ -6,22 +6,31 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-19, soir — clôture de la slice 2 du 0066) — `main` =
-> `origin/main`. **Une branche de chantier vivante : `feat/restaurer-une-sauvegarde-2`** (base
-> `e07c753d` = la tête de `main` à l'ouverture — vérifié `merge-base`), qui porte la slice 2
-> ENTIÈRE ; l'humain vérifie (tests, diff, écran) puis committe — voir PROCHAIN PAS. La slice 1
-> est MERGÉE depuis la veille (PR #167, squash `8fab1a8`). ℹ️ Une branche de worktree d'agent
-> `claude/fervent-stonebraker-bfa5b9` existe (infrastructure Claude Code, pas un chantier). La
-> prod tourne (8 conteneurs, ports canoniques) ; une paire dev d'une AUTRE session Claude tenait
-> 8001/5175 pendant cette clôture — elle sert le même arbre, à laisser mourir.
+> **Où en est le dépôt** (2026-08-19, soir — étape 4bis FAITE) — `main` = `origin/main`, rien à
+> pousser, **aucune branche de chantier vivante** (`feat/restaurer-une-sauvegarde-2` supprimée au
+> merge, locale ET distante — vérifié : GitHub ne porte que `main`). **L'ADR-0066 est COMPLET et
+> MERGÉ** : slice 1 = PR #167 (squash `8fab1a8`), slice 2 = PR #168 (squash `3c37c7b`), CI verte
+> du premier coup les deux fois — et le run de `main` sur `3c37c7b` a été attendu VERT avant de
+> pousser ce 4bis (parade au piège `b29a985` : un push arrivé trop tôt fait annuler le run du
+> squash par `cancel-in-progress`). ℹ️ La branche de worktree d'agent
+> `claude/fervent-stonebraker-bfa5b9` existe toujours (infrastructure Claude Code, pas un
+> chantier). La prod tourne (8 conteneurs, ports canoniques) ; une paire dev d'une autre session
+> Claude tient encore 8001/5175 (même arbre, à laisser mourir).
 
-### ✅ CHANTIER COMPLET — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — les DEUX slices livrées, PR à ouvrir (2026-08-19)
+### ✅ CHANTIER SOLDÉ — « RESTAURER + ADMINISTRER LES ARCHIVES » (ADR-0066, phase E) — les DEUX slices MERGÉES, 4bis fait (2026-08-19)
 
-**PROCHAIN PAS (humain, `WORKFLOW.md §2.4`) : vérifier puis expédier la slice 2.** Sur
-`feat/restaurer-une-sauvegarde-2` : relire le diff, relancer les suites si voulu, **regarder
-l'écran** (Réglages ▸ 💾 — le §5bis ; tout a été vu par l'agent SAUF une restauration qui
-ABOUTIT, voir résidus), puis commit (message suggéré à la clôture) → push → PR → merge → revenir
-faire l'étape **4bis** ici (squash, n° de PR, branche supprimée, résidus).
+**PROCHAIN PAS : rien n'est dû dans CE chantier — il est soldé.** Les candidats du pas suivant,
+à l'arbitrage du commanditaire :
+
+- 🔴 **la dette bloquante d'abord** : poser `ZETIS_BACKUP_DIR` dans le `.env` racine + certifier
+  la cible (`scripts/certifier-cible-sauvegarde.sh`) — sans elle le prochain `prod:up` REFUSE et
+  tout `docker compose -f docker-compose.prod.yml exec` échoue (vécu deux fois, dont à la
+  clôture de la slice 2) ;
+- ⚠️ la relecture §5bis restante : jouer EN DEV une restauration qui **aboutit** (résidu n°1
+  ci-dessous — c'est aussi elle qui exercerait « restaurée le … » de bout en bout) ;
+- le chore « À CASER » (l'emoji sidebar → onglet Autonomie), ou le prochain sous-chantier de la
+  phase E (occupation disque · purges/rétention · remises à zéro · export RGPD) — chacun avec
+  son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
 
 **FAIT — slice 1 (le geste `backup_restore`, sur `main` via PR #167, squash `8fab1a8`) :**
 
@@ -56,7 +65,8 @@ la précondition de supervision) ; la file `media` reste hors du destructif énu
 admin du swap DOIT viser `postgres` (jamais la base qu'on renomme) · 🔴 le chemin « tête plus
 ancienne » du §5 reste NON MESURÉ (aucune archive d'une tête antérieure n'existe au 2026-08-19).
 
-**FAIT — slice 2 (l'administration, SUR LA BRANCHE — cette session) :**
+**FAIT — slice 2 (l'administration — MERGÉE : PR #168, squash `3c37c7b`, CI verte du premier
+coup) :**
 
 - Backend : `DELETE /api/settings/donnees/archives/{nom}` (`settings/router.py`) ·
   `sauvegarde.refus_suppression` (409 : whitelist · introuvable · famille sauvegarde en vol ·
@@ -121,10 +131,10 @@ réveil suspendu prouvé · `alembic upgrade head` no-op exit 0 sur base restaur
 terminer : prod 6, dev 11 · files Redis prod 0/0/0 · ⚠️ le dump porte `OWNER TO zetis` — le rôle
 est requis à la restauration (attrapé en conteneur).
 
-**EN COURS :** rien d'instable — tout est posé, testé et documenté sur la branche.
+**EN COURS :** rien — le chantier est mergé, la branche supprimée, le 4bis fait.
 
-**À FAIRE :** rien côté code — le chantier est complet. Après le merge : l'étape **4bis** (voir
-PROCHAIN PAS), et les résidus ci-dessous restent des dettes, pas des restes de travail.
+**À FAIRE :** rien dans ce chantier. Les RÉSIDUS ci-dessous restent des dettes vivantes, pas des
+restes de travail.
 
 **PIÈGES :** `TROUBLESHOOTING.md` §§ `feat/restaurer-une-sauvegarde(-2)` — la fin de
 `run_ai_job` sans garde + le pool à neutraliser AVANT le terminate · la connexion admin du swap
