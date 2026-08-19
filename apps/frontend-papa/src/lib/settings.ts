@@ -7,7 +7,14 @@
 // ⚠️ Aucune fonction ne prend un « préréglage » : un régime est un raccourci d'ÉCRITURE qui se
 // traduit en valeurs (`paliersPourNiveau`), jamais un état qu'on envoie. Le serveur le DÉRIVE en
 // retour. Deux chemins d'écriture pour la même question, c'est ce que le §G.1 a refusé.
-import { type Autonomy, type AutonomyPalier, type AutonomyNiveau } from "@zetis/types";
+import {
+  type Autonomy,
+  type AutonomyPalier,
+  type AutonomyNiveau,
+  type Ecarts,
+  type Machine,
+  type TestMoteur,
+} from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
 
@@ -134,4 +141,42 @@ export const AUTONOMY_CHANGED_EVENT = "zetis:autonomy-changed";
 
 export function notifyAutonomyChanged(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTONOMY_CHANGED_EVENT));
+}
+
+/** Les clés `app_settings` qui portent une ligne — « ce que j'ai changé » (ADR-0062 §4).
+ *
+ *  ⚠️ Le front ne compare RIEN à un défaut : c'est la table qui répond, parce qu'elle est bâtie
+ *  pour ça. Recalculer ici « est-ce que la valeur diffère du défaut ? » demanderait au front de
+ *  connaître les défauts du serveur — une seconde source de vérité pour une question déjà
+ *  tranchée par la forme de la donnée.
+ */
+export async function fetchEcarts(): Promise<Ecarts> {
+  return asJson(await fetch(`${BASE}/ecarts`, { headers: authHeader() }));
+}
+
+/** 🧠 L'instantané de la machine — un seul appel (ADR-0062 §2).
+ *
+ *  ⚠️ **Aucun sondage ne l'appelle.** Une page de réglages qui se rafraîchit toute seule ferait
+ *  bouger un champ sous les doigts : cette lecture se fait au montage, et sur un bouton explicite.
+ */
+export async function fetchMachine(): Promise<Machine> {
+  return asJson(await fetch(`${BASE}/machine`, { headers: authHeader() }));
+}
+
+/** Vérifier, plutôt que déclarer : un vrai prompt, une vraie latence. Ne persiste rien. */
+export async function testMoteur(): Promise<TestMoteur> {
+  return asJson(await fetch(`${BASE}/machine/test`, { method: "POST", headers: jsonHeaders() }));
+}
+
+/** « J'ai vu. » Un échec reste affiché jusqu'ici, et ne revient plus (ADR-0041 §8).
+ *
+ *  ⚠️ **On RÉUTILISE la route de l'activité de production**, on n'en crée pas une seconde : le
+ *  geste existe depuis l'ADR-0041, il est serveur (`ai_jobs.acknowledged_at`), et deux routes pour
+ *  un même acquittement finiraient par en acquitter deux choses différentes. */
+export async function acquitterEchec(jobId: number): Promise<void> {
+  const res = await fetch(`${API_URL}/api/production/activity/job/${jobId}/ack`, {
+    method: "POST",
+    headers: jsonHeaders(),
+  });
+  if (!res.ok) throw new Error(`Erreur ${res.status}`);
 }

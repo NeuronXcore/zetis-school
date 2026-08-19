@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette Papa — Paramètres v2 (Autonomie · Moteurs · Données · Santé)</title>
+<style>
+:root{
+  --bg:#0b1120; --surface:#111a2b; --surface2:#16213a; --surface3:#1b2842;
+  --border:#1f2c45; --border-2:#2a3b5c;
+  --text:#e6edf7; --muted:#8b9ab4; --dim:#64748b;
+  --accent:#10b981; --accent-2:#34d399; --amber:#f59e0b; --rose:#f43f5e;
+  --indigo:#6366f1; --cyan:#22d3ee; --violet:#a855f7; --fuchsia:#e879f9;
+  --radius:18px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(16,185,129,.10), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(99,102,241,.10), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  min-height:100vh;
+}
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+
+/* ───────────────── sidebar (contexte, non redessinée) ───────────────── */
+.side{border-right:1px solid var(--border);background:rgba(17,26,43,.6);padding:16px 14px;display:flex;flex-direction:column;gap:14px}
+.state-block{display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 0 14px;border-bottom:1px solid var(--border)}
+.avatar{
+  width:76px;height:76px;border-radius:50%;position:relative;
+  background:conic-gradient(from 220deg,#1b2842,#243352,#1b2842);
+  border:1px solid var(--border-2);display:grid;place-items:center;font-size:30px;
+  box-shadow:0 0 0 6px rgba(99,102,241,.08),0 0 34px rgba(99,102,241,.22);
+  animation:breathe 4s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 6px rgba(99,102,241,.06),0 0 26px rgba(99,102,241,.16)}50%{box-shadow:0 0 0 8px rgba(99,102,241,.12),0 0 40px rgba(99,102,241,.32)}}
+.badge-regime{
+  position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(90deg,#3b82f6,#a855f7);color:#fff;font-size:10px;font-weight:800;
+  letter-spacing:.12em;padding:3px 9px;border-radius:999px;white-space:nowrap;
+  border:1px solid rgba(255,255,255,.18)
+}
+.wordmark{font-size:11px;letter-spacing:.28em;color:var(--muted);text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:2px;font-size:13.5px}
+.nav a{color:var(--muted);text-decoration:none;padding:6px 9px;border-radius:9px}
+.nav a:hover{background:var(--surface2);color:var(--text)}
+.nav a.on{background:rgba(16,185,129,.12);color:var(--accent-2);font-weight:600}
+.nav .sep{height:1px;background:var(--border);margin:8px 2px}
+
+/* ───────────────── page ───────────────── */
+.main{padding:26px 30px 80px;max-width:1080px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:6px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.notes-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);padding:8px 12px;border-radius:12px;cursor:pointer;white-space:nowrap}
+.notes-toggle input{accent-color:var(--accent)}
+
+.tabs{display:flex;gap:6px;margin:22px 0 20px;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab{
+  appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--muted);font:inherit;font-size:14px;font-weight:600;padding:10px 14px;cursor:pointer;border-radius:10px 10px 0 0
+}
+.tab:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.tab[aria-selected="true"]{color:var(--accent-2);border-bottom-color:var(--accent)}
+.tab .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-left:6px;vertical-align:middle}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+.card.flat{background:rgba(17,26,43,.5)}
+.card h2{font-size:16px;margin:0 0 3px;display:flex;align-items:center;gap:8px}
+.card h3{font-size:13.5px;margin:18px 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.card p.lede{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.grow{flex:1 1 220px}
+
+/* notes de conception */
+.note{
+  display:none;border-left:3px solid var(--amber);background:rgba(245,158,11,.07);
+  color:#fcd9a0;font-size:12.5px;line-height:1.5;padding:9px 12px;border-radius:0 10px 10px 0;margin:10px 0
+}
+.note.hard{border-left-color:var(--rose);background:rgba(244,63,94,.08);color:#ffc3cd}
+body.notes .note{display:block}
+.note code{font-family:var(--mono);font-size:11.5px;background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px}
+
+/* pills / chips */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  padding:3px 9px;border-radius:999px;border:1px solid transparent;letter-spacing:.02em}
+.chip.ok{background:rgba(16,185,129,.14);color:var(--accent-2);border-color:rgba(16,185,129,.3)}
+.chip.warn{background:rgba(245,158,11,.14);color:#fbbf24;border-color:rgba(245,158,11,.3)}
+.chip.bad{background:rgba(244,63,94,.14);color:#fb7185;border-color:rgba(244,63,94,.3)}
+.chip.local{background:rgba(34,211,238,.12);color:#67e8f9;border-color:rgba(34,211,238,.28)}
+.chip.cloud{background:rgba(168,85,247,.14);color:#d8b4fe;border-color:rgba(168,85,247,.3)}
+.chip.mute{background:var(--surface3);color:var(--muted);border-color:var(--border-2)}
+.lock{color:var(--dim);font-size:12.5px;font-style:italic}
+
+/* tableaux */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;
+   font-weight:700;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:10px;border-bottom:1px solid rgba(31,44,69,.6);vertical-align:middle}
+tr.locked td{background:rgba(255,255,255,.012)}
+tr.locked td:first-child{color:var(--muted)}
+tbody tr:hover td{background:rgba(255,255,255,.02)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+
+/* boutons */
+.btn{appearance:none;font:inherit;font-size:13.5px;font-weight:650;border-radius:12px;padding:9px 16px;cursor:pointer;
+  border:1px solid var(--border-2);background:var(--surface2);color:var(--text)}
+.btn:hover{background:var(--surface3)}
+.btn.primary{background:var(--accent);border-color:transparent;color:#04231a}
+.btn.primary:hover{background:var(--accent-2)}
+.btn.ghost{background:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--text)}
+.btn.danger{background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.42);color:#fda4af}
+.btn.danger:hover{background:rgba(244,63,94,.24)}
+.btn.amber{background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.45);color:#fcd34d}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:6px 11px;font-size:12.5px;border-radius:10px}
+
+/* ZETIS LEVELS (existant, résumé) */
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.level{border:1px solid var(--border);background:var(--surface2);border-radius:16px;padding:14px;cursor:pointer;text-align:left}
+.level:hover{border-color:var(--border-2)}
+.level.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 28px rgba(16,185,129,.14);background:rgba(16,185,129,.07)}
+.level .name{font-weight:800;letter-spacing:.1em;font-size:13px;display:flex;align-items:center;gap:7px}
+.level .say{color:var(--muted);font-size:12.5px;margin-top:6px}
+.panel{margin-top:14px;border:1px dashed var(--border-2);border-radius:14px;padding:14px;background:rgba(11,17,32,.5)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(31,44,69,.5);font-size:13.5px}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--muted)}
+.kv.off .k,.kv.off .v{color:var(--dim)}
+.obs{margin-top:12px;background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.25);border-radius:12px;padding:11px 13px;font-size:13px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.kpi .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
+.kpi.warn{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.07)}
+.kpi.bad{border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.07)}
+
+/* barres */
+.bar{height:7px;border-radius:99px;background:var(--surface3);overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--cyan))}
+
+/* zone rouge */
+.danger-zone{border:1px solid rgba(244,63,94,.35);border-radius:var(--radius);background:
+  linear-gradient(180deg,rgba(244,63,94,.07),rgba(244,63,94,.02));padding:0;overflow:hidden;margin-top:26px}
+.danger-zone>summary{cursor:pointer;list-style:none;padding:14px 18px;font-weight:700;color:#fda4af;display:flex;align-items:center;gap:10px}
+.danger-zone>summary::-webkit-details-marker{display:none}
+.danger-zone>summary::after{content:"▾";margin-left:auto;color:var(--muted)}
+.danger-zone[open]>summary::after{content:"▴"}
+.danger-zone .body{padding:0 18px 18px}
+.precond{display:flex;gap:10px;align-items:flex-start;background:rgba(0,0,0,.25);border:1px solid rgba(244,63,94,.25);
+  border-radius:12px;padding:12px;font-size:13px;margin:10px 0 14px}
+
+/* modale */
+.overlay{position:fixed;inset:0;background:rgba(4,8,16,.72);backdrop-filter:blur(3px);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:50}
+.overlay.on{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-2);border-radius:20px;max-width:520px;width:100%;padding:22px}
+.modal h3{margin:0 0 6px;font-size:18px;color:#fda4af;text-transform:none;letter-spacing:0}
+.modal p{color:var(--muted);font-size:13.5px}
+.modal .counts{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px;margin:12px 0;font-size:13px}
+.modal input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border-2);color:var(--text);
+  border-radius:10px;padding:10px 12px;font-family:var(--mono);letter-spacing:.1em;margin-top:6px}
+.modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+
+/* segmenté (A0a / A1) */
+.seg{display:inline-flex;border:1px solid var(--border-2);border-radius:10px;overflow:hidden;background:var(--bg)}
+.seg button{appearance:none;border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;font-weight:650;
+  padding:6px 12px;cursor:pointer;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--border-2)}
+.seg button[aria-pressed="true"]{background:rgba(16,185,129,.16);color:var(--accent-2)}
+.seg button.hot[aria-pressed="true"]{background:rgba(245,158,11,.18);color:#fcd34d}
+.seg.dis button{cursor:not-allowed;opacity:.5}
+
+/* renvoi / encart */
+.renvoi{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:14px;padding:13px 15px;font-size:13.5px}
+.veto{border:1px solid rgba(34,211,238,.28);background:rgba(34,211,238,.06);border-radius:14px;padding:14px 16px;font-size:13.5px}
+.veto a{color:#67e8f9;text-decoration:none;font-weight:650}
+.veto a:hover{text-decoration:underline}
+
+details.classes{border:1px solid var(--border);border-radius:14px;background:rgba(11,17,32,.4);margin-top:14px}
+details.classes>summary{cursor:pointer;list-style:none;padding:12px 15px;font-weight:650;font-size:13.5px;display:flex;gap:9px;align-items:center}
+details.classes>summary::-webkit-details-marker{display:none}
+details.classes>summary::after{content:"▾";margin-left:auto;color:var(--muted)}
+details.classes[open]>summary::after{content:"▴"}
+details.classes .inner{padding:0 15px 14px}
+.avatar-sm{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:17px;
+  background:var(--surface3);border:1px solid var(--border-2);flex:0 0 auto}
+.badge-sm{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.12em;padding:2px 8px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);color:#fff}
+.ecart{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px;margin:12px 0;font-size:13.5px}
+.ecart .line{display:flex;justify-content:space-between;gap:12px;padding:5px 0}
+.ecart .arrow{color:var(--muted)}
+.modal.soft h3{color:var(--accent-2)}
+.modal.up h3{color:#fcd34d}
+.hidden{display:none}
+.legend{color:var(--dim);font-size:12px;margin-top:10px}
+.hr{height:1px;background:var(--border);margin:18px 0}
+.pause{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.06);border-radius:14px;padding:14px 16px}
+</style>
+</head>
+<body class="notes">
+
+<div class="app">
+  <!-- ══════════ SIDEBAR (contexte : non redessinée par cette maquette) ══════════ -->
+  <aside class="side">
+    <div class="state-block">
+      <div class="avatar">🤖<span class="badge-regime">⏸ HYBRID</span></div>
+      <div class="wordmark">ZETIS Papa</div>
+    </div>
+    <nav class="nav">
+      <a>📊 Dashboard</a>
+      <a>🗓 Agenda</a>
+      <a>📈 Progression</a>
+      <a>🕳 Lacunes</a>
+      <a>🎯 Missions</a>
+      <a>🧭 Diagnostics</a>
+      <div class="sep"></div>
+      <a>🗂 Couverture</a>
+      <a>📓 Journal</a>
+      <a>📚 Programme</a>
+      <div class="sep"></div>
+      <a class="on">⚙️ Paramètres</a>
+    </nav>
+  </aside>
+
+  <!-- ══════════ PAGE ══════════ -->
+  <main class="main">
+    <div class="head">
+      <div>
+        <h1>Paramètres</h1>
+        <p class="sub">Ce qui se règle ici, et ce qui se règle là où la décision se prend.</p>
+      </div>
+      <label class="notes-toggle"><input type="checkbox" id="notes" checked> Notes de conception</label>
+    </div>
+
+    <div class="note hard">
+      <b>⚠️ Valeurs d'illustration — relevé Mac Studio non fait.</b> Les noms de volumes, les chemins,
+      les UUID, les tailles, les nombres de lignes et le commit sont <b>inventés</b> pour que l'écran
+      se lise. Ils ne décrivent pas la machine.
+      <b>Réels et mesurés</b> : les 69 s/notion, les 53,6 s, les ~143 traces par travail.
+      <b>Réel mais périmé</b> : le banc à cinq modèles (ADR-0008, mesuré sur le MacBook Pro).
+      <b>Donnés par Papa</b> : pas de Time Machine, deux SSD, modèles par lien symbolique.
+    </div>
+    <div class="note">
+      <b>Ce que cette maquette propose.</b> La page devient <b>quatre objets</b> et non un.
+      <code>Autonomie</code> règle une <b>autorité</b> (ce qui atteint Massimo) ; les trois autres règlent une
+      <b>machine</b>. Les mélanger dans un flux unique ferait perdre à ZETIS LEVELS ce qui le rend lisible :
+      c'est le seul écran où Papa lit son propre régime.
+    </div>
+    <div class="note hard">
+      <b>Un principe de la page devient FAUX le jour où l'onglet Données est livré.</b>
+      Elle porte aujourd'hui « <i>Rien de cette page n'atteint Massimo</i> ». Une remise à zéro de la
+      progression l'atteint immédiatement. À amender <b>dans le même commit</b>, comme la phrase
+      « ZETIS ne produit rien sans votre validation » a dû l'être le 2026-08-02 — pas à laisser à côté
+      d'un bouton qui la contredit.
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-t="inventaire">🗺 Inventaire</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="autonomie">⚡ Autonomie</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="massimo">🎒 Massimo</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="papa">👤 Papa</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="moteurs">🧠 Moteurs</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="donnees">💾 Données</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="sante">🩺 Santé<span class="dot" title="1 échec non acquitté"></span></button>
+    </div>
+
+    <!-- ══════════════════ 0. INVENTAIRE ══════════════════ -->
+    <section id="p-inventaire">
+      <div class="card">
+        <h2>🗺 Tout ce qui se règle — et où</h2>
+        <p class="lede">Cet onglet n'est pas un réglage : c'est l'outil qui empêche d'en oublier un.
+          Il liste <b>tous les candidats</b>, dit lesquels vivent ici, lesquels vivent ailleurs, et lesquels
+          ne vivent <b>nulle part</b>.</p>
+
+        <div class="note hard">
+          <b>Trois familles de réglages, et la maquette n'en portait que deux.</b> C'est ça, l'oubli structurel —
+          pas une case manquante.
+          <br>① ceux qui règlent une <b>autorité</b> — ce que ZETIS a le droit de faire ;
+          <br>② ceux qui règlent la <b>machine</b> — invisibles pour Massimo ;
+          <br>🔴 ③ ceux qui <b>atteignent Massimo</b> — sa voix, son ton, son rythme, son accessibilité.
+          Cette famille n'existait pas dans la v2, et elle rend définitivement fausse la phrase
+          <i>« Rien de cette page n'atteint Massimo »</i>. Il faut soit l'assumer et <b>marquer</b> ces réglages,
+          soit les sortir de cette page. La maquette assume, et les marque.
+          <br>④ et ceux qui règlent <b>Papa</b> lui-même — ce qu'il voit, ce dont il est prévenu, comment il se protège.
+        </div>
+
+        <div class="note">
+          <b>Tri du 2026-08-19 — les 30 « à décider » ont été tranchés</b> (voir
+          <code>TRIAGE_30_REGLAGES.md</code>) : <b>13 à construire</b> · 3 restent en <code>.env</code>
+          mais deviennent visibles · <b>7 ne seront jamais faits</b>, motif écrit · 7 différés avec leur
+          signal de réouverture.
+          <br>Le seul chantier vraiment neuf qui en sort : <b>Massimo</b> — accessibilité et voix.
+        </div>
+
+        <div class="row" style="gap:8px;align-items:center;margin:14px 0">
+          <input id="inv-q" type="text" placeholder="chercher un réglage…"
+                 style="flex:1 1 220px;background:var(--bg);border:1px solid var(--border-2);color:var(--text);border-radius:10px;padding:9px 12px;font:inherit;font-size:13.5px">
+          <div class="seg" id="inv-f">
+            <button data-f="tous" aria-pressed="true">tous</button>
+            <button data-f="ici" aria-pressed="false">ici</button>
+            <button data-f="ailleurs" aria-pressed="false">ailleurs</button>
+            <button data-f="nulle" aria-pressed="false">nulle part</button>
+            <button class="hot" data-f="decider" aria-pressed="false">à décider</button>
+          </div>
+        </div>
+        <div id="inv-count" class="legend" style="margin:0 0 8px"></div>
+
+        <table>
+          <thead><tr><th>Réglage</th><th>Concerne</th><th>Où ça vit</th><th>Statut</th></tr></thead>
+          <tbody id="inv-body"></tbody>
+        </table>
+
+        <div class="note">
+          <b>Deux listes d'honnêteté, sans lesquelles « rien oublié » est invérifiable :</b>
+          <br>• <b>« ailleurs »</b> — le réglage existe, mais pas ici. Sans cette ligne, Papa le cherche dans
+          Paramètres, ne le trouve pas, et conclut qu'il n'existe pas.
+          <br>• <b>« nulle part / .env »</b> — ce qui ne se règle qu'en variable d'environnement ou en dur.
+          C'est la liste qui dit à quel point l'écran est complet <b>en montrant ce qu'il ne couvre pas</b>.
+        </div>
+        <div class="note hard">
+          ⚠️ <b>Une ligne « à décider » n'est pas une ligne à construire.</b> La moitié de ce tableau ne doit
+          probablement jamais devenir un interrupteur : un réglage qu'on n'a jamais eu besoin de changer est
+          une surface de plus à maintenir et une décision de moins prise. <b>Le défaut de la maquette est
+          « ne pas construire »</b> — la colonne « statut » sert à trancher, pas à cocher.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Règles transverses — elles valent pour les sept onglets</h2>
+        <p class="lede">Sans elles, sept onglets, c'est sept comportements différents découverts un par un.</p>
+
+        <h3>Écriture</h3>
+        <table>
+          <tbody>
+            <tr><td style="width:36%"><b>Un onglet = une transaction</b></td>
+              <td>Chaque onglet a <b>son</b> « Enregistrer ». <span class="lock">Un bouton global écrirait quatre domaines
+                d'un coup et rendrait toute confirmation illisible — « vous changez la voix, le code parental et le
+                régime d'autonomie » n'est pas une phrase qu'on lit.</span></td></tr>
+            <tr><td><b>Jamais d'auto-save</b></td>
+              <td>Aucun réglage ne change au survol ni au clic. <span class="lock">Doctrine déjà posée pour l'autonomie ; elle vaut partout.</span></td></tr>
+            <tr><td><b>Le brouillon survit à la navigation</b></td>
+              <td>Changer d'onglet ne perd rien et <b>ne bloque pas</b> : une pastille marque l'onglet qui a un
+                brouillon. <span class="lock">Une modale « voulez-vous vraiment quitter » punirait un geste innocent.</span></td></tr>
+            <tr><td><b>Seul « Annuler » revient au serveur</b></td>
+              <td><span class="lock">Renoncer à une confirmation garde le brouillon : Papa n'a pas retiré son intention, il a refusé de la graver.</span></td></tr>
+            <tr><td><b>L'aperçu est local, et le dit</b></td>
+              <td>L'extrait de cours de l'onglet Massimo se recompose sans rien écrire. <span class="lock">C'est la seule
+                exception à « rien ne s'applique avant enregistrement » — donc elle doit être visible comme un aperçu.</span></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Lecture — et le mensonge à éviter</h3>
+        <table>
+          <tbody>
+            <tr><td style="width:36%"><b>Chargement</b></td>
+              <td>Squelette, par onglet. <b>Jamais une valeur affichée « au hasard »</b> avant la réponse.</td></tr>
+            <tr><td><b>Erreur de lecture</b></td>
+              <td>L'onglet affiche l'erreur et <b>aucun réglage</b>. <span class="lock">🔴 Pas de repli sur les valeurs par
+                défaut : un réglage faux affiché une seconde est un mensonge — et sur cette page, c'est un mensonge
+                sur ce que ZETIS a le droit de faire.</span></td></tr>
+            <tr><td><b>Erreur d'écriture</b></td>
+              <td>Retour à la valeur serveur, message du serveur <b>relayé tel quel</b>.</td></tr>
+            <tr><td><b>Deux onglets ouverts</b></td>
+              <td>Ils divergent jusqu'au rechargement, et <b>c'est accepté</b>. <span class="lock">Aucun sondage : une page de
+                réglages qui se rafraîchit toute seule ferait bouger un champ sous les doigts.</span></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Portée et accès</h3>
+        <table>
+          <tbody>
+            <tr><td style="width:36%"><b><code>require_parent</code> sur tout</b></td>
+              <td>Aucune route de cette page n'est atteignable côté enfant.</td></tr>
+            <tr><td><b>Un réglage qui traverse est marqué</b></td>
+              <td>🎒 sur chaque ligne qui change l'écran de Massimo. <span class="lock">La page ne peut plus dire
+                « rien d'ici ne l'atteint » — alors elle dit <b>quoi</b>.</span></td></tr>
+            <tr><td><b>Le verrou vient du serveur</b></td>
+              <td>Jamais d'une liste en dur au front. <span class="lock">C'est lui qui refuse l'écriture ; l'UI ne fait que
+                rendre le refus lisible, avec son motif.</span></td></tr>
+            <tr><td><b>Mobile</b></td>
+              <td>Les sept onglets deviennent une liste ; le destructif reste replié et le reste <b>sous</b> lui.
+                <span class="lock">Une zone rouge qu'on atteint par inadvertance en défilant n'est pas une zone rouge.</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card flat">
+        <h2>Le filtre qui vaut tous les autres</h2>
+        <div class="renvoi">
+          <div><b>🎚 Ne montrer que ce que j'ai changé</b><br>
+            <span style="color:var(--muted);font-size:12.5px">Les valeurs par défaut disparaissent. Reste ce qui a été
+              décidé — et donc ce dont il faut se souvenir.</span></div>
+          <span class="chip ok">7 réglages modifiés</span>
+        </div>
+        <div class="note">
+          Sur une page qui grossit, c'est le seul geste qui répond à <i>« qu'est-ce que j'ai bricolé, déjà ? »</i>
+          — la question qu'on se pose six mois plus tard, devant un comportement inexpliqué.
+          Il s'appuie sur une doctrine déjà en place : <b>l'absence de ligne EST la valeur par défaut</b>
+          (<code>app_settings</code>), donc « modifié » = « une ligne existe ». Rien à calculer.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ MASSIMO ══════════════════ -->
+    <section id="p-massimo" class="hidden">
+      <div class="card">
+        <h2>🎒 Ce qui atteint Massimo <span class="chip warn">nouvelle famille</span></h2>
+        <p class="lede">Réglé par Papa, <b>vécu par Massimo</b>. Chaque ligne d'ici change son écran, sa voix ou son rythme.</p>
+
+        <div class="note hard">
+          <b>Cette famille casse un principe, et il vaut mieux le casser franchement que par accident.</b>
+          La page portait <i>« Rien de cette page n'atteint Massimo »</i>. C'était vrai quand elle ne réglait qu'une
+          autorité. Deux options, et pas trois : <b>(a)</b> assumer, et <b>marquer</b> chaque réglage qui traverse —
+          ce que fait cet onglet ; <b>(b)</b> refuser, et ces réglages n'existent nulle part.
+          <br>⚠️ Ce qui n'est <b>pas</b> une option : les glisser parmi les autres sans le dire.
+        </div>
+
+        <h3>Identité et scolarité</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Prénom de l'élève</b><br><span class="lock">tel qu'il s'affiche partout, y compris chez lui</span></td>
+              <td><input type="text" value="Massimo" id="prenom"
+                    style="background:var(--bg);border:1px solid var(--border-2);color:var(--text);border-radius:10px;padding:8px 12px;font:inherit;font-size:13.5px;width:180px"></td>
+              <td><span class="chip warn" id="prenom-eff">🎒 change l'écran de Massimo</span></td>
+            </tr>
+            <tr><td>Niveau et année active</td><td>4ᵉ · 2026-2027</td><td><a class="btn sm" href="#" onclick="return false">Années scolaires →</a></td></tr>
+            <tr><td>Matières et leur ordre</td><td>7 matières actives</td><td><a class="btn sm" href="#" onclick="return false">Programme →</a></td></tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <b>ZETIS est l'app de Massimo — un élève, décidé le 2026-08-19.</b> Aucun sélecteur, aucun pluriel,
+          aucun écran qui demande « de qui parle-t-on ». La page nomme l'élève, elle ne le choisit pas.
+          <br>Le champ existe quand même, et pour une raison simple : <b>un prénom mal orthographié, un surnom,
+          ça se corrige</b>. C'est ce que le champ règle — pas autre chose.
+          <br>⚠️ Le seul vrai travail derrière : que ce prénom vienne <b>de la donnée partout</b>. Un
+          « Salut Massimo 👋 » écrit en dur dans un composant est un défaut <b>d'aujourd'hui</b> — il ment dès
+          la première correction. <b>Test-verrou</b> : renommer l'élève en base, et plus aucun écran ne doit
+          dire « Massimo ».
+          <br>La page <b>renvoie</b> pour l'année et les matières, elle ne duplique pas : deux endroits qui
+          règlent l'année scolaire finiraient par en porter deux différentes.
+        </div>
+
+        <h3>👁 Accessibilité <span class="chip warn" style="margin-left:6px">🎒 atteint Massimo</span></h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Animations</b><br><span class="lock">halos, rotations, galaxie, engrenages</span></td>
+              <td colspan="2">
+                <div class="seg" id="seg-motion">
+                  <button data-v="sys" aria-pressed="true">suivre le système</button>
+                  <button data-v="on" aria-pressed="false">toujours</button>
+                  <button class="hot" data-v="off" aria-pressed="false">jamais</button>
+                </div>
+                <div class="lock" style="margin-top:6px">Actuellement : le système ne demande pas de réduction → les animations jouent.</div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>Taille du texte</b></td>
+              <td colspan="2">
+                <div class="seg" id="seg-taille">
+                  <button data-v="s" aria-pressed="false">S</button>
+                  <button data-v="m" aria-pressed="true">M</button>
+                  <button data-v="l" aria-pressed="false">L</button>
+                  <button data-v="xl" aria-pressed="false">XL</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>Espacement</b><br><span class="lock">interlignage et longueur de ligne</span></td>
+              <td colspan="2">
+                <div class="seg" id="seg-espace">
+                  <button data-v="normal" aria-pressed="true">normal</button>
+                  <button data-v="aere" aria-pressed="false">aéré</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="3">
+                <div id="apercu" style="border:1px dashed var(--border-2);border-radius:12px;padding:14px;background:rgba(11,17,32,.5)">
+                  <div class="lock" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Aperçu — un extrait de cours</div>
+                  <div id="apercu-txt">Une fraction représente une part d'un tout. Le nombre du bas, le
+                    dénominateur, dit en combien de parts égales on a partagé. Celui du haut, le numérateur,
+                    dit combien de parts on prend.</div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>Sons de l'interface</b><br><span class="lock">hors capsules et voix</span></td>
+              <td colspan="2">
+                <label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> activés</label>
+                <div class="lock" style="margin-top:4px">🟡 <b>conditionnel</b> : si aucun son d'interface n'existe dans le code, ce réglage n'a pas lieu d'être.</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note"><b>Trois états pour les animations, jamais un booléen.</b> Un interrupteur binaire
+          écraserait <code>prefers-reduced-motion</code>, qui est déjà respecté — et un enfant distrait n'a pas
+          de préférence système, il a un parent qui observe.</div>
+
+        <h3>🔊 La voix de ZETIS <span class="chip warn" style="margin-left:6px">🎒 atteint Massimo</span></h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Voix</b><br><span class="lock">capsules, ELI5, lecture à voix haute</span></td>
+              <td>
+                <div class="seg" id="seg-voix">
+                  <button data-v="claire" aria-pressed="true">Claire</button>
+                  <button data-v="lucien" aria-pressed="false">Lucien</button>
+                  <button data-v="ada" aria-pressed="false">Ada</button>
+                </div>
+              </td>
+              <td><button class="btn sm" id="ecouter">▶︎ Écouter</button></td>
+            </tr>
+            <tr>
+              <td><b>Vitesse de parole</b></td>
+              <td colspan="2">
+                <input type="range" min="70" max="130" value="100" id="vitesse" style="width:220px;accent-color:var(--accent)">
+                <span class="mono" id="vitesse-v" style="margin-left:10px">1,00 ×</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">C'est <b>la voix de ZETIS</b> — l'élément d'identité le plus fort du produit, et un enfant
+          qui n'aime pas la voix n'écoute pas les capsules. 🟡 Conditionné à ce que le moteur TTS expose
+          réellement plusieurs voix ; sinon la ligne redevient une variable d'environnement.</div>
+
+        <h3>🕐 Le temps</h3>
+        <table>
+          <tbody>
+            <tr><td style="width:34%"><b>Fuseau horaire</b></td>
+              <td class="mono">Europe/Paris (UTC+2)</td>
+              <td><span class="chip ok">navigateur et serveur d'accord</span></td></tr>
+            <tr class="locked"><td colspan="3">La journée de Massimo commence à <b>00:00, Europe/Paris</b> — c'est ce qui
+              décide de ce qui compte comme « aujourd'hui » pour la régularité et pour l'agenda.</td></tr>
+            <tr><td>Heures de travail, jours</td><td>lun–ven, 17 h–18 h 30</td><td><a class="btn sm" href="#" onclick="return false">Agenda →</a></td></tr>
+          </tbody>
+        </table>
+        <div class="note hard">
+          <b>Le fuseau s'affiche, il ne se règle pas.</b> Un champ libre permettrait de décaler la semaine —
+          et donc la régularité — sans qu'aucun écran ne le dise. Ce qui a de la valeur ici est le
+          <b>contrôle de cohérence</b> : si le navigateur et le serveur divergent, Papa doit le voir avant
+          de s'étonner d'un jour manquant.
+        </div>
+
+        <div class="hr"></div>
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <span class="lock">3 réglages modifiés par rapport aux valeurs par défaut.</span>
+          <div class="row"><button class="btn ghost">Annuler</button><button class="btn primary">Enregistrer</button></div>
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Ce qui n'est pas ici, et pourquoi</h2>
+        <table>
+          <tbody>
+            <tr><td style="width:34%"><b>Engagement hebdomadaire</b></td>
+              <td><span class="chip bad">🚫 jamais ici</span> <span class="lock">l'objectif est choisi par l'enfant lui-même — un objectif imposé se fuit, un objectif qu'on s'est donné se tient</span></td></tr>
+            <tr><td><b>Ton, tutoiement, longueur des fiches</b></td>
+              <td><span class="chip bad">🚫 jamais</span> <span class="lock">ce sont des prompts versionnés : un curseur fabriquerait une génération non tracée et rendrait le corpus incomparable dans le temps</span></td></tr>
+            <tr><td><b>Seuils de lacune et de « maîtrisé »</b></td>
+              <td><span class="chip bad">🚫 jamais</span> <span class="lock">c'est l'instrument de mesure — qui peut bouger le seuil peut fabriquer une progression</span></td></tr>
+            <tr class="locked"><td>Police adaptée à la dyslexie</td><td><span class="chip mute">⏸ différé</span> <span class="lock">effet contesté ; rouvert par un besoin <b>constaté</b>, pas supposé</span></td></tr>
+            <tr class="locked"><td>Contraste renforcé</td><td><span class="chip mute">⏸ différé</span> <span class="lock">un second thème double la surface de test de 22 écrans ; rouvert par un écran illisible en vrai</span></td></tr>
+            <tr class="locked"><td>Cartes de révision par jour · longueur des quiz</td><td><span class="chip mute">⏸ différé</span> <span class="lock">rouverts par un signal mesuré : paquets fuis, abandons en cours de quiz</span></td></tr>
+            <tr class="locked"><td>Vacances scolaires</td><td><span class="chip mute">⏸ différé</span> <span class="lock">source officielle à ingérer plutôt que champ à saisir</span></td></tr>
+            <tr><td><b>Sélecteur d'élève</b></td><td><span class="chip bad">🚫 hors produit</span> <span class="lock">décidé le 2026-08-19 : ZETIS est l'app de Massimo. On ne conçoit plus pour le multi-élève — ni sélecteur, ni pluriel, ni écran qui demande de qui on parle. On ne fait rien qui l'interdise à jamais ; on n'écrit plus une ligne pour lui</span></td></tr>
+          </tbody>
+        </table>
+        <div class="note"><b>Cette carte vaut autant que les réglages du dessus.</b> Sans elle, chaque ligne
+          absente se relit tous les six mois comme un oubli — et se re-débat.</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ PAPA ══════════════════ -->
+    <section id="p-papa" class="hidden">
+      <div class="card">
+        <h2>👤 Papa — accès, alertes, confort</h2>
+
+        <h3>🔒 La serrure parentale — le manque le plus sérieux</h3>
+        <div class="precond" style="border-color:rgba(244,63,94,.35)">
+          <span style="font-size:18px">🔴</span>
+          <div>
+            <b>Rien n'empêche Massimo d'ouvrir l'interface Papa sur un appareil partagé.</b>
+            <span style="color:var(--muted)"><code class="mono">require_parent</code> protège les <b>routes</b>, pas la
+            <b>session déjà ouverte</b>. Un onglet Papa resté ouvert sur l'iPad de la famille, et Massimo lit ses
+            lacunes, ses diagnostics, le cahier de bord — <b>des textes écrits pour un adulte, à propos de lui</b>.</span>
+          </div>
+        </div>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Code parental</b><br><span class="lock">4 chiffres — ça se tape devant l'enfant, un mot de passe non</span></td>
+              <td><label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> demandé à l'ouverture de l'espace Papa</label></td>
+              <td><button class="btn sm">Changer le code</button></td>
+            </tr>
+            <tr>
+              <td><b>Verrouillage après inactivité</b><br><span class="lock">la vraie parade : un onglet oublié se referme seul</span></td>
+              <td colspan="2">
+                <div class="seg" id="seg-lock">
+                  <button data-v="5" aria-pressed="false">5 min</button>
+                  <button data-v="15" aria-pressed="true">15 min</button>
+                  <button data-v="60" aria-pressed="false">1 h</button>
+                  <button class="hot" data-v="0" aria-pressed="false">jamais</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>Mot de passe</b></td>
+              <td class="lock">modifié il y a 3 mois</td>
+              <td><button class="btn sm">Changer</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px">Sessions ouvertes</h4>
+        <table>
+          <tbody>
+            <tr><td style="width:34%">Mac Studio · Chrome <span class="chip ok">celle-ci</span></td><td class="lock">active à l'instant</td><td></td></tr>
+            <tr><td>iPad du salon · Safari</td><td class="lock">dernière activité il y a 6 jours</td><td><button class="btn sm danger">Révoquer</button></td></tr>
+            <tr><td>MacBook Pro · Chrome</td><td class="lock">dernière activité il y a 2 jours</td><td><button class="btn sm danger">Révoquer</button></td></tr>
+          </tbody>
+        </table>
+        <div class="note hard">
+          <b>C'est la ligne « iPad du salon » qui justifie tout ce bloc.</b> Une session Papa vivante sur un
+          appareil partagé, et Massimo lit ses lacunes, ses diagnostics et le cahier de bord — des textes
+          écrits pour un adulte, à son sujet. <code>require_parent</code> ne l'empêche pas : il protège les
+          <b>routes</b>, pas une session déjà ouverte.
+          <br>🟡 <b>À vérifier dans le code</b> : SECURITY.md prévoit un JWT court et un refresh révocable —
+          la liste des sessions existe-t-elle déjà côté serveur, ou faut-il la construire ?
+        </div>
+
+        <h3>🔔 Être prévenu, plutôt que venir voir</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Un travail a échoué</b></td>
+              <td><label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> me prévenir</label></td>
+              <td class="lock">l'échec reste dans Santé jusqu'à acquittement</td>
+            </tr>
+            <tr>
+              <td><b>Une relecture attend</b><br><span class="lock">le régime Hybrid crée cette file</span></td>
+              <td><label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> au-delà de
+                <select style="background:var(--bg);border:1px solid var(--border-2);color:var(--text);border-radius:8px;padding:4px 8px;font:inherit;font-size:13px">
+                  <option>2 jours</option><option selected>3 jours</option><option>7 jours</option>
+                </select></label></td>
+              <td class="lock">sans elle, le contenu de Massimo attend qu'on y pense</td>
+            </tr>
+            <tr>
+              <td><b>Résumé hebdomadaire</b></td>
+              <td><label style="display:flex;gap:9px;align-items:center"><input type="checkbox"> le dimanche soir</label></td>
+              <td class="lock">⚠️ on <b>pousse</b> le Conseil de classe IA — on n'en fabrique pas un second</td>
+            </tr>
+            <tr>
+              <td><b>Canal</b></td>
+              <td colspan="2">
+                <div class="seg" id="seg-canal">
+                  <button data-v="mail" aria-pressed="true">e-mail</button>
+                  <button data-v="none" aria-pressed="false">aucun — je viens voir</button>
+                </div>
+                <div class="lock" style="margin-top:5px">Un canal, choisi une fois. Pas une matrice type × canal pour trois alertes.</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="hr"></div>
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <span class="lock">2 réglages modifiés par rapport aux valeurs par défaut.</span>
+          <div class="row"><button class="btn ghost">Annuler</button><button class="btn primary">Enregistrer</button></div>
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Ce qui n'est pas ici, et pourquoi</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Alerte « Massimo n'a rien fait depuis N jours »</b></td>
+              <td><span class="chip bad">🚫 jamais en alerte</span>
+                <span class="lock">la doctrine interdit le <b>décompte de jours manqués</b>. Une alerte le
+                réintroduit par un détour : elle crée un événement, et un événement appelle une réaction —
+                transmise à l'enfant par un humain au lieu d'une interface.</span>
+                <div style="margin-top:6px">✅ <b>Le fait reste consultable</b> — « dernière visite » est déjà dans Santé.
+                  Un fait se lit quand on se pose la question ; une alerte impose la question.</div>
+              </td>
+            </tr>
+            <tr class="locked"><td>Thème, densité, animations de la sidebar</td>
+              <td><span class="chip mute">⏸ différé</span> <span class="lock">le problème signalé était les trois animations permanentes, et le correctif décidé était de <b>ralentir</b> — un réglage éviterait la décision. Rouvert si ça distrait encore après</span></td></tr>
+            <tr class="locked"><td>Page d'accueil au démarrage</td>
+              <td><span class="chip mute">⏸ différé</span> <span class="lock">22 pages, une seule porte pensée : un réglage ici sucrerait un problème de navigation. Rouvert si Papa va systématiquement ailleurs en premier</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════════ 1. AUTONOMIE (existant, résumé) ══════════════════ -->
+    <section id="p-autonomie" class="hidden">
+
+      <!-- ── Réglages actifs (section existante) ── -->
+      <div class="card">
+        <h2>Réglages actifs <span class="chip mute">existant · inchangé</span></h2>
+        <div class="renvoi">
+          <div>Les <b>heures de travail</b>, les jours et le rythme de Massimo se règlent là où la décision se prend.</div>
+          <a class="btn sm" href="#" onclick="return false">🗓 Ouvrir l'agenda →</a>
+        </div>
+        <div class="note hard">
+          La phrase <i>« tant que ce n'est pas le cas, ZETIS ne produit rien sans votre validation »</i> a disparu de
+          ce bloc : elle était déjà fausse au regard de l'observation du 2 août. C'est le précédent exact de la note
+          rouge du haut de page.
+        </div>
+      </div>
+
+      <!-- ── ZETIS LEVELS ── -->
+      <div class="card">
+        <h2>⚡ Autonomie de ZETIS — ZETIS LEVELS</h2>
+        <p class="lede">Jusqu'où ZETIS produit le contenu de Massimo tout seul — et où vous en êtes déjà.</p>
+
+        <div class="levels">
+          <button class="level" data-lvl="manual">
+            <div class="name">🔒 MANUAL</div>
+            <div class="say">ZETIS produit, <b>vous validez tout</b> avant que Massimo le voie — fiches et cartes mentales comprises.</div>
+          </button>
+          <button class="level" data-lvl="hybrid">
+            <div class="name">⚖️ HYBRID</div>
+            <div class="say">ZETIS sert les dérivés seul. <b>Les cours passent toujours par vous.</b></div>
+          </button>
+          <button class="level" data-lvl="autonom">
+            <div class="name">🚀 AUTONOM</div>
+            <div class="say">ZETIS rédige et sert <b>y compris les cours</b>. Vous pouvez retirer, tant que Massimo n'a pas ouvert.</div>
+          </button>
+        </div>
+
+        <!-- panneau : suit la sélection, au repos montre l'actif -->
+        <div class="panel">
+          <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="avatar-sm" id="pan-av">⚖️</div>
+              <div>
+                <div style="font-weight:800;letter-spacing:.1em;font-size:13px" id="pan-name">HYBRID</div>
+                <div style="color:var(--muted);font-size:12px" id="pan-state">niveau actif</div>
+              </div>
+            </div>
+            <span class="badge-sm hidden" id="pan-sur" style="background:linear-gradient(90deg,#0891b2,#22d3ee)">SUR MESURE</span>
+          </div>
+
+          <div style="font-size:11.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;font-weight:700;margin-top:6px">Ce que ce niveau décide</div>
+          <div class="kv"><span class="k">Dérivés inertes — fiches, cartes mentales, quiz, capsules</span><span class="v" id="a0a">ZETIS sert</span></div>
+          <div class="kv"><span class="k">Rédaction de cours</span><span class="v" id="a1">Vous validez</span></div>
+
+          <div style="font-size:11.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;font-weight:700;margin-top:14px">Ce qu'aucun niveau ne change</div>
+          <div class="kv off"><span class="k">Cartes de révision 🔒</span><span class="v">ZETIS sert</span></div>
+          <div class="kv off"><span class="k">Programme — notions, leçons, chapitres 🔒</span><span class="v">ZETIS propose</span></div>
+          <div class="kv off"><span class="k">Création de missions 🔒</span><span class="v">Vous validez</span></div>
+          <div class="kv off"><span class="k">Supprimer, archiver, dévalider 🚫</span><span class="v">Jamais</span></div>
+
+          <div class="obs">📊 Sur le chapitre produit le 2 août, <b>2 contenus sur 33</b> vous sont arrivés en relecture.
+            <b>Ce n'est pas un retard</b> — c'est le régime ci-dessus.</div>
+          <div class="legend">⚠️ Hors matrice : les quiz sont servis sans relecture, <b>par doctrine</b> (ADR-0014). Le quiz n'est pas une classe d'autonomie.</div>
+        </div>
+
+        <div class="note">Le panneau est <b>calculé</b> (<code>libellé de classe → libellé du palier</code>), jamais rédigé :
+          une prose <i>classe × niveau</i> recopierait la matrice du §G.2 sous une forme que le serveur ne peut pas refuser —
+          un <code>422</code> protège une valeur, jamais un texte. Le chiffre du 2 août <b>ne suit pas la sélection</b> :
+          il deviendrait une projection déguisée en fait.</div>
+
+        <!-- ── Détail par type de contenu ── -->
+        <details class="classes">
+          <summary>Détail par type de contenu <span class="chip mute">6 classes · 2 réglables</span></summary>
+          <div class="inner">
+            <table>
+              <tbody>
+                <tr>
+                  <td style="width:44%"><b>Dérivés inertes</b><br><span class="lock">fiches, cartes mentales, quiz, capsules</span></td>
+                  <td>
+                    <div class="seg" id="seg-a0a">
+                      <button data-c="a0a" data-v="valide" aria-pressed="false">Vous validez</button>
+                      <button class="hot" data-c="a0a" data-v="sert" aria-pressed="true">ZETIS sert</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>Rédaction de cours</b><br><span class="lock">le dernier contrôle humain</span></td>
+                  <td>
+                    <div class="seg" id="seg-a1">
+                      <button data-c="a1" data-v="valide" aria-pressed="true">Vous validez</button>
+                      <button class="hot" data-c="a1" data-v="sert" aria-pressed="false">ZETIS sert</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="locked">
+                  <td>Cartes de révision 🔒</td>
+                  <td><b>ZETIS sert</b> — <span class="lock">aucune étape de validation n'existe pour les cartes ; « vous validez » serait un mensonge tant qu'elle n'est pas construite</span></td>
+                </tr>
+                <tr class="locked">
+                  <td>Programme — notions, leçons, chapitres 🔒</td>
+                  <td><b>ZETIS propose</b> — <span class="lock">une erreur ici redessine la carte</span></td>
+                </tr>
+                <tr class="locked">
+                  <td>Création de missions 🔒</td>
+                  <td><b>Vous validez</b> — <span class="lock">élire n'est pas créer : le sélecteur est déjà autonome</span></td>
+                </tr>
+                <tr class="locked">
+                  <td>Supprimer, archiver, dévalider 🚫</td>
+                  <td><b>Jamais</b> — <span class="lock">définitif</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="note" id="note-mono"><b>Monotonie</b> : passer le cours à « ZETIS sert » <b>force les dérivés à « ZETIS sert »</b>.
+              On ne sert pas un cours sans relecture tout en relisant les fiches qui en dérivent ; l'état inverse n'est pas offert.
+              <span style="color:#fcd34d">(essayez : la maquette l'applique)</span></div>
+          </div>
+        </details>
+
+        <!-- ── Déclencheur — bloc à part ── -->
+        <div class="hr"></div>
+        <div class="renvoi" style="background:rgba(99,102,241,.07);border-color:rgba(99,102,241,.25)">
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" id="trig" style="margin-top:3px">
+            <span><b>⏰ ZETIS peut démarrer sans vous</b><br>
+              <span style="color:var(--muted);font-size:12.5px">Le palier dit s'il a le droit de <b>servir</b> sans relecture ; ceci dit s'il a le droit de <b>démarrer</b> sans clic.</span></span>
+          </label>
+          <span class="chip mute" id="trig-chip">⏸ démarre sur clic</span>
+        </div>
+        <div class="note">⚠️ <b>Un préréglage ne la touche dans aucun sens</b> : elle n'est pas dans <code>AUTONOMY_CLASSES</code>,
+          sinon un régime armerait le déclencheur au passage. Deux test-verrous le tiennent, back et front.</div>
+
+        <!-- ── Actions ── -->
+        <div class="hr"></div>
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <span class="lock" id="save-hint">Aucun changement à écrire.</span>
+          <div class="row">
+            <button class="btn ghost" id="cancel-btn" disabled>Annuler</button>
+            <button class="btn primary" id="save-btn" disabled>Enregistrer</button>
+          </div>
+        </div>
+        <div class="note">Pas d'auto-save, et <b>toute écriture se confirme, descente comprise</b> : la modale ne garde plus
+          le geste, elle garde l'<b>écriture</b>. Un « Enregistrer » qui ouvrirait parfois une modale serait moins prévisible
+          qu'un qui confirme toujours. La garde compare au <b>serveur</b>, pas au brouillon précédent.</div>
+      </div>
+
+      <!-- ── Le veto ── -->
+      <div class="card">
+        <h2>Le veto</h2>
+        <div class="veto">
+          <b>Vous pouvez retirer ce que ZETIS a servi.</b> Tant que Massimo ne l'a pas ouvert, un contenu se retire
+          <b>sans trace et sans qu'il le sache</b>. Une fois ouvert, il ne se retire plus — il se corrige.
+          Rien à faire pour accepter : le silence vaut accord.
+          <div style="margin-top:10px"><a href="#" onclick="return false">📓 Voir ce que ZETIS a servi →</a></div>
+        </div>
+        <div class="note">Un encart, pas un réglage. ⚠️ <b>Aucune liste ici</b> : la page des réglages renvoie,
+          elle n'énumère pas — sinon elle redevient un compteur.</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ 2. MOTEURS ══════════════════ -->
+    <section id="p-moteurs" class="hidden">
+      <div class="card">
+        <h2>🧠 Le moteur de ZETIS — qui fait quoi</h2>
+        <p class="lede">Ce qui est <b>réellement résolu côté serveur</b> en ce moment. Pas ce que dit la documentation.</p>
+
+        <div class="row" style="gap:8px;margin-bottom:14px">
+          <span class="chip ok">● Ollama joignable · 11434</span>
+          <span class="chip ok">● volume des modèles monté</span>
+          <span class="chip ok">● qwen3.6:35b-a3b présent · 21,4 Go</span>
+          <span class="chip ok">● nomic-embed-text · 768 d</span>
+          <span class="chip warn">● clé Anthropic absente</span>
+          <span class="chip ok">● Redis</span>
+          <span class="chip ok">● Postgres</span>
+          <span class="chip ok">● MinIO</span>
+        </div>
+        <div class="row" style="gap:8px;margin-bottom:14px;align-items:center">
+          <span class="lock" style="font-size:12px">chemin résolu des modèles :</span>
+          <span class="mono" style="font-size:12px">~/.ollama/models → /Volumes/LLM-SSD/ollama/models</span>
+          <span class="lock" style="font-size:12px">·&nbsp; simuler :</span>
+          <div class="seg" id="seg-vol">
+            <button data-v="ok" aria-pressed="true">monté</button>
+            <button class="hot" data-v="off" aria-pressed="false">SSD débranché</button>
+          </div>
+        </div>
+        <div class="precond hidden" id="vol-box" style="border-color:rgba(244,63,94,.4)"></div>
+        <div class="note hard">
+          <b>Le lien symbolique crée un mode de panne qui se déguise en bug de code.</b> Si le SSD n'est pas monté,
+          le lien pend : Ollama démarre <b>avec zéro modèle</b> et répond « model not found ». Message strictement
+          identique à celui d'un modèle mal nommé — c'est la <b>même classe de piège</b> que le worker de 163 min
+          qui disait « aucun exécutant ».
+          <br>D'où deux exigences : ① la santé distingue <b>trois</b> états — volume absent / volume monté mais modèle
+          absent / présent — et jamais un seul « ❌ » ; ② <b>le backend refuse de démarrer</b> si le chemin des modèles
+          pend, au lieu de démarrer dans un état vide qui mentira toute la journée. Le précédent existe déjà :
+          l'assertion qui refuse de booter sur un mot de passe de dev hors dev.
+        </div>
+
+        <table>
+          <thead><tr><th>Tâche</th><th>Moteur</th><th>Modèle</th><th>Où</th><th>Ce qui part</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Cours, fiches, quiz, mindmaps, capsules, ELI5</td>
+              <td class="mono">ollama</td><td class="mono">qwen3.6:35b-a3b</td>
+              <td><span class="chip local">🏠 local</span></td>
+              <td class="lock">rien ne sort de la maison</td>
+            </tr>
+            <tr class="locked">
+              <td>Embeddings RAG 🔒</td>
+              <td class="mono">ollama</td><td class="mono">nomic-embed-text · 768 d</td>
+              <td><span class="chip local">🏠 local</span></td>
+              <td class="lock">verrouillé — en changer impose une migration Alembic, un réindex ivfflat et le ré-embed de tout le corpus</td>
+            </tr>
+            <tr class="locked">
+              <td>Programme — chapitres 🔒</td>
+              <td class="mono">anthropic</td><td class="mono">claude-sonnet-5</td>
+              <td><span class="chip cloud">☁️ dérogation</span></td>
+              <td class="lock">niveau, matière, version de programme — <b>aucune donnée de Massimo</b> (invariant testé)</td>
+            </tr>
+            <tr class="locked">
+              <td>Programme — leçons 🔒</td>
+              <td class="mono">anthropic</td><td class="mono">claude-sonnet-5</td>
+              <td><span class="chip cloud">☁️ dérogation</span></td>
+              <td class="lock">idem — tâche one-shot par version, déclenchée par vous seul</td>
+            </tr>
+            <tr class="locked">
+              <td>Dictée (ELI5) 🔒</td>
+              <td class="mono">faster-whisper</td><td class="mono">small · cpu int8</td>
+              <td><span class="chip local">🏠 local</span></td>
+              <td class="lock">la voix de Massimo ne sort jamais — c'est la raison d'être de l'ADR-0012</td>
+            </tr>
+            <tr class="locked">
+              <td>Rendu vidéo des capsules</td>
+              <td class="mono">worker-media</td><td class="mono">Chromium — pas un LLM</td>
+              <td><span class="chip local">🏠 réseau interne</span></td>
+              <td class="lock">aucun egress</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <b>Cet onglet LIT, il ne règle pas — et pas par prudence : par vérité technique.</b>
+          Le routage vit dans des variables d'environnement lues au démarrage (<code>LLM_PROVIDER</code>,
+          <code>EMBED_PROVIDER</code>, <code>WHISPER_MODEL</code>), pas en base. Un menu déroulant serait
+          soit mort, soit un chantier <code>app_settings</code> + re-résolution des providers.
+          <b>« Aucun interrupteur sans effet » s'applique ici en premier.</b>
+        </div>
+        <div class="note hard">
+          <b>Le local/cloud par tâche n'est pas un réglage, c'est de la doctrine.</b> Un déroulant permettrait
+          d'expédier les données de Massimo chez un tiers d'un clic. On l'affiche, on le verrouille, on dit pourquoi —
+          un cadenas muet se lit comme une panne.
+        </div>
+
+        <div class="hr"></div>
+        <h3>Vérifier, plutôt que déclarer</h3>
+        <div class="row" style="align-items:center">
+          <button class="btn" id="test-btn">▶︎ Tester le moteur</button>
+          <div id="test-out" class="mono" style="color:var(--muted);font-size:12.5px"></div>
+        </div>
+        <div class="note">Un vrai prompt, une vraie latence, un vrai <code>JSON valide</code>.
+          C'est le seul geste qui prouve que le modèle est réellement <i>pull</i> et joignable — et il transforme
+          la page d'une déclaration en une preuve.</div>
+      </div>
+
+      <div class="card flat">
+        <h2>Prompts actifs <span class="chip mute">lecture seule</span></h2>
+        <table>
+          <thead><tr><th>Tâche</th><th>Prompt</th><th>Version</th><th>Depuis</th></tr></thead>
+          <tbody>
+            <tr><td>Rédaction de cours</td><td class="mono">lesson_write</td><td class="mono">v4</td><td class="lock">2026-07-22</td></tr>
+            <tr><td>Fiche de révision</td><td class="mono">sheet_make</td><td class="mono">v3</td><td class="lock">2026-06-30</td></tr>
+            <tr><td>ELI5</td><td class="mono">eli5_explain</td><td class="mono">v6</td><td class="lock">2026-08-09</td></tr>
+            <tr><td>Quiz</td><td class="mono">quiz_build</td><td class="mono">v3</td><td class="lock">2026-07-02</td></tr>
+            <tr><td>Programme — chapitres</td><td class="mono">curriculum_chapters</td><td class="mono">v2</td><td class="lock">2026-07-14</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          La règle IA du projet impose déjà un <b>prompt versionné</b>, un schéma d'entrée, un schéma de sortie
+          et une trace. Pouvoir lire <b>quelle version a produit quoi</b> en est le complément naturel, et ça
+          coûte un tableau.
+          <br>🚫 <b>Aucun champ éditable ici</b> : un curseur « ton » ou « longueur » fabriquerait une génération
+          non tracée et rendrait le corpus incomparable dans le temps. Un ton qui change, c'est une
+          <b>nouvelle version de prompt</b>.
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Changer le modèle de génération <span class="chip warn">v2 — pas branché</span></h2>
+        <p class="lede">Le seul choix légitimement libre : aucune migration, aucun changement de confidentialité.
+          Un pur arbitrage qualité / vitesse — <b>et le banc existe déjà</b>.</p>
+        <table>
+          <thead><tr><th></th><th>Modèle</th><th>JSON valide</th><th>ELI5</th><th>Capsule</th><th>Qualité observée</th></tr></thead>
+          <tbody>
+            <tr><td><input type="radio" name="m" checked disabled></td><td class="mono">qwen3.6:35b-a3b</td><td>9/9 ✅</td><td class="num">5,6 s</td><td class="num">11 s</td><td class="lock">≈ 72b, le plus rapide de tous</td></tr>
+            <tr><td><input type="radio" name="m" disabled></td><td class="mono">llama3.3:70b</td><td>9/9 ✅</td><td class="num">44 s</td><td class="num">78 s</td><td class="lock">capsule bien calibrée</td></tr>
+            <tr><td><input type="radio" name="m" disabled></td><td class="mono">qwen2.5:72b</td><td>9/9 ✅</td><td class="num">46 s</td><td class="num">93 s</td><td class="lock">ELI5 très riche, capsule parfois technique</td></tr>
+            <tr><td><input type="radio" name="m" disabled></td><td class="mono">qwen2.5:32b</td><td>9/9 ✅</td><td class="num">18 s</td><td class="num">38 s</td><td class="lock">référence historique</td></tr>
+            <tr><td><input type="radio" name="m" disabled></td><td class="mono">mistral-large</td><td>9/9 ✅</td><td class="num">77 s</td><td class="num">171 s</td><td class="lock">trop lent, sans avantage net</td></tr>
+          </tbody>
+        </table>
+        <div class="note">Les chiffres sont <b>ceux du banc de l'ADR-0008</b>, datés, affichés tels quels.
+          Un sélecteur de modèle appuyé sur une mesure plutôt que sur une intuition — c'est ça, la valeur de ce bloc.
+          <b>À afficher grisé tant que l'écriture n'existe pas</b>, avec son motif : un choix qui ne s'écrit pas est un piège.</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ 3. DONNÉES ══════════════════ -->
+    <section id="p-donnees" class="hidden">
+      <div class="card">
+        <h2>💾 Sauvegarder <span class="chip mute" id="mot-chip">mot non encore mérité</span></h2>
+        <p class="lede">La donnée de ZETIS vit dans <b>trois endroits</b> : Postgres, MinIO, et le <code class="mono">.env</code>.</p>
+
+        <div class="kpis">
+          <div class="kpi"><div class="n">2026-08-15</div><div class="l">dernière sauvegarde — 17 h 02</div></div>
+          <div class="kpi"><div class="n">1,86 Go</div><div class="l">Postgres + MinIO</div></div>
+          <div class="kpi"><div class="n">41 812</div><div class="l">lignes, 37 tables · 1 204 objets</div></div>
+          <div class="kpi warn" id="kpi-verif"><div class="n">non vérifiée</div><div class="l">jamais restaurée</div></div>
+        </div>
+
+        <div class="row" style="margin-top:14px;align-items:center">
+          <button class="btn primary">⤓ Sauvegarder maintenant</button>
+          <button class="btn" id="verif-btn">🧪 Vérifier — restauration à blanc</button>
+        </div>
+        <table style="margin-top:12px">
+          <tbody>
+            <tr><td style="width:30%">Dépôt du projet</td><td class="mono">/Volumes/ZETIS-SSD/projets/zetis/</td><td><span class="chip mute">code — pas de données</span></td></tr>
+            <tr><td><b>Données</b>, emplacement résolu</td><td class="mono">/Volumes/ZETIS-SSD/docker/DockerDesktop.raw → volumes <span class="lock">pgdata, minio</span></td><td><span class="chip ok">sur le SSD projets</span></td></tr>
+            <tr><td><b>Cible de la sauvegarde</b></td><td class="mono">/Volumes/LLM-SSD/backups/zetis-2026-08-15.tar</td><td><span class="chip ok">✅ autre disque physique</span></td></tr>
+            <tr class="locked"><td>Empreinte</td><td class="mono">sha256 4f1c…9ab2</td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>Deux disques résolvent le point bloquant : la copie ne vit plus sur le disque qu'elle sauvegarde.</b>
+          Le SSD des modèles est le bon hôte — il ne porte que du régénérable, il a de la place, et une panne du SSD
+          projets ne l'emporte pas. <b>Règle à coder quand même</b> : la page compare les <b>UUID de volume</b> de la
+          cible et des données, et refuse s'ils sont identiques. La règle survivra au jour où les deux disques
+          redeviendront un seul.
+        </div>
+        <div class="note hard">
+          <b>Deux disques ≠ deux endroits.</b> Même bureau, même alimentation, même hub, même main qui se trompe de
+          disque à effacer, même cambriolage, même dégât d'eau. C'est une protection contre la <b>panne matérielle</b>,
+          pas contre l'accident ni la perte du lieu.
+          <br><b>Et la parade est disproportionnellement bon marché</b> : le seul poste irremplaçable, ce sont les
+          <b>PDF importés — 96 Mo</b>. Le reste se régénère ou se reconstruit. Une copie de ces 96 Mo <b>hors du bureau</b>
+          (clé, cloud, e-mail à soi) couvre le seul risque que deux SSD côte à côte ne couvrent pas. L'archive complète
+          de 1,9 Go, elle, peut rester sur le second disque.
+        </div>
+        <div class="note hard">
+          🔴 <b>« Les projets sur le SSD » ne veut PAS dire « les données sur le SSD ».</b> Avec des volumes Docker
+          nommés, Postgres et MinIO vivent dans <b>l'image disque de Docker Desktop</b>, où qu'elle soit — laisser
+          l'image sur le disque interne mettrait le <b>code</b> sur le SSD et les <b>données</b> ailleurs. La sauvegarde
+          d'un côté, les données de l'autre, et personne ne s'en aperçoit avant la restauration.
+          <br>D'où la deuxième ligne du tableau : la page affiche l'<b>emplacement résolu des données</b>, jamais le
+          dossier du projet. Même doctrine que le chemin résolu des modèles.
+          <br>⚠️ <b>Les modèles LLM ne sont pas dans l'archive</b>, et c'est voulu : ~21 Go régénérables d'un
+          <code>ollama pull</code> — d'ailleurs ils sont sur l'autre disque.
+        </div>
+        <div id="verif-steps" class="ecart hidden" style="margin-top:12px"></div>
+
+        <div class="note hard">
+          <b>Le mot « sauvegarde » se mérite, et c'est ce bouton-là qui le mérite.</b>
+          Une archive jamais restaurée n'est pas une sauvegarde, c'est un fichier — donc la page l'appelait « export ».
+          <b>La vérification donne au mot son sens</b> : la restauration à blanc rejoue l'archive dans une base
+          <b>jetable</b> (<code>zetis_verify</code>), compte les lignes, compare au manifeste, puis la détruit.
+          Non destructive, et c'est <b>la seule preuve</b> que le chemin du retour existe. À jouer une fois par mois.
+        </div>
+        <div class="note">
+          C'est <b>long</b> → c'est un travail de file (<code>ai_jobs.created_by="file"</code>), donc la barre du
+          header le montre déjà. Rien à inventer sur la façon de dire.
+          ⚠️ <b>Le <code>.env</code> ne passe jamais par un téléchargement HTTP</b> — l'export exclut les secrets,
+          <b>et l'écrit</b>, sinon Papa croira sa restauration complète.
+        </div>
+
+        <div class="hr"></div>
+        <h3>Deux publics, deux gestes</h3>
+        <div class="row">
+          <div class="grow card flat" style="margin:0">
+            <b>Export technique</b>
+            <p class="lede" style="margin:6px 0 0">Dump complet, pour redémarrer une machine. Illisible par un humain.</p>
+          </div>
+          <div class="grow card flat" style="margin:0">
+            <b>Export « les données de Massimo »</b>
+            <p class="lede" style="margin:6px 0 0">Lisible, portable, supprimable — le RGPD personnel déjà écrit dans <code class="mono">SECURITY.md</code>.</p>
+          </div>
+        </div>
+        <div class="note">Question ouverte, volontairement laissée ouverte dans la maquette : <b>un geste ou deux ?</b>
+          Ni le même contenu, ni le même public.</div>
+      </div>
+
+      <!-- ── IMPORTER / RESTAURER ── -->
+      <div class="card">
+        <h2>↥ Importer une sauvegarde</h2>
+        <p class="lede">Rien n'est remplacé à ce stade. Cet écran <b>lit le manifeste</b> et rend un verdict — c'est lui qui décide si le geste est offert.</p>
+
+        <div class="renvoi" style="align-items:flex-start">
+          <div>
+            <div class="mono" style="font-size:13px">zetis-2026-08-15.tar</div>
+            <span class="lock">1,86 Go · sha256 4f1c…9ab2 · empreinte vérifiée ✅</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="lock" style="font-size:12px">simuler :</span>
+            <div class="seg" id="seg-verdict">
+              <button data-v="ok" aria-pressed="true">compatible</button>
+              <button data-v="old" aria-pressed="false">plus ancienne</button>
+              <button class="hot" data-v="new" aria-pressed="false">plus récente</button>
+            </div>
+          </div>
+        </div>
+
+        <table style="margin-top:14px">
+          <tbody>
+            <tr><td style="width:34%">Contenu</td><td><b>Postgres</b> 37 tables · 41 812 lignes &nbsp;+&nbsp; <b>MinIO</b> 1 204 objets <span class="chip ok">couple complet</span></td></tr>
+            <tr><td>Tête Alembic de l'archive</td><td id="man-alembic" class="mono">b3c4d5e6f7a8</td></tr>
+            <tr><td>Tête Alembic du code installé</td><td class="mono">b3c4d5e6f7a8</td></tr>
+            <tr><td>Régime enregistré dans l'archive</td><td><span class="chip cloud">🚀 AUTONOM · déclencheur armé</span></td></tr>
+            <tr><td>Secrets</td><td class="lock">absents de l'archive — le <code class="mono">.env</code> se remet à la main</td></tr>
+          </tbody>
+        </table>
+
+        <div class="precond" id="verdict-box" style="margin-top:14px"></div>
+
+        <h3>Ce que la restauration fait, dans cet ordre</h3>
+        <table>
+          <tbody>
+            <tr><td style="width:34px">①</td><td>Sauvegarde de l'état <b>actuel</b> — le filet, non négociable</td><td><span class="chip ok">prête</span></td></tr>
+            <tr><td>②</td><td><b>Suspendre ZETIS</b> et laisser la pièce en cours se terminer</td><td><span class="chip warn">1 travail en cours</span></td></tr>
+            <tr><td>③</td><td>Remplacer Postgres <b>dans le serveur</b>, puis le bucket MinIO</td><td><span class="chip mute">à venir</span></td></tr>
+            <tr><td>④</td><td>Jouer les migrations <span class="mono">alembic upgrade head</span></td><td><span class="chip mute" id="step4">sans objet</span></td></tr>
+            <tr><td>⑤</td><td><b>Redémarrer tous les workers</b></td><td><span class="chip mute">à venir</span></td></tr>
+            <tr><td>⑥</td><td>Régime forcé à <b>MANUAL</b>, déclencheur <b>désarmé</b></td><td><span class="chip mute">à venir</span></td></tr>
+          </tbody>
+        </table>
+
+        <div class="note hard">
+          <b>Une restauration n'est pas la symétrique d'une sauvegarde.</b> Sauvegarder est additif et sans risque ;
+          restaurer <b>remplace l'état actuel</b> — c'est de la classe A4, comme la remise à zéro. Le geste réel vit
+          donc en <b>zone rouge</b>, sous les mêmes gardes. Seule la <b>restauration à blanc</b> reste ici, parce qu'elle
+          ne détruit rien.
+        </div>
+        <div class="note hard">
+          <b>Quatre pièges que l'ordre des étapes évite, et qui sont tous déjà documentés :</b>
+          <br>② <b>Un appel LLM n'est pas préemptible</b> — le grain de l'interruption est la <i>pièce</i>. Remplacer la base sous un travail qui écrit, c'est une base incohérente.
+          <br>③ <b>Jamais de <code>down -v</code></b> : le mot de passe et la base se changent <i>dans le serveur</i>, le volume reste intact. La procédure connue effaçait les données de prod.
+          <br>⑤ <b>Un <code>SimpleWorker</code> ne recharge jamais le code</b> — ni le schéma qu'il a en tête. Un worker survivant à une restauration travaille sur un monde qui n'existe plus.
+          <br>⑥ <b>Une archive porte son régime.</b> Restaurer une sauvegarde faite en <i>AUTONOM</i> réarmerait AUTONOM en silence, sur des données que Papa vient de remplacer. Même piège que la remise à zéro : on force MANUAL, et Papa rechoisit.
+        </div>
+        <div class="note">
+          <b>Postgres et MinIO se restaurent en couple, ou pas du tout.</b> Une base sans son bucket, ce sont des lignes
+          qui pointent vers des audios, des vidéos et des images absentes — l'application marche, et chaque capsule
+          casse. Le manifeste compte les deux, et un couple incomplet est <b>refusé</b> (ou restauré en disant
+          combien d'objets manquent — jamais en silence).
+        </div>
+      </div>
+
+      <!-- ── CE QUI OCCUPE LE DISQUE ── -->
+      <div class="card">
+        <h2>Ce qui occupe le disque</h2>
+        <p class="lede">La question à laquelle ce bloc répond : <b>est-ce que ça tient, qu'est-ce qui grossit, et est-ce cohérent ?</b>
+          Pas « qu'est-ce qu'il y a dedans » — ça, c'est la Couverture et le Journal qui le disent.</p>
+
+        <div class="row">
+          <div class="grow">
+            <div class="kv"><span class="k"><b>Postgres</b></span><span class="v mono">1,21 Go</span></div>
+            <div class="bar"><i style="width:65%"></i></div>
+          </div>
+          <div class="grow">
+            <div class="kv"><span class="k"><b>MinIO</b> <span class="chip ok" style="margin-left:6px">privé</span></span><span class="v mono">648 Mo</span></div>
+            <div class="bar"><i style="width:35%;background:linear-gradient(90deg,var(--violet),var(--fuchsia))"></i></div>
+          </div>
+        </div>
+
+        <table style="margin-top:14px">
+          <thead><tr><th>Ce qui pèse</th><th>Taille</th><th>Remplaçable ?</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Embeddings RAG <span class="lock">4 902 chunks × 768 dims</span></td><td class="num mono">780 Mo</td><td class="lock">recalculable — coûte une réindexation</td><td></td></tr>
+            <tr><td>Traces d'appels LLM <span class="lock">~143 par travail</span></td><td class="num mono">210 Mo</td><td><span class="chip ok">sans valeur passé 30 j</span></td><td><button class="btn sm danger" data-reset="traces">Purger &gt; 30 j</button></td></tr>
+            <tr><td>Rendus vidéo de capsules <span class="lock">MP4</span></td><td class="num mono">412 Mo</td><td><span class="chip ok">régénérable depuis la spec</span></td><td><button class="btn sm danger" data-reset="rendus">Purger &gt; 30 j</button></td></tr>
+            <tr><td>Audio TTS</td><td class="num mono">118 Mo</td><td><span class="chip ok">régénérable</span></td><td><button class="btn sm danger" data-reset="audio">Purger &gt; 30 j</button></td></tr>
+            <tr class="locked"><td><b>Sources importées</b> <span class="lock">PDF déposés par vous</span></td><td class="num mono">96 Mo</td><td><span class="chip bad">irremplaçable</span></td><td class="lock">aucune action ici — et c'est voulu</td></tr>
+            <tr class="locked"><td><b>Contenu pédagogique</b> <span class="lock">cours, fiches, quiz, programme, progression</span></td><td class="num mono">190 Mo</td><td><span class="chip bad">le cœur</span></td><td class="lock">se traite par portée, plus bas</td></tr>
+            <tr class="locked"><td>Images, divers, index</td><td class="num mono">52 Mo</td><td class="lock">—</td><td></td></tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <b>Le tri n'est pas « par table », il est « par ce qui est remplaçable ».</b> C'est le seul classement qui porte
+          une action : trois lignes se purgent sans rien perdre (elles se régénèrent), deux ne se touchent jamais
+          d'ici, et une seule est réellement irremplaçable — <b>vos PDF</b>, qui ne se re-téléchargent nulle part.
+          Un tableau trié par poids aurait mis les embeddings en tête et suggéré de les supprimer.
+        </div>
+        <div class="note hard">
+          <b>Ce que ce bloc refuse d'être : un explorateur de base.</b> Pas de liste de tables avec leur nombre de
+          lignes, pas de navigateur d'objets MinIO. Trois raisons :
+          <br>① <code>psql</code> et la console MinIO répondent mieux, et sans risque de fuite à l'écran ;
+          <br>② un compteur de lignes par table <b>ne répond à aucune question de Papa</b> et invite à demander pourquoi il monte — c'est un compteur de plus ;
+          <br>③ la vue qui a du sens sur ces objets <b>existe déjà</b> : la <b>Couverture</b> dit quel contenu existe par type et par notion, le <b>Journal</b> dit ce qui a été servi. Redire ici « 88 quiz » en ferait une seconde source de vérité, qui divergera.
+        </div>
+
+        <div class="hr"></div>
+        <h3>Rétention — ce qui s'efface tout seul</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:34%"><b>Enregistrements vocaux de Massimo</b><br><span class="lock">dictée ELI5</span></td>
+              <td>
+                <div class="seg" id="seg-voix-ret">
+                  <button data-v="7" aria-pressed="true">7 jours</button>
+                  <button data-v="30" aria-pressed="false">30 jours</button>
+                  <button data-v="apres" aria-pressed="false">dès transcription</button>
+                  <button class="hot" data-v="jamais" aria-pressed="false">garder</button>
+                </div>
+              </td>
+              <td class="lock">14 fichiers · 22 Mo</td>
+            </tr>
+            <tr class="locked"><td>Traces d'appels LLM</td><td class="lock">purge manuelle &gt; 30 j, plus haut</td><td></td></tr>
+            <tr class="locked"><td>Rendus vidéo, audio TTS</td><td class="lock">purge manuelle &gt; 30 j, plus haut</td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="note hard">
+          <b>La voix d'un enfant est la donnée la plus intime du système</b>, `SECURITY.md` la classe comme
+          sensible — et elle n'a <b>plus aucune valeur après transcription</b>. C'est le cas type d'une
+          <b>règle de rétention</b> plutôt que d'un bouton « supprimer » : ce qui s'efface tout seul ne dépend
+          pas de quelqu'un qui y pense.
+          <br>⚠️ Défaut proposé : <b>7 jours</b>, pas « garder ». Le défaut d'une donnée sensible est de partir.
+        </div>
+
+        <div class="hr"></div>
+        <h3>Cohérence entre les deux</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td style="width:52%"><b>Objets MinIO que plus aucune ligne ne réclame</b><br><span class="lock">restes de travaux échoués et de remises à zéro</span></td>
+              <td><b>34 objets · 74 Mo</b> <span class="lock">déjà comptés ci-dessus</span></td>
+              <td><button class="btn sm danger" data-reset="orphelins">Supprimer</button></td>
+            </tr>
+            <tr>
+              <td><b>Lignes qui pointent vers un objet absent</b><br><span class="lock">la capsule s'ouvre et ne joue rien</span></td>
+              <td><b>2 capsules</b> <span class="chip bad">cassées</span></td>
+              <td><button class="btn sm">Voir lesquelles →</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>Voilà le vrai intérêt de regarder les deux ensemble.</b> Séparément, chacun a l'air sain : la base est
+          cohérente, le bucket est plein. C'est <b>l'écart entre eux</b> qui est invisible partout ailleurs — et il a
+          deux formes opposées, une qui coûte du disque en silence, une qui casse une capsule sous les yeux de Massimo.
+          C'est la même vérification que le couple d'une restauration, mais jouée en permanence au lieu d'une fois.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Remises à zéro portées</h2>
+        <p class="lede">Ce dont on a besoin presque toujours : <i>« j'ai généré n'importe quoi, je recommence »</i>.
+          Utile chaque semaine — là où un reset total sert une fois dans la vie du projet.</p>
+        <table>
+          <thead><tr><th>Portée</th><th>Ce qui part</th><th>Ce qui reste</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Contenus générés</b></td>
+              <td class="num">412 fiches · 88 quiz · 31 mindmaps · 604 cartes SRS · 12 capsules</td>
+              <td class="lock">programme, progression, diagnostics</td>
+              <td><button class="btn sm danger" data-reset="contenus">Remettre à zéro</button></td>
+            </tr>
+            <tr>
+              <td><b>Progression de Massimo</b></td>
+              <td class="num">1 240 tentatives · XP · séries · mémoire espacée</td>
+              <td class="lock">contenus, programme</td>
+              <td><button class="btn sm danger" data-reset="progression">Remettre à zéro</button></td>
+            </tr>
+            <tr>
+              <td><b>Programme</b></td>
+              <td class="num">7 matières · 94 chapitres · 311 leçons</td>
+              <td class="lock">rien de ce qui en dérive ne survit — cascade annoncée</td>
+              <td><button class="btn sm danger" data-reset="programme">Remettre à zéro</button></td>
+            </tr>
+            <tr>
+              <td><b>Sources RAG</b></td>
+              <td class="num">18 documents · 4 902 chunks</td>
+              <td class="lock">les cours déjà rédigés (ils ne se re-sourcent pas)</td>
+              <td><button class="btn sm danger" data-reset="rag">Remettre à zéro</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">Chaque ligne annonce aussi <b>ce qui reste</b>. Une portée qui ne dit que ce qu'elle
+          détruit laisse croire qu'elle détruit tout.</div>
+      </div>
+
+      <details class="danger-zone">
+        <summary>🚨 Zone rouge — les deux gestes qui remplacent l'état actuel</summary>
+        <div class="body">
+          <h3 style="margin-top:4px">① Restaurer une sauvegarde <span class="chip mute">destructif</span></h3>
+          <div class="precond">
+            <span style="font-size:18px">🛡</span>
+            <div>
+              <b id="rest-pre">Trois préconditions serveur, dans cet ordre.</b><br>
+              <span style="color:var(--muted)">
+                <span id="pre-1">✅ verdict de compatibilité : <b>compatible</b></span><br>
+                ⛔ <b>ZETIS n'est pas suspendu</b> — 1 travail en cours, la pièce doit se terminer<br>
+                ✅ sauvegarde de l'état actuel : <b>prête</b> (2026-08-15, vérifiée)
+              </span>
+              <div style="margin-top:10px"><button class="btn amber sm">⏸ Suspendre puis débloquer</button></div>
+            </div>
+          </div>
+          <button class="btn danger" disabled>Remplacer les données par <span class="mono">zetis-2026-08-15.tar</span></button>
+          <div class="note">
+            <b>La garde n'est pas une modale, c'est une précondition serveur</b> — et elle est <b>séquentielle</b> :
+            chaque ligne se lève dans l'ordre. Un bouton qu'on ne peut pas presser tant que la machine tourne
+            protège mieux qu'un avertissement qu'on lit après avoir cliqué.
+          </div>
+
+          <div class="hr"></div>
+          <h3>② Réinitialisation totale <span class="chip mute">définitif</span></h3>
+          <div class="precond">
+            <span style="font-size:18px">🛡</span>
+            <div>
+              <b>Refusé : aucun export vérifié de moins de 24 h.</b><br>
+              <span style="color:var(--muted)">Le serveur rend <code class="mono">422</code> avec ce motif.
+              Faites l'export d'abord — il débloque ce bouton tout seul.</span>
+              <div style="margin-top:10px"><button class="btn amber sm">⤓ Exporter puis débloquer</button></div>
+            </div>
+          </div>
+          <button class="btn danger" disabled>Réinitialiser ZETIS entièrement</button>
+          <div class="note hard">
+            <b>C'est A4 (« Supprimer, archiver, dévalider — 🚫 Jamais, définitif ») élargi à l'application entière.</b>
+            Trois conséquences de forme :
+            <br>① La garde n'est <b>pas une modale</b>, c'est une <b>précondition serveur</b> — une modale effrayante se clique, un 422 ne se clique pas.
+            <br>② Le reset <b>réarme la sécurité</b> : régime → <code>manuel</code>, déclencheur → <code>false</code>. Un reset qui laisse <i>Autonom</i> armé sur une base vide relance la production tout seul.
+            <br>③ Question qui reste posée : <b>ce bouton mérite-t-il d'exister à l'écran ?</b> Un <code>scripts/reset.py</code> documenté est peut-être la bonne place — ce qui n'existe pas ne se clique pas par erreur.
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ══════════════════ 4. SANTÉ ══════════════════ -->
+    <section id="p-sante" class="hidden">
+      <div class="card">
+        <h2>🩺 Ce que la machine fait en ce moment</h2>
+        <div class="kpis">
+          <div class="kpi"><div class="n">2</div><div class="l">travaux en file</div></div>
+          <div class="kpi"><div class="n">1</div><div class="l">en cours · concurrence 1</div><div class="bar"><i style="width:62%"></i></div></div>
+          <div class="kpi warn"><div class="n">163 min</div><div class="l">âge du worker le plus vieux</div></div>
+          <div class="kpi bad"><div class="n">1</div><div class="l">échec non acquitté</div></div>
+        </div>
+        <div class="note hard">
+          <b>L'âge du worker n'est pas de la décoration.</b> Un <code>SimpleWorker</code> RQ ne recharge
+          <b>jamais</b> le code : un worker de 163 minutes a répondu « Aucun exécutant pour <i>srs_cards_generate</i> » —
+          un message qui se lit exactement comme un bug du code. Affiché ici, le diagnostic prend deux secondes.
+        </div>
+
+        <div class="pause">
+          <div><b>⏸ Suspendre ZETIS</b><br>
+            <span style="color:var(--muted);font-size:13px">Arrête la file et n'en prend plus. Ne touche pas au régime, ne défait rien.</span></div>
+          <button class="btn amber">Suspendre</button>
+        </div>
+        <div class="note">Probablement le bouton le plus utile de la page, et le seul qui manque vraiment aujourd'hui.
+          Un veto retire une <i>pièce</i> ; ceci arrête la <i>machine</i>.</div>
+        <div class="note hard">
+          <b>« Voit-on les workers de production ? » — trois objets, trois surfaces, et il faut les tenir séparés.</b>
+          <br>① le <b>processus</b> (vivant ? à jour ?) → <b>ici</b>, c'est de la machine ;
+          <br>② la <b>file</b> (combien attendent, qu'est-ce qui tourne) → un <b>nombre</b> ici, la liste vit dans la barre du header ;
+          <br>③ les <b>lots</b> et leur journal par notion → <b>le Journal</b>, jamais ici.
+          <br>Cette page dit <i>ce que la machine peut faire</i>, pas <i>ce qu'elle a produit</i> — sinon elle redevient un compteur.
+        </div>
+      </div>
+
+      <!-- ── Ce qui tourne ── -->
+      <div class="card">
+        <h2>Ce qui tourne</h2>
+        <table>
+          <thead><tr><th>Service</th><th>Sonde</th><th>Latence</th><th>Détail</th></tr></thead>
+          <tbody>
+            <tr id="v-proj"><td><b>SSD projets</b> <span class="mono lock">ZETIS-SSD · APFS · vol UUID 7A3E…</span></td><td><span class="chip ok">monté</span></td><td class="num mono">—</td><td class="lock">1,4 To libres · ZETIS, Postgres, MinIO, image Docker</td></tr>
+            <tr id="v-mod"><td><b>SSD modèles</b> <span class="mono lock">LLM-SSD · APFS · vol UUID C1F0…</span></td><td><span class="chip ok">monté</span></td><td class="num mono">—</td><td class="lock">612 Go libres · modèles Ollama · <b>cible de sauvegarde</b></td></tr>
+            <tr><td><b>Backend</b> <span class="mono lock">uvicorn :8000</span></td><td><span class="chip ok">/health 200</span></td><td class="num mono">12 ms</td><td class="lock">commit a3f19c2 · alembic b3c4d5e6f7a8</td></tr>
+            <tr><td>Postgres</td><td><span class="chip ok">SELECT 1</span></td><td class="num mono">3 ms</td><td class="lock">1,21 Go · 37 tables</td></tr>
+            <tr><td>Redis</td><td><span class="chip ok">PING</span></td><td class="num mono">1 ms</td><td class="lock">file <span class="mono">production</span> : 2 en attente</td></tr>
+            <tr><td>MinIO</td><td><span class="chip ok">bucket zetis</span></td><td class="num mono">8 ms</td><td class="lock">648 Mo · privé</td></tr>
+            <tr><td>Ollama</td><td><span class="chip ok">/api/tags</span></td><td class="num mono">21 ms</td><td class="lock">qwen3.6:35b-a3b présent</td></tr>
+            <tr><td><b>worker</b> · production #1</td><td><span class="chip ok">battement 4 s</span></td><td class="num mono">—</td><td class="lock">démarré il y a 6 min · <b>code à jour</b></td></tr>
+            <tr><td><b>worker</b> · production #2</td><td><span class="chip warn">battement 4 s</span></td><td class="num mono">—</td><td><span style="color:#fbbf24">démarré il y a <b>163 min</b> — antérieur au dernier déploiement</span> <button class="btn sm" style="margin-left:6px">Redémarrer</button></td></tr>
+            <tr><td><b>worker</b> · media</td><td><span class="chip ok">battement 4 s</span></td><td class="num mono">—</td><td class="lock">réseau interne · aucun egress</td></tr>
+          </tbody>
+        </table>
+        <div class="row" style="gap:10px;align-items:center;margin-top:12px">
+          <span class="lock" style="font-size:12px">simuler un débranchement :</span>
+          <div class="seg" id="seg-ssd">
+            <button data-v="ok" aria-pressed="true">tout monté</button>
+            <button class="hot" data-v="mod" aria-pressed="false">SSD modèles absent</button>
+            <button class="hot" data-v="proj" aria-pressed="false">SSD projets absent</button>
+          </div>
+        </div>
+        <div class="precond hidden" id="ssd-box" style="margin-top:12px"></div>
+        <div class="note hard">
+          <b>Deux disques, deux pannes indépendantes — et elles n'ont ni la même gravité ni la même tête.</b>
+          <br>• <b>SSD modèles absent</b> : ZETIS démarre, l'interface est intacte, et <b>toute génération échoue</b>
+          sur « model not found ». Panne bruyante, diagnostic trompeur.
+          <br>🔴 • <b>SSD projets absent</b> : bien pire, parce que Docker <b>recrée un volume vide</b> plutôt que de
+          refuser — ZETIS démarre, <b>et il a l'air neuf</b>. Zéro matière, zéro progression, aucun message d'erreur.
+          Papa lirait ça comme « ZETIS a tout perdu » alors que les données sont intactes, sur un disque non monté.
+          <b>Le backend doit refuser de démarrer sur un volume dont l'UUID n'est pas celui attendu</b> — c'est
+          exactement le patron de l'assertion sur le mot de passe de dev.
+          <br>⚠️ <b>Le contrôle porte sur l'UUID du volume, pas sur son nom</b> : un nom se réutilise, et un autre disque
+          nommé <code>ZETIS-SSD</code> passerait le test en emportant l'erreur avec lui.
+        </div>
+        <div class="note hard">
+          <b>« Vivant » ne veut pas dire « à jour », et c'est le piège qui a coûté le plus cher.</b>
+          Un <code>SimpleWorker</code> RQ ne recharge <b>jamais</b> le code : le worker de 163 min a répondu
+          « Aucun exécutant pour <i>srs_cards_generate</i> » — un message qui se lit comme un bug du code.
+          La colonne utile n'est donc pas une pastille verte, c'est la <b>date de démarrage comparée au déploiement</b>,
+          avec le geste à côté.
+        </div>
+      </div>
+
+      <!-- ── Les deux frontends ── -->
+      <div class="card">
+        <h2>Les deux frontends</h2>
+        <table>
+          <thead><tr><th>Surface</th><th>Ce qu'on peut savoir</th><th>Version</th></tr></thead>
+          <tbody>
+            <tr><td><b>Papa</b> (cet écran)</td><td class="lock">vous le lisez : la question ne se pose pas</td><td><span class="chip ok">a3f19c2 — aligné</span></td></tr>
+            <tr><td><b>Massimo</b></td><td>dernière visite <b>hier 18 h 42</b> · 3 pages · 0 erreur remontée</td><td><span class="chip warn">e8b2d41 — 2 commits de retard</span></td></tr>
+          </tbody>
+        </table>
+        <div class="note hard">
+          <b>Un frontend ne peut pas déclarer qu'il est debout sur sa propre page</b> — si vous lisez la pastille,
+          elle est verte par construction. Et le backend ne sait pas si le navigateur de Massimo affiche quelque chose :
+          seul un navigateur le sait. Une lampe « front Massimo : ✅ » serait donc <b>une décoration qui ment</b>.
+          <br>Deux faits <b>réellement</b> serveur remplacent la lampe : sa <b>dernière visite</b> (ce que Papa veut savoir
+          quand il demande « est-ce que ça marche chez lui ? ») et l'<b>écart de version</b> — un front construit contre
+          une API plus ancienne est un mode de panne réel, silencieux, et mesurable.
+        </div>
+      </div>
+
+      <!-- ── Échecs ── -->
+      <div class="card">
+        <h2>Échecs <span class="chip bad">1 non acquitté</span></h2>
+        <table>
+          <thead><tr><th>Quand</th><th>Travail</th><th>Message du serveur</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">08-16 21:07</td>
+              <td>Équipement d'une notion<br><span class="lock mono">job 4c8e…21a</span></td>
+              <td class="mono" style="font-size:12px;color:#fb7185">Aucun exécutant pour "srs_cards_generate"</td>
+              <td><button class="btn sm">Acquitter</button></td>
+            </tr>
+            <tr class="locked">
+              <td class="mono">08-14 10:52</td>
+              <td>Rendu vidéo de capsule</td>
+              <td class="mono" style="font-size:12px">TimeoutError: page.screenshot exceeded 30000ms</td>
+              <td><span class="chip mute">acquitté</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>C'est ça, la vraie demande derrière « les logs ».</b> Le message existe déjà en base
+          (<code>ai_jobs.error_message</code>) — mais <code>JobOut</code> ne l'expose pas, donc un travail
+          <code>failed</code> est aujourd'hui <b>muet côté client</b>. L'acquittement est serveur
+          (<code>acknowledged_at</code>), jamais un <code>localStorage</code> : sinon l'échec réapparaît sur l'autre onglet.
+        </div>
+        <div class="renvoi" style="margin-top:12px;background:rgba(99,102,241,.07);border-color:rgba(99,102,241,.25)">
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" checked style="margin-top:3px">
+            <span><b>🔔 Me prévenir d'un échec</b><br><span style="color:var(--muted);font-size:12.5px">Aujourd'hui, il faut <i>venir voir</i>. Une alerte est plus honnête qu'une pastille découverte trois jours après.</span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- ── Journal technique ── -->
+      <details class="classes" style="margin-bottom:16px">
+        <summary>🔧 Journal technique — 200 dernières lignes <span class="chip mute">extrait structuré</span></summary>
+        <div class="inner">
+          <div class="row" style="gap:8px;margin-bottom:10px">
+            <span class="chip mute">api</span><span class="chip mute">worker-production</span><span class="chip mute">worker-media</span>
+            <span class="chip mute">niveau ≥ warning</span>
+            <button class="btn sm" style="margin-left:auto">⤓ Télécharger</button>
+          </div>
+          <table>
+            <thead><tr><th>Horodatage</th><th>Route / travail</th><th>Durée</th><th>Statut</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">21:07:14</td><td class="mono">worker · equip_notion · job 4c8e…21a</td><td class="num mono">1,2 s</td><td><span class="chip bad">failed</span></td></tr>
+              <tr><td class="mono">21:06:02</td><td class="mono">PUT /api/settings/autonomy</td><td class="num mono">41 ms</td><td><span class="chip ok">200</span></td></tr>
+              <tr><td class="mono">21:05:58</td><td class="mono">POST /api/production/runs</td><td class="num mono">88 ms</td><td><span class="chip ok">202</span></td></tr>
+              <tr><td class="mono">20:58:31</td><td class="mono">GET /api/student/mindmaps</td><td class="num mono">62 ms</td><td><span class="chip warn">304</span></td></tr>
+            </tbody>
+          </table>
+          <div class="note hard">
+            <b>Ce n'est pas un <code>docker logs</code> à l'écran, et ça ne doit jamais le devenir.</b>
+            <code>SECURITY.md</code> interdit d'y faire figurer mots de passe, tokens, clés d'API et le
+            <b>texte intégral d'une conversation de Massimo</b> — une sortie brute est exactement la façon dont un
+            secret finit dans une capture d'écran. Ce tableau ne montre que les <b>quatre champs prescrits</b> :
+            job id, route, durée, statut.
+            <br>⚠️ <b>Et c'est le plus faible des quatre blocs de cet onglet</b> : un terminal répond mieux à cette
+            question qu'une page web. Ce qui a de la valeur ici, c'est le bloc « Échecs » au-dessus — borné, structuré,
+            acquittable. À ne construire que si le besoin survit à cette remarque.
+          </div>
+        </div>
+      </details>
+
+      <div class="card">
+        <h2>7 derniers jours</h2>
+        <table>
+          <thead><tr><th>Travail</th><th>Réussis</th><th>Échoués</th><th>Durée médiane</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Rédaction de cours</td><td class="num">14</td><td class="num">0</td><td class="num mono">53,6 s</td><td></td></tr>
+            <tr><td>Équipement d'une notion</td><td class="num">11</td><td class="num">1</td><td class="num mono">69,0 s</td><td><button class="btn sm">Voir l'échec</button></td></tr>
+            <tr><td>Cartes SRS par matière</td><td class="num">6</td><td class="num">0</td><td class="num mono">28,4 s</td><td></td></tr>
+            <tr><td>Rendu vidéo de capsule</td><td class="num">3</td><td class="num">0</td><td class="num mono">4 min 11</td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="legend">143 traces d'appels LLM sur la période, non comptées ici — <span class="mono">created_by = "file"</span> seul.</div>
+        <div class="note">
+          <b>Ce tableau règle un défaut existant.</b> 23 surfaces déclarent chacune leur durée en dur — la rédaction
+          d'un cours en porte <b>cinq</b> (45 / 42 / 50 / 50 / 22 s), <code>equip_notion</code> en porte <b>quatre</b>,
+          et <b>une seule de ces valeurs a jamais été mesurée</b>. Une médiane serveur, une source.
+          <br>⚠️ Sans le filtre <code>created_by="file"</code>, l'estimation annonçait <b>7,2 s pour un travail de 53,6 s</b>.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Ce qui est sorti de la maison</h2>
+        <div class="kpis">
+          <div class="kpi"><div class="n">3</div><div class="l">appels sortants · 30 j</div></div>
+          <div class="kpi"><div class="n">2026-08-11</div><div class="l">dernier appel</div></div>
+          <div class="kpi"><div class="n">0</div><div class="l">donnée de Massimo transmise</div></div>
+          <div class="kpi"><div class="n">≈ 0,18 €</div><div class="l">coût cumulé</div></div>
+        </div>
+        <table style="margin-top:12px">
+          <thead><tr><th>Date</th><th>Tâche</th><th>Destinataire</th><th>Classe de données</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">08-11 14:22</td><td>curriculum_chapters</td><td class="mono">anthropic</td><td class="lock">niveau · matière · version de programme</td></tr>
+            <tr><td class="mono">08-11 14:31</td><td>curriculum_lessons</td><td class="mono">anthropic</td><td class="lock">idem + chapitres existants</td></tr>
+            <tr><td class="mono">07-29 09:04</td><td>curriculum_chapters</td><td class="mono">anthropic</td><td class="lock">idem</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>Ce n'est pas un tableau de coût, c'est un journal de confidentialité</b> — et c'est le compteur qui a
+          du sens ici. La production est 100 % locale : un tableau de bord de tokens afficherait ~0 € en dramatisant
+          le vide. La ressource rare n'est pas l'argent, c'est <b>un seul GPU à concurrence 1</b>.
+        </div>
+        <div class="note hard">
+          <b>Ce compteur-ci est licite, celui de l'autonomie ne l'est pas.</b> « Un régime, jamais un score » protège
+          la <i>provenance des contenus de Massimo</i>. Ici on compte des <b>sorties réseau</b>, pas de la délégation.
+          Ne jamais laisser ce bloc dériver vers « combien Papa a délégué ».
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Ce qui se règle en <code class="mono">.env</code> — visible, jamais éditable</h2>
+        <table>
+          <thead><tr><th>Réglage</th><th>Valeur active</th><th>Pourquoi pas un champ</th></tr></thead>
+          <tbody>
+            <tr><td>Lots en attente — plafond</td><td class="mono">PRODUCTION_MAX_PENDING = 3</td>
+              <td class="lock">un champ offrirait de désarmer le garde-fou pour « débloquer » un refus</td></tr>
+            <tr><td>Notions par lot — plafond</td><td class="mono">40</td><td class="lock">idem</td></tr>
+            <tr><td>Durée max d'un travail</td><td class="mono">PRODUCTION_JOB_TIMEOUT = 20 min</td>
+              <td class="lock">borne le balayage des zombies — la déplacer fait mentir une lecture</td></tr>
+            <tr><td>Intervalle de scan</td><td class="mono">180 min</td>
+              <td class="lock">seul réveil périodique du dépôt : le raccourcir coûte du GPU, l'allonger fait mentir des lectures</td></tr>
+            <tr><td>Niveau de log</td><td class="mono">INFO</td>
+              <td class="lock">un <code>debug</code> laissé actif écrirait des contenus dans les journaux</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>Les afficher est le point, pas les régler.</b> « Rien ne s'est passé depuis deux heures »
+          s'explique par l'intervalle de scan ; un refus de lot s'explique par un plafond. Ces valeurs
+          répondent à des questions qu'on se pose <b>devant un comportement</b>, pas devant un formulaire.
+          <br>⚠️ Un régulateur <b>refuse et le dit déjà</b>. Ce qu'il faut, c'est le montrer <b>à côté du refus</b>.
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Version installée</h2>
+        <div class="row">
+          <div class="grow"><div class="kv"><span class="k">Commit</span><span class="v mono">a3f19c2</span></div>
+            <div class="kv"><span class="k">Tête Alembic</span><span class="v mono">b3c4d5e6f7a8</span></div></div>
+          <div class="grow"><div class="kv"><span class="k">Mise à jour disponible</span><span class="v"><span class="chip warn">3 commits d'avance sur origin</span></span></div>
+            <div class="kv"><span class="k">Migrations en attente</span><span class="v"><span class="chip ok">aucune</span></span></div></div>
+        </div>
+        <div class="note hard">
+          <b>On affiche, on ne lance pas.</b> 🔴 Une mise à jour qui échoue à mi-chemin laisse l'application
+          dans un état que <b>la page elle-même ne peut plus décrire</b> — elle sert le code qu'elle est en
+          train de remplacer. Le <code>git pull</code> et les migrations restent au terminal ; savoir qu'il y
+          a quelque chose à faire, en revanche, n'a aucune raison d'attendre qu'on y pense.
+        </div>
+      </div>
+
+      <div class="card flat">
+        <h2>Sécurité de l'installation</h2>
+        <div class="precond" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.07);color:#fcd34d">
+          <span style="font-size:18px">⚠️</span>
+          <div><b>Le mot de passe de développement est en place.</b>
+            <span style="color:var(--muted)">Postgres accepte <code class="mono">zetis_dev_password</code>. Procédure de rotation sans perte de données : voir <code class="mono">DEPLOYMENT.md</code>.</span></div>
+        </div>
+        <div class="note">Les versions et les tailles sont remontées dans « Ce qui tourne » : elles répondent à la même
+          question que les sondes, et deux endroits qui portent la même mesure finissent par diverger.
+          L'onglet couvre désormais toute la liste « Monitoring MVP » de <code>DEPLOYMENT.md</code>, jamais implémentée —
+          taille DB, taille MinIO, erreurs de jobs, coût IA. Et le bandeau du mot de passe coûte trois lignes.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ══════════ MODALE D'ENREGISTREMENT (autonomie) ══════════ -->
+<div class="overlay" id="ov-save">
+  <div class="modal" id="save-modal">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <div class="avatar-sm" id="s-av" style="width:44px;height:44px;font-size:22px">🚀</div>
+      <h3 id="s-title" style="margin:0">Enregistrer ces réglages</h3>
+    </div>
+    <p id="s-lede"></p>
+    <div class="ecart" id="s-ecart"></div>
+    <div id="s-conseq"></div>
+    <div class="actions">
+      <button class="btn ghost" id="s-cancel">Garder mon contrôle</button>
+      <button class="btn primary" id="s-go">Enregistrer</button>
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>Le corps est l'ÉCART</b>, pas le panneau — qui reste affiché derrière. On ne confirme pas ce qui ne change pas :
+      les quatre classes verrouillées n'y figurent jamais. Renoncer <b>n'annule pas le brouillon</b> : Papa n'a pas retiré
+      son intention, il a refusé de la graver.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODALE DE REMISE À ZÉRO ══════════ -->
+<div class="overlay" id="ov">
+  <div class="modal">
+    <h3 id="m-title">⚠️ Remise à zéro — contenus générés</h3>
+    <p id="m-lede">Cette action est <b>définitive</b>. Aucun veto, aucun retrait : ce qui part ne revient pas.</p>
+    <div class="counts" id="m-counts"></div>
+    <p style="margin:0">Pour confirmer, écrivez <b class="mono" id="m-word">EFFACER</b> :</p>
+    <input type="text" id="m-input" autocomplete="off" placeholder="">
+    <div class="actions">
+      <button class="btn ghost" id="m-cancel">Garder mes données</button>
+      <button class="btn danger" id="m-go" disabled>Effacer définitivement</button>
+    </div>
+    <div class="note" style="margin-top:14px">
+      <b>La confirmation, c'est le décompte</b> — lu du serveur, jamais rédigé au front. Plus la frappe du mot.
+      Jamais un <code>confirm()</code> générique : ce qui est en jeu n'est pas générique.
+    </div>
+  </div>
+</div>
+
+<script>
+/* notes de conception */
+document.getElementById('notes').addEventListener('change', e => {
+  document.body.classList.toggle('notes', e.target.checked);
+});
+
+/* onglets */
+const panes = {inventaire:'p-inventaire', autonomie:'p-autonomie', massimo:'p-massimo', papa:'p-papa',
+               moteurs:'p-moteurs', donnees:'p-donnees', sante:'p-sante'};
+
+/* ════════ segmentés génériques (démo) ════════ */
+['seg-motion','seg-taille','seg-espace','seg-voix','seg-lock','seg-canal','seg-voix-ret'].forEach(id => {
+  const el = document.getElementById(id); if (!el) return;
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    el.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (id === 'seg-taille' || id === 'seg-espace') apercu();
+  }));
+});
+/* aperçu vivant de la lisibilité */
+const TAILLE = {s:'13px', m:'15px', l:'18px', xl:'22px'};
+function apercu(){
+  const t = document.querySelector('#seg-taille button[aria-pressed="true"]').dataset.v;
+  const e = document.querySelector('#seg-espace button[aria-pressed="true"]').dataset.v;
+  const el = document.getElementById('apercu-txt');
+  el.style.fontSize = TAILLE[t];
+  el.style.lineHeight = e === 'aere' ? '2.0' : '1.55';
+  el.style.maxWidth = e === 'aere' ? '46ch' : 'none';
+  el.style.letterSpacing = e === 'aere' ? '.01em' : 'normal';
+}
+apercu();
+/* vitesse de parole */
+const vit = document.getElementById('vitesse');
+if (vit) vit.addEventListener('input', () => {
+  document.getElementById('vitesse-v').textContent = (vit.value / 100).toFixed(2).replace('.', ',') + ' ×';
+});
+const ec = document.getElementById('ecouter');
+if (ec) ec.addEventListener('click', () => {
+  const v = document.querySelector('#seg-voix button[aria-pressed="true"]').textContent;
+  const s = (document.getElementById('vitesse').value / 100).toFixed(2).replace('.', ',');
+  ec.textContent = '🔊 ' + v + ' · ' + s + ' ×';
+  setTimeout(() => { ec.textContent = '▶︎ Écouter'; }, 1800);
+});
+
+/* ════════ INVENTAIRE — la carte de complétude ════════ */
+const I = (n,c,o,s,k)=>({n,c,o,s,k});
+const INV = [
+  // ── autorité
+  I('Régime d\'autonomie (Manual / Hybrid / Autonom)','ZETIS','ici · Autonomie','✅ livré','ici'),
+  I('Palier par classe de contenu (6 classes)','ZETIS','ici · Autonomie','✅ livré','ici'),
+  I('Déclencheur automatique — démarrer sans clic','ZETIS','ici · Autonomie','✅ livré','ici'),
+  I('Veto — retirer ce qui a été servi','ZETIS','ailleurs · Journal','✅ livré','ailleurs'),
+  I('Suspendre ZETIS / la file','ZETIS','ici · à construire','🟡 ADR rédigé (S0)','nulle'),
+  I('Régulateur de volume du palier 3','ZETIS','nulle part','❓ différé — ADR-0032 §5','decider'),
+  I('Plafonds de production (5 régulateurs)','machine','.env / en dur','❓ à exposer ?','decider'),
+  I('Intervalle de scan (180 min)','machine','.env','❓ à exposer ?','decider'),
+  // ── Massimo
+  I('Prénom, avatar de Massimo','Massimo','🟡 à vérifier — seed ?','🟡 read-before-code','nulle'),
+  I('Niveau et année scolaire active','Massimo','ailleurs · Années scolaires','✅ livré','ailleurs'),
+  I('Matières, thèmes, chapitres','Massimo','ailleurs · Matières / Programme','✅ livré','ailleurs'),
+  I('Heures de travail, jours','Massimo','ailleurs · Agenda','✅ livré','ailleurs'),
+  I('Engagement hebdomadaire','Massimo','chez Massimo','🚫 jamais ici — choisi par l\'enfant','ailleurs'),
+  I('Mouvement réduit / animations','Massimo','nulle part','❓ à décider','decider'),
+  I('Taille du texte, police (dyslexie)','Massimo','nulle part','❓ à décider','decider'),
+  I('Contraste renforcé','Massimo','nulle part','❓ à décider','decider'),
+  I('Sons et retours audio','Massimo','nulle part','❓ à décider','decider'),
+  I('Voix de synthèse (TTS)','Massimo','.env ?','🟡 read-before-code','decider'),
+  I('Vitesse de parole','Massimo','nulle part','❓ à décider','decider'),
+  I('Tutoiement, registre, longueur des fiches','Massimo','packages/prompts','⚠️ prompts versionnés, pas des cases','decider'),
+  I('Cartes de révision par jour','Massimo','en dur ?','❓ à décider','decider'),
+  I('Longueur des quiz','Massimo','en dur ?','❓ à décider','decider'),
+  I('Seuils de lacune / notion maîtrisée','Massimo','en dur','❓ à décider','decider'),
+  I('Fuseau horaire','Massimo','système','🔴 définit où commence la journée','decider'),
+  I('Vacances scolaires / zone','Massimo','nulle part','❓ à décider','decider'),
+  // ── Papa
+  I('Code parental / verrouillage auto','Papa','nulle part','🔴 manque sérieux','nulle'),
+  I('Mot de passe Papa, sessions, révocation','Papa','🟡 à vérifier','🟡 read-before-code','nulle'),
+  I('Alerte : un travail a échoué','Papa','ici · Santé','✅ conçu','ici'),
+  I('Alerte : relecture en attente depuis N jours','Papa','nulle part','❓ à décider','decider'),
+  I('Alerte : inactivité de Massimo','Papa','nulle part','⚠️ formulation sensible','decider'),
+  I('Résumé hebdomadaire','Papa','ailleurs · Conseil de classe','❓ pousser plutôt que refaire','decider'),
+  I('Canal e-mail / notification','Papa','.env (SMTP)','🟡 read-before-code','decider'),
+  I('Thème, densité, animations sidebar','Papa','nulle part','❓ à décider','decider'),
+  I('Page d\'accueil au démarrage','Papa','nulle part','❓ à décider','decider'),
+  // ── moteurs
+  I('Carte tâche → moteur → modèle','machine','ici · Moteurs','✅ conçu (lecture seule)','ici'),
+  I('Modèle de génération','machine','.env — lu au démarrage','🟡 v2, banc à rejouer','decider'),
+  I('Modèle d\'embeddings','machine','.env','🔒 verrouillé — migration + réindex','ici'),
+  I('Dérogation cloud (curriculum_*)','machine','.env + doctrine','🔒 verrouillé — ADR-0009','ici'),
+  I('Clé API Anthropic','machine','.env','🚫 jamais dans l\'UI','ailleurs'),
+  I('Modèle de dictée (Whisper)','machine','.env','🔒 local par doctrine','ici'),
+  I('Tester le moteur','machine','ici · Moteurs','✅ conçu','ici'),
+  I('Prompts actifs et leur version','machine','packages/prompts','❓ à exposer en lecture ?','decider'),
+  // ── données
+  I('Sauvegarder','machine','ici · Données','✅ conçu','ici'),
+  I('Vérifier — restauration à blanc','machine','ici · Données','✅ conçu','ici'),
+  I('Restaurer','machine','ici · zone rouge','✅ conçu','ici'),
+  I('Cible de sauvegarde (2ᵉ disque)','machine','ici · Données','✅ conçu','ici'),
+  I('Copie hors du bureau des PDF','machine','nulle part','🔴 question ouverte','nulle'),
+  I('Occupation disque par famille','machine','ici · Données','✅ conçu','ici'),
+  I('Cohérence Postgres ↔ MinIO','machine','ici · Données','✅ conçu','ici'),
+  I('Purges de rétention (traces, rendus, audio)','machine','ici · Données','✅ conçu','ici'),
+  I('Remises à zéro portées','machine','ici · Données','✅ conçu','ici'),
+  I('Réinitialisation totale','machine','ici · zone rouge','❓ mérite-t-elle un bouton ?','decider'),
+  I('Export « données de Massimo » (RGPD)','Massimo','ici · Données','❓ un geste ou deux ?','decider'),
+  I('Supprimer une donnée précise (voix, production)','Massimo','nulle part','❓ à décider','decider'),
+  I('Niveau et rétention des logs','machine','.env','❓ à exposer ?','decider'),
+  // ── santé
+  I('Services, sondes, latences','machine','ici · Santé','✅ conçu','ici'),
+  I('Volumes montés + UUID attendus','machine','ici · Santé','✅ conçu','ici'),
+  I('Workers : vivants ET à jour','machine','ici · Santé','✅ conçu','ici'),
+  I('Écart de version front / API','machine','ici · Santé','✅ conçu','ici'),
+  I('Dernière visite de Massimo','machine','ici · Santé','✅ conçu','ici'),
+  I('Échecs + acquittement','machine','ici · Santé','🟡 déjà livré par ADR-0041 ?','ici'),
+  I('Journal technique','machine','ici · Santé','⚠️ le bloc le plus faible','decider'),
+  I('Ce qui est sorti de la maison','machine','ici · Santé','✅ conçu','ici'),
+  I('Mot de passe de dev en place','machine','ici · Santé','✅ conçu','ici'),
+  I('Mise à jour (git pull + migrations)','machine','terminal','❓ à exposer ?','decider'),
+  I('Redémarrer un service','machine','terminal','❓ à exposer ?','decider'),
+  I('Accès distant (VPN, HTTPS, CORS)','machine','.env / infra','🚫 hors UI','ailleurs')
+];
+const COULEUR = o => o.startsWith('ici') ? 'ok' : o.startsWith('ailleurs') || o.startsWith('chez') ? 'cloud'
+                   : o.includes('.env') || o === 'terminal' || o.includes('système') || o.includes('prompts') ? 'mute' : 'warn';
+let invF = 'tous';
+function rendreInv(){
+  const q = (document.getElementById('inv-q').value || '').toLowerCase().trim();
+  const rows = INV.filter(r =>
+    (invF === 'tous' || r.k === invF) &&
+    (!q || (r.n + ' ' + r.c + ' ' + r.o + ' ' + r.s).toLowerCase().includes(q)));
+  document.getElementById('inv-body').innerHTML = rows.map(r =>
+    '<tr><td>' + r.n + '</td><td><span class="lock">' + r.c + '</span></td>' +
+    '<td><span class="chip ' + COULEUR(r.o) + '">' + r.o + '</span></td>' +
+    '<td class="lock">' + r.s + '</td></tr>').join('') ||
+    '<tr><td colspan="4" class="lock">aucun réglage ne correspond.</td></tr>';
+  const n = k => INV.filter(r => r.k === k).length;
+  document.getElementById('inv-count').innerHTML =
+    rows.length + ' / ' + INV.length + ' réglages · <b>' + n('ici') + '</b> ici · ' +
+    n('ailleurs') + ' ailleurs · ' + n('nulle') + ' nulle part · <b>' + n('decider') + ' à décider</b>';
+}
+document.getElementById('inv-q').addEventListener('input', rendreInv);
+document.querySelectorAll('#inv-f button').forEach(b => b.addEventListener('click', () => {
+  invF = b.dataset.f;
+  document.querySelectorAll('#inv-f button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  rendreInv();
+}));
+rendreInv();
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  Object.entries(panes).forEach(([k, id]) =>
+    document.getElementById(id).classList.toggle('hidden', k !== t.dataset.t));
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}));
+
+/* ════════ ZETIS LEVELS — six clés plates, niveau DÉRIVÉ (démo fidèle) ════════ */
+const PALIERS = {                        // ce qu'un niveau ÉCRIT (deux classes libres)
+  manual:  {a0a:'valide', a1:'valide'},
+  hybrid:  {a0a:'sert',   a1:'valide'},
+  autonom: {a0a:'sert',   a1:'sert'}
+};
+const META = {
+  manual:  {av:'🔒', nom:'MANUAL',     grad:'linear-gradient(90deg,#2563eb,#3b82f6)'},
+  hybrid:  {av:'⚖️', nom:'HYBRID',     grad:'linear-gradient(90deg,#3b82f6,#a855f7)'},
+  autonom: {av:'🚀', nom:'AUTONOM',    grad:'linear-gradient(90deg,#6366f1,#e879f9)'},
+  sur:     {av:'🎛', nom:'SUR MESURE', grad:'linear-gradient(90deg,#0891b2,#22d3ee)'}
+};
+const MOT = {valide:'Vous validez', sert:'ZETIS sert'};
+const RANG = {valide:2, sert:3};
+
+let serveur   = {a0a:'sert', a1:'valide'};   // état lu du serveur (hybrid)
+let brouillon = {...serveur};
+let trigServeur = false, trigBrouillon = false;
+
+const niveauDe = v => Object.keys(PALIERS).find(k =>
+  PALIERS[k].a0a === v.a0a && PALIERS[k].a1 === v.a1) || 'sur';
+
+function rendre(){
+  const nivB = niveauDe(brouillon), nivS = niveauDe(serveur);
+  const propre = brouillon.a0a === serveur.a0a && brouillon.a1 === serveur.a1 && trigBrouillon === trigServeur;
+
+  // cartes
+  document.querySelectorAll('.level').forEach(b => b.classList.toggle('on', b.dataset.lvl === nivB));
+  // panneau (au repos = niveau actif ; sinon = sélection)
+  const m = META[nivB];
+  document.getElementById('pan-av').textContent = m.av;
+  document.getElementById('pan-name').textContent = m.nom;
+  document.getElementById('pan-state').textContent = propre ? 'niveau actif' : 'ce que ce niveau déciderait';
+  document.getElementById('pan-sur').classList.toggle('hidden', nivB !== 'sur');
+  document.getElementById('a0a').textContent = MOT[brouillon.a0a];
+  document.getElementById('a1').textContent  = MOT[brouillon.a1];
+  // segmentés
+  document.querySelectorAll('#seg-a0a button, #seg-a1 button').forEach(b =>
+    b.setAttribute('aria-pressed', String(brouillon[b.dataset.c] === b.dataset.v)));
+  // déclencheur
+  document.getElementById('trig').checked = trigBrouillon;
+  document.getElementById('trig-chip').textContent = trigBrouillon ? '⚡ démarre seul' : '⏸ démarre sur clic';
+  // actions
+  document.getElementById('save-btn').disabled = propre;
+  document.getElementById('cancel-btn').disabled = propre;
+  document.getElementById('save-hint').textContent = propre
+    ? 'Aucun changement à écrire.'
+    : 'Brouillon non enregistré — le serveur est toujours sur ' + META[nivS].nom + '.';
+  // sidebar : LIT, ne règle pas — donc elle suit le SERVEUR, jamais le brouillon
+  const s = META[nivS];
+  const badge = document.querySelector('.badge-regime');
+  badge.textContent = (trigServeur ? '⚡ ' : '⏸ ') + s.nom;
+  badge.style.background = s.grad;
+  document.querySelector('.avatar').firstChild.textContent = s.av;
+}
+
+document.querySelectorAll('.level').forEach(b => b.addEventListener('click', () => {
+  brouillon = {...PALIERS[b.dataset.lvl]};   // un niveau n'écrit QUE les deux classes libres
+  rendre();
+}));
+
+/* monotonie : servir le cours force les dérivés ; l'état inverse n'est pas offert */
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  const {c, v} = b.dataset;
+  brouillon[c] = v;
+  if (c === 'a1' && v === 'sert')   brouillon.a0a = 'sert';
+  if (c === 'a0a' && v === 'valide') brouillon.a1 = 'valide';
+  rendre();
+}));
+
+document.getElementById('trig').addEventListener('change', e => { trigBrouillon = e.target.checked; rendre(); });
+document.getElementById('cancel-btn').addEventListener('click', () => {
+  brouillon = {...serveur}; trigBrouillon = trigServeur; rendre();
+});
+
+/* ── modale d'enregistrement : trois tons, corps = l'écart ── */
+const ovs = document.getElementById('ov-save');
+document.getElementById('save-btn').addEventListener('click', () => {
+  const changes = ['a0a','a1'].filter(k => brouillon[k] !== serveur[k]);
+  const monte = changes.some(k => RANG[brouillon[k]] > RANG[serveur[k]]);
+  const forte = serveur.a1 === 'valide' && brouillon.a1 === 'sert';
+  const niv = META[niveauDe(brouillon)];
+
+  const mod = document.getElementById('save-modal');
+  mod.className = 'modal ' + (forte ? '' : monte ? 'up' : 'soft');
+  document.getElementById('s-av').textContent = niv.av;
+
+  document.getElementById('s-title').textContent = forte
+    ? '⚠️ Vous retirez le dernier contrôle humain'
+    : 'Passer en ' + niv.nom;
+  document.getElementById('s-lede').innerHTML = forte
+    ? "Aujourd'hui, le cours est le seul contenu de ZETIS qui passe devant vous avant d'atteindre Massimo. Les fiches, les cartes, les quiz partent déjà sans relecture."
+    : monte ? 'Ces réglages <b>retirent du contrôle</b>.' : 'Ces réglages <b>vous rendent du contrôle</b>.';
+
+  const lignes = changes.map(k => {
+    const nom = k === 'a0a' ? 'Dérivés inertes' : 'Rédaction de cours';
+    return '<div class="line"><span>' + nom + '</span><span><span class="lock">' + MOT[serveur[k]] +
+           '</span> <span class="arrow">→</span> <b>' + MOT[brouillon[k]] + '</b></span></div>';
+  });
+  if (trigBrouillon !== trigServeur) lignes.push('<div class="line"><span>Déclencheur automatique</span><span><span class="lock">' +
+    (trigServeur ? 'armé' : 'désarmé') + '</span> <span class="arrow">→</span> <b>' + (trigBrouillon ? 'armé' : 'désarmé') + '</b></span></div>');
+  document.getElementById('s-ecart').innerHTML = '<b>Ce qui va être écrit :</b>' + lignes.join('');
+
+  document.getElementById('s-conseq').innerHTML = forte
+    ? '<ul style="color:var(--muted);font-size:13px;padding-left:20px;margin:0">' +
+      '<li>publication immédiate, sans relecture</li>' +
+      '<li>marquage « servi par une règle que vous avez posée »</li>' +
+      "<li>retrait possible tant que Massimo n'a pas ouvert</li>" +
+      '<li><b>revenir en arrière arrête la suite — ça ne retire pas ce qui est déjà servi</b></li></ul>'
+    : '';
+  document.getElementById('s-cancel').textContent = monte || forte ? 'Garder mon contrôle' : 'Annuler';
+  const go = document.getElementById('s-go');
+  go.textContent = forte ? 'Je comprends, laisser ZETIS servir' : 'Enregistrer';
+  go.className = 'btn ' + (forte ? 'amber' : 'primary');
+  ovs.classList.add('on');
+});
+document.getElementById('s-cancel').addEventListener('click', () => ovs.classList.remove('on'));  // le brouillon SURVIT
+ovs.addEventListener('click', e => { if (e.target === ovs) ovs.classList.remove('on'); });
+document.getElementById('s-go').addEventListener('click', () => {
+  serveur = {...brouillon}; trigServeur = trigBrouillon;   // écriture acceptée
+  ovs.classList.remove('on'); rendre();
+});
+rendre();
+
+/* test du moteur */
+const tb = document.getElementById('test-btn'), to = document.getElementById('test-out');
+tb.addEventListener('click', () => {
+  tb.disabled = true; to.style.color = 'var(--muted)';
+  to.textContent = 'appel en cours — un vrai prompt, pas un ping…';
+  setTimeout(() => {
+    to.innerHTML = '<span style="color:var(--accent-2)">✅ 5,8 s · 41 tok/s · JSON valide · qwen3.6:35b-a3b</span>';
+    tb.disabled = false;
+  }, 1600);
+});
+
+/* ════════ volume des modèles : monté / débranché ════════ */
+const VOL = {
+  ok:  {chips:['ok','ok','ok'], box:null},
+  off: {chips:['ok','bad','bad'],
+        box:'<span style="font-size:18px">⛔</span><div><b>Volume des modèles absent — le lien symbolique pend.</b>' +
+            '<br><span style="color:var(--muted)">Ollama répond, mais <b>0 modèle</b> résolu. Toute génération échouerait sur ' +
+            '« model not found » — un message qui se lit comme un bug du code. <b>Le backend doit refuser de démarrer</b> ' +
+            'dans cet état, pas servir une page qui a l\'air saine.</span></div>'}
+};
+document.querySelectorAll('#seg-vol button').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.v, v = VOL[k];
+  document.querySelectorAll('#seg-vol button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const chips = document.querySelectorAll('#p-moteurs .row .chip');
+  ['ok','off'].length;                                  // (les 3 premières pastilles : ollama, volume, modèle)
+  chips[0].className = 'chip ' + v.chips[0];
+  chips[1].className = 'chip ' + v.chips[1];
+  chips[1].textContent = k === 'ok' ? '● volume des modèles monté' : '● volume des modèles ABSENT';
+  chips[2].className = 'chip ' + v.chips[2];
+  chips[2].textContent = k === 'ok' ? '● qwen3.6:35b-a3b présent · 21,4 Go' : '● 0 modèle résolu';
+  const box = document.getElementById('vol-box');
+  box.classList.toggle('hidden', !v.box);
+  if (v.box) box.innerHTML = v.box;
+}));
+
+/* ════════ les deux SSD : deux pannes indépendantes ════════ */
+const SSD = {
+  ok: {proj:['ok','monté'], mod:['ok','monté'], box:null},
+  mod:{proj:['ok','monté'], mod:['bad','ABSENT'],
+       box:'<span style="font-size:18px">⚠️</span><div><b>SSD modèles absent — ZETIS tourne, mais ne produit plus rien.</b>' +
+           '<br><span style="color:var(--muted)">Le lien pend, Ollama résout <b>0 modèle</b>. Interface intacte, ' +
+           'toute génération échoue sur « model not found ». Panne bruyante, diagnostic trompeur — et la sauvegarde ' +
+           'n\'a plus de cible.</span></div>', border:'rgba(245,158,11,.4)'},
+  proj:{proj:['bad','ABSENT'], mod:['ok','monté'],
+       box:'<span style="font-size:18px">🔴</span><div><b>SSD projets absent — et c\'est le pire des deux.</b>' +
+           '<br><span style="color:var(--muted)">Docker <b>recrée un volume vide</b> plutôt que de refuser : ZETIS ' +
+           'démarre et <b>il a l\'air neuf</b>. Zéro contenu, zéro progression, aucune erreur. Ça se lit comme ' +
+           '« ZETIS a tout perdu » alors que les données sont intactes sur un disque non monté. ' +
+           '<b>Le backend doit refuser de démarrer</b> si l\'UUID du volume n\'est pas celui attendu.</span></div>',
+       border:'rgba(244,63,94,.45)'}
+};
+document.querySelectorAll('#seg-ssd button').forEach(b => b.addEventListener('click', () => {
+  const s = SSD[b.dataset.v];
+  document.querySelectorAll('#seg-ssd button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  [['v-proj', s.proj], ['v-mod', s.mod]].forEach(([id, st]) => {
+    const c = document.querySelector('#' + id + ' .chip');
+    c.className = 'chip ' + st[0]; c.textContent = st[1];
+  });
+  const box = document.getElementById('ssd-box');
+  box.classList.toggle('hidden', !s.box);
+  if (s.box) { box.innerHTML = s.box; box.style.borderColor = s.border; }
+}));
+
+/* ════════ vérification : restauration à blanc ════════ */
+const VSTEPS = [
+  'création de la base jetable <span class="mono">zetis_verify</span>…',
+  'restauration du dump — 37 tables…',
+  'comptage : <b>41 812 lignes</b> — conforme au manifeste ✅',
+  'contrôle du couple MinIO : <b>1 204 / 1 204 objets</b> ✅',
+  'destruction de <span class="mono">zetis_verify</span> ✅'
+];
+const vb = document.getElementById('verif-btn'), vs = document.getElementById('verif-steps');
+vb.addEventListener('click', () => {
+  vb.disabled = true; vs.classList.remove('hidden'); vs.innerHTML = '';
+  VSTEPS.forEach((s, i) => setTimeout(() => {
+    vs.insertAdjacentHTML('beforeend', '<div class="line"><span>' + s + '</span></div>');
+    if (i === VSTEPS.length - 1) {
+      const k = document.getElementById('kpi-verif');
+      k.className = 'kpi'; k.style.borderColor = 'rgba(16,185,129,.35)'; k.style.background = 'rgba(16,185,129,.07)';
+      k.innerHTML = '<div class="n">vérifiée</div><div class="l">restaurée à blanc le 17/08</div>';
+      const mc = document.getElementById('mot-chip');
+      mc.className = 'chip ok'; mc.textContent = 'le mot est mérité';
+      vs.insertAdjacentHTML('beforeend',
+        '<div class="line" style="border-top:1px solid var(--border);margin-top:6px;padding-top:9px">' +
+        '<b style="color:var(--accent-2)">Le chemin du retour existe — et il a été joué.</b></div>');
+      vb.disabled = false;
+    }
+  }, 420 * (i + 1)));
+});
+
+/* ════════ verdict de compatibilité du manifeste ════════ */
+const VERDICTS = {
+  ok: {
+    alembic: 'b3c4d5e6f7a8',
+    html: '<span style="font-size:18px">✅</span><div><b>Compatible.</b><br><span style="color:var(--muted)">Même tête Alembic que le code installé. Aucune migration à jouer.</span></div>',
+    step4: ['chip mute', 'sans objet'], pre: '✅ verdict de compatibilité : <b>compatible</b>', border: 'rgba(16,185,129,.3)'
+  },
+  old: {
+    alembic: '5678d02df7f6',
+    html: '<span style="font-size:18px">⚠️</span><div><b>Archive plus ancienne que le code.</b><br><span style="color:var(--muted)">4 migrations à jouer <b>après</b> la restauration, jamais avant : <span class="mono">alembic upgrade head</span>. L\'ordre inverse restaure un schéma déjà migré et échoue à mi-chemin.</span></div>',
+    step4: ['chip warn', '4 migrations'], pre: '⚠️ verdict : <b>plus ancienne</b> — 4 migrations à jouer', border: 'rgba(245,158,11,.35)'
+  },
+  new: {
+    alembic: 'f9a1c7b30e42',
+    html: '<span style="font-size:18px">⛔</span><div><b>Refusée — archive plus récente que le code installé.</b><br><span style="color:var(--muted)">Le serveur rend <span class="mono">422</span> : rendre des données à un code plus ancien est le chemin le plus court vers une corruption silencieuse. Mettez le code à jour d\'abord (<span class="mono">git pull</span>), puis revenez.</span></div>',
+    step4: ['chip bad', 'impossible'], pre: '⛔ verdict de compatibilité : <b>refusée</b>', border: 'rgba(244,63,94,.4)'
+  }
+};
+function rendreVerdict(k){
+  const v = VERDICTS[k];
+  document.getElementById('man-alembic').textContent = v.alembic;
+  const box = document.getElementById('verdict-box');
+  box.innerHTML = v.html; box.style.borderColor = v.border;
+  const s4 = document.getElementById('step4');
+  s4.className = v.step4[0]; s4.textContent = v.step4[1];
+  document.getElementById('pre-1').innerHTML = v.pre;
+  document.querySelectorAll('#seg-verdict button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.v === k)));
+}
+document.querySelectorAll('#seg-verdict button').forEach(b =>
+  b.addEventListener('click', () => rendreVerdict(b.dataset.v)));
+rendreVerdict('ok');
+
+/* modale de remise à zéro */
+const RESETS = {
+  contenus:    {t:'contenus générés',        c:['412 fiches','88 quiz','31 cartes mentales','604 cartes SRS','12 capsules'], w:'EFFACER'},
+  progression: {t:'progression de Massimo',  c:['1 240 tentatives','tout l\'XP et les séries','la mémoire espacée'],          w:'EFFACER'},
+  programme:   {t:'programme',               c:['7 matières','94 chapitres','311 leçons','+ tout ce qui en dérive (cascade)'], w:'PROGRAMME'},
+  rag:         {t:'sources RAG',             c:['18 documents','4 902 chunks','les embeddings associés'],                     w:'EFFACER'},
+  traces:      {t:'traces LLM de plus de 30 jours', c:['1 894 traces d\'appels','210 Mo dans Postgres','⚠️ les travaux de file et leurs échecs sont CONSERVÉS'], w:'PURGER'},
+  rendus:      {t:'rendus vidéo de plus de 30 jours', c:['9 fichiers MP4','412 Mo dans MinIO','⚠️ les specs de capsule restent — chaque rendu se refait en ~4 min'], w:'PURGER'},
+  audio:       {t:'audio TTS de plus de 30 jours', c:['61 fichiers','118 Mo dans MinIO','⚠️ régénérable à la demande'], w:'PURGER'},
+  orphelins:   {t:'objets orphelins',        c:['34 objets MinIO que plus aucune ligne ne réclame','74 Mo','⚠️ vérifié ligne à ligne — aucun objet réclamé ne part'], w:'EFFACER'}
+};
+const ov = document.getElementById('ov'), inp = document.getElementById('m-input'), go = document.getElementById('m-go');
+let need = 'EFFACER';
+document.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => {
+  const r = RESETS[b.dataset.reset];
+  document.getElementById('m-title').textContent = '⚠️ Remise à zéro — ' + r.t;
+  document.getElementById('m-counts').innerHTML =
+    '<b>Ceci supprimera définitivement :</b><ul style="margin:8px 0 0;padding-left:20px">' +
+    r.c.map(x => '<li>' + x + '</li>').join('') + '</ul>';
+  need = r.w;
+  document.getElementById('m-word').textContent = need;
+  inp.value = ''; inp.placeholder = need; go.disabled = true;
+  ov.classList.add('on'); inp.focus();
+}));
+inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== need; });
+document.getElementById('m-cancel').addEventListener('click', () => ov.classList.remove('on'));
+ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('on'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') ov.classList.remove('on'); });
+go.addEventListener('click', () => { ov.classList.remove('on'); });
+</script>
+</body>
+</html>
