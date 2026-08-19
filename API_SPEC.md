@@ -2975,5 +2975,27 @@ Enfile le travail `backup_create` (file prioritaire, `created_by="file"`, concur
 Le résultat du travail (`output_json`) porte : `archive` (nom du tar), `taille`, `sha256`,
 `lignes`, `tables`, `objets_minio`, `fichiers_audio`, `tete_alembic`.
 
-> Slice 2 ajoutera `POST /donnees/verification` (`backup_verify`) ; slice 3, `GET /donnees`
-> (l'état : archives via sidecars, certificat, dernière vérification).
+### POST `/api/settings/donnees/verification`
+
+Enfile `backup_verify` sur UNE archive désignée (ADR-0065 §6) — la restauration à blanc dans
+`zetis_verify`, toujours détruite (`DROP … WITH (FORCE)` en `finally`), la base `zetis` jamais
+touchée.
+
+- **Corps** : `{ "archive": "zetis-AAAA-MM-JJ-hhmm.tar" }` — un **nom**, jamais un chemin. Le
+  serveur le confronte à la whitelist stricte de ce format : le champ vient du client, tout autre
+  contenu (séparateurs, motifs `..`) est une traversée de répertoire.
+- **202** `{job_id, status}` — métadonnées d'enfilement seulement.
+- **409 fail-closed, AVANT d'enfiler** : nom hors whitelist · archive introuvable sur la cible ·
+  sidecar `.sha256` absent (sans empreinte de référence, la vérification ne prouverait rien) · un
+  travail de sauvegarde déjà en `queued|running` — `backup_create` **comme** `backup_verify` :
+  vérifier pendant une création lirait un tar en cours d'écriture.
+
+🔴 **Le VERDICT vit dans l'`output_json` du travail** (ADR §6) — y compris un verdict d'échec,
+écarts nommés : `{archive, sha256, verdict: reussie|echec, ecarts: [...], verifie_le,
+lignes_restaurees?, tables_restaurees?, tete_alembic?}`. Un travail `failed` signifie « le
+dispositif n'a pas pu vérifier » (archive disparue, Postgres injoignable), jamais « l'archive est
+mauvaise ». L'autorité des comparaisons est le **manifeste scellé DANS le tar** — le sidecar
+`.manifeste.json` n'est qu'une copie de lecture, le falsifier ne change pas le verdict.
+
+> Slice 3 : `GET /donnees` (l'état — archives via sidecars, certificat, dernière vérification lue
+> dans l'`output_json` du dernier `backup_verify`).

@@ -289,9 +289,23 @@ def _backup_create(_db, _payload: dict, _llm, _embedder) -> dict:
     return sauvegarde.creer_sauvegarde()
 
 
+def _backup_verify(_db, payload: dict, _llm, _embedder) -> dict:
+    """La restauration à blanc (ADR-0065 §6) — même régime que `_backup_create` : ni LLM ni
+    session (les comptes se relisent dans `zetis_verify`, par une connexion dédiée autocommit).
+
+    ⚠️ Le VERDICT — y compris un verdict d'échec, écarts nommés — est la SORTIE du travail
+    (`output_json`, §6) : une vérification qui a couru jusqu'au bout est un travail `succeeded`.
+    L'exception (donc `failed`) reste réservée au dispositif cassé.
+    """
+    from app.modules.settings import sauvegarde
+
+    return sauvegarde.verifier_sauvegarde(str(payload["archive"]))
+
+
 # `job_type` → l'exécutant, qui reçoit `input_json`.
 _EXECUTANTS = {
     "backup_create": _backup_create,
+    "backup_verify": _backup_verify,
     "srs_cards_generate": _srs_cards_generate,
     "capsule_generate": _capsule_generate,
     "capsule_regenerate": _capsule_regenerate,

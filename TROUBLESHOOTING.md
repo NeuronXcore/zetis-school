@@ -4,6 +4,24 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `feat/sauvegarde-qui-se-merite-2` — slice 2 (`backup_verify`) — 2026-08-19
+
+### 🔴 psycopg3 ouvre une transaction IMPLICITE — `CREATE DATABASE` la refuse
+
+Mesuré sur le conteneur d'essai `pgvector:pg16` : `psycopg.connect(dsn)` puis
+`conn.execute("CREATE DATABASE …")` → `ActiveSqlTransaction: CREATE DATABASE cannot run inside a
+transaction block`. psycopg3 démarre une transaction au premier ordre, même sans `BEGIN` explicite
+— le piège ne se voit pas en relisant le code.
+
+**Parade** : `psycopg.connect(dsn, autocommit=True)` pour toute connexion qui fait du DDL de base
+(`CREATE`/`DROP DATABASE`). C'est l'INVERSE exact de `_instantane` (slice 1), qui tient exprès une
+transaction `REPEATABLE READ` ouverte pendant `pg_dump --snapshot`. Les deux connexions dédiées de
+`settings/sauvegarde.py` ont donc des régimes opposés, chacune pour une raison écrite sur place.
+
+**Au passage, vérifié aussi** : `DROP DATABASE IF EXISTS … WITH (FORCE)` (pg13+) passe sur pg16 et
+**tue une connexion encore tenue** sur la base (`AdminShutdown` côté connexion, le DROP réussit) —
+c'est ce qui rend le ménage d'une vérification interrompue et le `DROP` du `finally` robustes.
+
 ## `feat/sauvegarde-qui-se-merite` — slice 1 — 2026-08-19
 
 ### 🔴 Un script HÔTE testé sous le bac à sable de l'agent PEND — ce n'est pas un défaut du script

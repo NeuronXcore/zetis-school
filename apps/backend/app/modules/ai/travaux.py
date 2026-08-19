@@ -119,8 +119,9 @@ AMORCES_MS: dict[str, int] = {
     "capsule_render": 75_000,
     # ⚠️ Au-dessus du PLANCHER_MS, et c'est voulu (ADR-0065 §Conséquences) : le cycle réel mesuré
     # tient sous la seconde aujourd'hui — un travail sous 2 s n'apprend rien à la barre, donc
-    # cette amorce restera la valeur servie tant que l'archive reste petite. Très bien ainsi.
+    # ces amorces resteront les valeurs servies tant que l'archive reste petite. Très bien ainsi.
     "backup_create": 10_000,
+    "backup_verify": 10_000,
 }
 
 # En dessous, la statistique n'est pas une mesure mais un accident : un seul travail lent la

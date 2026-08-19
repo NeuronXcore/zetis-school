@@ -38,6 +38,7 @@ import hashlib
 import io
 import json
 import logging
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -61,8 +62,17 @@ CERTIFICAT = ".zetis-cible.json"
 #: Nommé dans les motifs de refus : un cadenas dit pourquoi ET quoi faire (adr-0062 §6).
 SCRIPT_CERTIFICATION = "scripts/certifier-cible-sauvegarde.sh"
 
-#: Le `job_type` de la file (ADR-0065 §4). Slice 2 ajoutera `backup_verify`.
+#: Les deux `job_type` de la file (ADR-0065 §4 et §6).
 JOB_TYPE = "backup_create"
+JOB_TYPE_VERIFY = "backup_verify"
+
+#: Le nom d'archive tel que `creer_sauvegarde` le fabrique — et RIEN d'autre. Le nom de la route
+#: de vérification vient du CLIENT : sans cette whitelist, `../` ou un chemin absolu ferait lire
+#: n'importe quel fichier du conteneur (traversée de répertoire). Aucun séparateur ne peut passer.
+_NOM_ARCHIVE = re.compile(r"^zetis-\d{4}-\d{2}-\d{2}-\d{4}\.tar$")
+
+#: La base jetable de la restauration à blanc (§6) — le nom vient du BACKLOG, repris par l'ADR.
+VERIFY_DB = "zetis_verify"
 
 #: Les exclusions du §2, écrites DANS le manifeste pour que Papa ne croie jamais sa restauration
 #: complète. La liste vit ici, pas dans une f-string du pipeline : la slice 3 l'affichera telle
@@ -150,8 +160,8 @@ def _certificat_refus(dossier: Path) -> str | None:
     return None
 
 
-def _sauvegarde_en_cours(db: Session) -> int | None:
-    """L'id d'un `backup_create` en `queued|running`, ou `None`.
+def _en_file_ou_en_cours(db: Session, types: tuple[str, ...]):
+    """La ligne `(id, job_type)` d'un travail de sauvegarde en `queued|running`, ou `None`.
 
     🔴 Read-before-code (§Suivi 4) : **rien d'autre ne l'empêche.** Le régulateur `duplicate` vit
     sur `create_run` (les LOTS) ; `travaux.enfiler` crée et enfile sans regarder les doublons.
@@ -159,10 +169,18 @@ def _sauvegarde_en_cours(db: Session) -> int | None:
     tiendrait la file (concurrence 1) pour ne rien produire de plus.
     """
     return db.execute(
-        select(AIJob.id)
-        .where(AIJob.job_type == JOB_TYPE, AIJob.status.in_(("queued", "running")))
+        select(AIJob.id, AIJob.job_type)
+        .where(AIJob.job_type.in_(types), AIJob.status.in_(("queued", "running")))
         .limit(1)
-    ).scalar()
+    ).first()
+
+
+def _sauvegarde_en_cours(db: Session) -> int | None:
+    """L'id d'un `backup_create` en `queued|running`, ou `None` — le refus de la route de CRÉATION
+    ne regarde que son propre type : une vérification en file ne bloque pas une sauvegarde (elles
+    lisent des tars différents, et la concurrence 1 les sérialise de toute façon)."""
+    ligne = _en_file_ou_en_cours(db, (JOB_TYPE,))
+    return ligne.id if ligne is not None else None
 
 
 def refus(db: Session) -> str | None:
@@ -486,3 +504,237 @@ def refus_hors_file() -> str | None:
     """La part du refus que le WORKER peut revérifier sans session (défense en profondeur) :
     le certificat seul — le doublon, lui, n'a de sens qu'avant l'enfilement."""
     return _certificat_refus(Path(settings.backup_dir))
+
+
+# --- La vérification : restauration à blanc dans `zetis_verify` (§6) -----------------------------
+#
+# 🔴 **Verdict ≠ échec de job, et c'est l'ADR §6 qui tranche** : « le verdict (date, archive,
+# résultat, détail des écarts) vit dans l'output_json du travail ». Une vérification qui a COURU
+# jusqu'au bout rend donc un travail `succeeded` portant son verdict — y compris un verdict
+# d'échec, écarts nommés. Le chemin d'échec de `run_ai_job` n'écrit pas `output_json` : y mettre
+# les écarts les perdrait. `failed` reste réservé au dispositif cassé (archive disparue entre la
+# route et le worker, Postgres injoignable).
+
+
+def refus_verification(db: Session, nom: str) -> str | None:
+    """Le motif du 409 de `POST /donnees/verification`, ou `None`. AVANT `enfiler` : quand il
+    rend un motif, AUCUN job n'existe."""
+    if not _NOM_ARCHIVE.match(nom):
+        return (
+            f"Nom d'archive invalide : « {nom} » — une archive ZETIS s'appelle "
+            "zetis-AAAA-MM-JJ-hhmm.tar, sans chemin. Prenez le nom tel que la liste le rend."
+        )
+    dossier = Path(settings.backup_dir)
+    if not (dossier / nom).is_file():
+        return f"Archive « {nom} » introuvable sur la cible ({dossier})."
+    if not (dossier / f"{nom}.sha256").is_file():
+        return (
+            f"Sidecar « {nom}.sha256 » absent : sans empreinte de référence, la vérification "
+            "ne prouverait rien. Une archive de la slice 1 en a toujours un."
+        )
+    # Les DEUX types se bloquent ici : vérifier pendant une création lirait un tar en cours
+    # d'écriture, et deux vérifications se disputeraient `zetis_verify`.
+    en_cours = _en_file_ou_en_cours(db, (JOB_TYPE, JOB_TYPE_VERIFY))
+    if en_cours is not None:
+        return (
+            f"Un travail de sauvegarde est déjà en file ou en cours "
+            f"(travail #{en_cours.id}, {en_cours.job_type}) : attendez sa fin."
+        )
+    return None
+
+
+@dataclass
+class RestaurationABlanc:
+    """Ce que la restauration à blanc a rendu — ou pourquoi elle n'a rien rendu."""
+
+    comptes: dict[str, int] = field(default_factory=dict)
+    tete_alembic: str | None = None
+    #: Non vide = la restauration elle-même a échoué (psql sous ON_ERROR_STOP). C'est un VERDICT
+    #: sur l'archive, pas une panne du dispositif : le dump ne se rejoue pas.
+    erreurs: list[str] = field(default_factory=list)
+
+
+def _dsn_pour(base: str) -> str:
+    """Le DSN libpq de `settings.database_url`, pointé sur une AUTRE base du même serveur.
+
+    Le dernier segment du chemin est le nom de base — vrai pour les DSN de ce dépôt
+    (`…:5432/zetis`, sans query string). Vérifié au read-before-code sur le conteneur d'essai.
+    """
+    racine, _, _ = _dsn_libpq().rpartition("/")
+    return f"{racine}/{base}"
+
+
+def _restaurer_a_blanc(dump_path: Path) -> RestaurationABlanc:
+    """②③④ du §6 : `zetis_verify` créée, le dump rejoué, les comptes relus — et la base DÉTRUITE
+    en `finally`, succès ou échec.
+
+    ⚠️ **Connexion admin en `autocommit=True`, et ce n'est pas un style** : `CREATE DATABASE`
+    refuse un bloc de transaction (`ActiveSqlTransaction`, mesuré au read-before-code) — et
+    psycopg3 ouvre une transaction implicite au premier ordre. C'est l'INVERSE de `_instantane`,
+    qui tient exprès une transaction REPEATABLE READ.
+
+    ⚠️ **`WITH (FORCE)` sur les deux DROP** (pg13+, vérifié sur pg16) : le premier est le ménage
+    d'une vérification interrompue (§6 ②), le second tue toute connexion qui traînerait — mesuré :
+    une connexion tenue meurt en `AdminShutdown`, le DROP passe.
+
+    ⚠️ La seule base touchée en écriture est `zetis_verify` : la connexion admin vise `zetis`
+    parce que `CREATE DATABASE` doit bien s'exécuter quelque part, mais n'y exécute RIEN d'autre
+    que le couple DROP/CREATE — le périmètre de l'ADR en dépend, et un test le verrouille.
+
+    Fonction REMPLACÉE dans les tests fonctionnels (SQLite n'a pas de `CREATE DATABASE`) — même
+    point de greffe que `_instantane`. Sa structure (DROP en `finally`) est, elle, verrouillée
+    sur le vrai code avec un faux module psycopg.
+    """
+    import psycopg
+
+    admin = psycopg.connect(_dsn_libpq(), autocommit=True)
+    try:
+        admin.execute(f"DROP DATABASE IF EXISTS {VERIFY_DB} WITH (FORCE)")
+        admin.execute(f"CREATE DATABASE {VERIFY_DB}")
+
+        resultat = subprocess.run(
+            ["psql", "-q", "-v", "ON_ERROR_STOP=1", "-f", str(dump_path), _dsn_pour(VERIFY_DB)],
+            capture_output=True,
+            text=True,
+        )
+        if resultat.returncode != 0:
+            return RestaurationABlanc(
+                erreurs=[
+                    "restauration : psql a échoué sous ON_ERROR_STOP "
+                    f"(code {resultat.returncode}) — {resultat.stderr.strip()[:500]}"
+                ]
+            )
+
+        with psycopg.connect(_dsn_pour(VERIFY_DB)) as verify:
+            lignes = verify.execute(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+            ).fetchall()
+            comptes: dict[str, int] = {}
+            for (table,) in lignes:
+                comptes[table] = verify.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+            try:
+                ligne = verify.execute("SELECT version_num FROM alembic_version").fetchone()
+                tete = ligne[0] if ligne else None
+            except psycopg.Error:
+                tete = None
+        return RestaurationABlanc(comptes=comptes, tete_alembic=tete)
+    finally:
+        try:
+            admin.execute(f"DROP DATABASE IF EXISTS {VERIFY_DB} WITH (FORCE)")  # ⑥ TOUJOURS
+        finally:
+            admin.close()
+
+
+def _sha256_membre(tar: tarfile.TarFile, membre: tarfile.TarInfo) -> str:
+    empreinte = hashlib.sha256()
+    flux = tar.extractfile(membre)
+    for bloc in iter(lambda: flux.read(1024 * 1024), b""):
+        empreinte.update(bloc)
+    return empreinte.hexdigest()
+
+
+def verifier_sauvegarde(nom: str) -> dict:
+    """Le travail `backup_verify` (§6) : les six étapes, verdict détaillé en sortie.
+
+    L'autorité des comparaisons est le **manifeste scellé DANS le tar** (§5 : « la vérité scellée
+    reste celle de l'intérieur ») — jamais le sidecar `.manifeste.json`, simple copie de lecture.
+    Un sidecar falsifié ne change pas le verdict ; le sidecar `.sha256`, lui, est justement ce
+    qu'on confronte à l'archive (étape ①).
+    """
+    if not _NOM_ARCHIVE.match(nom):
+        raise SauvegardeRefusee(f"Nom d'archive invalide : « {nom} ».")
+    dossier = Path(settings.backup_dir)
+    chemin_tar = dossier / nom
+    sidecar_sha = dossier / f"{nom}.sha256"
+    if not chemin_tar.is_file() or not sidecar_sha.is_file():
+        # Vérifié par la route, mais le monde a pu bouger entre l'enfilement et l'exécution.
+        raise SauvegardeRefusee(f"Archive « {nom} » ou son sidecar .sha256 introuvables sur la cible.")
+
+    ecarts: list[str] = []
+    restauration: RestaurationABlanc | None = None
+
+    def _verdict(empreinte: str) -> dict:
+        sortie = {
+            "archive": nom,
+            "sha256": empreinte,
+            "verdict": "reussie" if not ecarts else "echec",
+            "ecarts": ecarts,
+            "verifie_le": datetime.now(timezone.utc).isoformat(),
+        }
+        if restauration is not None and not restauration.erreurs:
+            sortie["lignes_restaurees"] = sum(restauration.comptes.values())
+            sortie["tables_restaurees"] = len(restauration.comptes)
+            sortie["tete_alembic"] = restauration.tete_alembic
+        return sortie
+
+    # ① L'empreinte du tar vs le sidecar — on ne restaure JAMAIS un tar qui ne se prouve pas.
+    empreinte = _sha256_fichier(chemin_tar)
+    attendue = sidecar_sha.read_text(encoding="utf-8").split()
+    if not attendue or attendue[0] != empreinte:
+        ecarts.append(
+            "empreinte : le sha256 du tar ne correspond pas au sidecar .sha256 "
+            "(archive corrompue, ou sidecar réécrit)"
+        )
+        return _verdict(empreinte)
+
+    with tarfile.open(chemin_tar) as tar:
+        try:
+            manifeste = json.load(tar.extractfile("manifeste.json"))
+            attendus = {
+                membre["chemin"]: (membre["sha256"], membre["taille"])
+                for membre in manifeste["membres"]
+            }
+            comptes_attendus = dict(manifeste["base"]["comptes_par_table"])
+            tete_attendue = manifeste["base"]["tete_alembic"]
+        except (KeyError, ValueError, TypeError):
+            ecarts.append("manifeste : absent ou illisible dans l'archive — rien à quoi comparer")
+            return _verdict(empreinte)
+
+        # ⑤ Chaque membre vs le manifeste — dans les DEUX sens : un membre altéré, disparu ou
+        # surnuméraire est un écart. (Fait avant la restauration : lire le tar est bon marché.)
+        reels: dict[str, tuple[str, int]] = {}
+        for membre in tar.getmembers():
+            if membre.name == "manifeste.json" or not membre.isfile():
+                continue
+            reels[membre.name] = (_sha256_membre(tar, membre), membre.size)
+        for chemin, (sha, _taille) in sorted(reels.items()):
+            if chemin not in attendus:
+                ecarts.append(f"membre : « {chemin} » présent dans l'archive mais absent du manifeste")
+            elif attendus[chemin][0] != sha:
+                ecarts.append(f"membre : « {chemin} » ne correspond pas à son empreinte du manifeste")
+        for chemin in sorted(set(attendus) - set(reels)):
+            ecarts.append(f"membre : « {chemin} » déclaré au manifeste mais absent de l'archive")
+
+        # ②③④ La restauration à blanc, sur le dump extrait de l'archive (jamais un dump externe).
+        with tempfile.TemporaryDirectory(prefix="zetis-verification-") as travail:
+            dump_path = Path(travail) / "dump.sql"
+            flux = tar.extractfile("dump.sql")
+            if flux is None:
+                ecarts.append("dump : « dump.sql » absent de l'archive")
+                return _verdict(empreinte)
+            with dump_path.open("wb") as sortie_dump:
+                for bloc in iter(lambda: flux.read(1024 * 1024), b""):
+                    sortie_dump.write(bloc)
+            restauration = _restaurer_a_blanc(dump_path)
+
+    if restauration.erreurs:
+        ecarts.extend(restauration.erreurs)
+    else:
+        # ④ Comptage par table vs manifeste — les DEUX sens, table par table.
+        for table in sorted(set(comptes_attendus) | set(restauration.comptes)):
+            attendu = comptes_attendus.get(table)
+            restaure = restauration.comptes.get(table)
+            if attendu != restaure:
+                ecarts.append(
+                    f"comptes : table « {table} » — {attendu if attendu is not None else 'absente'} "
+                    f"au manifeste, {restaure if restaure is not None else 'absente'} restaurée"
+                )
+        if restauration.tete_alembic != tete_attendue:
+            ecarts.append(
+                f"alembic : tête restaurée « {restauration.tete_alembic} » ≠ manifeste "
+                f"« {tete_attendue} »"
+            )
+
+    verdict = _verdict(empreinte)
+    logger.info("sauvegarde: vérification de %s — %s (%d écart(s))", nom, verdict["verdict"], len(ecarts))
+    return verdict

@@ -260,6 +260,11 @@ doit vivre sur un **autre disque physique** que `Docker.raw` : un script hôte
 et la route refuse (409) sans certificat valable. Le `.env` est exclu (secrets — se remettent à
 la main), Redis aussi (état transitoire), et l'exclusion est écrite dans le manifeste.
 
+Le mot « sauvegarde » se mérite : un second travail de file, `backup_verify`, rejoue l'archive à
+blanc — empreinte vs sidecar, restauration du dump dans une base jetable `zetis_verify`
+(détruite en `finally`, la base `zetis` jamais touchée), comptes et tête Alembic confrontés au
+manifeste scellé. Le verdict, écarts nommés, vit dans l'`output_json` du travail.
+
 ## Rôles
 
 ### `child`
