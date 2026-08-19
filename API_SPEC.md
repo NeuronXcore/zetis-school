@@ -3001,7 +3001,9 @@ mauvaise ». L'autorité des comparaisons est le **manifeste scellé DANS le tar
 
 Enfile `backup_restore` (ADR-0066 §2) — le swap à réveil suspendu : filet `backup_create` ① →
 restore dans `zetis_restore` ② → écritures de réveil DANS la base restaurée ③ (suspendue, régime
-MANUAL, déclencheur désarmé) → SWAP ④ (terminate + `zetis` → `zetis_avant` → `zetis_restore` →
+MANUAL, déclencheur désarmé — et **clôture des travaux d'une autre époque**, Amendement 1 : les
+`ai_jobs`/`production_runs` restaurés en `queued|running` passent à `failed` motivé, ids clos
+portés par le sidecar) → SWAP ④ (terminate + `zetis` → `zetis_avant` → `zetis_restore` →
 `zetis`, 8 ms mesurés) → médias remplacés ⑤ → files de production purgées ⑥ → `alembic upgrade
 head` ⑦ → recyclage du worker ⑧.
 

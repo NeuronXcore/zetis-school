@@ -116,3 +116,29 @@ squelette :
   TOUS les sidecars (rien d'orphelin) · « Restaurer » absent des archives non vérifiées (test
   composant) · la saisie de confirmation est EXIGÉE (un clic seul ne part pas) · l'entrée
   CHANGELOG du chantier part avec cette slice.
+
+---
+
+## Chantier « le réveil clôt les fantômes » — Amendement 1 (cas 2 : application, branche `fix/reveil-clot-les-fantomes`)
+
+L'**Amendement 1 de l'ADR-0066** est LA référence — le relire, jamais le rouvrir. Une slice :
+
+- Étendre le réveil ③ (`sauvegarde._ecrire_reveil`) : sur la MÊME connexion que les upserts,
+  APRÈS eux et AVANT le terminate du ④ — `ai_jobs` `queued|running` → `failed` + `error_message`
+  motivé (nomme la restauration et l'archive) + `finished_at` ; `production_runs`
+  `queued|running` → `failed` + `finished_at`. `RETURNING id` : le détail de l'étape `reveil`
+  du sidecar porte les ids clos (travaux et lots).
+- 🔴 Les critères de l'amendement MORDENT : aucune ligne insérée · aucun statut neuf, aucune
+  migration · `succeeded`/`failed`/`done` jamais touchés (le WHERE le prouve) · aucune surface
+  (Échecs existant fait foi).
+- Test-verrous (§Suivi de l'amendement) : la clôture dans l'ordre SQL asserté du réveil —
+  ⚠️ SEULES les assertions de `test_le_reveil_est_ecrit_avant_le_swap` évoluent, et c'est LE
+  changement voulu · le WHERE ne vise que `queued|running` · les lots couverts · le sidecar
+  porte les ids clos.
+- Docs : entrée `CHANGELOG` (comportement) · `TROUBLESHOOTING.md` § essai : la parade « à
+  CADRER » devient « décidée (Amendement 1) et appliquée ».
+- **Preuve vivante en dev** (§Suivi 3) : cycle frais complet avec le code amendé — l'archive
+  fraîche contient son créateur `running`, la restaurer doit le clore (Échecs l'affiche,
+  acquittable), la barre est propre, 💾 Sauvegarder repart. ⚠️ Le fantôme #896 PRÉ-fix bloque
+  toute la famille (même Vérifier) : UN déblocage manuel documenté est admis pour ouvrir le
+  chemin de la preuve — le constat va au rapport de read-before-code.

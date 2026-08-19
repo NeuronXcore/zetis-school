@@ -102,6 +102,15 @@ adr-0063) ; l'onglet 💾 relit les archives (l'état « restaurée le … » de
 reste affiché : le sidecar raconte le geste, pas l'état courant — c'est sa définition, §3).
 Relever avec « Suspendre ZETIS » quand tout est contrôlé.
 
+## `graphify update .` depuis un SOUS-DOSSIER rebâtit une carte PARTIELLE — sans un mot — 2026-08-19
+
+Lancé par mégarde depuis `apps/frontend-massimo` (le cwd traînait d'un `vitest`), `graphify
+update .` a rebâti **1 525 nœuds** là où la carte du dépôt en porte **~18 700** — même message de
+succès, aucun avertissement. Toute requête entre les deux aurait répondu sur un dixième du
+projet. **Parade** : toujours `cd /Volumes/NX-Projects/ZETIS` avant `graphify update .` (les
+commandes de clôture le font depuis la racine) ; au doute, le compte de nœuds du `Rebuilt:` dit
+immédiatement si la carte est entière.
+
 ## Essai « la restauration qui aboutit » en dev (ADR-0066, résidu n°1) — 2026-08-19
 
 ### 🔴 `PRODUCTION_WORKER_SUPERVISED` se règle SANS le préfixe `ZETIS_` — le préfixé est ignoré en silence
@@ -123,9 +132,12 @@ backup_create » (le #896 de l'époque de l'archive), et 🔴 **les préconditio
 (restauration, suppression, famille sauvegarde) rendront 409 tant que cette ligne vit**. Le
 sidecar, lui, dit la vérité (8/8 franchies, zéro écart) — le fantôme est un artefact d'histoire,
 pas un échec du geste. **Structurel et systématique** (le filet aussi embarque la ligne du
-`backup_restore` qui le crée). Parade possible — À CADRER, pas codée : le réveil ③ pourrait
-clore les `queued|running` de la base restaurée (« interrompu par restauration », patron du
-garde « introuvable ») ; c'est une décision d'ADR, pas un correctif silencieux.
+`backup_restore` qui le crée). ✅ **Parade DÉCIDÉE puis APPLIQUÉE le soir même** : Amendement 1
+de l'ADR-0066 — le réveil ③ clôt les `queued|running` restaurés (`failed` + motif nommant
+l'archive + `finished_at`, travaux ET lots), chantier `fix/reveil-clot-les-fantomes`. ⚠️ Constat
+du read-before-code de ce chantier : le fantôme bloquait AUSSI « Vérifier » (refus famille) —
+le chemin de preuve écrit dans l'amendement (« rejouer l'archive ») exigeait donc UN déblocage
+manuel du #896 pré-correctif, admis et documenté ; la preuve porte sur un cycle FRAIS.
 
 ### Le worker meurt au recyclage ⑧ et rien ne le relance hors superviseur — c'est le contrat
 
