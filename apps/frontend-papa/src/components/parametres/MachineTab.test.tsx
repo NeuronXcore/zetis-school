@@ -13,17 +13,20 @@ vi.mock("../../lib/settings", async (importOriginal) => ({
   testMoteur: vi.fn(),
   acquitterEchec: vi.fn(),
   redemarrerWorker: vi.fn(),
+  setProductionSuspension: vi.fn(),
 }));
 import {
   acquitterEchec,
   fetchMachine,
   redemarrerWorker,
+  setProductionSuspension,
   testMoteur,
 } from "../../lib/settings";
 
 function machine(over: Partial<Machine> = {}): Machine {
   return {
     workers_supervision: { supervised: false, motif: "Rien ne supervise le worker : relancez-le à la main (pnpm dev:worker)." },
+    production_suspended: false,
     sondes: [
       { nom: "Postgres", etat: "ok", detail: "SELECT 1", latence_ms: 3 },
       { nom: "Ollama", etat: "ok", detail: "« qwen » présent", latence_ms: 21 },
@@ -309,6 +312,67 @@ describe("les deux seuls gestes", () => {
 
     await screen.findByText("TimeoutError: page.screenshot exceeded 30000ms");
     expect(screen.getByText("acquitté")).toBeInTheDocument();
+  });
+});
+
+// --- ⏸ Suspendre ZETIS (ADR-0063 §6-§7) -----------------------------------------------------------
+
+describe("suspendre ZETIS", () => {
+  it("dit ce que la bascule NE fait PAS, AVANT le clic", async () => {
+    // §7 : une commande d'arrêt n'est pas une commande destructive, et l'écran le dit plutôt que
+    // de le laisser supposer.
+    render(<MachineTab />);
+
+    await screen.findByRole("button", { name: /⏸ Suspendre/ });
+    expect(screen.getByText(/Ne touche pas au régime/)).toBeInTheDocument();
+    expect(screen.getByText(/ne vide pas la\s+file/)).toBeInTheDocument();
+  });
+
+  it("annonce le délai d'un lot en vol — sinon le bouton se lit comme cassé", async () => {
+    render(<MachineTab />);
+
+    await screen.findByText(/s'écourte entre deux pièces \(~15 à 45 s\)/);
+  });
+
+  it("suspendu : l'état se dit, et le geste s'inverse", async () => {
+    vi.mocked(fetchMachine).mockResolvedValue(machine({ production_suspended: true }));
+    render(<MachineTab />);
+
+    await screen.findByText("⏸ ZETIS est suspendu");
+    expect(screen.getByText(/même sur clic, même par le scan/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Remettre en route/ })).toBeInTheDocument();
+    // §5 : il ne se relève jamais seul — et l'écran le dit.
+    expect(screen.getByText(/ne se relèvera pas tout seul/)).toBeInTheDocument();
+  });
+
+  it("la bascule écrit par SA route, prévient la sidebar, et relit", async () => {
+    vi.mocked(setProductionSuspension).mockResolvedValue({ suspended: true });
+    render(<MachineTab />);
+    await screen.findByRole("button", { name: /⏸ Suspendre/ });
+
+    const entendu = vi.fn();
+    window.addEventListener("zetis:autonomy-changed", entendu);
+    vi.mocked(fetchMachine).mockResolvedValue(machine({ production_suspended: true }));
+    fireEvent.click(screen.getByRole("button", { name: /⏸ Suspendre/ }));
+
+    await screen.findByText("⏸ ZETIS est suspendu");
+    expect(setProductionSuspension).toHaveBeenCalledWith(true);
+    // La sidebar lit la suspension dans le GET d'autonomie : même événement que le panneau
+    // d'autonomie, jamais un sondage.
+    expect(entendu).toHaveBeenCalled();
+    window.removeEventListener("zetis:autonomy-changed", entendu);
+  });
+
+  it("un échec de bascule s'affiche — jamais un état inventé", async () => {
+    vi.mocked(setProductionSuspension).mockRejectedValue(new Error("réseau"));
+    render(<MachineTab />);
+    await screen.findByRole("button", { name: /⏸ Suspendre/ });
+
+    fireEvent.click(screen.getByRole("button", { name: /⏸ Suspendre/ }));
+
+    await screen.findByText("réseau");
+    // L'état affiché reste celui du serveur : pas suspendu.
+    expect(screen.queryByText("⏸ ZETIS est suspendu")).toBeNull();
   });
 });
 

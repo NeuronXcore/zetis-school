@@ -171,7 +171,11 @@ def scan_agenda(db: Session) -> dict:
             # RQ que personne ne lit : un refus survenu à 3 h du matin disparaissait ici même. Il
             # est désormais RETENU — mais seulement s'il vient d'un régulateur, `ProductionRefused`
             # faisant le tri. Un `404` sur un chapitre effacé n'est pas un refus, c'est un défaut.
-            if isinstance(exc, runs.ProductionRefused):
+            if isinstance(exc, runs.ProductionRefused) and exc.regulator != "suspended":
+                # ⚠️ « suspended » est le seul refus jamais retenu (ADR-0063 §2) : Papa
+                # connaît déjà la cause — il l'a causée — et le persister à chaque réveil
+                # remplirait la table d'une même phrase toutes les 180 minutes, noyant les
+                # refus qui, eux, apprennent quelque chose.
                 refusals.record(
                     db,
                     trigger="agenda",
@@ -282,7 +286,11 @@ def scan_requests(db: Session) -> dict:
         except HTTPException as exc:
             # Un refus n'est pas une production : la référence n'est pas consommée, la demande
             # redeviendra éligible au réveil suivant. Mais il se DIT (§21) — voir `scan_agenda`.
-            if isinstance(exc, runs.ProductionRefused):
+            if isinstance(exc, runs.ProductionRefused) and exc.regulator != "suspended":
+                # ⚠️ « suspended » est le seul refus jamais retenu (ADR-0063 §2) : Papa
+                # connaît déjà la cause — il l'a causée — et le persister à chaque réveil
+                # remplirait la table d'une même phrase toutes les 180 minutes, noyant les
+                # refus qui, eux, apprennent quelque chose.
                 refusals.record(
                     db,
                     trigger="request",

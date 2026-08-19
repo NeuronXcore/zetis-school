@@ -24,6 +24,7 @@ const A1 = "zetis_autonomy_a1_course";
 function autonomy(): Autonomy {
   return {
     auto_trigger_enabled: false,
+    production_suspended: false,
     niveau: "semi",
     classes: [
       { key: A0A, code: "A0a", label: "Dérivés inertes", value: 3, choices: [2, 3], locked: false, reason: null },

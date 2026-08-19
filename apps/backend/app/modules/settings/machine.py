@@ -450,9 +450,13 @@ def lire(db: Session) -> dict:
     from app.modules.production import activity
 
     from app.modules.production.workers import MOTIF_NON_SUPERVISE
+    from app.modules.settings import service as settings_service
 
     etat = activity.read(db)
     return {
+        # ADR-0063 §6-§7 : l'état de suspension se lit là où vit le geste. Même lecture FRAÎCHE
+        # que le worker (`select()`, jamais l'identity map).
+        "production_suspended": settings_service.production_suspended(db),
         # Le geste « Redémarrer » n'existe que supervisé — et quand il n'existe pas, le MOTIF
         # voyage avec (chantier A1) : un cadenas muet se lit comme une panne. C'est le même texte
         # que le 409 de la route — écrit UNE fois, dans workers.py.

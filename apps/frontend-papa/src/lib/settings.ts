@@ -193,3 +193,17 @@ export async function redemarrerWorker(name: string): Promise<{ detail: string }
     }),
   );
 }
+
+/** Suspendre ZETIS, ou le remettre en route (ADR-0063).
+ *
+ *  Le PUT rend l'état relu — et l'appelant émet `notifyAutonomyChanged()` après un succès, pour
+ *  que la sidebar (qui lit la suspension dans le GET d'autonomie, §6) suive sans sondage. */
+export async function setProductionSuspension(suspended: boolean): Promise<{ suspended: boolean }> {
+  return asJson(
+    await fetch(`${BASE}/production-suspension`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ suspended }),
+    }),
+  );
+}

@@ -287,6 +287,21 @@ def create_run(
     elif db.get(Skill, scope_skill_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notion introuvable.")
 
+    # ZETIS est-il suspendu ? — PREMIER des régulateurs, jamais persisté (ADR-0063 §1, §2).
+    #
+    # Après les 404 de validation (un chapitre introuvable reste un défaut de donnée, pas une
+    # politique), avant tout le reste : les cinq autres régulateurs répondent « pas maintenant,
+    # pour telle raison » — répondre ça à quelqu'un qui a lui-même coupé le courant serait un
+    # refus exact et incompréhensible.
+    from app.modules.settings import service as settings_service
+
+    if settings_service.production_suspended(db):
+        raise ProductionRefused(
+            "suspended",
+            "ZETIS est suspendu : aucun lot ne démarre tant que vous ne l'avez pas remis en "
+            "route. La file et les contenus existants ne bougent pas.",
+        )
+
     # Un lot au MÊME scope attend déjà — le relancer ne produirait rien de plus (2026-08-05).
     #
     # Quatre lots `fiche` sur la notion 30 se sont empilés le même jour, à cinquante minutes

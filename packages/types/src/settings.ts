@@ -45,6 +45,11 @@ export interface Autonomy {
    *
    *  Défaut : `false`. Papa l'arme explicitement. */
   auto_trigger_enabled: boolean;
+  /** ZETIS est-il SUSPENDU ? (ADR-0063 §6) — la sidebar lit ce GET sur les 22 écrans.
+   *
+   *  ⚠️ Transport partagé, question distincte, ÉCRITURE SÉPARÉE : la bascule passe par
+   *  `PUT /api/settings/production-suspension`, jamais par le PUT d'autonomie. */
+  production_suspended: boolean;
 }
 
 /** Les réglages qui s'écartent du défaut — contrat de `GET /api/settings/ecarts` (ADR-0062 §4).
@@ -144,6 +149,8 @@ export interface ReglageEnv {
 }
 
 export interface Machine {
+  /** ZETIS est-il suspendu ? — l'état vit à côté du geste (ADR-0063 §6-§7). */
+  production_suspended: boolean;
   /** Le geste « Redémarrer un worker » existe-t-il ici ? Sinon, le MOTIF voyage avec — le même
    *  texte que le 409 de la route, écrit une fois côté serveur. */
   workers_supervision: { supervised: boolean; motif: string | null };

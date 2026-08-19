@@ -10,7 +10,8 @@ import { EtatZetis } from "./EtatZetis";
 function ready(overrides: Partial<Autonomy> = {}): AutonomyState {
   return {
     status: "ready",
-    autonomy: { auto_trigger_enabled: false, classes: [], niveau: "semi", ...overrides },
+    autonomy: { auto_trigger_enabled: false,
+    production_suspended: false, classes: [], niveau: "semi", ...overrides },
   };
 }
 
@@ -239,5 +240,34 @@ describe("EtatZetis", () => {
     // nom, qui est le seul à dire les deux axes.
     expect(container.querySelector("img[aria-hidden]")).not.toBeNull();
     expect(container.querySelector("img[alt]:not([alt=''])")).toBeNull();
+  });
+});
+
+// --- ⏸ La suspension se lit sur les 22 écrans (ADR-0063 §6) --------------------------------------
+
+describe("la suspension dans la sidebar", () => {
+  it("suspendu : le ruban s'affiche, et le nom accessible le dit AVANT le régime", () => {
+    show(ready({ production_suspended: true }));
+
+    expect(screen.getByText("⏸ SUSPENDU")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /SUSPENDU.*rien ne démarre/ })).toBeInTheDocument();
+  });
+
+  it("suspendu et déclencheur armé : l'orbite DISPARAÎT — « démarre seul » pendant que rien ne démarre serait un mensonge animé", () => {
+    const { container } = show(ready({ auto_trigger_enabled: true, production_suspended: true }));
+
+    expect(container.querySelector(".regime-orbit")).toBeNull();
+  });
+
+  it("non suspendu : aucun ruban — l'état nominal ne porte pas de bandeau", () => {
+    show(ready());
+
+    expect(screen.queryByText("⏸ SUSPENDU")).toBeNull();
+  });
+
+  it("le régime reste affiché sous la suspension — elle ne le change pas (§7)", () => {
+    show(ready({ production_suspended: true }));
+
+    expect(screen.getByText("HYBRID")).toBeInTheDocument();
   });
 });

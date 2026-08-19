@@ -29,7 +29,8 @@ import { PapaSidebar } from "./PapaSidebar";
 
 const SEMI: AutonomyState = {
   status: "ready",
-  autonomy: { auto_trigger_enabled: false, classes: [], niveau: "semi" },
+  autonomy: { auto_trigger_enabled: false,
+    production_suspended: false, classes: [], niveau: "semi" },
 };
 
 function show(autonomy?: AutonomyState) {

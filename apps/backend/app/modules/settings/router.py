@@ -21,6 +21,8 @@ from app.modules.settings.schemas import (
     AutonomyRequest,
     EcartsOut,
     MachineOut,
+    SuspensionOut,
+    SuspensionRequest,
     TestMoteurOut,
 )
 
@@ -32,6 +34,8 @@ router = APIRouter(
 def _out(db: Session, values: dict[str, int]) -> dict:
     return {
         "auto_trigger_enabled": service.auto_trigger_enabled(db),
+        # Lu ici pour la SIDEBAR (ADR-0063 §6) ; le geste, lui, vit sur sa propre route.
+        "production_suspended": service.production_suspended(db),
         "classes": [
             {
                 "key": cls.key,
@@ -110,3 +114,20 @@ def post_test_moteur(provider: LLMProvider = Depends(get_provider)) -> dict:
     au-dessus d'elle.
     """
     return machine.tester_moteur(provider)
+
+
+@router.get("/production-suspension", response_model=SuspensionOut)
+def get_production_suspension(db: Session = Depends(get_db)) -> dict:
+    """ZETIS est-il suspendu ? Un fait, pas un réglage composé — d'où sa propre route."""
+    return {"suspended": service.production_suspended(db)}
+
+
+@router.put("/production-suspension", response_model=SuspensionOut)
+def set_production_suspension(req: SuspensionRequest, db: Session = Depends(get_db)) -> dict:
+    """Suspendre ou remettre en route (ADR-0063).
+
+    Ce que la bascule NE fait PAS — et l'écran le dit avant le clic (§7) : elle ne touche pas au
+    régime, ne désarme pas le déclencheur, ne défait rien, ne vide pas la file. Un lot en vol
+    s'écourte entre deux pièces et se raconte au journal ; les lots en file repartiront à la levée.
+    """
+    return {"suspended": service.set_production_suspended(db, suspended=req.suspended)}

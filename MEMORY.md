@@ -53,6 +53,31 @@
 > ⚠️ Pour le relancer : `docker compose up -d` puis une paire `launch.json` — **jamais `pnpm dev`**,
 > qui refusera tant que la prod tient les ports (et c'est voulu).
 
+### ⏸ A2 « SUSPENDRE ZETIS » — backend LIVRÉ selon l'ADR-0063, surface LIVRÉE, en PR après le merge d'A1 #161 (2026-08-19)
+
+Branche `feat/suspendre-zetis` (depuis `main`). **Backend complet, committé `01bbf45` (rebasé).** La surface
+(bouton dans 🧠 La machine + état sidebar) attend le **merge de la tranche 1** — même situation
+que A1 slice 2, et c'est voulu : pas d'onglet, pas de bouton. ⚠️ Le bloc MEMORY d'A1 vit sur SA
+branche (`feat/redemarrer-un-worker`) — les trois branches ont chacune leur tranche de mémoire,
+elles se recolleront aux merges.
+
+**Livré, § par § de l'ADR-0063** : §1 `"suspended"` en TÊTE de `REGULATORS` + garde dans
+`create_run` (après les 404 de validation, avant `duplicate`) · §2 `triggers.py` n'enregistre
+JAMAIS ce refus (2 sites, `exc.regulator != "suspended"`) · §3 `ProductionSuspendue` levée par le
+hook `_position` (grain de la PIÈCE), attrapée DANS la boucle d'`execute` — pièces produites
+**tamponnées et comptées au journal**, notions restantes en `blocked`, statut **`done`** jamais
+`failed` · §4-5 clé `zetis_production_suspended` (patron auto_trigger) · routes GET/PUT
+`/api/settings/production-suspension`. **9 tests**, suite 1448/1448.
+
+🔴 **LE DÉTAIL QUI PORTE TOUT : `production_suspended()` lit par `select()`, JAMAIS `db.get()`.**
+Le worker lit dans SA session pendant que le PUT de Papa écrit par une autre connexion —
+`db.get` servirait l'identity map (la valeur d'il y a une heure), et un arrêt d'urgence qui obéit
+à l'état d'il y a une heure n'arrête rien. Prouvé par le test « en vol » (le fake pose la clé par
+une autre session après la 1re génération → arrêt à la pièce suivante, pièce produite conservée).
+
+⚠️ Un lot-PIÈCE (`equip_piece`) n'a pas de check en vol, et c'est écrit dans le code : une seule
+pièce ~15-45 s, le grain de l'arrêt équivaut au lot — le régulateur a déjà refusé le départ.
+
 ### 🔁 A1 « REDÉMARRER UN WORKER » — backend LIVRÉ, surface DÉBLOQUÉE par le merge #160 (2026-08-19)
 
 Branche `feat/redemarrer-un-worker` (depuis `main`, **zéro fichier commun** avec la tranche 1 —

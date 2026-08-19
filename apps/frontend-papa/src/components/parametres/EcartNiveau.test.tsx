@@ -23,6 +23,7 @@ function cls(
 function autonomy(): Autonomy {
   return {
     auto_trigger_enabled: false,
+    production_suspended: false,
     niveau: "semi",
     classes: [
       cls(A0A, "A0a", "Dérivés inertes", 3, [2, 3]),

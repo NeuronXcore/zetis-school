@@ -297,6 +297,10 @@ class ProductionEvent(Base):
 # Les cinq régulateurs de `runs.create_run`, dans leur ordre d'évaluation. Vocabulaire fermé : un
 # code inconnu ne se rend pas, il se signale.
 REGULATORS = (
+    # ⚠️ EN TÊTE, et l'ordre est le sens (ADR-0063 §1) : les cinq autres disent « pas maintenant,
+    # pour telle raison de politique » ; celui-ci dit « pas du tout, Papa a débranché ». Le lire
+    # en dernier rendrait un motif de plafond à quelqu'un qui a lui-même coupé le courant.
+    "suspended",  # Papa a suspendu ZETIS — le seul refus qui ne se persiste JAMAIS (§2)
     "duplicate",  # un lot au même scope attend ou tourne déjà
     "already_produced",  # la pièce existe — la reproduire ne la remplacerait pas
     "pending_backlog",  # trop de contenus attendent une relecture

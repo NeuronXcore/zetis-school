@@ -201,6 +201,20 @@ def _close_served_requests(db: Session) -> None:
         logger.info("production: demandes refermées par disponibilité — %s", closed)
 
 
+class ProductionSuspendue(Exception):  # noqa: N818 — un signal de contrôle, pas une erreur
+    """Papa a suspendu ZETIS pendant que ce lot tournait (ADR-0063 §3).
+
+    Un SIGNAL, pas une panne : `execute()` l'attrape AVANT son `except Exception` générique —
+    sinon le lot finirait `failed` avec une stack trace, pour un arrêt que Papa a demandé.
+
+    ⚠️ **À ne pas confondre avec `_wait_for_massimo`**, l'autre politique de pause de ce module :
+    elle ATTEND (bornée par `production_max_wait_minutes`, puis le lot reprend), celle-ci ARRÊTE
+    (et rien ne reprend tant que Papa n'a pas levé la suspension). C'est précisément parce que
+    l'attente est bornée que la suspension ne pouvait pas s'y loger — un suspend qui se lève tout
+    seul après N minutes est un minuteur qu'on prend pour un interrupteur.
+    """
+
+
 def massimo_is_active(db: Session, *, student_id: int) -> bool:
     """Massimo a-t-il une activité PÉDAGOGIQUE récente ?
 
@@ -496,27 +510,75 @@ def execute(
             # ajouter un ferait vivre la position hors de la transaction de l'acte — précisément
             # ce que `_record` refuse de faire pour le journal.
             def _position(piece: str, _run=run) -> None:
+                # 🔴 Le check de suspension vit ICI, au grain de la PIÈCE (ADR-0063 §3) — le grain
+                # que l'ADR-0031 §3 a DÉCIDÉ (« le worker vérifie avant chaque pièce »), pas celui
+                # que ce fichier appliquait (entre notions : ~77 s d'attente mesurées, contre
+                # ~15-45 s par pièce). La lecture est FRAÎCHE par construction — `select()`, jamais
+                # l'identity map : un arrêt d'urgence qui obéit à l'état d'il y a une heure
+                # n'arrête rien.
+                if settings_service.production_suspended(db):
+                    raise ProductionSuspendue
                 _run.current_piece = piece
 
-            result = (
-                equipment.equip_piece(
-                    db,
-                    skill_id=skill_id,
-                    kind=piece_kind,
-                    llm=llm,
-                    embedder=embedder,
-                    authority=authority,
+            try:
+                result = (
+                    # ⚠️ Un lot-PIÈCE n'a pas de check : une seule pièce (~15-45 s), le grain de
+                    # l'arrêt équivaut au lot entier — et le régulateur a déjà refusé de le
+                    # démarrer si ZETIS était suspendu au départ.
+                    equipment.equip_piece(
+                        db,
+                        skill_id=skill_id,
+                        kind=piece_kind,
+                        llm=llm,
+                        embedder=embedder,
+                        authority=authority,
+                    )
+                    if piece_kind is not None
+                    else equipment.equip_notion(
+                        db,
+                        skill_id=skill_id,
+                        llm=llm,
+                        embedder=embedder,
+                        authority=authority,
+                        on_piece=_position,
+                    )
                 )
-                if piece_kind is not None
-                else equipment.equip_notion(
+            except ProductionSuspendue:
+                # Papa a suspendu : le lot s'ÉCOURTE et se raconte — ce n'est pas une panne, donc
+                # ni `failed`, ni stack trace, ni statut neuf (ADR-0063 §3, critère 1).
+                logger.info("production: lot %s écourté — ZETIS suspendu", run_id)
+                # Ce que la notion en cours a eu le temps de produire est CONSERVÉ et tamponné :
+                # les générateurs ont commité, jeter leur travail serait pire que l'arrêt.
+                conservees = _stamp(db, watermark, run_id)
+                _record(
                     db,
+                    run_id=run_id,
                     skill_id=skill_id,
-                    llm=llm,
-                    embedder=embedder,
-                    authority=authority,
-                    on_piece=_position,
+                    piece=None,
+                    outcome="blocked",
+                    detail=(
+                        "ZETIS a été suspendu — "
+                        + (
+                            f"{conservees} pièce(s) déjà produite(s) conservée(s)."
+                            if conservees
+                            else "aucune pièce n'avait encore été produite."
+                        )
+                    ),
                 )
-            )
+                # Les notions jamais commencées entrent au journal AVANT de sortir : un lot
+                # écourté doit dire ce qu'il n'a PAS fait, sinon Papa compte les absents à la main.
+                for restant in eligible[eligible.index(skill_id) + 1 :]:
+                    _record(
+                        db,
+                        run_id=run_id,
+                        skill_id=restant,
+                        piece=None,
+                        outcome="blocked",
+                        detail="ZETIS a été suspendu.",
+                    )
+                run.current_piece = None
+                db.commit()
+                break
             result["pieces_stamped"] = _stamp(db, watermark, run_id)
             if "cours" in result.get("generated", []):
                 _stamp_course(db, skill_id=skill_id, run_id=run_id)
