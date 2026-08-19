@@ -302,9 +302,24 @@ def _backup_verify(_db, payload: dict, _llm, _embedder) -> dict:
     return sauvegarde.verifier_sauvegarde(str(payload["archive"]))
 
 
+def _backup_restore(_db, payload: dict, _llm, _embedder) -> dict:
+    """Le swap à réveil suspendu (ADR-0066 §2) — même régime que `_backup_create` : ni LLM ni
+    session. Les préconditions à session (verdict, suspension, travaux en vol) ont été refusées
+    en 409 par la route ; le module revérifie ce qui se revérifie sans base.
+
+    🔴 **La ligne `ai_jobs` de CE travail meurt au swap** (§3) : elle vit dans la base remplacée.
+    La fin de `run_ai_job` la cherchera en vain et rendra « introuvable » — sans casser (le garde
+    est en bas de ce fichier) ; le sidecar `.restauration.json` est la trace qui survit.
+    """
+    from app.modules.settings import sauvegarde
+
+    return sauvegarde.restaurer_sauvegarde(str(payload["archive"]))
+
+
 # `job_type` → l'exécutant, qui reçoit `input_json`.
 _EXECUTANTS = {
     "backup_create": _backup_create,
+    "backup_restore": _backup_restore,
     "backup_verify": _backup_verify,
     "srs_cards_generate": _srs_cards_generate,
     "capsule_generate": _capsule_generate,
@@ -393,6 +408,18 @@ def run_ai_job(job_id: int) -> dict:
 
         fin = _now()
         job = db.get(AIJob, job_id)
+        if job is None:
+            # La ligne a disparu PENDANT l'exécution. Un seul travail le fait exprès :
+            # `backup_restore` — sa ligne vit dans la base que le swap vient de remplacer
+            # (ADR-0066 §3), et rien ne se réécrit dans la base restaurée (y insérer une trace
+            # falsifierait l'histoire qu'on vient de restaurer). Sans ce garde, l'écriture du
+            # succès lèverait une AttributeError qui remonterait à RQ.
+            logger.warning(
+                "run_ai_job: travail %s introuvable après exécution — la ligne est morte "
+                "en route (restauration ADR-0066 §3 : le sidecar raconte le geste)",
+                job_id,
+            )
+            return {"error": "introuvable"}
         job.status = "succeeded"
         job.output_json = sortie if isinstance(sortie, dict) else {"result": sortie}
         job.duration_ms = int((fin - debut).total_seconds() * 1000)

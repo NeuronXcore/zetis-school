@@ -122,6 +122,9 @@ AMORCES_MS: dict[str, int] = {
     # ces amorces resteront les valeurs servies tant que l'archive reste petite. Très bien ainsi.
     "backup_create": 10_000,
     "backup_verify": 10_000,
+    # La restauration CONTIENT un `backup_create` complet (le filet ①), plus le restore mesuré
+    # (0,234 s), le swap (8 ms), les médias et l'upgrade — l'amorce empile, la mesure corrigera.
+    "backup_restore": 20_000,
 }
 
 # En dessous, la statistique n'est pas une mesure mais un accident : un seul travail lent la

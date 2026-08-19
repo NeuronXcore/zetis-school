@@ -4,6 +4,43 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## `feat/restaurer-une-sauvegarde` — slice 1 (`backup_restore`) — 2026-08-19
+
+### 🔴 La fin de `run_ai_job` écrivait le succès SANS garde — et la restauration fait MOURIR sa propre ligne
+
+Le chemin « travail introuvable » de `run_ai_job` n'existait qu'en **tête** de fonction. En
+**fin**, après le retour de l'exécutant : `job = db.get(AIJob, job_id)` puis `job.status =
+"succeeded"` — si la ligne a disparu PENDANT l'exécution (c'est exactement ce que fait le swap de
+l'ADR-0066 §3 : la ligne vit désormais dans `zetis_avant`), `db.get` rend `None` et l'écriture
+lève une `AttributeError` **hors du try/except** (qui n'entoure que l'exécutant) → l'exception
+remonte à RQ. Le prompt de la slice supposait ce chemin déjà sain (« il log introuvable ») — faux.
+
+**Parade (deux pièces, les deux nécessaires)** : un garde `if job is None → {"error":
+"introuvable"}` en fin de `run_ai_job` (verrouillé par
+`test_run_ai_job_survit_a_la_disparition_de_sa_ligne`), **et** `_neutraliser_pool()`
+(`engine.dispose()`) AVANT le `pg_terminate_backend` du ④ — sinon le pool SQLAlchemy du worker
+porte des connexions tuées et le `db.get` final tombe en `OperationalError` avant même le garde.
+
+### 🔴 Une connexion admin sur la base qu'on renomme fait échouer son PROPRE `RENAME`
+
+`_restaurer_a_blanc` (vérification, ADR-0065) se connecte à `zetis` pour ses DDL — recopier ce
+patron pour le swap aurait été fatal : `ALTER DATABASE zetis RENAME` exige **zéro** connexion sur
+la base, la sienne comprise. L'erreur ne se voit qu'à l'exécution (`database is being accessed by
+other users`… par soi-même). **Parade** : les connexions admin du GESTE (`_restaurer_dans`,
+`_swap`) visent **`postgres`** — c'est asserté par le test d'ordre des ordres SQL. La vérification,
+elle, garde son patron : `zetis` vit encore pendant tout `backup_verify`.
+
+### 🔴 `is_transient` peut faire REJOUER un swap — un geste destructif exige son verrou zéro-rejeu
+
+`enqueue_ai_job` pose un `Retry`, et `failures.is_transient` classe `ConnectionError` /
+`TimeoutError` **natifs** comme transitoires. Une exception de ce type née d'une étape de la
+restauration (MinIO, socket…) aurait fait rejouer TOUTE la séquence par RQ — un second swap
+par-dessus un état à moitié remplacé. **Parade** : tout le corps de `restaurer_sauvegarde` est
+enveloppé — toute exception inattendue ressort en `RestaurationInterrompue(SauvegardeRefusee)`,
+structurelle, `raise … from exc` (la cause reste en trace). Verrouillé par un test qui lève un
+`ConnectionError` et asserte `not is_transient(...)`. **Au passage** : `minio.remove_objects`
+rend un itérateur **paresseux** — non consommé, il ne supprime RIEN (`list(...)` obligatoire).
+
 ## `feat/sauvegarde-qui-se-merite-3` — slice 3 (l'onglet 💾) — 2026-08-19
 
 ### 🔴 Un `pg_dump` PLUS RÉCENT que le serveur écrit un dump que le serveur REFUSE de rejouer

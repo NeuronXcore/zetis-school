@@ -2951,7 +2951,7 @@ grounding?, recall?}`
 - **`recall`** — `{asked, total, skill_name, finished}` pendant une interrogation orale, sinon
   `null`. ⚠️ **Un repère, jamais un score** : aucun compteur d'erreurs n'est servi.
 
-## Réglages — 💾 Données (`/api/settings`, ADR-0065)
+## Réglages — 💾 Données (`/api/settings`, ADR-0065 · ADR-0066)
 
 > Routeur `/api/settings`, `require_parent` d'office. ⚠️ Les autres routes de ce routeur
 > (`/autonomy`, `/machine`, `/ecarts`, `/production-suspension`) ne sont **pas encore documentées
@@ -2997,6 +2997,33 @@ dispositif n'a pas pu vérifier » (archive disparue, Postgres injoignable), jam
 mauvaise ». L'autorité des comparaisons est le **manifeste scellé DANS le tar** — le sidecar
 `.manifeste.json` n'est qu'une copie de lecture, le falsifier ne change pas le verdict.
 
+### POST `/api/settings/donnees/restauration`
+
+Enfile `backup_restore` (ADR-0066 §2) — le swap à réveil suspendu : filet `backup_create` ① →
+restore dans `zetis_restore` ② → écritures de réveil DANS la base restaurée ③ (suspendue, régime
+MANUAL, déclencheur désarmé) → SWAP ④ (terminate + `zetis` → `zetis_avant` → `zetis_restore` →
+`zetis`, 8 ms mesurés) → médias remplacés ⑤ → files de production purgées ⑥ → `alembic upgrade
+head` ⑦ → recyclage du worker ⑧.
+
+- **Corps** : `{ "archive": "zetis-AAAA-MM-JJ-hhmm.tar" }` — même whitelist stricte que la
+  vérification.
+- **202** `{job_id, status}` — métadonnées d'enfilement seulement (§1 du 0065, cité tel quel).
+- **409 fail-closed, AVANT d'enfiler** — TOUTES les préconditions du §2, chacune motivée :
+  nom hors whitelist · archive ou sidecars (`.sha256`, `.manifeste.json`) absents · dernier
+  verdict `backup_verify` **≠ `reussie`** (§1 — le mot se mérite dans les deux sens) ·
+  **suspension INACTIVE** (le geste exige que le monde soit déjà arrêté ; le motif nomme le
+  bouton « Suspendre ZETIS », adr-0063) · **déploiement non supervisé** (le ⑧ exige un
+  superviseur — même motif que le 409 du redémarrage, adr-0064) · un travail de sauvegarde en
+  `queued|running` ou **tout** travail/lot `running` · **compatibilité défavorable** (§5).
+
+🔴 **Le journal du geste vit en sidecar `<archive>.restauration.json`** sur la cible, écrit
+étape par étape (§3) — un crash au milieu laisse un fichier qui dit où ça s'est arrêté. **La
+ligne `ai_jobs` du travail MEURT au swap** (elle vit dans `zetis_avant`) : la barre voit le
+travail s'évanouir, c'est structurel et assumé — aucune ligne n'est recréée dans la base
+restaurée. Zéro rejeu RQ quelle que soit l'exception (`RestaurationInterrompue`). L'état
+d'avant reste re-swappable à chaud : `zetis_avant`, écrasée au geste suivant (§4, runbook
+slice 2).
+
 ### GET `/api/settings/donnees`
 
 L'état de l'onglet 💾 (ADR-0065 §7) — des MÉTADONNÉES, et 🔴 **aucun tar n'est ouvert** (verrou
@@ -3009,7 +3036,8 @@ pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify
                                                  # s'écrit ; le motif = le même texte que le 409
   archives: [ { nom, taille, cree_le,            # cree_le vient du NOM (zetis-AAAA-MM-JJ-hhmm),
                 sha256?, lignes?, tables?,       #   pas du mtime ; sidecar illisible ⇒ champs
-                verification? } ],               #   null, l'archive s'affiche quand même
+                verification?,                   #   null, l'archive s'affiche quand même
+                restaurable, motif? } ],         # compatibilité ADR-0066 §5 (voir ci-dessous)
   derniere_verification? }                       # résumé du dernier backup_verify réussi
 ```
 
@@ -3017,3 +3045,10 @@ pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify
 verdict le plus récent par archive, lu dans l'`output_json` des travaux `backup_verify`
 `succeeded`. `verification: null` = jamais vérifiée : c'est l'archive que la page appelle
 « **export non vérifié** » — le mot « sauvegarde » n'apparaît qu'après un verdict `reussie` (§7).
+
+`restaurable` / `motif` (ADR-0066 §5) : le verdict de **compatibilité**, rendu AVANT le geste —
+la tête Alembic du sidecar `.manifeste.json` confrontée aux migrations du **code installé**
+(`ScriptDirectory`, jamais la base vivante). Tête = head ou ancêtre de head ⇒ `restaurable:
+true` ; tête inconnue (archive plus récente que le code, ou étrangère), manifeste absent ou sans
+tête ⇒ `false` + motif (fail-closed). ⚠️ Il ne dit RIEN de l'intégrité — ça, c'est
+`verification` : la route de restauration exige **les deux** verdicts favorables.

@@ -23,6 +23,7 @@ from app.modules.settings.schemas import (
     EcartsOut,
     MachineOut,
     SauvegardeAccepteeOut,
+    SauvegardeRestaurationRequest,
     SauvegardeVerificationRequest,
     SuspensionOut,
     SuspensionRequest,
@@ -192,4 +193,33 @@ def post_verification(
         raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
     return travaux.enfiler(
         db, job_type=sauvegarde.JOB_TYPE_VERIFY, payload={"archive": req.archive}
+    )
+
+
+@router.post(
+    "/donnees/restauration",
+    response_model=SauvegardeAccepteeOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def post_restauration(
+    req: SauvegardeRestaurationRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Enfile `backup_restore` sur l'archive désignée (ADR-0066 §2) — 202 ou **409 motivé**.
+
+    TOUTES les préconditions du §2 partent AVANT `travaux.enfiler` : nom hors whitelist ·
+    archive ou sidecars absents · dernier verdict `backup_verify` ≠ `reussie` (§1 — le mot se
+    mérite dans les deux sens) · suspension INACTIVE (le geste ne suspend pas à la place de
+    Papa, adr-0063) · déploiement non supervisé (le ⑧ exige un superviseur, adr-0064) · un lot
+    ou un travail en vol · compatibilité défavorable (§5). Quand un motif est rendu, AUCUN job
+    n'existe.
+
+    ⚠️ La réponse ne porte que des métadonnées de travail : aucun octet d'archive ne passe par
+    HTTP (§1, cité tel quel par l'ADR-0066). Le verdict du geste vit dans le sidecar
+    `.restauration.json` (§3) — la ligne du travail, elle, meurt au swap.
+    """
+    motif = sauvegarde.refus_restauration(db, req.archive)
+    if motif:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=motif)
+    return travaux.enfiler(
+        db, job_type=sauvegarde.JOB_TYPE_RESTORE, payload={"archive": req.archive}
     )

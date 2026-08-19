@@ -39,9 +39,12 @@ import io
 import json
 import logging
 import re
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,9 +65,10 @@ CERTIFICAT = ".zetis-cible.json"
 #: Nommé dans les motifs de refus : un cadenas dit pourquoi ET quoi faire (adr-0062 §6).
 SCRIPT_CERTIFICATION = "scripts/certifier-cible-sauvegarde.sh"
 
-#: Les deux `job_type` de la file (ADR-0065 §4 et §6).
+#: Les deux `job_type` de la file (ADR-0065 §4 et §6), et le troisième (ADR-0066 §2).
 JOB_TYPE = "backup_create"
 JOB_TYPE_VERIFY = "backup_verify"
+JOB_TYPE_RESTORE = "backup_restore"
 
 #: Le nom d'archive tel que `creer_sauvegarde` le fabrique — et RIEN d'autre. Le nom de la route
 #: de vérification vient du CLIENT : sans cette whitelist, `../` ou un chemin absolu ferait lire
@@ -73,6 +77,15 @@ _NOM_ARCHIVE = re.compile(r"^zetis-\d{4}-\d{2}-\d{2}-\d{4}\.tar$")
 
 #: La base jetable de la restauration à blanc (§6) — le nom vient du BACKLOG, repris par l'ADR.
 VERIFY_DB = "zetis_verify"
+
+#: Les deux bases du swap (ADR-0066 §2.④ et §4) : la cible où le dump se rejoue, et le repli à
+#: chaud que le swap laisse derrière lui — UNE seule `zetis_avant`, écrasée au geste suivant.
+RESTORE_DB = "zetis_restore"
+AVANT_DB = "zetis_avant"
+
+#: `apps/backend` — où vivent `alembic.ini` et `alembic/`. Depuis `__file__` et jamais depuis le
+#: cwd : uvicorn et le worker ne sont pas lancés du même endroit selon le déploiement.
+_BACKEND_DIR = Path(__file__).resolve().parents[3]
 
 #: Les exclusions du §2, écrites DANS le manifeste pour que Papa ne croie jamais sa restauration
 #: complète. La liste vit ici, pas dans une f-string du pipeline : la slice 3 l'affichera telle
@@ -110,6 +123,19 @@ class SauvegardeIncomplete(SauvegardeRefusee):
 
     Distinguée de `SauvegardeRefusee` pour les tests et la slice 3 (le libellé du refus) ; même
     verdict de rejeu : structurel, l'objet manquant ne repoussera pas tout seul.
+    """
+
+
+class RestaurationInterrompue(SauvegardeRefusee):
+    """Une restauration (ADR-0066) s'est arrêtée en route — et elle ne se REJOUE JAMAIS.
+
+    🔴 **C'est un verrou, pas une politesse de typage.** `enqueue_ai_job` pose un `Retry`, et
+    `failures.is_transient` classe `ConnectionError` / `TimeoutError` natifs comme transitoires :
+    une exception de ce type née d'une étape du geste ferait REJOUER toute la séquence — un
+    second swap par-dessus un état à moitié remplacé. `restaurer_sauvegarde` enveloppe donc toute
+    exception inattendue dans cette classe (héritière de `SauvegardeRefusee`, donc structurelle) :
+    quoi qu'il arrive, zéro rejeu. Le sidecar `.restauration.json` dit où ça s'est arrêté (§3) ;
+    la reprise est un geste HUMAIN (relancer, ou le runbook `zetis_avant` du §4).
     """
 
 
@@ -740,6 +766,606 @@ def verifier_sauvegarde(nom: str) -> dict:
     return verdict
 
 
+# --- La restauration : un swap à réveil suspendu (ADR-0066 §1-§5) --------------------------------
+#
+# 🔴 **La ligne `ai_jobs` du travail MEURT au swap, et c'est structurel** (§3) : elle vit dans la
+# base que le geste remplace — après le ④ elle est dans `zetis_avant`, pas dans `zetis`. Aucune
+# ligne n'est recréée dans la base restaurée (y insérer une trace falsifierait l'histoire qu'on
+# vient de restaurer) ; la fin de `run_ai_job` rend « introuvable » sans casser (garde dédié), la
+# barre voit le travail s'évanouir, et c'est le sidecar `.restauration.json` qui raconte le geste.
+#
+# ⚠️ **Zéro rejeu, quelle que soit l'exception** : tout le corps de `restaurer_sauvegarde` est
+# enveloppé en `RestaurationInterrompue` (structurelle). Voir la docstring de la classe.
+
+
+# --- Le verdict de compatibilité (§5) : le manifeste contre le code, JAMAIS contre la base --------
+
+
+def _tetes_connues() -> set[str]:
+    """Les révisions Alembic que le code installé connaît — les ancêtres de head, head compris.
+
+    `ScriptDirectory` sur `apps/backend/alembic` (les fichiers du code, pas la base vivante) :
+    c'est la question du §5 — « le code sait-il servir ce schéma ? » — et elle se répond sans
+    aucune connexion. Mesuré au read-before-code : head `a8a71c84f86e`, celui de l'ADR.
+    """
+    from alembic.script import ScriptDirectory
+
+    scripts = ScriptDirectory(str(_BACKEND_DIR / "alembic"))
+    return {r.revision for r in scripts.iterate_revisions("heads", None)}
+
+
+def _compatibilite(tete_manifeste: str | None, connues: set[str]) -> tuple[bool, str | None]:
+    """Les trois verdicts du §5 : `(restaurable, motif)`. Fail-closed sur tout ce qui manque."""
+    if not tete_manifeste:
+        return False, (
+            "Le manifeste ne porte pas de tête Alembic : impossible de savoir quel schéma "
+            "cette archive contient — elle ne se restaure pas."
+        )
+    if tete_manifeste in connues:
+        # = head → l'upgrade du ⑦ sera un no-op (mesuré) ; plus ancienne → il rejoue les
+        # migrations manquantes. ⚠️ Ce second chemin reste NON MESURÉ en vrai (§5) : aucune
+        # archive d'une tête antérieure n'existe encore.
+        return True, None
+    return False, (
+        f"Tête Alembic « {tete_manifeste} » inconnue du code installé (archive plus récente "
+        "que le code, ou étrangère) : le code ne sait pas servir ce schéma — déployez d'abord "
+        "une version qui le connaît."
+    )
+
+
+def _compat_archive(dossier: Path, nom: str, connues: set[str]) -> tuple[bool, str | None]:
+    """Le verdict d'UNE archive, lu de son sidecar `.manifeste.json` — la copie de lecture (§5),
+    jamais le tar (§1 : une lecture d'état n'ouvre aucun tar). Sidecar absent ⇒ fail-closed."""
+    sidecar = dossier / f"{nom}.manifeste.json"
+    try:
+        tete = json.loads(sidecar.read_text(encoding="utf-8"))["base"].get("tete_alembic")
+    except (OSError, ValueError, TypeError, KeyError):
+        return False, (
+            f"Sidecar « {nom}.manifeste.json » absent ou illisible : sans manifeste, aucun "
+            "verdict de compatibilité — cette archive ne se restaure pas."
+        )
+    return _compatibilite(tete, connues)
+
+
+# --- Le refus AVANT d'enfiler (§2 : toutes les préconditions en 409 motivé) -----------------------
+
+
+def _dernier_verdict(db: Session, nom: str) -> str | None:
+    """Le verdict de la vérification la plus récente de CETTE archive, ou `None` si jamais
+    vérifiée. Même lecture que `etat_donnees` : les `backup_verify` réussis, le plus récent
+    d'abord — le verdict vit dans `output_json` (ADR-0065 §6)."""
+    sorties = db.execute(
+        select(AIJob.output_json)
+        .where(AIJob.job_type == JOB_TYPE_VERIFY, AIJob.status == "succeeded")
+        .order_by(AIJob.id.desc())
+        .limit(200)
+    ).scalars()
+    for sortie in sorties:
+        if isinstance(sortie, dict) and sortie.get("archive") == nom:
+            return sortie.get("verdict")
+    return None
+
+
+def refus_restauration(db: Session, nom: str) -> str | None:
+    """Le motif du 409 de `POST /donnees/restauration`, ou `None`. AVANT `enfiler` : quand il
+    rend un motif, AUCUN job n'existe (patron des refus du 0065).
+
+    L'ordre des vérifications va du moins cher au plus cher, et chaque refus dit quoi faire :
+    le geste est de classe A4 — tout ce qui n'est pas prouvé restaurable est refusé (§1, §2, §5).
+    """
+    if not _NOM_ARCHIVE.match(nom):
+        return (
+            f"Nom d'archive invalide : « {nom} » — une archive ZETIS s'appelle "
+            "zetis-AAAA-MM-JJ-hhmm.tar, sans chemin. Prenez le nom tel que la liste le rend."
+        )
+    dossier = Path(settings.backup_dir)
+    if not (dossier / nom).is_file():
+        return f"Archive « {nom} » introuvable sur la cible ({dossier})."
+    for sidecar in (f"{nom}.sha256", f"{nom}.manifeste.json"):
+        if not (dossier / sidecar).is_file():
+            return (
+                f"Sidecar « {sidecar} » absent : sans lui, l'archive ne se prouve pas — "
+                "elle ne se restaure pas."
+            )
+
+    # §1 — le mot se mérite dans les deux sens : seul le dernier verdict `reussie` ouvre le geste.
+    verdict = _dernier_verdict(db, nom)
+    if verdict != "reussie":
+        etat = "en échec" if verdict == "echec" else "jamais vérifiée"
+        return (
+            f"Archive « {nom} » {etat} : restaurer ne s'offre qu'à une sauvegarde dont la "
+            "dernière vérification est réussie (le mot se mérite dans les deux sens). "
+            "Lancez d'abord « Vérifier » sur cette archive."
+        )
+
+    # §2 — le geste ne suspend pas à la place de Papa : il exige que le monde soit DÉJÀ arrêté.
+    from app.modules.settings import service
+
+    if not service.production_suspended(db):
+        return (
+            "ZETIS n'est pas suspendu : la restauration remplace l'état vivant et exige que "
+            "le monde soit déjà arrêté. Suspendez d'abord avec le bouton « Suspendre ZETIS » "
+            "(page Réglages), puis relancez."
+        )
+
+    # §2.⑧ — l'arrêt du worker EST le redémarrage seulement si quelque chose le relance.
+    if not settings.production_worker_supervised:
+        from app.modules.production.workers import MOTIF_NON_SUPERVISE
+
+        return MOTIF_NON_SUPERVISE
+
+    # §2 — aucun lot ni travail en vol : pendant une restauration, rien n'écrit, rien n'attend
+    # son tour dans la famille sauvegarde (patron 0065 : deux gestes de sauvegarde ne se
+    # chevauchent jamais, `queued` compris).
+    en_cours = _en_file_ou_en_cours(db, (JOB_TYPE, JOB_TYPE_VERIFY, JOB_TYPE_RESTORE))
+    if en_cours is not None:
+        return (
+            f"Un travail de sauvegarde est déjà en file ou en cours "
+            f"(travail #{en_cours.id}, {en_cours.job_type}) : attendez sa fin."
+        )
+    travail = db.execute(
+        select(AIJob.id, AIJob.job_type).where(AIJob.status == "running").limit(1)
+    ).first()
+    if travail is not None:
+        return (
+            f"Un travail est en cours (travail #{travail.id}, {travail.job_type}) : "
+            "attendez sa fin — pendant une restauration, rien ne doit écrire."
+        )
+    from app.db.models import ProductionRun
+
+    lot = db.execute(
+        select(ProductionRun.id).where(ProductionRun.status == "running").limit(1)
+    ).first()
+    if lot is not None:
+        return (
+            f"Un lot de production est en cours (lot #{lot.id}) : attendez sa fin — "
+            "pendant une restauration, rien ne doit écrire."
+        )
+
+    # §5 — le verdict de compatibilité, rendu AVANT le geste.
+    try:
+        connues = _tetes_connues()
+    except Exception as exc:  # noqa: BLE001 — fail-closed : sans réponse, pas de geste A4
+        return f"Impossible de lire les migrations du code ({type(exc).__name__}) : refus."
+    restaurable, motif = _compat_archive(dossier, nom, connues)
+    if not restaurable:
+        return motif
+    return None
+
+
+# --- Le sidecar `.restauration.json` (§3) : le journal du geste, écrit ÉTAPE PAR ÉTAPE ------------
+
+
+#: Les huit étapes du §2, dans l'ordre — les noms que le sidecar et la slice 2 emploient.
+ETAPES_RESTAURATION = (
+    "filet",
+    "restauration",
+    "reveil",
+    "swap",
+    "medias",
+    "purge_files",
+    "migrations",
+    "recyclage",
+)
+
+
+class _JournalRestauration:
+    """Le sidecar, réécrit sur la CIBLE à chaque étape : un crash au milieu laisse un fichier
+    qui dit où ça s'est arrêté (§3). Même famille que `.sha256` et `.manifeste.json` — lisible
+    sans la base qu'il raconte."""
+
+    def __init__(self, chemin: Path, archive: str) -> None:
+        self._chemin = chemin
+        self.donnees: dict = {
+            "version": 1,
+            "archive": archive,
+            "commence_le": datetime.now(timezone.utc).isoformat(),
+            "termine_le": None,
+            "etapes": [],
+            "ecarts": [],
+        }
+        self._ecrire()
+
+    def _ecrire(self) -> None:
+        self._chemin.write_text(
+            json.dumps(self.donnees, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    def franchir(self, etape: str, **detail) -> None:
+        entree = {"etape": etape, "statut": "franchie", "le": datetime.now(timezone.utc).isoformat()}
+        if detail:
+            entree["detail"] = detail
+        self.donnees["etapes"].append(entree)
+        self._ecrire()
+
+    def echouer(self, etape: str, motif: str) -> None:
+        self.donnees["etapes"].append(
+            {
+                "etape": etape,
+                "statut": "echec",
+                "le": datetime.now(timezone.utc).isoformat(),
+                "motif": motif[:1000],
+            }
+        )
+        self._ecrire()
+
+    def ecart(self, motif: str) -> None:
+        self.donnees["ecarts"].append(motif)
+        self._ecrire()
+
+    def terminer(self) -> None:
+        self.donnees["termine_le"] = datetime.now(timezone.utc).isoformat()
+        self._ecrire()
+
+
+@contextmanager
+def _etape(journal: _JournalRestauration, nom: str):
+    """L'échec d'une étape s'écrit AVANT de lever : le sidecar survit au crash (§3)."""
+    try:
+        yield
+    except BaseException as exc:
+        journal.echouer(nom, str(exc) or type(exc).__name__)
+        raise
+
+
+# --- Les étapes ② à ⑧ — chacune est un point de greffe patchable (patron `_instantane`) -----------
+
+
+def _restaurer_dans(base: str, dump_path: Path) -> None:
+    """② : la mécanique prouvée de `zetis_verify` (ADR-0065 §6) — DROP/CREATE puis `psql -v
+    ON_ERROR_STOP=1` — SANS destruction finale : cette base-là est la CIBLE du swap.
+
+    Fonction DISTINCTE de `_restaurer_a_blanc`, et c'est tranché au read-before-code : un
+    paramètre « ne détruis pas à la fin » aurait mélangé deux sémantiques (jetable vs cible) et
+    affaibli le test-verrou qui asserte la liste exacte des ordres de la vérification.
+
+    ⚠️ **Connexion admin sur `postgres`, pas sur `zetis`** — l'inverse de `_restaurer_a_blanc`.
+    Le geste enchaîne sur le swap (④), qui termine toutes les connexions de la base courante puis
+    la renomme : une connexion admin qui y vivrait ferait échouer son propre RENAME.
+
+    Un `psql` qui tombe est un refus structurel : RIEN n'a été remplacé, `zetis` est intacte.
+    """
+    import psycopg
+
+    admin = psycopg.connect(_dsn_pour("postgres"), autocommit=True)
+    try:
+        admin.execute(f"DROP DATABASE IF EXISTS {base} WITH (FORCE)")  # ménage d'un essai interrompu
+        admin.execute(f"CREATE DATABASE {base}")
+    finally:
+        admin.close()
+
+    resultat = subprocess.run(
+        ["psql", "-q", "-v", "ON_ERROR_STOP=1", "-f", str(dump_path), _dsn_pour(base)],
+        capture_output=True,
+        text=True,
+    )
+    if resultat.returncode != 0:
+        raise SauvegardeRefusee(
+            f"restauration : psql a échoué sous ON_ERROR_STOP (code {resultat.returncode}) "
+            f"— {resultat.stderr.strip()[:500]} ; rien n'a été remplacé."
+        )
+
+
+def _cles_reveil() -> list[tuple[str, str]]:
+    """③ : ce que la base restaurée doit porter AVANT de devenir `zetis` — suspendue (adr-0063 :
+    elle ne se relève jamais seule), régime MANUAL, déclencheur désarmé (une archive AUTONOM ne
+    réarme pas AUTONOM en silence). Les paliers sont DÉRIVÉS de `service.NIVEAUX` — une copie
+    locale aurait divergé au premier réglage renommé."""
+    from app.modules.settings import service
+
+    cles = [(service.PRODUCTION_SUSPENDED_KEY, "true"), (service.AUTO_TRIGGER_KEY, "false")]
+    cles += [(cle, str(palier)) for cle, palier in sorted(service.NIVEAUX["manuel"].items())]
+    return cles
+
+
+def _ecrire_reveil(base: str) -> list[str]:
+    """③ : upserts `app_settings` DANS la base restaurée, avant le swap (mesuré au cadrage).
+    Rend les clés écrites (le détail du sidecar)."""
+    import psycopg
+
+    ecrit: list[str] = []
+    conn = psycopg.connect(_dsn_pour(base), autocommit=True)
+    try:
+        for cle, valeur in _cles_reveil():
+            conn.execute(
+                "INSERT INTO app_settings (key, value, created_at, updated_at) "
+                "VALUES (%s, %s, now(), now()) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+                (cle, valeur),
+            )
+            ecrit.append(cle)
+    finally:
+        conn.close()
+    return ecrit
+
+
+def _neutraliser_pool() -> None:
+    """④ (préambule) : le pool SQLAlchemy du worker porte des connexions vers la base que le
+    swap va terminer — les fermer AVANT, sinon le geste tue les connexions de son propre
+    processus et la fin de `run_ai_job` tomberait sur une connexion morte. Le pool se
+    reconstruit tout seul à la demande — sur la NOUVELLE base (mesuré au cadrage)."""
+    from app.db import base
+
+    base.engine.dispose()
+
+
+def _base_courante() -> str:
+    """Le nom de la base de production, DÉRIVÉ du DSN (`…/zetis`) — jamais écrit en dur."""
+    return _dsn_libpq().rpartition("/")[2]
+
+
+def _swap() -> None:
+    """④ : terminer toutes les connexions de la base courante, écraser `zetis_avant`, puis le
+    double RENAME — 8 ms mesurés, la fenêtre d'indisponibilité de l'ADR.
+
+    Connexion admin sur `postgres` (voir `_restaurer_dans`) : une connexion à la base courante
+    ne pourrait pas la renommer. L'ordre est VERROUILLÉ par test : le DROP de `zetis_avant`
+    part avant le premier RENAME, sinon le RENAME échoue sur un nom déjà pris.
+    """
+    import psycopg
+
+    courante = _base_courante()
+    admin = psycopg.connect(_dsn_pour("postgres"), autocommit=True)
+    try:
+        admin.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s",
+            (courante,),
+        )
+        admin.execute(f"DROP DATABASE IF EXISTS {AVANT_DB} WITH (FORCE)")
+        admin.execute(f"ALTER DATABASE {courante} RENAME TO {AVANT_DB}")
+        admin.execute(f"ALTER DATABASE {RESTORE_DB} RENAME TO {courante}")
+    finally:
+        admin.close()
+
+
+def _membre_sain(nom_membre: str, prefixe: str) -> str:
+    """Le chemin relatif d'un membre d'archive, ou un refus : `..` et les chemins absolus ne
+    sortent JAMAIS du tar — même fail-closed que la whitelist du nom d'archive."""
+    relatif = nom_membre[len(prefixe):]
+    if not relatif or relatif.startswith("/") or ".." in Path(relatif).parts:
+        raise SauvegardeRefusee(f"membre d'archive suspect : « {nom_membre} » — restauration refusée.")
+    return relatif
+
+
+def _remplacer_medias(chemin_tar: Path) -> dict:
+    """⑤ : le bucket et `/shared/audio` REMPLACÉS depuis l'archive — vidés puis réécrits, en
+    couple ou rien (une base sans son bucket, c'est chaque capsule qui casse). Le filet du ①
+    couvre l'état d'avant.
+
+    ⚠️ `remove_objects` rend un itérateur PARESSEUX : il faut le consommer, sinon rien ne part
+    (vérifié dans la lib au read-before-code).
+    """
+    objets = fichiers = 0
+    with tarfile.open(chemin_tar) as tar:
+        membres = [m for m in tar.getmembers() if m.isfile()]
+
+        if settings.storage_backend == "minio":
+            from minio import Minio
+            from minio.deleteobjects import DeleteObject
+
+            client = Minio(
+                settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+                secure=settings.minio_secure,
+            )
+            bucket = settings.minio_bucket_capsules
+            if client.bucket_exists(bucket):
+                a_supprimer = [
+                    DeleteObject(o.object_name)
+                    for o in client.list_objects(bucket, recursive=True)
+                ]
+                erreurs = list(client.remove_objects(bucket, a_supprimer))
+                if erreurs:
+                    raise SauvegardeRefusee(
+                        f"purge du bucket « {bucket} » : {len(erreurs)} erreur(s) — "
+                        f"{erreurs[0]}"
+                    )
+            else:
+                client.make_bucket(bucket)
+            for membre in membres:
+                if not membre.name.startswith("minio/"):
+                    continue
+                cle = _membre_sain(membre.name, "minio/")
+                flux = tar.extractfile(membre)
+                client.put_object(bucket, cle, flux, length=membre.size)
+                objets += 1
+
+        racine = Path(settings.audio_storage_dir)
+        racine.mkdir(parents=True, exist_ok=True)
+        for enfant in racine.iterdir():
+            shutil.rmtree(enfant) if enfant.is_dir() else enfant.unlink()
+        for membre in membres:
+            if not membre.name.startswith("audio/"):
+                continue
+            relatif = _membre_sain(membre.name, "audio/")
+            destination = racine / relatif
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            flux = tar.extractfile(membre)
+            with destination.open("wb") as sortie:
+                shutil.copyfileobj(flux, sortie)
+            fichiers += 1
+    return {"objets_minio": objets, "fichiers_audio": fichiers}
+
+
+def _purger_files_redis() -> dict:
+    """⑥ : les files de production ET leurs registres planifiés — le transitoire d'avant-swap
+    pointe des ids d'une autre histoire. Le réveil du scan purgé n'est pas perdu : le worker
+    recyclé au ⑧ le réamorce (`production_worker.py` : `scan_already_planned` → amorçage).
+    La file `media` n'est PAS touchée : le destructif est ÉNUMÉRÉ (§Périmètre 3)."""
+    from rq.registry import ScheduledJobRegistry
+
+    from app.core.queue import production_queues
+
+    purges = planifies = 0
+    for file in production_queues():
+        purges += len(file.get_job_ids()) if hasattr(file, "get_job_ids") else 0
+        file.empty()
+        registre = ScheduledJobRegistry(queue=file)
+        for job_id in registre.get_job_ids():
+            registre.remove(job_id, delete_job=True)
+            planifies += 1
+    return {"jobs_purges": purges, "reveils_purges": planifies}
+
+
+def _alembic_upgrade() -> None:
+    """⑦ : `alembic upgrade head` sur la base restaurée — no-op si la tête est celle du code
+    (mesuré), rejoue les migrations manquantes sinon (§5). En subprocess et cwd `apps/backend`,
+    comme l'entrypoint : le même geste, depuis le même endroit."""
+    resultat = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=str(_BACKEND_DIR),
+        capture_output=True,
+        text=True,
+    )
+    if resultat.returncode != 0:
+        raise SauvegardeRefusee(
+            f"alembic upgrade head a échoué (code {resultat.returncode}) — "
+            f"{resultat.stderr.strip()[:500]}"
+        )
+
+
+def _arret_worker() -> bool:
+    """⑧ : warm shutdown de SOI-MÊME. Vérifié dans la lib (rq 2.11) au read-before-code :
+    `send_shutdown_command` publie sur le canal du worker → SIGINT → état BUSY → RQ pose un
+    drapeau et **laisse la pièce en cours se terminer** (le statut du travail s'écrit), puis le
+    worker sort et le superviseur le relance (adr-0064 : l'arrêt EST le redémarrage).
+
+    Rend `False` hors worker (tests, appel direct) : le recyclage est alors l'affaire de qui a
+    appelé — jamais une erreur.
+    """
+    from rq import get_current_job
+
+    try:
+        job = get_current_job()
+    except Exception:  # noqa: BLE001 — pas de worker courant : la question n'a pas de sens
+        job = None
+    nom_worker = getattr(job, "worker_name", None) if job is not None else None
+    if not nom_worker:
+        logger.warning("restauration: aucun worker courant — recyclage ⑧ sauté (appel hors file)")
+        return False
+
+    from rq.command import send_shutdown_command
+
+    from app.core.queue import _redis
+
+    send_shutdown_command(_redis(), nom_worker)
+    return True
+
+
+# --- Le geste (§2) : les huit étapes, dans l'ordre, sous journal ----------------------------------
+
+
+def restaurer_sauvegarde(nom: str) -> dict:
+    """Le travail `backup_restore` (ADR-0066 §2) : filet ① · restore ② · réveil ③ · swap ④ ·
+    médias ⑤ · purge ⑥ · upgrade ⑦ · recyclage ⑧ — et le sidecar écrit étape par étape (§3).
+
+    ⚠️ **Ne prend NI session NI LLM** (patron `_backup_create`) : les préconditions à session
+    (verdict `reussie`, suspension, travaux en vol) vivent sur la route — le worker revérifie ce
+    qui se revérifie sans base (nom, fichiers, compatibilité, supervision).
+
+    🔴 **Jamais sans filet** : si le ① refuse, RIEN n'est remplacé — la restauration s'arrête là.
+
+    Rend les métadonnées du geste (l'`output_json` du travail… qui mourra au swap, §3 — le
+    sidecar est la trace qui survit).
+    """
+    if not _NOM_ARCHIVE.match(nom):
+        raise SauvegardeRefusee(f"Nom d'archive invalide : « {nom} ».")
+    dossier = Path(settings.backup_dir)
+    chemin_tar = dossier / nom
+    if (
+        not chemin_tar.is_file()
+        or not (dossier / f"{nom}.sha256").is_file()
+        or not (dossier / f"{nom}.manifeste.json").is_file()
+    ):
+        # Vérifié par la route, mais le monde a pu bouger entre l'enfilement et l'exécution.
+        raise SauvegardeRefusee(f"Archive « {nom} » ou ses sidecars introuvables sur la cible.")
+    if not settings.production_worker_supervised:
+        from app.modules.production.workers import MOTIF_NON_SUPERVISE
+
+        raise SauvegardeRefusee(MOTIF_NON_SUPERVISE)
+    restaurable, motif = _compat_archive(dossier, nom, _tetes_connues())
+    if not restaurable:
+        raise SauvegardeRefusee(motif)
+
+    journal = _JournalRestauration(dossier / f"{nom}.restauration.json", archive=nom)
+    try:
+        # ① La sauvegarde-filet, non négociable : s'il refuse, RIEN n'est remplacé.
+        with _etape(journal, "filet"):
+            filet = creer_sauvegarde()
+        journal.franchir(
+            "filet",
+            archive=filet["archive"],
+            lignes=filet["lignes"],
+            tables=filet["tables"],
+        )
+
+        # ② Le dump de l'archive, rejoué dans `zetis_restore`.
+        with _etape(journal, "restauration"):
+            with tempfile.TemporaryDirectory(prefix="zetis-restauration-") as travail:
+                dump_path = Path(travail) / "dump.sql"
+                with tarfile.open(chemin_tar) as tar:
+                    flux = tar.extractfile("dump.sql")
+                    if flux is None:
+                        raise SauvegardeRefusee(f"« dump.sql » absent de l'archive « {nom} ».")
+                    with dump_path.open("wb") as sortie:
+                        shutil.copyfileobj(flux, sortie)
+                _restaurer_dans(RESTORE_DB, dump_path)
+        journal.franchir("restauration", base=RESTORE_DB)
+
+        # ③ Le réveil, écrit DANS la base restaurée AVANT le swap.
+        with _etape(journal, "reveil"):
+            cles = _ecrire_reveil(RESTORE_DB)
+        journal.franchir("reveil", cles=cles)
+
+        # ④ Le swap — 8 ms mesurés. Le pool du worker est neutralisé d'abord (voir la fonction).
+        with _etape(journal, "swap"):
+            _neutraliser_pool()
+            _swap()
+        journal.franchir("swap", avant=AVANT_DB)
+
+        # ⑤ Les médias, en couple ou rien.
+        with _etape(journal, "medias"):
+            medias = _remplacer_medias(chemin_tar)
+        journal.franchir("medias", **medias)
+
+        # ⑥ Le transitoire d'avant-swap pointe des ids d'une autre histoire.
+        with _etape(journal, "purge_files"):
+            purge = _purger_files_redis()
+        journal.franchir("purge_files", **purge)
+
+        # ⑦ Le schéma attendu par le code, garanti.
+        with _etape(journal, "migrations"):
+            _alembic_upgrade()
+        journal.franchir("migrations")
+
+        # ⑧ Le worker se recycle — un SimpleWorker ne recharge ni code ni schéma.
+        with _etape(journal, "recyclage"):
+            demande = _arret_worker()
+        journal.franchir("recyclage", demande=demande)
+        if not demande:
+            journal.ecart("recyclage ⑧ non demandé : aucun worker courant (appel hors file)")
+
+        journal.terminer()
+    except SauvegardeRefusee:
+        raise
+    except Exception as exc:
+        # 🔴 Zéro rejeu, quelle que soit l'exception — voir `RestaurationInterrompue`.
+        raise RestaurationInterrompue(
+            f"restauration de « {nom} » interrompue : {exc}"
+        ) from exc
+
+    logger.info("restauration: %s restaurée — l'état d'avant vit dans %s", nom, AVANT_DB)
+    return {
+        "archive": nom,
+        "filet": filet["archive"],
+        "base_avant": AVANT_DB,
+        **medias,
+        **purge,
+        "recyclage_demande": demande,
+    }
+
+
 # --- L'état de l'onglet 💾 (§7) : des MÉTADONNÉES, sans ouvrir un seul tar ------------------------
 
 
@@ -798,6 +1424,14 @@ def etat_donnees(db: Session) -> dict:
         # Lecture du plus récent au plus ancien : le premier verdict vu par archive est le bon.
         verdicts.setdefault(resume["archive"], resume)
 
+    # Le verdict de compatibilité (ADR-0066 §5) — les têtes du CODE, lues UNE fois pour toutes
+    # les archives. Fail-closed : sans réponse, aucune archive ne s'annonce restaurable.
+    connues: set[str] | None
+    try:
+        connues = _tetes_connues()
+    except Exception:  # noqa: BLE001 — un état ne tombe pas ; il dit « non » et pourquoi
+        connues = None
+
     archives: list[dict] = []
     if dossier.is_dir():
         # Le nom porte l'horodatage : trier les noms en ordre inverse = la plus récente d'abord.
@@ -820,6 +1454,16 @@ def etat_donnees(db: Session) -> dict:
                     # Sidecar illisible : l'archive s'affiche quand même, sans ses comptes —
                     # la page ne cache jamais un fichier qui existe sur la cible.
                     pass
+            # ⚠️ Pas `motif` tout court : ce nom porte déjà le refus du CERTIFICAT plus haut,
+            # et le `return` le relit — l'écraser ici ferait dire au certificat le verdict de
+            # la dernière archive (payé une fois : suite rouge du 2026-08-19).
+            if connues is None:
+                restaurable, motif_compat = (
+                    False,
+                    "Impossible de lire les migrations du code : refus.",
+                )
+            else:
+                restaurable, motif_compat = _compat_archive(dossier, nom, connues)
             archives.append(
                 {
                     "nom": nom,
@@ -831,6 +1475,8 @@ def etat_donnees(db: Session) -> dict:
                     "lignes": lignes,
                     "tables": tables,
                     "verification": verdicts.get(nom),
+                    "restaurable": restaurable,
+                    "motif": motif_compat,
                 }
             )
 
