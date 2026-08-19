@@ -1,6 +1,72 @@
-# Page Papa — Paramètres / Autonomie de ZETIS
+# Page Papa — Paramètres
 
-## Objectif
+> 🔴 **Réécrite par l'`adr-0062` (2026-08-19) : la page est devenue une CARTE et des ONGLETS.**
+> Tout ce qui suit le §« La page, dans son gabarit » décrit l'onglet ⚡ **Autonomie**, et reste
+> **intégralement en vigueur** : ZETIS LEVELS a été **déplacé, jamais réécrit**.
+
+## La page, dans son gabarit (`adr-0062`)
+
+```
+Paramètres                                    [N réglages s'écartent du défaut →]
+
+🗺 La carte │ ⚡ Autonomie │ 🧠 La machine     (+ 🎒 Massimo · 👤 Papa · 💾 Données à venir)
+─────────────
+```
+
+Maquette de référence du gabarit :
+`docs/frontend-papa/mockup/maquette-papa-parametres-v2.html`.
+
+### 🗺 La carte — la vue par défaut, et la navigation
+
+Ce n'est pas un réglage : c'est l'outil qui empêche d'en oublier un. **67 lignes** — 25 ici,
+7 ailleurs, 5 nulle part, 30 à décider. Chaque ligne « ici » ouvre son onglet, chaque ligne
+« ailleurs » ouvre sa page.
+
+> **Pourquoi la vue par défaut et pas un septième onglet.** Un onglet pair qu'on n'ouvre jamais ne
+> répond à personne — et celui-là est précisément l'outil qui dit ce que l'écran **ne** couvre pas.
+> Mis en atterrissage, il devient la façon dont on traverse la page.
+
+Deux listes d'honnêteté, sans lesquelles « rien d'oublié » est invérifiable : **« ailleurs »** (le
+réglage existe, mais pas ici — sans cette ligne, Papa le cherche et conclut qu'il n'existe pas) et
+**« nulle part »** (ce qui ne se règle qu'en `.env` ou en dur).
+
+🔴 **Une ligne « à décider » n'est pas une ligne à construire.** Le défaut est *ne pas construire*.
+
+### « N réglages s'écartent du défaut » — une ligne permanente, pas une case
+
+`GET /api/settings/ecarts` rend les clés `app_settings` **qui portent une ligne**. Aucun calcul,
+aucun défaut recopié : la table pose que *l'absence de ligne EST la valeur par défaut*, donc
+« modifié » = « une ligne existe ». C'est la question qu'on se pose six mois plus tard devant un
+comportement inexpliqué.
+
+### 🧠 La machine — Moteurs et Santé fusionnés
+
+Deux panneaux de lecture pure pour **une seule question de Papa** : *est-ce que ça marche ?* Quand
+une génération échoue, il faut « Ollama est-il joignable ? » **et** « quel modèle ? » dans la même
+seconde. `GET /api/settings/machine` rend un **instantané cohérent** ; `POST /machine/test` est le
+seul geste, et il ne persiste rien.
+
+🔴 **Aucun champ éditable** : le routage vit en variables d'environnement lues au démarrage.
+🔴 **Trois états pour Ollama**, jamais un ❌ muet : injoignable / joignable mais modèle absent /
+présent — c'est le piège du lien symbolique, où un SSD débranché rend le message d'un modèle mal
+nommé.
+
+### Les règles transverses (`adr-0062` §6)
+
+| Règle | Ce qu'elle interdit |
+|---|---|
+| Un onglet = une transaction | Un « Enregistrer » global couvrant quatre domaines n'est pas lisible. |
+| Jamais d'auto-save | Aucun réglage ne change au survol ni au clic. |
+| L'onglet vit dans l'URL (`?onglet=`) | Un rechargement qui ramène ailleurs. |
+| Le brouillon survit à la navigation | Une modale « voulez-vous quitter » qui punit un geste innocent. |
+| Chargement : squelette par onglet | Une valeur affichée « au hasard » avant la réponse. |
+| Erreur de lecture ⇒ **aucun réglage** | Un repli sur les défauts — un réglage faux affiché une seconde est un mensonge. |
+| Aucun sondage | Un champ qui bouge sous les doigts. |
+| Un onglet vide n'existe pas | Une surface promise qui n'existe pas. |
+
+---
+
+## Objectif de l'onglet ⚡ Autonomie
 
 Répondre à une question que personne ne pose à voix haute : **jusqu'où ZETIS produit le contenu de
 Massimo tout seul, et Papa le sait-il ?**
@@ -41,6 +107,12 @@ et §G (autorité, matrice, veto)**, `adr-0031` + son addendum (le gate vit dans
   se lit comme une panne.
 - **Rien de cette page n'atteint Massimo.** `require_parent` côté serveur ; aucune donnée, aucun
   composant partagé avec `frontend-massimo` (invariant V1 : un retrait doit rester invisible).
+  > ⚠️ **VRAI aujourd'hui, et daté** (`adr-0062` §7). Cette phrase cessera de l'être avec l'onglet
+  > 🎒 **Massimo** — accessibilité, voix, rythme — et avec toute remise à zéro de la progression.
+  > La décision est **déjà prise** : on **assume et on marque**. Chaque réglage qui traverse
+  > portera 🎒, et cette phrase s'amendera **dans le commit** du premier d'entre eux — jamais à
+  > côté d'un bouton qui la contredit. Le précédent est au dossier : *« ZETIS ne produit rien sans
+  > votre validation »* est restée affichée après être devenue fausse.
 
 ## Structure
 
@@ -49,7 +121,7 @@ et §G (autorité, matrice, veto)**, `adr-0031` + son addendum (le gate vit dans
 Inchangé : titre « Paramètres », sous-titre « Ce qui se règle ici, et ce qui se règle là où la
 décision se prend. »
 
-### Section « Réglages actifs » (existante, inchangée)
+### Section « Réglages actifs » (dans l'onglet ⚡ Autonomie depuis l'`adr-0062`)
 
 Renvoi vers l'agenda. ⚠️ **La phrase *« tant que ce n'est pas le cas, ZETIS ne produit rien sans
 votre validation »* disparaît dans le même commit que cette livraison** — elle est déjà fausse au
@@ -272,6 +344,16 @@ Rafraîchi au montage et après un enregistrement réussi — **jamais par sonda
 ouverts divergent jusqu'au rechargement, et c'est accepté (addendum §7.4).
 
 ## Hors périmètre
+
+**De la tranche 1 de l'`adr-0062`** (la carte + Autonomie + La machine) : les onglets 🎒 Massimo,
+👤 Papa et 💾 Données · tout geste destructif · sauvegarde et restauration · code parental et
+verrou d'inactivité · alertes et SMTP · SSD, UUID de volume et occupation disque · le commit git
+(pas baké dans l'image) · « Suspendre ZETIS ».
+
+**Jamais bâti**, motif dans l'`adr-0062` : journal technique · sélecteur de modèle de génération ·
+réinitialisation totale à l'écran · sessions ouvertes et révocation.
+
+**De la livraison d'origine (`adr-0032`)** :
 
 - ~~Le **Journal** et sa page — donc le régime Autonome reste indisponible en phase 1.~~
   > ✅ **LEVÉ le 2026-08-03** (ADR-0034). Le Journal est livré **avec son geste *Retirer***, donc

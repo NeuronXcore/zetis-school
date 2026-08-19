@@ -6242,6 +6242,61 @@ Autre piège du même ordre : **jsdom n'implémente pas `scrollIntoView`**. L'ap
 `useEffect` jette et démonte l'arbre. Toujours `ref.current?.scrollIntoView?.({...})` — sur la
 méthode aussi, pas seulement sur la ref.
 
+## Chantier `parametres-carte-et-onglets` — ce que la maquette disait de faux (2026-08-19)
+
+**Neuf affirmations d'une maquette, vérifiées une par une avant d'écrire une ligne.** Cinq étaient
+fausses. Le read-before-code a donc changé le périmètre du chantier, pas seulement son confort.
+
+> 🔴 **La leçon générale, et elle vaut au-delà de ce cas : une maquette est un objet de CONCEPTION,
+> jamais une source de vérité sur le code.** Celle-ci le disait elle-même en tête (« relevé Mac
+> Studio non fait »), et pourtant huit de ses affirmations techniques étaient prêtes à entrer dans
+> un ADR par la porte du plan. **Vérifier chaque fait par une commande** est ce qui les a arrêtées.
+
+| Affirmation | Réalité mesurée |
+|---|---|
+| Les prompts vivent dans `packages/prompts` | 🔴 Faux. Ce paquet **ne contient qu'un `README.md`**. Les prompts sont **12 modules** de `apps/backend/app/prompts/`, tous porteurs d'une constante `*_PROMPT_VERSION`. |
+| « Suspendre ZETIS — ADR rédigé (S0) » | 🔴 Aucun ADR ne le porte. **Mais le mécanisme existe** : `production/runner.py::massimo_is_active` suspend déjà la production. Un « Suspendre » manuel se branche là, il ne s'invente pas. |
+| Une assertion refuse de booter sur le mot de passe de dev | 🔴 **Elle n'existe pas.** Ni dans `core/config.py`, ni dans `main.py`. La comparaison du bandeau de La machine est le **premier** endroit du dépôt qui pose la question. |
+| `ai_jobs` sait quel moteur a répondu | 🔴 **Aucune colonne de provider.** Le journal des sorties réseau est **dérivé** de `job_type LIKE 'curriculum_%'`. |
+| SSD, UUID de volume, occupation disque | 🔴 **Illisibles depuis le conteneur** : `diskutil` n'est pas dans l'image, et l'UUID d'un volume hôte n'est pas accessible d'un `python:3.11-slim`. |
+| Commit installé affiché | ⚠️ `settings.version` vaut `"0.1.0"` **en dur**. La tête Alembic est lisible, le commit non — il faudrait un `ARG ZETIS_COMMIT` baké. |
+| Sessions ouvertes et révocation | ⚠️ **Aucune table de session n'existe.** Ce n'est pas un écran à dessiner, c'est une migration d'authentification. |
+| Échecs et acquittement à construire | ✅ **Déjà livrés côté serveur** (ADR-0041) : `error_message`, `acknowledged_at`, et la route d'ack. On réutilise. |
+| Durées médianes à calculer | ✅ **Déjà calculées** par `ai/travaux.py::estimations()`. |
+
+### Trois pièges d'outillage rencontrés dans le même chantier
+
+1. **`MemoryRouter` ne touche pas `window.location`.** Une assertion sur `window.location.search`
+   vérifie le navigateur de jsdom, pas la page — elle rend `''` quoi qu'il arrive. Pour affirmer
+   « l'onglet vit dans l'URL », il faut une **sonde** montée dans le routeur qui rend
+   `useLocation().search` dans le DOM.
+2. **Un verrou lexical s'attrape lui-même.** Le test qui interdit `setInterval` dans `MachineTab`
+   rougissait sur le **commentaire** qui documente « aucun `setInterval` n'existe ici ». Dépouiller
+   les commentaires avant de matcher — un verrou qui rougit sur sa propre justification finit
+   désarmé.
+3. 🔴 **Le bac à sable de `preview` ne LIT que le dossier de l'app prévisualisée** — et le
+   diagnostic évident est faux deux fois de suite. Symptôme : `bash scripts/with-worker.sh` →
+   `Operation not permitted`, précédé de `shell-init: getcwd`.
+   - ❌ *« c'est le chemin relatif »* — non : le chemin **absolu** échoue pareil.
+   - ❌ *« c'est le `cwd` cassé »* — non : `cd /abs/racine` réussit (`pwd` le confirme), et la
+     lecture échoue quand même.
+   - ❌ *« le volume est `noexec` »* — non : `mount` dit `nodev,nosuid,noowners`, et le bit `x`
+     est posé.
+   - ✅ **Mesuré** : `stat` passe · **lecture refusée** · **`exec` passe**. Depuis la racine,
+     `README.md`, `package.json` et `scripts/*` sont TOUS refusés — pendant que Vite, une fois
+     `cd apps/frontend-papa` fait, lit ces mêmes fichiers.
+
+   Les avertissements `shell-init: getcwd` sont du **bruit** : ils apparaissent aussi quand tout
+   fonctionne. Les suivre coûte deux hypothèses fausses.
+
+   **Contournement retenu pour `backend-dev`** : ne lire aucun script. `.venv/bin/python` et
+   `.venv/bin/uvicorn` s'**exécutent** sans problème — l'entrée lance donc le worker et pose son
+   `trap` en ligne. ⚠️ **C'est une reprise de `scripts/with-worker.sh`, donc une seconde
+   implémentation** : l'`adr-0046` demande une seule porte. L'invariant, lui, a été **prouvé** —
+   worker vivant au démarrage (Redis : 1 worker sur `production` et `production-priority`), et
+   **zéro orphelin** après arrêt. À trancher : soit on assume la copie, soit `with-worker.sh`
+   déménage sous `apps/backend/` où le bac à sable le lirait.
+
 ## Chantier `couverture` — passe visuelle + rangement des assets (2026-07-28, session 2)
 
 ### `?subject_id=` filtre aussi la LISTE des matières renvoyée

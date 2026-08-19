@@ -1,4 +1,4 @@
-"""Routeur de réglages NEUTRE (ADR-0032) — `require_parent`.
+"""Routeur de réglages NEUTRE (ADR-0032, ADR-0062) — `require_parent`.
 
 Neutre, et c'est le point : les seules routes de réglage du dépôt vivaient sous
 `/api/agenda/settings`. Servir l'autonomie de ZETIS depuis le routeur de l'agenda aurait été une
@@ -12,9 +12,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.modules.ai import get_provider
+from app.modules.ai.provider import LLMProvider
 from app.modules.auth.deps import require_parent
-from app.modules.settings import service
-from app.modules.settings.schemas import AutonomyOut, AutonomyRequest
+from app.modules.settings import ecarts, machine, service
+from app.modules.settings.schemas import (
+    AutonomyOut,
+    AutonomyRequest,
+    EcartsOut,
+    MachineOut,
+    TestMoteurOut,
+)
 
 router = APIRouter(
     prefix="/api/settings", tags=["settings"], dependencies=[Depends(require_parent)]
@@ -64,3 +72,41 @@ def set_autonomy(req: AutonomyRequest, db: Session = Depends(get_db)) -> dict:
     if req.auto_trigger_enabled is not None:
         service.set_auto_trigger_enabled(db, enabled=req.auto_trigger_enabled)
     return _out(db, values)
+
+
+@router.get("/ecarts", response_model=EcartsOut)
+def get_ecarts(db: Session = Depends(get_db)) -> dict:
+    """Les clés `app_settings` qui portent une ligne — « ce que j'ai changé » (ADR-0062 §4).
+
+    Aucun calcul : dans cette table, **l'absence de ligne EST la valeur par défaut**. C'est pour
+    ça que cette route ne connaît aucun défaut et n'a donc rien à maintenir en phase.
+
+    ⚠️ **Ne rend pas les valeurs.** La page compte et rapproche de sa carte ; elle n'affiche
+    jamais une valeur venue d'ici.
+    """
+    return {"keys": ecarts.cles_ecartees(db)}
+
+
+@router.get("/machine", response_model=MachineOut)
+def get_machine(db: Session = Depends(get_db)) -> dict:
+    """🧠 Qui fait quoi, et est-ce que ça tourne — en **un seul appel** (ADR-0062 §2).
+
+    Un instantané cohérent : deux appels rendraient deux instants, et une page qu'on lit pour
+    diagnostiquer une panne ne doit pas obliger à recouper ses propres chiffres.
+
+    ⚠️ **Lecture pure.** Aucune écriture, aucun réglage — le routage vit en variables
+    d'environnement lues au démarrage. C'est pour ça qu'il n'existe pas de `PUT /machine`.
+    """
+    return machine.lire(db)
+
+
+@router.post("/machine/test", response_model=TestMoteurOut)
+def post_test_moteur(provider: LLMProvider = Depends(get_provider)) -> dict:
+    """Vérifier, plutôt que déclarer — un vrai prompt, une vraie latence, un vrai JSON.
+
+    C'est le seul geste qui prouve que le modèle est réellement *pull* et joignable. Il **ne
+    persiste rien** : aucune trace `ai_jobs`, parce que ce n'est pas un travail — c'est une sonde,
+    et une sonde qui gonflerait les statistiques de production fausserait le tableau juste
+    au-dessus d'elle.
+    """
+    return machine.tester_moteur(provider)

@@ -66,18 +66,30 @@ function autonomy(overrides: Partial<Autonomy> = {}): Autonomy {
   };
 }
 
-function renderPage() {
+function renderPage(route = "/parametres") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[route]}>
       <ParametresPage />
     </MemoryRouter>,
   );
 }
 
+/** 🔴 **Le SEUL changement de ce fichier au chantier ADR-0062** — et il est de navigation, pas
+ *  d'assertion.
+ *
+ *  La page est devenue une carte et des onglets ; l'autonomie vit derrière `?onglet=autonomie`.
+ *  Ce helper y entre directement, par l'URL plutôt que par un clic : l'onglet vit dans l'URL
+ *  (ADR-0062 §5), donc l'ouvrir par la route est le chemin le plus fidèle à l'app — et il ne
+ *  dépend pas du libellé du bouton, qui pourrait changer.
+ *
+ *  ⚠️ Ce qui n'a PAS changé : `findByText("ZETIS LEVELS")` reste l'attente, aucune n'a été
+ *  allongée, aucune assertion des 27 tests qui passent par ici n'a bougé. Un test modifié pour
+ *  passer est une régression masquée (`WORKFLOW.md §2.3`).
+ *
+ *  ⚠️ Attendait « Régime » jusqu'au 2026-08-04. La section a été renommée ZETIS LEVELS et
+ *  remontée en tête (addendum §8.1) — une vingtaine de tests passent par ce helper. */
 async function renderLoaded() {
-  const view = renderPage();
-  // ⚠️ Attendait « Régime » jusqu'au 2026-08-04. La section a été renommée ZETIS LEVELS et
-  // remontée en tête (addendum §8.1) — une vingtaine de tests passent par ce helper.
+  const view = renderPage("/parametres?onglet=autonomie");
   await screen.findByText("ZETIS LEVELS");
   return view;
 }
@@ -274,7 +286,9 @@ describe("ParametresPage", () => {
 
   it("à l'erreur de lecture, aucun réglage n'est affiché — pas de défaut inventé", async () => {
     vi.mocked(fetchAutonomy).mockRejectedValue(new Error("réseau"));
-    renderPage();
+    // Même adaptation de navigation que `renderLoaded` : ce test n'y passe pas parce qu'il
+    // vérifie justement que le panneau NE charge PAS — il doit donc ouvrir l'onglet lui-même.
+    renderPage("/parametres?onglet=autonomie");
 
     await screen.findByText(/Réglages illisibles/);
     expect(screen.queryByText("ZETIS LEVELS")).toBeNull();
