@@ -338,6 +338,8 @@ export {
   type ArchiveSupprimee,
   type Donnees,
   type SauvegardeAcceptee,
+  type SortieSauvegarde,
+  type SortieVerification,
 } from "./settings";
 export {
   type ContentRequest,

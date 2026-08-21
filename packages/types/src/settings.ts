@@ -271,3 +271,36 @@ export interface SauvegardeAcceptee {
   job_id: number;
   status: string;
 }
+
+/** L'`output_json` d'un `backup_create` réussi (ADR-0067 §6 tel que l'Amendement 2 le restreint).
+ *
+ *  ⚠️ **Ce n'est PAS une « sauvegarde »** : le tar vient de naître, personne ne l'a rejoué à blanc.
+ *  Le mot ne se gagne qu'après un verdict `reussie` de `backup_verify` (ADR-0065 §7), et le §5 de
+ *  l'ADR-0067 l'interdit explicitement au toast. « Export », donc, tant que la preuve manque. */
+export interface SortieSauvegarde {
+  archive: string;
+  taille: number;
+  sha256: string;
+  lignes: number;
+  tables: number;
+  objets_minio: number;
+  fichiers_audio: number;
+  tete_alembic: string | null;
+}
+
+/** L'`output_json` d'un `backup_verify` — 🔴 **y compris quand il constate des écarts**.
+ *
+ *  🔴 **Un verdict d'échec est la sortie d'un travail RÉUSSI**, et c'est le piège central de ce
+ *  chantier : `verifier_sauvegarde` *retourne* `"reussie" if not ecarts else "echec"`, il ne lève
+ *  pas. Le travail passe donc à `succeeded` dans les deux cas, et le suiveur RÉSOUT. Traiter cette
+ *  résolution comme un succès ferait annoncer un échec par un toast — ce que le §3 de l'ADR-0067
+ *  interdit, et que le §Signaux nomme en premier. */
+export interface SortieVerification {
+  archive: string;
+  sha256: string;
+  /** `reussie` | `echec`. C'est LUI qu'il faut lire, jamais le seul fait que la promesse résolve. */
+  verdict: string;
+  /** Les écarts NOMMÉS — ici le texte, contrairement au compte servi par `GET /donnees`. */
+  ecarts: string[];
+  verifie_le: string;
+}

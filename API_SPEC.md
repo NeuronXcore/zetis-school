@@ -2964,8 +2964,9 @@ Enfile le travail `backup_create` (file prioritaire, `created_by="file"`, concur
 
 - **202** `{job_id, status}` — des **métadonnées de travail, rien d'autre**. 🔴 **Aucun octet
   d'archive ne passe par HTTP** (ADR-0065 §1), ni ici ni sur aucune route : l'archive naît sur la
-  cible montée (`ZETIS_BACKUP_DIR`) et y reste. Le suivi passe par la barre du header
-  (`GET /ai/jobs/{id}`), comme tout travail de file.
+  cible montée (`ZETIS_BACKUP_DIR`) et y reste. Le suivi passe par `GET /ai/jobs/{id}`, comme tout
+  travail de file — la barre du header **et**, depuis l'ADR-0067 §6 (Amendement 2), l'onglet 💾
+  lui-même, qui attend la fin du geste au lieu de renvoyer Papa la surveiller.
 - **409 fail-closed, AVANT d'enfiler** — aucun job créé, motif dans `detail` :
   certificat `.zetis-cible.json` **absent** (le motif nomme `scripts/certifier-cible-sauvegarde.sh`)
   · certificat **illisible ou incomplet** · **UUID de volume identiques** (la cible vit sur le

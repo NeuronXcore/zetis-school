@@ -4,6 +4,93 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un verdict d'ÉCHEC peut être la sortie d'un travail RÉUSSI — 2026-08-21
+
+`verifier_sauvegarde` (`backup_verify`) **retourne** son verdict :
+
+```python
+"verdict": "reussie" if not ecarts else "echec",
+```
+
+Il ne lève pas. Or un travail ne passe à `failed` que si son exécutant lève (`jobs.py:375`). Donc
+une vérification qui **constate des écarts** produit un travail `succeeded`, et le suiveur partagé
+(`lib/travaux.ts`) **résout** — avec un verdict d'échec dans la main.
+
+🔴 **Le raccourci qui coûte cher** : « la promesse a résolu, donc ça a marché ». Ici, l'écrire
+aurait annoncé un **échec par un toast** — la faute exacte que l'ADR-0041 §8 a payée, et le premier
+des §Signaux de l'ADR-0067. Le code marche, les tests passent, et l'écran ment.
+
+**Parade** : après un `await` sur un travail, **lire ce qu'il rend** avant de conclure. La question
+n'est pas « est-ce que ça a résolu ? » mais « qu'est-ce que ça dit ? ».
+
+⚠️ **Corollaire qui invalide une phrase d'ADR** : « leur échec continue d'atterrir dans Échecs »
+n'est vrai que d'un **plantage**. Un verdict d'échec n'y va jamais — il vit là où il vivait déjà,
+sur la ligne de l'archive. Écrit dans le §Suivi de l'Amendement 2 de l'ADR-0067.
+
+**Où chercher le même piège** : partout où un exécutant `return`ne un dictionnaire contenant
+`verdict`, `status`, `ok` ou `erreurs`. Le statut du TRAVAIL et le verdict du CONTENU sont deux
+choses, et le premier ne dit rien du second.
+
+## 🔴 Trois assertions VERTES pour la mauvaise raison, le même jour — 2026-08-21
+
+Trois verrous écrits en une session, trois qui ne prouvaient rien. Aucun n'était rouge : c'est bien
+le problème.
+
+**1. `\b` après une lettre accentuée ne matche JAMAIS.** Prouvé plutôt que supposé :
+
+```bash
+node -e 'console.log(/[Vv]érifié\b/.test("✓ Vérifié"))'   # false
+node -e 'console.log(/[Vv]érifié/.test("✓ Vérifié"))'      # true
+```
+
+`é` n'est pas un caractère de mot en JS, donc il n'y a pas de frontière de mot après lui. Le verrou
+« aucun bouton n'annonce un état » ne tombait pas quand on remettait « ✓ Vérifié ».
+
+**2. Une regex de sous-chaîne sur des classes Tailwind confond la classe et son survol.**
+`hover:bg-rose-400/10` **contient** `bg-rose-400/1`. Asserter « pas de remplissage » avec
+`not.toMatch(/bg-rose-400\/\d/)` échoue sur un bouton qui n'a qu'un remplissage **au survol**.
+🔴 **Parade : tester par JETONS**, jamais par sous-chaîne —
+`className.split(/\s+/).find(c => /^bg-/.test(c))`.
+
+**3. 🔴 Une contre-épreuve dont le sabotage ne s'applique pas rend du VERT** — et se lit exactement
+comme « le verrou ne mord pas ». Un `str.replace()` qui ne trouve pas son motif ne se plaint pas.
+J'ai conclu qu'un verrou était décoratif ; isolé, il tombait parfaitement.
+
+**Parade, non négociable** : toute contre-épreuve **asserte son propre sabotage**.
+
+```python
+assert s.count(motif) == 1, "SABOTAGE NON APPLIQUÉ — le vert qui suit serait un mensonge"
+```
+
+**La leçon commune** : un test vert ne prouve rien tant qu'on ne l'a pas vu **rouge** pour la bonne
+raison. Et une assertion négative (`not.toMatch`, `toBeNull`) est le terrain de ce piège — elle
+passe aussi bien parce que la règle tient que parce que la question était mal posée.
+
+## ⚠️ `suivre()` de `travaux.ts` NE S'ARRÊTE PAS au démontage — 2026-08-21
+
+Le suiveur partagé de l'ADR-0041 est une **boucle de promesse nue** :
+
+```ts
+for (;;) { await new Promise(r => setTimeout(r, POLL_MS)); /* … */ }
+```
+
+Rien ne l'annule. Quitter l'écran qui l'a lancé la laisse sonder jusqu'à son plafond
+(`PLAFOND_MS = 15 min`), après quoi elle résout — ou lève — **sur un composant démonté**.
+
+⚠️ Ce n'est pas un défaut à corriger à la légère : quinze routes en dépendent, et la plupart vivent
+dans des modales qui ne se démontent pas pendant l'attente. Mais un appelant monté dans un **onglet**
+(que quitter démonte) doit s'en protéger **lui-même** :
+
+```ts
+const monte = useRef(true);
+useEffect(() => { monte.current = true; return () => { monte.current = false; }; }, []);
+// …puis, dans chaque .then()/.catch() : if (!monte.current) return;
+```
+
+🔴 **À ne pas confondre avec la borne §1.4 de l'ADR-0067** (« l'attente s'arrête si Papa quitte
+l'onglet ») : celle-là appartient à l'attente de la restauration, qui est *à nous*. Le suiveur
+partagé, lui, n'est pas à nous — on ne le modifie pas, on refuse d'agir après coup.
+
 ## 🔴 Un verdict DÉRIVÉ d'une absence est faux tant que la chose n'est pas finie — 2026-08-21
 
 `GET /api/settings/donnees` dérive le verdict d'une restauration de son sidecar : `termine_le`
