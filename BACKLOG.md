@@ -235,7 +235,7 @@ mission, animation temps réel, et la **réconciliation de `docs/frontend-massim
 | **B** | 💾 La sauvegarde qui se mérite — sauvegarder + vérifier à blanc | **4** | Le **seul risque irréversible** du projet. Rien de destructif : ni restore, ni zone rouge. |
 | **C** | 👤 La serrure parentale — code · verrou d'inactivité · alertes | **3,5** | *« Le manque le plus sérieux »* (ADR-0062). Autonome. |
 | **D** | 🎒 Massimo — prénom · accessibilité · voix | **4–5** | La seule qui améliore son quotidien. Casse la phrase « rien n'atteint Massimo » → page stabilisée d'abord. |
-| **E** | 💾 Le reste de Données — disque · purges · remises à zéro · restaurer | **7,5** | Le plus lourd, le seul destructif. Dépend de A et B. |
+| **E** | 💾 Le reste de Données — disque · purges · remises à zéro · restaurer · la fin d'un geste | **8,5** | Le plus lourd, le seul destructif. Dépend de A et B. |
 
 **Le tri, en trois lignes.** Pas de sauvegarde vérifiée → perte **irréversible** d'une année de
 travail. Pas de serrure → Massimo lit des textes d'adulte à son sujet : grave, **réversible**. Pas
@@ -292,7 +292,13 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
   sert **déjà** `first_name` : la donnée arrive, il reste à l'employer.
 - **E** — occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
   remises à zéro **portées** (2) · restaurer (2) — ✅ **cadré par l'`adr-0066`** (swap à réveil
-  suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · export RGPD (1).
+  suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · **la fin d'un geste se raconte (1)** —
+  ✅ **cadré par l'`adr-0067`** (attente armée et bornée, verdict lu du sidecar, succès en toast /
+  échec persistant) · export RGPD (1).
+  🔴 **Trouvé au cadrage du 0067, et ce n'est pas un manque de surface** : une restauration qui
+  échoue **après** le swap n'écrit **nulle part** — `run_ai_job` cherche une ligne morte et
+  renonce en silence. Elle n'est ni dans Échecs, ni dans la barre, ni au Journal. Le sidecar,
+  lui, porte déjà l'étape fautive et son motif : l'`adr-0067` les fait lire.
 
 ### Trois décisions à trancher, une par cadrage
 
