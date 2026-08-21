@@ -45,6 +45,7 @@ comme geste explicite de Papa (ADR-0063).
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
 > | 1 | 2026-08-21 | « Réussie » veut dire zéro écart, ici comme ailleurs | Proposé | oui |
+> | 2 | 2026-08-21 | « Une seule mécanique » vaut par NATURE de geste, pas à travers toutes | Proposé | — |
 >
 > *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
@@ -462,3 +463,105 @@ type, un test-verrou. **À faire AVANT la slice 2**, qui rend ce verdict à l'é
    `termine_le` posé ET `ecarts` non vide ⇒ `avec_ecarts`** (le cas qui n'existe pas encore en
    vrai, et qui doit exister en test).
 2. La **slice 2** rend les trois valeurs — et son compte rendu de surface dira comment.
+
+## Amendement 2 — « Une seule mécanique » vaut par NATURE de geste, pas à travers toutes — 2026-08-21
+
+### Statut
+
+**Proposé — 2026-08-21.** Écrit **avant** le chantier d'exécution du §6, après un read-before-code
+qui a invalidé sa prémisse. **Restreint le §6**, et rien d'autre : le §1, le §2, le §3, le §4, le
+§5 et l'Amendement 1 ne bougent pas. Le §6 n'est **pas** révoqué — il continue d'interdire deux
+attentes pour une même nature de geste.
+
+### Contexte — la prémisse du §6 était fausse, et mesurable
+
+Le §6 dit : *« L'attente du §1 sert Sauvegarder, Vérifier et Restaurer… Deux mécaniques pour un
+même défaut en feraient diverger une. »* Trois mesures du 2026-08-21 le contredisent.
+
+| Mesure | Résultat |
+|---|---|
+| Une mécanique d'attente partagée existe-t-elle déjà ? | **Oui, et elle est antérieure au §1** : `apps/frontend-papa/src/lib/travaux.ts`, *« le suiveur de travail unique »* de l'**ADR-0041 §4/§9** |
+| Que fait-elle ? | `lancerEtSuivre()` / `suivre(jobId)` sondent `GET /api/ai/jobs/{id}` : résolution sur `succeeded` **avec la sortie**, levée sur `failed` **avec le motif du serveur**, et un renoncement (`PLAFOND_MS`) |
+| Qui l'utilise ? | `fiches`, `mindmaps`, `diagnostic`, `srsCards` — le module dit *« quinze routes »* |
+| `GET /ai/jobs/{id}` filtre-t-il des types de travaux ? | **Non** — `db.get(AIJob, job_id)`, générique |
+| Les lignes de `backup_create` et `backup_verify` survivent-elles ? | **Oui.** Seule la restauration perd la sienne, au swap (ADR-0066 §3) |
+
+🔴 **Ce qui rend l'application littérale du §6 nuisible.** Sauvegarder et Vérifier peuvent utiliser
+le suiveur partagé **aujourd'hui, sans une ligne de backend**. Le §6 littéral demanderait de les en
+**sortir** pour les mettre sur l'attente `/donnees` de la slice 2 — en perdant leur motif d'échec
+serveur et leur `estimated_ms`, et en s'écartant de quinze routes. Le §6 voulait empêcher une
+divergence ; l'exécuter à la lettre en fabriquerait une.
+
+⚠️ **Et la frontière entre les deux mécaniques n'est pas un goût, c'est un FAIT** : une ligne de
+travail qui survit se relit par son id ; une ligne qui meurt au swap ne le peut pas. C'est
+précisément pourquoi l'attente du §1 a dû être écrite — le §Alternatives de cet ADR l'avait déjà
+noté (*« l'annonce de fin relit le travail par son id, et la ligne est dans `zetis_avant` »*)
+**sans en tirer la conséquence pour le §6**.
+
+**Relevé au passage, et il touche du code déjà livré** : le §1.3 justifie les 4 s comme *« la
+valeur déjà mesurée du dépôt (ADR-0041) »*. L'ADR-0041 en porte **deux** — `travaux.ts` sonde à
+**2 s**, `useProductionActivity` à **4 s**. Le choix de 4 s reste valide et explicite ; c'est sa
+justification qui désigne une valeur ambiguë. Rien à corriger dans le livré.
+
+### Décision
+
+**Le §6 se lit désormais : une seule mécanique d'attente par NATURE de geste.**
+
+| Nature | Mécanique | Pourquoi elle, et pas l'autre |
+|---|---|---|
+| Travail dont la **ligne survit** — `backup_create`, `backup_verify` | `travaux.ts` (ADR-0041 §4/§9), tel quel | Elle existe, elle est partagée par quinze routes, et elle rend le **motif du serveur** |
+| Travail dont la **ligne meurt** — `backup_restore` | l'attente armée du §1 | Aucune ligne à relire : le sidecar est le seul survivant |
+
+🔴 **Ce que le §6 continue d'interdire, et c'est son travail restant** : deux attentes concurrentes
+pour une même nature. Si un troisième geste à ligne survivante réclame demain sa propre boucle, le
+§6 mord — c'est exactement le cas qu'il avait raison de craindre.
+
+**Le succès de Sauvegarder et de Vérifier passe par un toast**, comme celui de Restaurer (§3) —
+même composant, mêmes interdits du §5 (il nomme l'objet, ni pourcentage ni durée ni promesse).
+Aujourd'hui les deux gestes disent *« travail enfilé »* puis **plus rien** : c'est le défaut même
+que cet ADR répare, et le laisser sur deux gestes sur trois le laisserait à moitié réparé.
+
+🔴 **Leur ÉCHEC ne change pas** : il continue d'atterrir dans **Échecs**, comme le §6 le disait
+déjà. Aucun échec ne passe par un toast (§3) — la règle vaut ici aussi, sans exception.
+
+⚠️ **La formulation exacte des deux toasts est une surface** (cas 4 de l'ADR-0060) : elle se
+décide **devant l'écran**, dans la même session que la relecture visuelle. Ce qui est décidé ici,
+c'est qu'ils **existent**.
+
+### Alternatives considérées
+
+| Alternative | Pourquoi écartée |
+|---|---|
+| **Tenir le §6 à la lettre** — les trois gestes sur l'attente `/donnees` | Sortirait deux gestes du suiveur partagé de l'ADR-0041 pour perdre le motif d'échec du serveur et l'`estimated_ms`. On paierait une régression pour honorer une phrase. |
+| **Révoquer le §6** | Même code au bout, mais le corpus perdrait la règle qui reste **vraie et utile** : pas deux attentes pour une même nature. Un ADR révoqué n'interdit plus rien. |
+| **Étendre l'attente du §1 pour qu'elle sache lire les deux sources** | Une mécanique qui sait tout faire est deux mécaniques dans un seul fichier, avec un `if` au milieu. La frontière étant un fait de données, elle mérite deux appelants, pas un branchement. |
+| **Ne rien faire — Sauvegarder et Vérifier gardent leur « ⟳ ensuite »** | C'est la consigne de surveillance que cet ADR existe pour supprimer. La garder sur deux gestes sur trois signerait qu'on l'a retirée par commodité, pas par principe. |
+
+### Le signal qui dirait qu'on s'est trompé
+
+- 🔴 **Un troisième geste à ligne survivante écrit sa propre boucle** au lieu d'appeler
+  `travaux.ts`. Alors la restriction a été lue comme une permission de diverger, et c'est le §6
+  d'origine qui avait raison.
+- **La frontière « ligne qui survit / ligne qui meurt » cesse d'être nette** — un geste qui perd sa
+  ligne *parfois*. Alors le critère n'est pas le bon, et il faut le remplacer par un fait plus
+  stable, pas l'assouplir.
+- **Les deux toasts neufs ne sont jamais lus** parce que Papa a déjà quitté l'écran quand le
+  travail finit. Alors le toast n'est pas le bon véhicule pour un geste long, et c'est le §3 qu'il
+  faut rouvrir — pas ce §6.
+- **`travaux.ts` doit être modifié pour accueillir ces deux gestes.** Il est réputé les accepter
+  tels quels ; s'il faut le toucher, la mesure ci-dessus était incomplète et l'écart doit être
+  compris avant d'être codé.
+
+### Suivi
+
+1. **Application (cas 2 de l'ADR-0060)** : branche directe, périmètre posé au premier message,
+   **pas d'`/ouverture`** — aucune décision neuve ne reste à prendre. Sauvegarder et Vérifier
+   basculent sur `lancerEtSuivre` ; Restaurer n'est **pas** touché.
+2. **Read-before-code dû** : vérifier que `lancerEtSuivre` accepte bien ces deux travaux **sans
+   modification** (c'est l'hypothèse centrale de cet amendement) — et que le 409 fail-closed
+   d'avant-enfilement continue de s'afficher en ambre, sans passer par le suiveur.
+3. **Test-verrous dus** : un échec de `backup_create` ou de `backup_verify` **ne passe jamais par
+   un toast** · l'attente `/donnees` de Restaurer **n'est pas** armée par ces deux gestes · le
+   motif du serveur est relayé tel quel.
+4. **Compte rendu de surface** (cas 4) : la formulation des deux toasts, écrite **dans la même
+   session que la relecture visuelle**.

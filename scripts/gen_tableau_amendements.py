@@ -202,6 +202,13 @@ REVOCATION_DECLAREE: dict[str, bool] = {
     "adr-0031::Les deux passes du §7 : le gate vit dans la sélection, pas dans l'orchestrateur": False,
     "adr-0041::ADR-0041 addendum — Un travail dit ce qu'il a produit": False,
     "adr-0057::ADR-0057 · Addendum — Missions : le tri se fait sur une NOTION, pas sur une leçon": False,
+    "adr-0067::« Une seule mécanique » vaut par NATURE de geste, pas à travers toutes": False,
+    #   🔴 Le repli heuristique rendait `True` — et il avait TORT. L'amendement RESTREINT le §6,
+    #   il ne le révoque pas : « Le §6 n'est **pas** révoqué — il continue d'interdire deux
+    #   attentes pour une même nature de geste. » L'heuristique a vu le mot « restreint » et le
+    #   §6 cité, et en a conclu une révocation ; la différence entre borner une règle et
+    #   l'annuler n'est pas lisible sans lire la phrase. C'est exactement le cas que le
+    #   `--diagnostic` existe pour attraper.
 }
 
 # Repli pour une section non déclarée (un amendement écrit après ce tableau). Il ne

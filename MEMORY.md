@@ -114,9 +114,10 @@ en **gris**, sans conclure. C'est une assertion de test qui est tombée, pas un 
   `python3 <scratchpad>/fabriquer-sidecars-relecture.py [--retirer]` — ⚠️ le scratchpad est
   volatil ; le script est court, il se réécrit (deux sidecars sur la cible **de dev**).
   🔴 **Ne jamais recapturer `donnees.example.json` pendant qu'ils sont là.**
-- **L'environnement de dev est LAISSÉ DEBOUT** (contrairement à la clôture précédente) : infra
-  docker de dev relevée (`docker compose up -d postgres redis minio`, **jamais `-v`**) + deux
-  préviews, backend `:8005` et front `:5181`. 🔴 **À arrêter à la main.**
+- ✅ ~~L'environnement de dev laissé debout~~ — **ARRÊTÉ** : les deux préviews (`:8005`, `:5181`)
+  puis `docker compose down` **SANS `-v`**. Vérifié après coup : **les 7 volumes survivent** (dont
+  `zetis_postgres_data`, qui porte l'état restauré), **les 8 conteneurs `zetis-prod` intacts**,
+  ports 5432/6379/9000/9001/8005/5181 **tous libres**. 🔴 *Jamais `down -v`.*
 - `production_suspended: false`, base de dev inchangée (toujours l'état restauré de `…-1844.tar`).
   Les échecs #890/#896/#897 y attendent toujours un acquittement dans Échecs — sans urgence.
 - ⚠️ **Hors périmètre, signalé sans être traité** : `ConfirmDialog` peint son bouton de
@@ -163,24 +164,49 @@ pas sur une base absente · deux éléments portant `role="status"` qui rendent 
 « aucun toast » · un contraste calculé sur `oklch` qui rend n'importe quoi (1,03:1 pour du 14:1) ·
 la stack `zetis-prod` qui ne publie pas ses ports.
 
+### 📐 CADRAGE FAIT — Amendement 2 de l'ADR-0067, le §6 RESTREINT (2026-08-21, sur `main`)
+
+**Le read-before-code a invalidé la prémisse du §6**, et c'est pour ça qu'un amendement a été écrit
+plutôt qu'un chantier lancé. Trois mesures :
+
+- `apps/frontend-papa/src/lib/travaux.ts` — *« le suiveur de travail unique »* de l'**ADR-0041
+  §4/§9** — **existe déjà**, sonde `GET /api/ai/jobs/{id}`, rend la sortie sur `succeeded`, **lève
+  avec le motif du serveur** sur `failed`, porte un renoncement (`PLAFOND_MS`), et sert **quinze
+  routes** (`fiches`, `mindmaps`, `diagnostic`, `srsCards`…) ;
+- `GET /ai/jobs/{id}` est **générique** (`db.get(AIJob, job_id)`) : `backup_create` et
+  `backup_verify` peuvent l'utiliser **aujourd'hui, sans une ligne de backend** ;
+- appliquer le §6 à la lettre reviendrait donc à **sortir deux gestes du suiveur partagé** pour
+  perdre leur motif d'échec et leur `estimated_ms` — l'inverse de ce que le §6 voulait.
+
+**Décidé** (voir l'amendement pour le raisonnement) : *une seule mécanique par **NATURE** de geste*
+— `travaux.ts` pour les travaux dont la **ligne survit**, l'attente du §1 pour celui dont la
+**ligne meurt**. Le §6 n'est **pas révoqué** : il continue d'interdire deux attentes pour une même
+nature. **Et le succès de Sauvegarder et de Vérifier passe par un toast**, comme Restaurer ; leur
+échec continue d'atterrir dans **Échecs**.
+
+⚠️ **Relevé au passage, sur du code déjà livré** : le §1.3 justifie les 4 s comme « la valeur déjà
+mesurée du dépôt (ADR-0041) » — l'ADR-0041 en porte **deux**, `travaux.ts` à **2 s** et
+`useProductionActivity` à **4 s**. Le choix reste valide, c'est sa justification qui est ambiguë.
+Rien à corriger.
+
+🔴 **Piège du cadrage, et le script l'a attrapé** : son repli heuristique classait cet amendement
+« Révoque : **oui** » — **faux**, il restreint. Le verdict a été **déclaré** dans
+`REVOCATION_DECLAREE` de `gen_tableau_amendements.py`, **jamais écrit dans la cellule**.
+`--check` sort en **0**.
+
 **PROCHAIN PAS :**
 
-1. 🔴 **Arrêter l'environnement de dev, laissé debout** (voir RÉSIDUS) — `docker compose down`
-   **sans `-v`**, puis fermer les deux préviews `:8005` et `:5181`. C'est la seule chose qui
-   traîne de cette session.
-2. **Choisir le chantier suivant** — rien n'est engagé, `main` est propre. Trois pistes, par ordre
-   de dette :
-   - le **§6 de l'ADR-0067** (une seule mécanique pour Sauvegarder / Vérifier / Restaurer) —
-     décision **active et différée**, donc cas **2** de l'ADR-0060 : *aucun ADR neuf*, on cite le
-     §6. ⚠️ Lire d'abord « CE QUI EST SPÉCIFIQUE À LA RESTAURATION » ci-dessus : trois des
-     mécanismes livrés **ne se généralisent pas** ;
-   - le **reste de la phase E** (`BACKLOG.md` L293) : occupation disque + cohérence
-     Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro portées (2) ·
-     export RGPD (1). Aucun n'est cadré — ceux-là sont des **cas 3**, donc `/cadrage` puis
-     `/ouverture` ;
-   - les **dettes ouvertes** ci-dessous, dont deux nées de ce chantier (la date d'une interruption,
-     le texte d'un écart) et qui touchent le **contrat** — donc cas 3 elles aussi.
-3. Facultatif, et c'est le commanditaire qui l'a pris pour lui : **une vraie restauration** pour
+1. 🔴 **Vérifier et committer le lot de cadrage** ci-dessus (`main`) : l'ADR-0067 amendé, le
+   script, le rapport de révocations régénéré, ce fichier, `BACKLOG.md`. **Aucune ligne de code.**
+2. **Le chantier d'application** — cas **2** de l'ADR-0060, donc **branche directe, PAS
+   d'`/ouverture`** (elle exigerait un ADR neuf qui ne doit pas exister). Périmètre au premier
+   message : `DonneesTab` fait passer **Sauvegarder** et **Vérifier** par `lancerEtSuivre`, avec un
+   toast de succès. **Hors périmètre : Restaurer n'est pas touché.** Read-before-code dû et
+   test-verrous : §Suivi de l'Amendement 2.
+3. Ensuite seulement, le **reste de la phase E** (`BACKLOG.md` L293) : occupation disque + cohérence
+   Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro portées (2) · export
+   RGPD (1). Aucun n'est cadré — ceux-là sont des **cas 3**, donc `/cadrage` puis `/ouverture`.
+4. Facultatif, et c'est le commanditaire qui l'a pris pour lui : **une vraie restauration** pour
    voir le toast et l'attente ⏳ à l'écran (suspendre ZETIS d'abord, sinon 409).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session

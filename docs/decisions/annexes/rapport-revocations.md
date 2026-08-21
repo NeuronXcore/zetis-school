@@ -184,4 +184,6 @@
 - | # | Date | Titre | Statut | Révoque |
 - sélection. Alors l'exception du §1 a été taillée sur un motif faux et doit être **révoquée**,
 - signalé sans le décider. **Révoque le caractère BINAIRE du `verdict`**, et rien d'autre : le §1,
+- §5 et l'Amendement 1 ne bougent pas. Le §6 n'est **pas** révoqué — il continue d'interdire deux
+- | **Révoquer le §6** | Même code au bout, mais le corpus perdrait la règle qui reste **vraie et utile** : pas deux attentes pour une même nature. Un ADR révoqué n'interdit plus rien. |
 
