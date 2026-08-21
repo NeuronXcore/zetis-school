@@ -6,212 +6,132 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`a3a3de9`**, **rien à pousser**. **Aucune branche de chantier vivante** :
-> `feat/attente-et-deux-issues` a été supprimée au merge, **locale ET distante** — vérifié par
-> `git ls-remote --heads origin` **et** par l'API GitHub, qui ne rendent plus que `main`.
->
-> ⚠️ **Piège relevé à ce merge, et il peut tromper la prochaine session** : juste après
-> `gh pr merge --delete-branch`, `git ls-remote` rendait **encore** la branche, et `git branch -r`
-> aussi. La suppression côté GitHub n'est pas instantanée ; il a fallu un `git remote prune origin`
-> pour que les deux vues concordent. **Un « elle existe encore » à cet instant-là n'est pas une
-> preuve** — relancer après un prune.
+> **Où en est le dépôt** (2026-08-21, fin de session) — `main` = `origin/main` = **`c85c737`**,
+> rien à pousser sur `main`. Une branche de chantier vivante :
+> **`feat/sauvegarder-et-verifier-disent-leur-fin`**, née de `c85c737`, **locale uniquement**
+> (absente d'`origin`). Son état réel se lit par `git log --oneline main..HEAD` et `git status` —
+> jamais ici (`WORKFLOW.md §5`).
 
-### ✅ SLICE 2/2 « L'ATTENTE ET LES DEUX ISSUES » — **MERGÉE** (PR #176, squash `a3a3de9`)
+### 🟢 « SAUVEGARDER ET VÉRIFIER DISENT LEUR FIN » — **COMPLET, non poussé**
 
-**Chantier** : ADR-0067 §1 et §3, cas **2** de l'ADR-0060 (application). Branche
-`feat/attente-et-deux-issues`, base `b1d6f48` — supprimée au merge.
-
-🔴 **L'ADR-0067 EST DONC ENTIÈREMENT LIVRÉ** : slice 1 (#174, `8a315e0`) · Amendement 1 (#175,
-`e4d707f`) · slice 2 (#176, `a3a3de9`) · compte rendu de surface **ADR-0068**. Son §Suivi est
-soldé, **sauf le §6, délibérément différé** (voir l'encadré ci-dessous).
-
-**Chiffres vérifiés DANS LA CI** (pas seulement en local — le dépôt a déjà payé la différence) :
-`frontends — vitest` **893 / 80 fichiers** (Papa, +12) et **920 / 84** (Massimo, intact) ·
-`backend — pytest` **1575** (intact) · `verrous du dépôt` et GitGuardian au vert. Le hook
-`pre-push` avait rendu les mêmes trois nombres avant le push.
-
-🔴 **L'arbitrage qui n'est écrit dans aucun ADR et qui commande tout** : la slice ne câble
-l'attente que sur **Restaurer**. Le **§6** de l'ADR-0067 (*une seule mécanique pour Sauvegarder,
-Vérifier et Restaurer*) est **actif mais DIFFÉRÉ** à son propre chantier — il n'est pas annulé.
-Sans cette ligne, une relecture du §6 recâblerait les trois.
+**Chantier** : ADR-0067 §6 tel que l'**Amendement 2** le restreint. Cas **2** de l'ADR-0060
+(application) — 🔴 **pas d'`/ouverture`**, branche directe depuis `main`.
 
 **FAIT.**
 
-- **L'attente armée (§1)** dans `DonneesTab` : armée par un 202 **parti de cette page**, jamais au
-  montage · cadence **4 s** (`CADENCE_MS`, la valeur déjà mesurée du dépôt) · morte au **premier
-  verdict** et au démontage · **renoncement** après **15 lectures** (`LECTURES_MAX`, ≈ 1 min) qui
-  **ne rend aucun verdict** et rend la main au ⟳.
-- **Les trois issues (§3 + Amendement 1)** sur une **ligne dédiée pleine largeur** sous l'archive
-  (`LigneRestauration`) : `reussie` vert discret · `avec_ecarts` **ambre** · `interrompue` **rose**
-  avec étape et motif bruts.
-- **Le toast** — le composant existant, réutilisé tel quel. Il nomme l'archive, rappelle le réveil
-  suspendu, ne porte ni pourcentage ni durée.
-- **`RestaurationArchive` ré-exporté** de `packages/types/src/index.ts` — la slice 1 l'avait laissé
-  injoignable depuis le front (défaut trouvé au typecheck).
-- **Spec** `docs/frontend-papa/page-parametres.md` §💾 · **CHANGELOG 0.99.16** · **ADR-0068**
-  (compte rendu de surface, cas 4) + front-matter et `DECISIONS.md` régénérés par les scripts.
+- **Les deux gestes passent par le suiveur partagé** `lib/travaux.ts` (ADR-0041 §4/§9) via deux
+  enveloppes neuves dans `lib/settings.ts` : `sauvegarderEtSuivre()` et `verifierEtSuivre()`.
+  Les anciennes portes (`lancerSauvegarde`, `lancerVerification`) sont **remplacées**, pas doublées.
+- **Le message « Travail #N enfilé » a disparu** de ces deux gestes : c'était une consigne de
+  surveillance. Ils disent maintenant leur **fin**.
+- 🔴 **Vérifier a TROIS issues** (voir le piège ci-dessous) : plantage → Échecs · `reussie` →
+  **toast** · `echec` → **jamais de toast**, la ligne le dit déjà.
+- **Le bouton de vérification** dit ce que le clic fait (`✓ Vérifier` / `↻ Re-vérifier`) et
+  **emprunte la couleur du badge de sa ligne** — ambre rempli (action due) · cadre émeraude · cadre
+  rose. Il **ne se grise jamais**.
+- **Types** `SortieSauvegarde` / `SortieVerification` (`packages/types`), **spec** `§💾`,
+  **CHANGELOG 0.99.17**, et une **précision** au §Suivi de l'Amendement 2.
 
 **EN COURS** : rien. **Aucun fichier instable.**
 
-**À FAIRE — la première action de reprise** : voir PROCHAIN PAS.
+### 🔴 LE PIÈGE DU CHANTIER — un verdict d'échec est la sortie d'un travail RÉUSSI
 
-### 🔴 LES DEUX MESURES DUES PAR LE §Suivi 4 — faites, et elles ont retourné le prompt
+`verifier_sauvegarde` **retourne** `"reussie" if not ecarts else "echec"` au lieu de lever ; un
+travail ne passe à `failed` que si son exécutant lève. Une vérification qui constate des écarts
+**réussit** donc, et le suiveur **résout**. Sans lire le verdict, l'échec serait passé par un
+**toast** — la faute de l'ADR-0041 §8, premier des §Signaux de l'ADR-0067.
 
-**1. Il n'existe PAS de base plus grosse.** La base de dev fait **9 173 lignes / 16 Mo**, et c'est
-la plus grosse du dépôt ; la cible « prod » (`/Volumes/NX-Models/zetis-sauvegardes`) ne porte
-qu'une archive de **174 Ko**. La mesure déjà connue **était** celle de la plus grosse base. Le
-détail complet s'est lu **sans rien relancer**, dans le sidecar du vrai geste
-(`…-1844.tar.restauration.json`) : filet 210 ms · restauration 378 ms · réveil 85 ms · **swap
-62 ms** · médias 26 ms · purge 4 ms · migrations 342 ms · recyclage 2 ms — **1,738 s** au total.
-⚠️ 627 ms séparent le dernier `franchir` de `terminer` et ne sont expliqués par aucune étape.
-
-**2. Pendant la bascule, `GET /donnees` rend 500 — mais pas pour la raison attendue.** Deux cas
-opposés : connexions tuées (`pg_terminate_backend`) ⇒ **200**, 60 sur 60, grâce à
-`pool_pre_ping=True` · base **absente** entre les deux `RENAME` ⇒ **500**. Détail et parade :
-`TROUBLESHOOTING.md`, deuxième entrée.
+⚠️ **Ça invalide une phrase de l'Amendement 2** (« leur échec atterrit dans Échecs ») : vrai d'un
+**plantage** seulement. Corrigé dans son §Suivi.
 
 **DÉCISIONS ACTIVES — à relire, jamais à rouvrir :**
 
-- 🔴 **`avec_ecarts` reçoit LES DEUX** : le toast (c'est un succès) **et** la marque durable en
-  ambre (un écart est un fait qui reste vrai). Tranché cette session, c'était la question ouverte.
-- 🔴 **Aucun échec ne passe par un toast** (§3 / ADR-0041 §8) — et l'échec ne demande **aucun
-  acquittement**.
-- 🔴 **Le renoncement ne rend AUCUN verdict** (§1.5).
-- 🔴 **Une lecture ratée pendant l'attente s'IGNORE** — elle ne passe **jamais** par le chargeur,
-  qui viderait tout le tableau au milieu du geste.
-- **L'emplacement** : ligne dédiée pleine largeur (117 px → 854 px). Le rattachement à l'archive
-  vient du jeu des traits du bas, pas d'un ornement.
-- Le motif et l'étape sont rendus **tels quels** — aucune table de traduction.
-- Le §6 est **différé, pas annulé** (voir l'encadré ci-dessus).
+- 🔴 **Une seule mécanique par NATURE de geste** (Amendement 2). Ligne qui **survit** →
+  `travaux.ts` ; ligne qui **meurt au swap** → l'attente du §1. La frontière est un **fait de
+  données**, pas un goût.
+- 🔴 **Aucun échec ne passe par un toast**, quelle que soit la mécanique.
+- 🔴 **Le bouton de vérification est un VERBE, jamais un état, et ne se grise jamais** — une
+  vérification est une **observation datée**, pas une propriété acquise. La case à cocher
+  « à vérifier / vérifié » a été **proposée puis écartée** : elle redirait un fait que la colonne
+  « Statut » porte déjà mieux, et dirait « plus rien à faire » d'une chose qui se périme.
+- **Le toast de Sauvegarder dit « Export écrit »**, jamais « sauvegarde » (ADR-0065 §7).
 
-**🔴 UN RENDU FAUX, et ce n'est pas l'œil qui l'a vu** : pendant une restauration le sidecar existe
-sans `termine_le`, donc la route dérive `interrompue` en toute bonne foi — la page peignait un
-**échec rouge au milieu d'un geste sain**. Un journal ouvert sans étape en échec se dit maintenant
-en **gris**, sans conclure. C'est une assertion de test qui est tombée, pas un regard.
+**REGARDÉ À L'ÉCRAN, sur le vrai serveur** — les deux gestes n'étant **pas destructifs**
+(contrairement à Restaurer), la chaîne complète a tourné : deux archives créées, une empreinte
+corrompue exprès puis réparée. Les deux toasts vus · **l'échec de vérification SANS aucun toast**,
+constaté par un observateur armé **avant** le clic · boutons à **15,1 / 9,06 / 12,34:1**.
+⚠️ **Mesure qui contredit une intuition** : le libellé plus long coûte **0 px** de largeur de
+tableau — le retour à la ligne des boutons vient des *trois boutons par ligne*, dette héritée.
 
-**CE QUI EST SPÉCIFIQUE À LA RESTAURATION** (le chantier du §6 en aura besoin) :
-
-- la **règle d'état terminal** (`termine_le !== null || etape_arretee !== null`) est liée au
-  **sidecar** ; Sauvegarder et Vérifier gardent leur ligne `ai_jobs`, donc `status ∈ {succeeded,
-  failed}` — autre source, autre règle ;
-- le **témoin** (`empreinteRestauration`) n'existe que parce que le sidecar **survit** au geste
-  précédent ; un travail de file a un `job_id` neuf ;
-- 🔴 la **clémence du `catch`** est propre au swap : seul Restaurer tue la base. La généraliser
-  masquerait de vraies erreurs pour les deux autres gestes ;
-- **généraux** : `CADENCE_MS`, `LECTURES_MAX`, l'armement sur 202, la mort au premier verdict et au
-  démontage, et la note qui explique pourquoi ce n'est pas le sondage de l'ADR-0062 §5.
+**PIÈGES** : `TROUBLESHOOTING.md`, **trois entrées neuves en tête** — un verdict d'échec en sortie
+d'un travail réussi · **trois assertions vertes pour la mauvaise raison le même jour** (`\b` après
+une lettre accentuée ne matche jamais · une regex de sous-chaîne confond `bg-x` et `hover:bg-x` ·
+🔴 une contre-épreuve dont le sabotage ne s'applique pas rend du vert) · `suivre()` ne s'arrête pas
+au démontage.
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **Le toast et l'attente ⏳ n'ont PAS été vus dans un geste réel** — seulement sous test. La
-  vraie restauration destructive a été **écartée par le commanditaire**, qui la fera lui-même.
-  Vu en vrai, sur le serveur réel : les trois états peints côte à côte, le dialogue A4 (bouton
-  désarmé champ vide), et le **409 en ambre** avec la preuve au réseau qu'un refus **n'arme pas**
-  l'attente. L'ADR-0068 le dit dans sa section « ce que je n'ai pas pu voir ».
-- **Pour revoir les trois états** : deux sidecars fabriqués (sanctionnés par le §Suivi 5) ont
-  servi puis ont été **retirés**. Le script les refait et les défait :
-  `python3 <scratchpad>/fabriquer-sidecars-relecture.py [--retirer]` — ⚠️ le scratchpad est
-  volatil ; le script est court, il se réécrit (deux sidecars sur la cible **de dev**).
-  🔴 **Ne jamais recapturer `donnees.example.json` pendant qu'ils sont là.**
-- ✅ ~~L'environnement de dev laissé debout~~ — **ARRÊTÉ** : les deux préviews (`:8005`, `:5181`)
-  puis `docker compose down` **SANS `-v`**. Vérifié après coup : **les 7 volumes survivent** (dont
-  `zetis_postgres_data`, qui porte l'état restauré), **les 8 conteneurs `zetis-prod` intacts**,
-  ports 5432/6379/9000/9001/8005/5181 **tous libres**. 🔴 *Jamais `down -v`.*
-- `production_suspended: false`, base de dev inchangée (toujours l'état restauré de `…-1844.tar`).
-  Les échecs #890/#896/#897 y attendent toujours un acquittement dans Échecs — sans urgence.
-- ⚠️ **Hors périmètre, signalé sans être traité** : `ConfirmDialog` peint son bouton de
-  confirmation en **rose plein alors qu'il est `disabled`** — il se lit comme armé quand il ne
-  l'est pas. Vu à l'écran cette session.
+- 🔴 **Deux archives créées pour regarder l'écran restent sur la cible de dev** :
+  `zetis-2026-08-21-2044.tar` (vérifiée) et `zetis-2026-08-21-2057.tar` (**non vérifiée**, c'est
+  elle qui montre l'état ambre). ~96 Mo. Je ne les ai pas supprimées de moi-même.
+  ⚠️ **Ne pas recapturer `donnees.example.json` sans y penser** : le contrat capturé ne les
+  connaît pas.
+- `zetis-2026-08-19-1847.tar` a été **rendue à son verdict `reussie`** après avoir servi à montrer
+  l'état d'échec (empreinte corrompue puis réparée, vérifié par `shasum`).
+- 🔴 **L'environnement de dev est LAISSÉ DEBOUT** : infra docker de dev (`up -d postgres redis
+  minio`, **jamais `-v`**) + préviews backend `:8005` et front `:5181`. **À arrêter à la main.**
+- 🔴 **Le toast et l'attente ⏳ de RESTAURER n'ont toujours pas été vus dans un geste réel** —
+  seulement sous test. Le commanditaire l'a pris pour lui (il faut suspendre ZETIS d'abord, sinon
+  409). Écrit aussi dans l'ADR-0068.
+- Les échecs #890/#896/#897 attendent toujours un acquittement dans Échecs — sans urgence.
 
-**🧾 DETTES OUVERTES (portées depuis l'élagage du chantier « la fin d'un geste se raconte ») :**
+**🧾 DETTES OUVERTES :**
 
-- 🔴 **Une interruption n'a pas de DATE et ne peut pas en avoir** : `commence_le` existe dans le
-  sidecar, la route ne le publie pas. L'ADR-0067 §3 illustrait pourtant l'état persistant *avec*
-  une date. Changement de contrat ⇒ son propre cadrage.
-- 🔴 **Le TEXTE d'un écart est inatteignable** : la route publie leur **compte**. Pour une
-  vérification le détail vit dans l'`output_json` du travail ; pour une **restauration** ce travail
-  n'existe plus — il meurt au swap. Papa lit « 1 écart » et ne peut apprendre lequel.
+- 📌 **Rien ne dit qu'une vérification a VIEILLI.** « Sauvegarde vérifiée · 19/08/2026 » ne se lit
+  pas « il y a quatre mois ». `lib/depuis.ts` sait l'écrire, mais le **seuil de péremption** est une
+  décision qui n'existe nulle part — signalée, pas inventée. *(Née de cette session.)*
+- ⚠️ **Trois boutons par ligne d'archive font passer chaque bouton sur 2 lignes** — mesuré :
+  surcoût **0 px** du libellé long, c'est le nombre de boutons qui coince. Le tableau défile en
+  largeur dès 768 px (703 px de contenu dans 407 px visibles).
+- ⚠️ **`ConfirmDialog` peint son bouton de confirmation en rose PLEIN alors qu'il est `disabled`** —
+  il se lit comme armé quand il ne l'est pas.
+- 🔴 **Une interruption de restauration n'a pas de DATE** et ne peut pas en avoir : `commence_le`
+  existe dans le sidecar, la route ne le publie pas.
+- 🔴 **Le TEXTE d'un écart de RESTAURATION est inatteignable** : la route publie leur compte, et le
+  travail meurt au swap. *(Pour une vérification, en revanche, `SortieVerification.ecarts` porte
+  bien les textes — c'est la restauration qui est aveugle.)*
 - ⚠️ **Le lien « Voir au Journal → » de la barre mène sur du VIDE pour la famille sauvegarde** — le
-  Journal exclut `created_by='file'` par construction (`journal_filters.py`), la barre affiche tout
-  `queued|running`. Observé par l'utilisateur le 2026-08-19, jamais traité. *(La demande jumelle —
-  « un toast qui confirme la restauration » — est **SOLDÉE** par cette slice.)*
+  Journal exclut `created_by='file'` (`journal_filters.py`), la barre affiche tout `queued|running`.
 - 🔴 **Le chemin « tête plus ancienne » du §5 de l'ADR-0066 reste NON MESURÉ** — aucune archive
-  d'une tête Alembic antérieure n'existe ; il se mesurera au premier vrai déploiement qui migre.
+  d'une tête Alembic antérieure n'existe.
 - ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (hérité de la slice 3 du
-  0065) — signalé, jamais traité.
-- ⚠️ **Le tableau des archives défile en largeur** : mesuré cette session à 768 px — **703 px de
-  contenu dans 407 px visibles**. Les trois énoncés principaux tiennent (344 / 308 / 184 px), mais
-  le **motif brut déborde** (596 px). Hérité (trois boutons par ligne), pas créé par la slice 2.
-- **Ménage machine** : kegs brew `postgresql@16` (le BON) et `libpq` (redondant, désinstallable) ·
-  `/Volumes/NX-Models/secours/` existe et est VIDE — à supprimer ou garder comme emplacement.
-- **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16` (jamais
-  `libpq`). Dette outillage, chore à part.
+  0065). *(Le chemin de VÉRIFICATION, lui, se nettoie désormais : un succès efface le message
+  d'échec précédent.)*
+- **Ménage machine** : kegs brew `postgresql@16` (le BON) et `libpq` (redondant) ·
+  `/Volumes/NX-Models/secours/` existe et est VIDE.
+- **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16`, jamais
+  `libpq`. Chore à part.
 - `API_SPEC.md` ne documente toujours pas les autres routes `/api/settings` (`/autonomy`,
-  `/machine`, `/ecarts`, `/production-suspension`) — la note en tête de sa section 💾 le dit.
+  `/machine`, `/ecarts`, `/production-suspension`).
 - 📌 `gen_tableau_amendements.py` **ne crée jamais le bloc** `> ### Amendements` : le premier
-  amendement d'un ADR s'amorce à la main — à documenter dans le script un jour. ⚠️ Et la dette ne
-  couvre que l'**amorce**, pas le contenu : `TROUBLESHOOTING.md`, entrée « bloc GÉNÉRÉ ».
+  amendement d'un ADR s'amorce à la main. ⚠️ Et la dette ne couvre que l'**amorce**, pas le contenu.
 - 📌 `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa confirmation dans
-  `REVOCATION_DECLAREE` de `gen_tableau_amendements.py` (repli « — », ce que sa section dit bien).
-- ✅ ~~`gen_frontmatter.py` non poussé~~ — **FAUX, corrigé à cette clôture** : `main` =
-  `origin/main`, le correctif et ses verrous sont bien sur `origin`. Vérifié cette session
-  (`rapport-revocations.md` n'a pas bougé après régénération).
-
-**PIÈGES** : `TROUBLESHOOTING.md`, **cinq entrées neuves en tête** — un verdict dérivé d'une
-absence, faux tant que la chose court · `pool_pre_ping` transparent sur les connexions tuées mais
-pas sur une base absente · deux éléments portant `role="status"` qui rendent verte une assertion
-« aucun toast » · un contraste calculé sur `oklch` qui rend n'importe quoi (1,03:1 pour du 14:1) ·
-la stack `zetis-prod` qui ne publie pas ses ports.
-
-### 📐 CADRAGE FAIT — Amendement 2 de l'ADR-0067, le §6 RESTREINT (2026-08-21, sur `main`)
-
-**Le read-before-code a invalidé la prémisse du §6**, et c'est pour ça qu'un amendement a été écrit
-plutôt qu'un chantier lancé. Trois mesures :
-
-- `apps/frontend-papa/src/lib/travaux.ts` — *« le suiveur de travail unique »* de l'**ADR-0041
-  §4/§9** — **existe déjà**, sonde `GET /api/ai/jobs/{id}`, rend la sortie sur `succeeded`, **lève
-  avec le motif du serveur** sur `failed`, porte un renoncement (`PLAFOND_MS`), et sert **quinze
-  routes** (`fiches`, `mindmaps`, `diagnostic`, `srsCards`…) ;
-- `GET /ai/jobs/{id}` est **générique** (`db.get(AIJob, job_id)`) : `backup_create` et
-  `backup_verify` peuvent l'utiliser **aujourd'hui, sans une ligne de backend** ;
-- appliquer le §6 à la lettre reviendrait donc à **sortir deux gestes du suiveur partagé** pour
-  perdre leur motif d'échec et leur `estimated_ms` — l'inverse de ce que le §6 voulait.
-
-**Décidé** (voir l'amendement pour le raisonnement) : *une seule mécanique par **NATURE** de geste*
-— `travaux.ts` pour les travaux dont la **ligne survit**, l'attente du §1 pour celui dont la
-**ligne meurt**. Le §6 n'est **pas révoqué** : il continue d'interdire deux attentes pour une même
-nature. **Et le succès de Sauvegarder et de Vérifier passe par un toast**, comme Restaurer ; leur
-échec continue d'atterrir dans **Échecs**.
-
-⚠️ **Relevé au passage, sur du code déjà livré** : le §1.3 justifie les 4 s comme « la valeur déjà
-mesurée du dépôt (ADR-0041) » — l'ADR-0041 en porte **deux**, `travaux.ts` à **2 s** et
-`useProductionActivity` à **4 s**. Le choix reste valide, c'est sa justification qui est ambiguë.
-Rien à corriger.
-
-🔴 **Piège du cadrage, et le script l'a attrapé** : son repli heuristique classait cet amendement
-« Révoque : **oui** » — **faux**, il restreint. Le verdict a été **déclaré** dans
-`REVOCATION_DECLAREE` de `gen_tableau_amendements.py`, **jamais écrit dans la cellule**.
-`--check` sort en **0**.
+  `REVOCATION_DECLAREE`.
 
 **PROCHAIN PAS :**
 
-1. 🔴 **Vérifier et committer le lot de cadrage** ci-dessus (`main`) : l'ADR-0067 amendé, le
-   script, le rapport de révocations régénéré, ce fichier, `BACKLOG.md`. **Aucune ligne de code.**
-2. **Le chantier d'application** — cas **2** de l'ADR-0060, donc **branche directe, PAS
-   d'`/ouverture`** (elle exigerait un ADR neuf qui ne doit pas exister). Périmètre au premier
-   message : `DonneesTab` fait passer **Sauvegarder** et **Vérifier** par `lancerEtSuivre`, avec un
-   toast de succès. **Hors périmètre : Restaurer n'est pas touché.** Read-before-code dû et
-   test-verrous : §Suivi de l'Amendement 2.
-3. Ensuite seulement, le **reste de la phase E** (`BACKLOG.md` L293) : occupation disque + cohérence
-   Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro portées (2) · export
-   RGPD (1). Aucun n'est cadré — ceux-là sont des **cas 3**, donc `/cadrage` puis `/ouverture`.
-4. Facultatif, et c'est le commanditaire qui l'a pris pour lui : **une vraie restauration** pour
-   voir le toast et l'attente ⏳ à l'écran (suspendre ZETIS d'abord, sinon 409).
+1. **Vérifier le diff, puis committer et pousser** la branche (absente d'`origin`) → **PR → merge**
+   → **étape 4bis** (`WORKFLOW.md §5`).
+2. 🔴 **Arrêter l'environnement de dev** — `docker compose down` **sans `-v`**, puis les deux
+   préviews.
+3. **Choisir la suite.** L'ADR-0067 est alors **entièrement livré, §6 compris**. Reste de la
+   phase E (`BACKLOG.md` L293), aucun cadré, donc **cas 3** (`/cadrage` puis `/ouverture`) :
+   occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
+   remises à zéro portées (2) · export RGPD (1).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
-- *(vide — les deux demandes du 2026-08-19 sont soldées ou remontées en dettes ci-dessus.)*
+- *(vide)*
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 

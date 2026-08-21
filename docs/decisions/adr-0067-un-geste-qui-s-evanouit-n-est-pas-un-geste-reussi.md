@@ -563,5 +563,20 @@ c'est qu'ils **existent**.
 3. **Test-verrous dus** : un échec de `backup_create` ou de `backup_verify` **ne passe jamais par
    un toast** · l'attente `/donnees` de Restaurer **n'est pas** armée par ces deux gestes · le
    motif du serveur est relayé tel quel.
+
+> 🔴 **Précision mesurée à l'exécution (2026-08-21) — « leur échec atterrit dans Échecs » n'est
+> vrai que pour un PLANTAGE.** `verifier_sauvegarde` **retourne** son verdict
+> (`"reussie" if not ecarts else "echec"`) au lieu de lever : un travail qui constate des écarts
+> passe donc à `succeeded`, et le suiveur **résout**. Un verdict d'échec de vérification n'atteint
+> jamais Échecs — il vit déjà, durablement, sur la **ligne de l'archive** (`statutArchive` →
+> « vérification en échec (N écarts) »), ce que le §3 demande exactement.
+>
+> **Vérifier a donc TROIS issues**, comme Restaurer : plantage → Échecs · `succeeded` +
+> `verdict: "reussie"` → **toast** · `succeeded` + `verdict: "echec"` → **jamais de toast**, la
+> ligne le dit. Sans cette lecture du verdict, un échec s'annoncerait par un toast — le premier
+> des §Signaux ci-dessus. **Sauvegarder**, lui, n'émet aucun verdict : deux issues suffisent.
+>
+> Ceci **précise** le §Décision, ne le change pas : la doctrine du §3 est appliquée telle quelle à
+> une carte des issues que le cadrage avait dressée incomplète.
 4. **Compte rendu de surface** (cas 4) : la formulation des deux toasts, écrite **dans la même
    session que la relecture visuelle**.

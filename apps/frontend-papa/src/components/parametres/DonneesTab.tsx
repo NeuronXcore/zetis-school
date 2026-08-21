@@ -36,9 +36,9 @@ import { signalerEnfilement } from "../../lib/productionSignal";
 import {
   fetchDonnees,
   lancerRestauration,
-  lancerSauvegarde,
-  lancerVerification,
+  sauvegarderEtSuivre,
   supprimerArchive,
+  verifierEtSuivre,
 } from "../../lib/settings";
 
 /** La saisie qui arme « Restaurer » (ADR-0066 §7) : geste de classe A4, un clic ne suffit pas.
@@ -228,6 +228,65 @@ function LigneRestauration({ r }: { r: RestaurationArchive }) {
   );
 }
 
+/** Ce que le bouton de vérification DIT et PÈSE, selon l'état de l'archive.
+ *
+ * 🔴 **Le bouton reste un VERBE — il dit ce que le clic fait, jamais où on en est.** L'état vit
+ * dans la colonne « Statut », et il y vit mieux : avec sa date et son compte d'écarts. Un bouton
+ * « ✓ Vérifié » redirait le même fait en moins bien, et deux formulations d'un même fait finissent
+ * par diverger — c'est la leçon que l'ADR-0067 §2 a payée en **supprimant** un champ plutôt qu'en
+ * le doublant.
+ *
+ * 🔴 **Et il ne se grise jamais** : une vérification n'est pas une propriété acquise, c'est une
+ * **observation datée**. Une archive vérifiée en août peut être corrompue en décembre — c'est
+ * précisément pourquoi `verifie_le` existe. Interdire la re-vérification dirait « il n'y a plus
+ * rien à faire » d'une chose qui se périme.
+ *
+ * Ce qui change, c'est le **poids** et la **couleur** — et la règle de couleur tient en une
+ * phrase : **le bouton emprunte celle du badge de sa ligne**. Un « export non vérifié » ambre
+ * porte un bouton ambre, une « Sauvegarde vérifiée » émeraude un bouton émeraude, une
+ * « vérification en échec » rose un bouton rose. L'œil relie l'action à son état sans qu'un mot
+ * soit nécessaire, et le tableau se parcourt à la couleur seule.
+ *
+ * Le **remplissage**, lui, porte l'urgence : seule l'action réellement due est pleine ; les deux
+ * reprises possibles ne sont que des cadres. Une seule ligne sur quatre appelle donc l'œil.
+ *
+ * ⚠️ Ce qui n'est **pas** fait ici, et qui manque : rien ne dit qu'une vérification a **vieilli**.
+ * « Sauvegarde vérifiée · 19/08/2026 » ne se lit pas « il y a quatre mois ». Le dépôt a `depuis()`
+ * pour l'écrire — mais le SEUIL au-delà duquel une vérification se périme est une décision, et
+ * elle n'existe nulle part. Signalé, pas inventé. */
+function gesteVerification(a: ArchiveSauvegarde): {
+  label: string;
+  variant: "primary" | "ghost" | "outline";
+  classe?: string;
+} {
+  if (!a.verification) {
+    // La seule action réellement DUE : sans elle, l'archive n'est qu'un export. Ambre du badge
+    // « export non vérifié », et le SEUL bouton rempli du tableau.
+    return {
+      label: "✓ Vérifier",
+      variant: "outline",
+      classe: "border-amber-400/60 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25",
+    };
+  }
+  if (a.verification.verdict === "reussie") {
+    // Émeraude du badge « Sauvegarde vérifiée ». Cadre seul : possible, jamais urgent.
+    return {
+      label: "↻ Re-vérifier",
+      variant: "outline",
+      classe: "border-emerald-400/30 text-emerald-200/80 hover:bg-emerald-400/10",
+    };
+  }
+  // Rose du badge « vérification en échec ». ⚠️ Ce bouton était ambre il y a peu, au motif que le
+  // rose est réservé à ce qui est cassé — vrai pour un MESSAGE, faux ici : ce bouton n'annonce
+  // rien, il emprunte l'identité de sa ligne pour qu'on le relie à elle. Le badge rose est déjà
+  // là ; un bouton ambre à côté aurait fabriqué une troisième nuance sans rien dire de plus.
+  return {
+    label: "↻ Re-vérifier",
+    variant: "outline",
+    classe: "border-rose-400/50 text-rose-200 hover:bg-rose-400/10",
+  };
+}
+
 function MessageGeste({ geste }: { geste: Geste }) {
   if (!geste || geste === "en-cours") return null;
   return (
@@ -285,6 +344,20 @@ export function DonneesTab() {
   // ⚠️ Le compteur vit dans une ref, pas dans un état : le faire entrer dans les dépendances de
   // l'effet relancerait le minuteur à chaque lecture, et la cadence de 4 s n'existerait plus.
   const lectures = useRef(0);
+
+  /** 🔴 Le garde de démontage du suiveur partagé — et il se pose ICI parce qu'il n'existe pas
+   *  là-bas. `suivre()` (`lib/travaux.ts`) est une boucle de promesse nue : quitter l'onglet ne
+   *  l'arrête pas, elle continue de sonder jusqu'à son plafond de **15 minutes**, puis résout ou
+   *  lève sur un composant mort. La borne §1.4 de l'ADR-0067 (« s'arrête si Papa quitte l'onglet »)
+   *  appartient à l'attente du §1, pas au suiveur de l'ADR-0041 — qui sert quinze routes et n'est
+   *  pas à nous. On ne le modifie donc pas : on refuse simplement d'agir après coup. */
+  const monte = useRef(true);
+  useEffect(() => {
+    monte.current = true;
+    return () => {
+      monte.current = false;
+    };
+  }, []);
 
   /** Ce que la page DIT d'un verdict — et c'est ici que le §3 se joue.
    *
@@ -484,16 +557,22 @@ export function DonneesTab() {
             title={donnees.certificat.motif ?? undefined}
             onClick={() => {
               setSauvegardeEnCours("en-cours");
-              lancerSauvegarde()
-                .then((r) => {
-                  setSauvegardeEnCours({
-                    genre: "accepte",
-                    texte: `Travail #${r.job_id} enfilé — la barre en haut suit son avancement ; ⟳ ensuite pour relire l'état.`,
+              // ⚠️ Plus de `signalerEnfilement()` ici : `lancerEtSuivre` l'appelle lui-même, et
+              // seulement APRÈS le succès du POST — deux appels réveilleraient la barre deux fois.
+              sauvegarderEtSuivre()
+                .then((sortie) => {
+                  if (!monte.current) return;
+                  setSauvegardeEnCours(null);
+                  // 🔴 « Export », jamais « sauvegarde » : le tar vient de naître, personne ne
+                  // l'a rejoué à blanc. Le mot se gagne au verdict de vérification (ADR-0065 §7),
+                  // et le §5 de l'ADR-0067 l'interdit ici nommément.
+                  setToast({
+                    id: Date.now(),
+                    texte: `Export écrit — « ${sortie.archive} », ${taille(sortie.taille)}. Il ne s'appellera « sauvegarde » qu'après une vérification réussie.`,
                   });
-                  // Réveille la barre tout de suite, au lieu de « quelque part dans les 4 s ».
-                  signalerEnfilement();
+                  charger();
                 })
-                .catch((e: unknown) => setSauvegardeEnCours(issue(e)));
+                .catch((e: unknown) => monte.current && setSauvegardeEnCours(issue(e)));
             }}
           >
             💾 Sauvegarder
@@ -531,6 +610,7 @@ export function DonneesTab() {
               <tbody>
                 {donnees.archives.map((a) => {
                   const statut = statutArchive(a);
+                  const geste = gesteVerification(a);
                   return (
                     <Fragment key={a.nom}>
                     <tr
@@ -561,27 +641,54 @@ export function DonneesTab() {
                       <td className="py-2.5 text-right">
                         <div className="flex justify-end gap-2">
                           <Button
-                            variant="secondary"
+                            variant={geste.variant}
+                            className={geste.classe}
                             disabled={gesteOccupe}
                             onClick={() => {
                               setVerification({ archive: a.nom, geste: "en-cours" });
-                              lancerVerification(a.nom)
-                                .then((r) => {
-                                  setVerification({
-                                    archive: a.nom,
-                                    geste: {
-                                      genre: "accepte",
-                                      texte: `Travail #${r.job_id} enfilé — le verdict s'affichera ici après ⟳.`,
-                                    },
-                                  });
-                                  signalerEnfilement();
+                              verifierEtSuivre(a.nom)
+                                .then((sortie) => {
+                                  if (!monte.current) return;
+                                  // 🔴 **RÉSOUDRE NE VEUT PAS DIRE RÉUSSIR**, et c'est le piège
+                                  // central de ce chantier. `verifier_sauvegarde` *retourne*
+                                  // `"reussie" if not ecarts else "echec"` au lieu de lever : un
+                                  // travail qui constate des écarts passe quand même à
+                                  // `succeeded`. Toaster ici sans lire `verdict` annoncerait un
+                                  // ÉCHEC par un toast — la faute que l'ADR-0041 §8 a payée, et
+                                  // le premier des §Signaux de l'ADR-0067.
+                                  //
+                                  // ⚠️ Corollaire : un verdict d'échec n'atterrit PAS dans Échecs
+                                  // — le travail a réussi. Il vit là où il vivait déjà, sur la
+                                  // ligne de l'archive (`statutArchive`), que `charger()` relit.
+                                  const n = sortie.ecarts.length;
+                                  setVerification(
+                                    sortie.verdict === "reussie"
+                                      ? null
+                                      : {
+                                          archive: a.nom,
+                                          geste: {
+                                            genre: "panne",
+                                            texte: `${a.nom} : vérification en échec — ${n} écart${n > 1 ? "s" : ""}. Le statut de la ligne le dit désormais, et le dira encore demain.`,
+                                          },
+                                        },
+                                  );
+                                  if (sortie.verdict === "reussie") {
+                                    // Le seul endroit du produit où le mot « sauvegarde » se
+                                    // gagne (ADR-0065 §7) — le toast a le droit de le dire.
+                                    setToast({
+                                      id: Date.now(),
+                                      texte: `« ${sortie.archive} » vérifiée : c'est une sauvegarde. L'archive a été rejouée à blanc, sans toucher la base vivante.`,
+                                    });
+                                  }
+                                  charger();
                                 })
                                 .catch((e: unknown) =>
+                                  monte.current &&
                                   setVerification({ archive: a.nom, geste: issue(e) }),
                                 );
                             }}
                           >
-                            ✓ Vérifier
+                            {geste.label}
                           </Button>
                           {/* « Restaurer » n'APPARAÎT que sur une archive au verdict `reussie`
                               (ADR-0066 §7) — la compatibilité (§5), elle, GRISE avec son motif :

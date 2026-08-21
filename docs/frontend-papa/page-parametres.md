@@ -104,10 +104,38 @@ elle a disparu du geste **↺ Restaurer**.
   ni pourcentage ni durée ni promesse, et rappelle que **ZETIS s'est réveillé suspendu** — la
   levée appartient à Papa (`adr-0063`). Le taire ferait croire que le produit est reparti.
 
-> Le §6 de l'`adr-0067` — une seule mécanique pour **Sauvegarder**, **Vérifier** et **Restaurer** —
-> reste **actif mais différé** à son propre chantier (arbitrage du 2026-08-21). Les deux autres
-> gestes gardent donc leur « ⟳ ensuite » : leur ligne de travail, elle, survit, et leur échec
-> atterrit dans **Échecs** comme aujourd'hui.
+🔴 **Les trois gestes disent leur fin** (`adr-0067` §6, **Amendement 2**, livré le 2026-08-21) —
+et par **deux mécaniques**, parce que la frontière est un fait de données, pas un goût :
+
+| Nature du travail | Mécanique | Pourquoi elle |
+|---|---|---|
+| **Sauvegarder**, **Vérifier** — leur ligne `ai_jobs` **survit** | le suiveur partagé `lib/travaux.ts` (`adr-0041` §4/§9), déjà utilisé par quinze routes | il relit le travail **par son id** et rend le **motif du serveur** |
+| **Restaurer** — sa ligne **meurt au swap** | l'attente armée du §1 ci-dessus | il n'y a plus de ligne à relire : le sidecar est le seul survivant |
+
+- Le toast de **Sauvegarder** dit « **Export écrit** » — 🔴 *jamais* « sauvegarde » : le tar vient
+  de naître, personne ne l'a rejoué à blanc (`adr-0065` §7).
+- 🔴 **Vérifier a TROIS issues**, et c'est le piège du chantier : `verifier_sauvegarde` **retourne**
+  son verdict (`reussie` / `echec`) au lieu de lever, donc un travail qui constate des écarts
+  **réussit**. Plantage → **Échecs** · `reussie` → **toast** (le seul endroit où le mot
+  « sauvegarde » se gagne) · `echec` → 🔴 **jamais de toast**, la ligne le dit déjà et durablement.
+
+🔴 **Le bouton de vérification est un VERBE, jamais un état** — et il **emprunte la couleur du
+badge de sa ligne**, pour que l'œil relie l'action à ce qu'elle vise :
+
+| Statut de la ligne | Bouton | Rendu |
+|---|---|---|
+| export non vérifié | **✓ Vérifier** | ambre **rempli** — le seul du tableau, c'est l'action due |
+| Sauvegarde vérifiée | **↻ Re-vérifier** | cadre émeraude, sans remplissage |
+| vérification en échec | **↻ Re-vérifier** | cadre rose |
+
+⚠️ **Il ne se grise jamais**, et c'est le point : une vérification n'est pas une propriété acquise
+mais une **observation datée** — une archive vérifiée en août peut être corrompue en décembre. Une
+case à cocher « vérifié » a été proposée puis écartée pour deux raisons : elle redirait un fait que
+la colonne « Statut » porte déjà mieux (avec sa date et son compte d'écarts), et elle dirait « plus
+rien à faire » d'une chose qui se périme.
+
+📌 **Ce qui manque encore** : rien ne dit qu'une vérification a **vieilli**. Le seuil de péremption
+est une décision, elle n'existe nulle part.
 
 🔴 **Aucun octet d'archive ne passe par HTTP** (`adr-0065` §1) : pas de bouton « Télécharger »,
 et le pied de page dit pourquoi. La **destination ne se choisit pas ici** — elle se certifie sur

@@ -16,10 +16,13 @@ import {
   type Ecarts,
   type Machine,
   type SauvegardeAcceptee,
+  type SortieSauvegarde,
+  type SortieVerification,
   type TestMoteur,
 } from "@zetis/types";
 import { API_URL } from "./authClient";
 import { asJson, authHeader, jsonHeaders } from "./httpClient";
+import { lancerEtSuivre } from "./travaux";
 
 const BASE = `${API_URL}/api/settings`;
 
@@ -221,24 +224,38 @@ export async function fetchDonnees(): Promise<Donnees> {
   return asJson(await fetch(`${BASE}/donnees`, { headers: authHeader() }));
 }
 
-/** Enfile `backup_create` — 202 métadonnées, ou 409 MOTIVÉ (certificat absent/illisible/même
- *  volume, sauvegarde déjà en file). Le motif se reconnaît au CODE (`estRefus`), jamais au texte. */
-export async function lancerSauvegarde(): Promise<SauvegardeAcceptee> {
-  return asJson(
-    await fetch(`${BASE}/donnees/sauvegarde`, { method: "POST", headers: jsonHeaders() }),
-  );
+/** Enfile `backup_create` **et attend son issue** — ADR-0067 §6, tel que l'**Amendement 2** le
+ *  restreint : *une seule mécanique par NATURE de geste*.
+ *
+ *  🔴 **Le suiveur partagé, pas l'attente du §1.** `lancerEtSuivre` (ADR-0041 §4/§9) sert déjà
+ *  quinze routes ; il sonde le travail **par son id** et rend sa sortie. Ce geste y a droit parce
+ *  que **sa ligne `ai_jobs` survit** — seule la restauration perd la sienne au swap, et c'est
+ *  pourquoi elle, et elle seule, a dû recevoir une mécanique à part. La frontière est un fait de
+ *  données, pas un goût.
+ *
+ *  ⚠️ Le **409 MOTIVÉ** (certificat absent/illisible/même volume, sauvegarde déjà en file) est
+ *  levé par le POST **avant** tout sondage : il reste un `HttpError` que `estRefus` reconnaît au
+ *  CODE, jamais au texte. Rien de ce que l'ADR-0065 a construit ne change ici. */
+export async function sauvegarderEtSuivre(): Promise<SortieSauvegarde> {
+  return lancerEtSuivre<SortieSauvegarde>(`${BASE}/donnees/sauvegarde`, {
+    method: "POST",
+    headers: jsonHeaders(),
+  });
 }
 
-/** Enfile `backup_verify` sur UNE archive — le verdict arrivera dans l'`output_json` du travail
- *  (§6), pas dans cette réponse ; la page le relit au ⟳ suivant. */
-export async function lancerVerification(archive: string): Promise<SauvegardeAcceptee> {
-  return asJson(
-    await fetch(`${BASE}/donnees/verification`, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify({ archive }),
-    }),
-  );
+/** Enfile `backup_verify` sur UNE archive **et attend son verdict**.
+ *
+ *  🔴 **Résoudre ne veut PAS dire réussir.** `verifier_sauvegarde` *retourne* son verdict —
+ *  `"reussie" if not ecarts else "echec"` — au lieu de lever : un travail qui constate des écarts
+ *  passe donc à `succeeded`, et cette promesse **résout** avec `verdict: "echec"`. L'appelant DOIT
+ *  lire `verdict` ; le traiter comme un succès annoncerait un échec par un toast, ce que le §3 de
+ *  l'ADR-0067 interdit. Seul un **plantage** de l'exécutant rejette cette promesse. */
+export async function verifierEtSuivre(archive: string): Promise<SortieVerification> {
+  return lancerEtSuivre<SortieVerification>(`${BASE}/donnees/verification`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ archive }),
+  });
 }
 
 /** Enfile `backup_restore` — le swap à réveil suspendu (ADR-0066 §2). 202 = accepté ; toutes

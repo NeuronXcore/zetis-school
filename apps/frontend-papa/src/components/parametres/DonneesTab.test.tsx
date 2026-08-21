@@ -18,6 +18,8 @@ import {
   type ArchiveSauvegarde,
   type Donnees,
   type RestaurationArchive,
+  type SortieSauvegarde,
+  type SortieVerification,
 } from "@zetis/types";
 
 import { DonneesTab } from "./DonneesTab";
@@ -26,17 +28,17 @@ import { HttpError } from "../../lib/httpClient";
 vi.mock("../../lib/settings", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/settings")>()),
   fetchDonnees: vi.fn(),
-  lancerSauvegarde: vi.fn(),
-  lancerVerification: vi.fn(),
+  sauvegarderEtSuivre: vi.fn(),
+  verifierEtSuivre: vi.fn(),
   lancerRestauration: vi.fn(),
   supprimerArchive: vi.fn(),
 }));
 import {
   fetchDonnees,
   lancerRestauration,
-  lancerSauvegarde,
-  lancerVerification,
+  sauvegarderEtSuivre,
   supprimerArchive,
+  verifierEtSuivre,
 } from "../../lib/settings";
 
 function archive(surcharge: Partial<ArchiveSauvegarde> = {}): ArchiveSauvegarde {
@@ -68,6 +70,34 @@ function verifiee(surcharge: Partial<ArchiveSauvegarde> = {}): ArchiveSauvegarde
   });
 }
 
+/** L'`output_json` d'un `backup_create` réussi. */
+function sortieSauvegarde(surcharge: Partial<SortieSauvegarde> = {}): SortieSauvegarde {
+  return {
+    archive: "zetis-2026-08-19-1430.tar",
+    taille: 3_200_000,
+    sha256: "a".repeat(64),
+    lignes: 9161,
+    tables: 48,
+    objets_minio: 0,
+    fichiers_audio: 76,
+    tete_alembic: "abc123",
+    ...surcharge,
+  };
+}
+
+/** L'`output_json` d'un `backup_verify`. 🔴 Il porte le verdict — y compris `echec`, sur un
+ *  travail qui a pourtant RÉUSSI. */
+function sortieVerification(surcharge: Partial<SortieVerification> = {}): SortieVerification {
+  return {
+    archive: "zetis-2026-08-19-1430.tar",
+    sha256: "a".repeat(64),
+    verdict: "reussie",
+    ecarts: [],
+    verifie_le: "2026-08-19T15:00:00+00:00",
+    ...surcharge,
+  };
+}
+
 function donnees(surcharge: Partial<Donnees> = {}): Donnees {
   return {
     certificat: { valable: true, motif: null, cible: "/Volumes/NX-Models/zetis-sauvegardes" },
@@ -79,8 +109,8 @@ function donnees(surcharge: Partial<Donnees> = {}): Donnees {
 
 beforeEach(() => {
   vi.mocked(fetchDonnees).mockReset();
-  vi.mocked(lancerSauvegarde).mockReset();
-  vi.mocked(lancerVerification).mockReset();
+  vi.mocked(sauvegarderEtSuivre).mockReset();
+  vi.mocked(verifierEtSuivre).mockReset();
   vi.mocked(lancerRestauration).mockReset();
   vi.mocked(supprimerArchive).mockReset();
 });
@@ -147,7 +177,9 @@ describe("le mot « sauvegarde » se mérite", () => {
 describe("les refus et les pannes", () => {
   it("un 409 s'affiche AVEC le motif du serveur — relayé tel quel", async () => {
     vi.mocked(fetchDonnees).mockResolvedValue(donnees());
-    vi.mocked(lancerSauvegarde).mockRejectedValue(
+    // ⚠️ Le 409 est levé par le POST, AVANT tout sondage : `lancerEtSuivre` fait son `asJson`
+    // en premier. Le refus reste donc un `HttpError` que `estRefus` reconnaît au CODE.
+    vi.mocked(sauvegarderEtSuivre).mockRejectedValue(
       new HttpError("Une sauvegarde est déjà en file ou en cours (travail #12).", 409),
     );
 
@@ -157,14 +189,19 @@ describe("les refus et les pannes", () => {
     await screen.findByText("Une sauvegarde est déjà en file ou en cours (travail #12).");
   });
 
-  it("un 202 annonce le travail enfilé, avec son numéro", async () => {
+  it("🔴 le geste annonce sa FIN, plus son enfilement — « Travail #N enfilé » a DISPARU", async () => {
+    // ⚠️ **Cette assertion en remplace une qui est morte**, et le remplacement est la décision :
+    // le test d'avant verrouillait `/Travail #7 enfilé/`. Ce message était une consigne de
+    // surveillance — il annonçait qu'un travail PARTAIT, et laissait Papa deviner qu'il finissait.
+    // L'ADR-0067 §6 (Amendement 2) le supprime : la page attend, et dit la fin.
     vi.mocked(fetchDonnees).mockResolvedValue(donnees());
-    vi.mocked(lancerSauvegarde).mockResolvedValue({ job_id: 7, status: "queued" });
+    vi.mocked(sauvegarderEtSuivre).mockResolvedValue(sortieSauvegarde());
 
     render(<DonneesTab />);
     fireEvent.click(await screen.findByRole("button", { name: /💾 Sauvegarder/ }));
 
-    await screen.findByText(/Travail #7 enfilé/);
+    await screen.findByText(/Export écrit/);
+    expect(screen.queryByText(/enfilé/)).toBeNull();
   });
 
   it("une erreur de lecture n'affiche AUCUNE valeur — ni archive, ni geste", async () => {
@@ -212,15 +249,17 @@ describe("les refus et les pannes", () => {
 describe("vérifier", () => {
   it("part avec le NOM de l'archive de sa ligne", async () => {
     vi.mocked(fetchDonnees).mockResolvedValue(donnees());
-    vi.mocked(lancerVerification).mockResolvedValue({ job_id: 9, status: "queued" });
+    vi.mocked(verifierEtSuivre).mockResolvedValue(sortieVerification());
 
     render(<DonneesTab />);
     fireEvent.click(await screen.findByRole("button", { name: /Vérifier/ }));
 
     await waitFor(() =>
-      expect(lancerVerification).toHaveBeenCalledWith("zetis-2026-08-19-1430.tar"),
+      expect(verifierEtSuivre).toHaveBeenCalledWith("zetis-2026-08-19-1430.tar"),
     );
-    await screen.findByText(/Travail #9 enfilé/);
+    // ⚠️ L'ancienne assertion `/Travail #9 enfilé/` est morte avec le message : le geste ne
+    // s'annonce plus au départ, il se dit à l'arrivée.
+    await screen.findByText(/c'est une sauvegarde/);
   });
 });
 
@@ -400,6 +439,13 @@ function geste(surcharge: Partial<RestaurationArchive> = {}): RestaurationArchiv
 
 const unEtat = (r: RestaurationArchive | null) =>
   donnees({ archives: [verifiee({ restauration: r })] });
+
+/** Le bouton a-t-il un REMPLISSAGE au repos ? À jetons, pas à la sous-chaîne : `hover:bg-rose-400/10`
+ *  contient `bg-rose-400/1` et ferait échouer n'importe quelle regex naïve — un remplissage au
+ *  SURVOL n'est pas un remplissage. */
+function remplissageAuRepos(el: HTMLElement): string | undefined {
+  return el.className.split(/\s+/).find((c) => /^bg-(amber|emerald|rose)/.test(c));
+}
 
 /** 🔴 Le TOAST, et lui seul. L'attente en vol porte elle aussi `role="status"` (elle informe sans
  *  interrompre, même règle) : asserter « aucun `role="status"` » confondrait les deux et rendrait
@@ -649,5 +695,213 @@ describe("les trois issues (§3, Amendement 1)", () => {
 
     expect(screen.queryByText(/⟳ ensuite pour relire l'état/)).toBeNull();
     expect(screen.getByText(/Cette page attend la fin et vous la dira/)).toBeInTheDocument();
+  });
+});
+
+// --- 🔴 ADR-0067 §6 (Amendement 2) — Sauvegarder et Vérifier disent leur fin --------------------
+//
+// La restriction du §6 : **une seule mécanique par NATURE de geste**. Ces deux-là passent par le
+// suiveur partagé `travaux.ts` (ADR-0041 §4/§9) parce que **leur ligne `ai_jobs` survit** ; seule
+// la restauration garde l'attente du §1, la sienne mourant au swap.
+//
+// 🔴 **Le verrou qui porte ce chantier** : `verifier_sauvegarde` *retourne* son verdict
+// (`"reussie" if not ecarts else "echec"`) au lieu de lever. Un travail qui constate des écarts
+// passe donc à `succeeded`, et la promesse RÉSOUT. Sans le test ci-dessous, un échec s'annoncerait
+// par un toast — la faute que l'ADR-0041 §8 a payée, et le premier des §Signaux de l'ADR-0067.
+
+describe("Sauvegarder et Vérifier disent leur fin (§6, Amendement 2)", () => {
+  it("🔴 une vérification EN ÉCHEC ne passe JAMAIS par un toast", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+    vi.mocked(verifierEtSuivre).mockResolvedValue(
+      sortieVerification({
+        verdict: "echec",
+        ecarts: ["membre : « storage/audio/12.wav » absent du manifeste", "empreinte : divergente"],
+      }),
+    );
+
+    render(<DonneesTab />);
+    fireEvent.click(await screen.findByRole("button", { name: /Vérifier/ }));
+
+    // Le geste a ABOUTI (la promesse a résolu) — et pourtant rien d'éphémère ne l'annonce.
+    await screen.findByText(/vérification en échec — 2 écarts/);
+    expect(toastAffiche()).toBeNull();
+  });
+
+  it("🔒 une vérification RÉUSSIE toaste — et c'est là que le mot « sauvegarde » se gagne", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+    vi.mocked(verifierEtSuivre).mockResolvedValue(sortieVerification());
+
+    render(<DonneesTab />);
+    fireEvent.click(await screen.findByRole("button", { name: /Vérifier/ }));
+
+    await screen.findByText(/c'est une sauvegarde/);
+    expect(toastAffiche()).not.toBeNull();
+  });
+
+  it("🔴 le toast de Sauvegarder n'appelle JAMAIS « sauvegarde » un export non vérifié", async () => {
+    // ADR-0065 §7 et ADR-0067 §5. Le tar vient de naître : personne ne l'a rejoué à blanc.
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+    vi.mocked(sauvegarderEtSuivre).mockResolvedValue(sortieSauvegarde());
+
+    render(<DonneesTab />);
+    fireEvent.click(await screen.findByRole("button", { name: /💾 Sauvegarder/ }));
+
+    const toast = (await screen.findByText(/Export écrit/)).closest('[role="status"]')!;
+    expect(toast).toHaveTextContent("zetis-2026-08-19-1430.tar");
+    // ⚠️ Assertion POSITIVE, et c'est délibéré : une négation du genre « le mot n'apparaît pas »
+    // passerait ici pour la mauvaise raison (le mot EST là, dans la phrase qui le refuse) —
+    // `TROUBLESHOOTING.md` porte deux fois ce piège. On verrouille donc que le seul emploi du mot
+    // est celui qui le REFUSE à cette archive.
+    expect(toast).toHaveTextContent(/ne s'appellera « sauvegarde » qu'après une vérification/);
+    // Il nomme l'archive et sa taille, sans pourcentage ni durée (§5).
+    expect(toast.textContent).not.toMatch(/%|seconde|minute|bientôt/);
+  });
+
+  it("🔴 ces deux gestes n'arment PAS l'attente de Restaurer — les mécaniques ne se mélangent pas", async () => {
+    // Le hors-périmètre, prouvé plutôt que promis : l'attente du §1 ne vit que pour la
+    // restauration. Si un de ces gestes l'armait, `fetchDonnees` serait rappelée en boucle.
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+      vi.mocked(sauvegarderEtSuivre).mockResolvedValue(sortieSauvegarde());
+
+      render(<DonneesTab />);
+      await avancer(0);
+      fireEvent.click(screen.getByRole("button", { name: /💾 Sauvegarder/ }));
+      await avancer(0);
+      const apresGeste = vi.mocked(fetchDonnees).mock.calls.length; // montage + relecture
+
+      await avancer(60_000);
+      expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(apresGeste);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("🔒 pendant l'attente, les gestes de la page sont GRISÉS", async () => {
+    // Le suiveur peut tourner plusieurs minutes : laisser les boutons vifs inviterait au doublon
+    // que le serveur refuserait ensuite en 409.
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+    vi.mocked(sauvegarderEtSuivre).mockReturnValue(new Promise(() => {})); // jamais résolue
+
+    render(<DonneesTab />);
+    fireEvent.click(await screen.findByRole("button", { name: /💾 Sauvegarder/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /💾 Sauvegarder/ })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: /Vérifier/ })).toBeDisabled();
+  });
+
+  it("🔴 rien ne s'affiche APRÈS un démontage — le suiveur partagé, lui, ne s'arrête pas", async () => {
+    // `suivre()` est une boucle de promesse nue : quitter l'onglet la laisse sonder jusqu'à son
+    // plafond de 15 min. Le garde est au site d'appel, faute de pouvoir toucher `travaux.ts`.
+    let resoudre: (v: SortieSauvegarde) => void = () => {};
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+    vi.mocked(sauvegarderEtSuivre).mockReturnValue(
+      new Promise<SortieSauvegarde>((r) => {
+        resoudre = r;
+      }),
+    );
+
+    const { unmount } = render(<DonneesTab />);
+    fireEvent.click(await screen.findByRole("button", { name: /💾 Sauvegarder/ }));
+    const lues = vi.mocked(fetchDonnees).mock.calls.length;
+
+    unmount();
+    resoudre(sortieSauvegarde()); // le travail finit APRÈS que Papa a quitté l'onglet
+    await Promise.resolve();
+
+    // Aucune relecture, donc aucun `setState` sur un composant mort.
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(lues);
+  });
+});
+
+// --- 🔴 Le bouton de vérification : un VERBE, jamais un état ------------------------------------
+//
+// L'idée écartée, et pourquoi elle l'a été : deux états avec case à cocher (« à vérifier » /
+// « vérifié »). Elle bute sur deux choses.
+//
+//   1. **Le fait serait dit deux fois.** La colonne « Statut » le porte déjà, et mieux — avec sa
+//      date et son compte d'écarts. Deux formulations d'un même fait finissent par diverger ;
+//      l'ADR-0067 §2 a payé cette leçon en SUPPRIMANT un champ plutôt qu'en le doublant.
+//   2. 🔴 **Une vérification n'est pas une propriété, c'est une observation DATÉE.** Une archive
+//      vérifiée en août peut être corrompue en décembre — c'est pour ça que `verifie_le` existe.
+//      Une case cochée dirait « plus rien à faire » d'une chose qui se périme, et griser le
+//      bouton retirerait à Papa la re-vérification.
+//
+// Ce qui change donc, c'est le POIDS : une seule ligne porte une action réellement due.
+
+describe("le bouton de vérification dit ce que le CLIC fait", () => {
+  it("🔒 une archive non vérifiée porte l'action DUE, en primary", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees()); // verification: null
+
+    render(<DonneesTab />);
+
+    const b = await screen.findByRole("button", { name: "✓ Vérifier" });
+    // Ambre, comme le badge « export non vérifié » de sa ligne — et le SEUL bouton rempli.
+    expect(b.className).toMatch(/border-amber/);
+    expect(remplissageAuRepos(b)).toMatch(/^bg-amber/); // rempli : c'est l'action due
+  });
+
+  it("🔒 une archive vérifiée propose une RE-vérification, discrète — et jamais grisée", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees({ archives: [verifiee()] }));
+
+    render(<DonneesTab />);
+
+    const b = await screen.findByRole("button", { name: "↻ Re-vérifier" });
+    // Émeraude, comme son badge — et CADRE SEUL : possible, jamais urgent.
+    expect(b.className).toMatch(/border-emerald/);
+    expect(remplissageAuRepos(b)).toBeUndefined(); // cadre seul
+    // 🔴 Le point qui fait toute la différence avec une case à cocher : une vérification vieillit,
+    // donc on doit TOUJOURS pouvoir la refaire.
+    expect(b).not.toBeDisabled();
+  });
+
+  it("🔒 une vérification en échec porte le ROSE de son badge — le bouton suit sa ligne", async () => {
+    // ⚠️ Ce verrou disait « ambre, jamais rose » il y a dix minutes. Il a changé parce que la
+    // RÈGLE a changé : le bouton emprunte la couleur du badge de sa ligne, pour qu'on relie les
+    // deux d'un coup d'œil. Le rose reste interdit à un MESSAGE qui n'annonce pas une panne — ce
+    // bouton, lui, n'annonce rien du tout : il agit.
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      donnees({
+        archives: [
+          archive({
+            verification: {
+              archive: "zetis-2026-08-19-1430.tar",
+              verdict: "echec",
+              verifie_le: "2026-08-19T15:00:00+00:00",
+              ecarts: 2,
+            },
+          }),
+        ],
+      }),
+    );
+
+    render(<DonneesTab />);
+
+    const b = await screen.findByRole("button", { name: "↻ Re-vérifier" });
+    expect(b.className).toMatch(/border-rose/);
+    expect(remplissageAuRepos(b)).toBeUndefined(); // cadre seul, pas de remplissage
+  });
+
+  it("🔴 AUCUN bouton n'annonce un ÉTAT — la contre-épreuve de la case à cocher", async () => {
+    // Si quelqu'un remplace un jour le verbe par « ✓ Vérifié », ce test tombe. C'est son seul but.
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      donnees({ archives: [verifiee(), archive()] }),
+    );
+
+    render(<DonneesTab />);
+    await screen.findByText(/Sauvegarde vérifiée/);
+
+    for (const b of screen.getAllByRole("button")) {
+      // ⚠️ **Pas de `\\b` ici, et c'est mesuré** : « é » n'est pas un caractère de mot en JS, donc
+      // `/[Vv]érifié\\b/` ne matche JAMAIS — l'assertion passait pour la mauvaise raison, et la
+      // contre-épreuve « ✓ Vérifié » ne la faisait pas tomber. Le mot nu suffit et discrimine :
+      // il ne matche pas « Vérifier », qui finit par « er ».
+      expect(b.textContent ?? "").not.toMatch(/[Vv]érifié/);
+    }
+    // …et l'état, lui, est bien là — dans la colonne qui a le droit de le porter.
+    expect(screen.getByText(/Sauvegarde vérifiée · /)).toBeInTheDocument();
   });
 });

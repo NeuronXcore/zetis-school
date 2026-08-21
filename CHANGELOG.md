@@ -1,5 +1,37 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.17 — Sauvegarder et Vérifier disent leur fin, et le bouton dit ce que le clic fait
+
+> **ADR-0067 §6, Amendement 2.** Cas **2** de l'ADR-0060 — application. Le §6 est **restreint**,
+> pas révoqué : *une seule mécanique par NATURE de geste*.
+
+**Sauvegarder** et **Vérifier** passent par le suiveur partagé `lib/travaux.ts` (ADR-0041 §4/§9),
+qui existait déjà et sert quinze routes. Ils ne disent plus « Travail #N enfilé » — une consigne de
+surveillance — mais leur **fin**. Restaurer garde l'attente du §1 : sa ligne de travail meurt au
+swap, la leur survit. La frontière est un fait de données, pas un goût.
+
+🔴 **Le piège que le read-before-code a trouvé** : `verifier_sauvegarde` **retourne**
+`"reussie" if not ecarts else "echec"` au lieu de lever. Un travail qui constate des écarts passe
+donc à `succeeded` et le suiveur **résout** — sans lire le verdict, un échec se serait annoncé par
+un **toast**, exactement ce que l'ADR-0041 §8 a payé et que le §Signaux de l'ADR-0067 nomme en
+premier. **Vérifier a donc trois issues**, comme Restaurer.
+
+⚠️ Corollaire : « leur échec atterrit dans Échecs » n'est vrai que d'un **plantage**. Un verdict
+d'échec de vérification n'y va jamais — il vit sur la ligne de l'archive, où il vivait déjà.
+
+**Le bouton de vérification devient un verbe qui pèse.** Il dit ce que le clic fait — « ✓ Vérifier »
+ou « ↻ Re-vérifier » — et **emprunte la couleur du badge de sa ligne** : ambre **rempli** pour la
+seule action due, cadre émeraude pour une reprise possible, cadre rose pour un échec à reprendre.
+🔴 **Il ne se grise jamais** : une vérification est une observation **datée**, pas une propriété.
+Une case à cocher « à vérifier / vérifié » a été proposée puis écartée — elle redirait un fait que
+la colonne « Statut » porte déjà mieux, et dirait « plus rien à faire » d'une chose qui se périme.
+
+**Mesuré à l'écran, sur le vrai serveur** (les deux gestes ne sont pas destructifs, contrairement à
+Restaurer) : les deux toasts, l'échec de vérification **sans aucun toast** — constaté par un
+observateur armé avant le clic — et les trois boutons à **15,1 / 9,06 / 12,34:1**. Le libellé plus
+long coûte **0 px** de largeur de tableau : le retour à la ligne des boutons vient des *trois*
+boutons par ligne, dette héritée.
+
 ## 0.99.16 — La page attend la fin du geste, et dit laquelle des trois
 
 > **ADR-0067, slice 2/2** (§1 et §3). Cas **2** de l'ADR-0060 — application d'une décision déjà
