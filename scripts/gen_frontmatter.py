@@ -95,6 +95,21 @@ def main() -> int:
     deja, poses, rapport = 0, 0, []
 
     for a in adrs:
+        # 🔴 La collecte du rapport se fait pour TOUS les ADR chargés, AVANT le
+        # `continue` ci-dessous — correctif du 2026-08-21, et l'ordre est la
+        # correction elle-même. Placée après, elle ne voyait que les ADR dont le
+        # front-matter venait d'être posé ; le rapport, réécrit en `open("w")`,
+        # perdait alors tout ce que les autres déclaraient.
+        #
+        # ⚠️ Le défaut était INTERMITTENT, et c'est ce qui l'a rendu invisible
+        # cinq cadrages durant : le fichier n'est réécrit que `if rapport`, or
+        # les ADR 0061→0065 ne portent AUCUNE ligne de révocation. Le premier
+        # ADR neuf qui en portait une a réduit le rapport de 27 ADR / 85 lignes
+        # à 1 ADR / 1 ligne. Un piège qui ne se déclenche qu'une fois sur six est
+        # pire qu'un piège systématique : il a l'air réparé entre deux morsures.
+        if a.revocations:
+            rapport.append((a.chemin.name, a.revocations))
+
         contenu = a.chemin.read_text(encoding="utf-8")
         if contenu.startswith("---\n"):
             deja += 1
@@ -102,13 +117,16 @@ def main() -> int:
         if args.write:
             a.chemin.write_text(front_matter(a) + contenu, encoding="utf-8")
         poses += 1
-        if a.revocations:
-            rapport.append((a.chemin.name, a.revocations))
         if a.manques:
             print(f"⚠️  {a.chemin.name} : champ(s) non établi(s) → {', '.join(a.manques)}")
 
     print(f"\n{poses} front-matter posé(s), {deja} déjà présent(s), {len(adrs)} fichier(s)")
 
+    # ⚠️ `and rapport` est CONSERVÉ, mais il a changé de rôle. Il masquait le
+    # défaut ci-dessus (rapport vide ⇒ pas d'écriture ⇒ pas de dégât visible) ;
+    # maintenant que la collecte est complète, il ne peut plus être vide par
+    # accident, et il devient un dernier filet : un registre sans aucune
+    # révocation n'écrase pas le rapport par un fichier creux.
     if args.write and rapport:
         # Sous `annexes/`, avec les autres pièces du registre — et non dans
         # `docs/` : ce rapport n'est pas une doc de produit, c'est une annexe

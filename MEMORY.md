@@ -6,6 +6,78 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
+> 🎬 **CADRAGE DU JOUR — `ADR-0067` « Un geste qui s'évanouit n'est pas un geste réussi »**
+> (2026-08-21, écrit sur `main`, **aucune ligne de code**). Lot Décision **non committé** au moment
+> où ceci s'écrit : l'ADR, `DECISIONS.md` **régénéré**, `BACKLOG.md` (phase E 7,5 → **8,5**) et ce
+> fichier. **Prochain pas : commiter ce lot, PUIS `/ouverture` — surtout pas l'inverse**, la
+> commande s'arrête si elle voit `DECISIONS.md` modifié sur une branche.
+>
+> **Ce qui est décidé** — comment la fin d'un geste 💾 (Sauvegarder · Vérifier · Restaurer) se
+> raconte à Papa : une **attente armée** par son propre 202, bornée par cinq conditions, qui meurt
+> avec sa réponse (ce n'est donc **pas** le sondage que l'ADR-0062 §5 interdit — l'onglet 💾 n'a
+> aucun champ à faire bouger sous les doigts) · le sidecar rend un **verdict** et le champ publié
+> `restauree_le` est **remplacé**, pas doublé · **succès → toast éphémère, échec → état persistant,
+> jamais un toast** (ADR-0041 §8).
+>
+> 🔴 **LE TROU TROUVÉ AU READ-BEFORE-CODE, et il vaut plus que le toast lui-même** : une
+> restauration qui échoue **APRÈS le swap** n'écrit **nulle part**. `run_ai_job` fait
+> `echoue = db.get(AIJob, job_id)` sur une ligne partie dans `zetis_avant`, obtient `None`, et
+> **renonce en silence** — ni Échecs, ni barre, ni Journal. La même panne est visible ou invisible
+> selon la seconde où elle tombe. Et l'information **existe déjà** : `_JournalRestauration.echouer()`
+> écrit l'étape fautive + son motif dans le sidecar, qui survit au crash — mais `GET /donnees` n'en
+> lit **qu'une clé**, `termine_le`. *Le chantier n'a pas à produire l'information, il a à cesser de
+> la jeter.*
+>
+> **Mesures faites (à ne pas refaire)** : une restauration réelle = **1,738 s** bout en bout, 8/8
+> étapes, swap à +0,736 s, sur **9 172 lignes / 76 fichiers audio** (sidecar
+> `zetis-2026-08-19-1844.tar.restauration.json`, cible dev) · prod `backup_create` **0,20 s** /
+> `backup_verify` **0,29 s** mais ⚠️ **sur 220 lignes et ZÉRO média** — ne prédit rien, ne sert de
+> seuil à rien · la barre sonde à **4 s** et l'annonce de fin (`ProductionDoneModal`) ne couvre
+> **que les lots** · le composant `Toast` n'a **qu'un seul usage** dans tout le front Papa
+> (`DemandesPage.tsx`), jamais dans `DonneesTab` · **la session Papa survit au swap** (JWT sans
+> état, `decode_token` ne touche jamais la base).
+>
+> ⚠️ **Deux choses NON mesurées, écrites comme telles dans l'ADR** : la borne de renoncement du
+> §1.5 (impossible à mesurer — la seule restauration réelle porte sur 9 172 lignes, la prod en
+> compte 220 ; d'où un renoncement qui **ne rend aucun verdict**) et **ce que répond `GET /donnees`
+> PENDANT la fenêtre de swap** — l'attente y tombera par construction, et une erreur de lecture
+> là-dedans ne doit **pas** se lire comme un échec du geste. Les deux sont au §Suivi.
+>
+> ✅ **PIÈGE D'OUTILLAGE TROUVÉ AU CADRAGE, PUIS CORRIGÉ DANS LA FOULÉE (2026-08-21)** —
+> `gen_frontmatter.py --write` tronquait `annexes/rapport-revocations.md`. La boucle faisait
+> `continue` sur tout ADR ayant **déjà** son front-matter **avant** de collecter ses révocations,
+> puis rouvrait le rapport en `open("w")`. Les 67 ADR étant tous pourvus, le rapport se
+> reconstruisait **à partir du seul ADR neuf** : **27 ADR / 85 lignes réduits à 1 / 1**.
+>
+> 🔴 **L'enseignement n'est pas le bug, c'est son INTERMITTENCE.** Le fichier n'est réécrit que
+> `if rapport` — or les ADR **0061→0065 ne portent AUCUNE ligne de révocation** (mesuré en
+> exécutant la vraie `_revocations`, pas en grepant : un grep naïf compte aussi les lignes
+> `revoque:` du front-matter, que `lire()` saute). Cinq cadrages ont donc lancé le script **sans
+> rien casser**, et le sixième a tout effacé. *Un piège qui ne mord qu'une fois sur six a l'air
+> réparé entre deux morsures — d'où un verrou plutôt qu'une relecture attentive.*
+>
+> **Correctif** : la collecte se fait pour **tous** les ADR chargés, avant le `continue`. Le garde
+> `and rapport` est conservé mais change de rôle — il masquait le défaut, il devient le filet
+> contre une régénération creuse. **Vérifié** : rapport **171 → 185 lignes**, **zéro ligne perdue**
+> (`comm -23` contre la version commitée), régénération reproductible, les 67 ADR inchangés.
+> Trois verrous dans `apps/backend/app/tests/test_rapport_revocations.py`, **chacun éprouvé rouge
+> à la contre-épreuve** : comportemental sur registre jouet · complétude sur le vrai registre ·
+> non-rétrécissement en COMPTE.
+>
+> ⚠️ **Deux leçons de manœuvre payées ici** : ① la vérification du diff a rattrapé une suppression
+> que j'avais d'abord classée « bruit » **à tort** — le tri à l'œil sur un diff de 165 lignes n'est
+> pas une vérification ; ② un test qui fabrique de faux ADR **ne doit jamais écrire leur numéro en
+> majuscules** : `check_adr_refs.sh` balaie tout `.py` du dépôt et devient ROUGE. Le premier jet du
+> test est tombé dedans, **et le commentaire qui l'expliquait aussi**.
+>
+> 🧭 **Le classement en cas 3 a été vérifié, pas supposé** (c'est le piège que l'ADR-0060 nomme) :
+> ce n'est pas une **application**, parce qu'aucune règle ne dit qu'un geste enfilé annonce sa fin
+> et que le seul mécanisme existant est **structurellement inapplicable** ici (la ligne meurt au
+> swap) ; c'est un cas 3 par la **seconde** branche — annulation > 1 commit (champ publié remplacé
+> + exception taillée dans une règle décidée), **pas** par une migration : il n'y en a aucune.
+> ⚠️ **La formulation et le rendu du toast restent une SURFACE (cas 4)** : ils se décideront devant
+> l'écran, dans la même session que la relecture visuelle — pas dans cet ADR.
+
 > **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, **quatre fois** ce jour) — `main` =
 > `origin/main`, rien à pousser, **aucune branche de chantier vivante**
 > (`chore/piege-pre-push-worktree`, `chore/la-case-cochee-ne-suffit-pas`,

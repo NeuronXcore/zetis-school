@@ -169,3 +169,17 @@
 - ### §16 — Le repli `cours` est révoqué, le déclencheur qu'il masquait est promu
 - la conversation. *Aurait eu le mérite de ne rien révoquer.*
 
+## `adr-0060-la-surface-se-decide-devant-l-ecran.md`
+
+- - **ADR-0024 §B et §C** : révoqués **le jour de leur écriture**.
+- - **Le gel d'A1** : affirmé par l'addendum ADR-0031 (« et il ne bouge pas »), révoqué par
+- à deux semaines de vie, l'ADR-0024 en a trois. La corrélation « cadré en avance → révoqué » est
+
+## `adr-0066-restaurer-est-un-swap-au-reveil-suspendu.md`
+
+- | # | Date | Titre | Statut | Révoque |
+
+## `adr-0067-un-geste-qui-s-evanouit-n-est-pas-un-geste-reussi.md`
+
+- sélection. Alors l'exception du §1 a été taillée sur un motif faux et doit être **révoquée**,
+
