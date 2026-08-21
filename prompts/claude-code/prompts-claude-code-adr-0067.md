@@ -183,6 +183,30 @@ des détails, et c'est prévu. Le squelette :
   vise une page qui se rafraîchit *toute seule* et *« ferait bouger un champ sous les doigts »* —
   l'onglet 💾 n'a aucun champ hors du dialogue, déjà fermé. Sans cette note, le prochain lecteur
   y verra une entorse et la « corrigera ».
+### 🔴 CE PROMPT A ÉTÉ ÉCRIT AVANT L'AMENDEMENT 1 — le verdict a TROIS valeurs, pas deux
+
+⚠️ **Tout ce qui suit parlait d'un monde binaire** (« succès » / « échec »). L'Amendement 1 de
+l'ADR-0067, écrit et **appliqué** le même jour (squash `e4d707f`), a tranché autrement :
+
+| Valeur | Ce que la slice 2 doit en faire |
+|---|---|
+| `reussie` | allée au bout **et zéro écart** — le cas du « succès » ci-dessous |
+| 🔴 `avec_ecarts` | allée au bout, **mais N écarts**. **PAS un échec** — la base est remplacée, les médias sont en place. Le rendre comme une panne enverrait Papa relancer un second swap |
+| `interrompue` | le cas de l'« échec » ci-dessous |
+
+🔴 **La question que ce prompt ne pouvait pas poser, et qui est maintenant la vraie question de la
+slice** : `avec_ecarts` est un **succès**, donc le §3 lui donne un toast — mais un toast est
+éphémère, et un écart est un **fait durable inscrit sur la cible**. Six secondes ne peuvent pas
+porter une réserve qui, elle, reste vraie. Il lui faut donc probablement **les deux** : le toast
+comme retour d'action, **et** une marque durable sur la ligne de l'archive.
+
+**À trancher devant l'écran**, avec l'emplacement — pas ici. Mais ne pas le trancher du tout
+reviendrait à laisser `avec_ecarts` se rendre comme `reussie`, ce que l'amendement interdit
+précisément.
+
+⚠️ **Trois états à loger, pas deux** : la contrainte d'emplacement mesurée ci-dessus s'en trouve
+resserrée, pas allégée.
+
 - **Succès → toast éphémère** : le composant `Toast` EXISTE (`role="status"`, 6 s), il se réutilise
   tel quel — ne pas en écrire un second. Il nomme l'archive · ni pourcentage, ni promesse, ni
   durée · jamais « sauvegarde » pour un export non vérifié · il **ne remplace pas** l'état de la
