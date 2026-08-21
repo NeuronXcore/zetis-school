@@ -1022,7 +1022,10 @@ par paliers, donc les pages volent **en rafale** (3 au plus), jamais en continu.
 - ⚠️ **Deux incohérences pré-existantes de `.claude/launch.json`.** `massimo` (:5173) et `papa`
   (:5174) portent `autoPort: true` alors que le `cors_origins` **par défaut** du backend est
   exactement 5173/5174 — un glissement de port casserait le CORS **sans message clair**. Et
-  `massimo-dev2` / `papa-srs` réclament tous deux le port **5177**. Signalé deux fois, jamais traité.
+  ✅ ~~`massimo-dev2` / `papa-srs` réclament tous deux le port **5177**~~ — **SOLDÉ le 2026-08-21**
+  (`chore/carte-des-ports`, commit `b342e9e`) : `papa-srs` était un **doublon exact de `papa-dev`**
+  (même frontend, même backend 8001), reliquat du 2026-07-04 ; il est retiré, 5177 n'a plus qu'un
+  propriétaire. Aucune donnée touchée — `launch.json` n'est lu par rien à l'exécution.
 - ⚠️ **`KPI_ORDER` est un export MORT** (`dashboardDerive.ts:322`) — **revérifié le 2026-08-06** :
   lu par aucun fichier, son seul autre occurrence est une mention dans un commentaire d'ADR. Un
   `DashboardFocus[]` incomplet ne ferait bouger ni test ni compilateur.
