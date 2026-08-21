@@ -181,5 +181,7 @@
 
 ## `adr-0067-un-geste-qui-s-evanouit-n-est-pas-un-geste-reussi.md`
 
+- | # | Date | Titre | Statut | Révoque |
 - sélection. Alors l'exception du §1 a été taillée sur un motif faux et doit être **révoquée**,
+- signalé sans le décider. **Révoque le caractère BINAIRE du `verdict`**, et rien d'autre : le §1,
 

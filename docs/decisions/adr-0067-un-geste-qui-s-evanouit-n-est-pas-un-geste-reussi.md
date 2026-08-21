@@ -40,6 +40,14 @@ explicitement autorisé) · le mot
 rendu tel quel, sans table de traduction* (ADR-0041 §8 et sa doctrine d'énoncé) · la suspension
 comme geste explicite de Papa (ADR-0063).
 
+> ### Amendements
+>
+> | # | Date | Titre | Statut | Révoque |
+> |---|---|---|---|---|
+> | 1 | 2026-08-21 | « Réussie » veut dire zéro écart, ici comme ailleurs | Proposé | le binaire du §2 |
+>
+> *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
+
 ## Contexte
 
 ### Ce que le geste dit à Papa aujourd'hui, mot pour mot
@@ -349,3 +357,108 @@ dans l'histoire restaurée.
 5. **La preuve vivante** : le sidecar `zetis-2026-08-19-1844.tar.restauration.json` existe sur la
    cible de dev avec ses 8 étapes franchies — la page doit en rendre « restaurée » **et** le geste
    fabriqué à l'envers (un sidecar sans `termine_le`) doit rendre « interrompue » avec son étape.
+
+
+## Amendement 1 — « Réussie » veut dire zéro écart, ici comme ailleurs — 2026-08-21
+
+### Statut
+
+**Proposé — 2026-08-21.** Tranche le point que le §2 avait laissé ouvert et que la slice 1 avait
+signalé sans le décider. **Révoque le caractère BINAIRE du `verdict`**, et rien d'autre : le §1,
+le §3, le §4, le §5 et le §6 ne bougent pas, non plus que le remplacement de l'ancien champ.
+
+### Contexte — ce que la mesure a retourné
+
+La slice 1 a implémenté le §2 à la lettre : `verdict` adossé au seul `termine_le`, `ecarts` comptés
+à côté. Une restauration allée au bout en consignant un écart se lisait donc **« réussie · 1 écart »**.
+
+**Mesures du 2026-08-21, sur le code et les sidecars réels :**
+
+| Mesure | Résultat |
+|---|---|
+| Sites appelant `journal.ecart()` dans `restaurer_sauvegarde` | **1 seul** — et il ne dit rien de l'état restauré : *« recyclage ⑧ non demandé : aucun worker courant (appel hors file) »* |
+| Restaurations réelles existantes, toutes cibles confondues | **1** (`…-1844.tar`) — `ecarts: 0`, 8/8 étapes |
+| Le cas « terminée AVEC écarts » | **ne s'est JAMAIS produit** |
+| 🔴 Le verdict de **vérification**, `sauvegarde.py:686` | `"verdict": "reussie" if not ecarts else "echec"` |
+
+🔴 **C'est la dernière ligne qui tranche, et elle n'avait pas été vue au cadrage.** Sur la même
+page, dans la même famille de sidecars, **le mot `reussie` signifie déjà « zéro écart »** — c'est
+le verdict de `backup_verify`, celui-là même qui fait qu'une archive mérite le mot « sauvegarde »
+(ADR-0065 §7). Le §2 lui donnait un second sens : « la séquence est allée au bout ». **Un mot,
+deux significations, un seul écran** — exactement la divergence que ce dépôt paie à répétition.
+
+⚠️ **L'argument qui semblait décisif ne l'est pas.** « Ne pas inventer un vocabulaire pour un cas
+jamais observé » (ADR-0060) plaidait pour garder le binaire. Il ne s'applique pas : le troisième
+cas n'est pas inventé pour une hypothèse, il est **imposé par un sens déjà en vigueur**. Sans lui,
+le premier écart réel serait rendu « réussie » — et cet ADR l'aurait béni.
+
+### Décision
+
+**`restauration.verdict` prend trois valeurs**, et `reussie` retrouve le sens qu'il a partout
+ailleurs sur cette page :
+
+| Valeur | Sens |
+|---|---|
+| `reussie` | allée au bout **ET zéro écart** — le même sens que le verdict de vérification |
+| `avec_ecarts` | allée au bout, mais **N écarts consignés** : le geste a abouti, quelque chose n'a pas eu lieu comme prévu |
+| `interrompue` | pas allée au bout (`termine_le` nul) — inchangé |
+
+🔴 **`avec_ecarts` n'est PAS un échec** et ne doit jamais être rendu comme tel : la base est
+remplacée, les médias sont en place, le monde s'est réveillé suspendu. C'est un succès **qui se
+dit avec sa réserve** — le seul écart existant aujourd'hui signifie que le worker n'a pas été
+recyclé, donc qu'il tourne sur un schéma qu'il n'a pas rechargé (ADR-0066 §2.⑧).
+
+**Le coût est nul, et c'est ce qui distingue ce cas de celui que l'amendement 1 de l'ADR-0066 a
+écarté.** Là-bas, un statut neuf était refusé parce que le vocabulaire `queued|running|succeeded|
+failed` est *« requêté partout »*. Ici, `restauration.verdict` est **né la veille**, il est lu à
+**un seul endroit**, et rien d'autre ne l'interroge.
+
+### Alternatives considérées
+
+| Alternative | Pourquoi écartée |
+|---|---|
+| **Garder le binaire** (l'état livré par la slice 1) | Fait dire deux choses au même mot sur le même écran. Le premier écart réel serait rendu « réussie ». |
+| **Un écart dégrade en `interrompue`** | Ment dans l'autre sens : le geste EST allé au bout, la base EST remplacée. Rendre ça comme une interruption enverrait Papa relancer une restauration — un second swap pour rien. |
+| **Retirer ce `journal.ecart()`** (ce n'est pas un écart du geste mais du contexte d'appel) | Défendable, mais c'est rouvrir l'ADR-0066 depuis un chantier de surface. Et ça ne règle rien pour le prochain écart, qui pourrait, lui, être une vraie dégradation. |
+| **`reussie_avec_ecarts`** | Garde le mot dans la valeur dégradée : on relit « réussie » en diagonale et on manque la réserve. C'est le défaut qu'on répare. |
+
+### Périmètre
+
+1. **Le §2 seul est amendé** — la table des valeurs de `verdict`. Le champ, son emplacement, le
+   remplacement de l'ancien : inchangés.
+2. **Aucune migration, aucune colonne, aucune route neuve.**
+3. **Le contrat capturé ne change pas** : la seule restauration réelle porte `ecarts: 0`, donc
+   `reussie` reste `reussie`. ⚠️ **À revérifier** au premier sidecar à écarts.
+
+### Hors périmètre — nommé
+
+- **Le rendu des trois valeurs** — surface, cas 4 de l'ADR-0060 : il se décide devant l'écran,
+  avec l'emplacement que la slice 2 doit trancher de toute façon.
+- **Toucher aux écarts de l'ADR-0066** — ni en retirer un, ni en ajouter.
+- **Le verdict de vérification** — il est la référence ici, il ne se rediscute pas.
+
+### Conséquences
+
+**⚠️ Une divergence bornée, écrite plutôt que subie** : le code livré par la slice 1 (squash
+`8a315e0`) implémente le binaire, donc **l'ADR et le code se contredisent tant que cet amendement
+n'est pas appliqué**. La fenêtre est nommée ici et se referme en un commit — l'application est un
+**cas 2** de l'ADR-0060 : une ligne dans `_resume_restauration`, les commentaires du schéma et du
+type, un test-verrou. **À faire AVANT la slice 2**, qui rend ce verdict à l'écran.
+
+### Le signal qui dirait qu'on s'est trompé
+
+- **Un `avec_ecarts` est rendu comme un échec** à l'écran, ou pousse Papa à relancer une
+  restauration : la valeur a été traitée comme une panne, ce que le §Décision interdit.
+- **Aucun écart n'est jamais consigné en un an d'usage** : le troisième verdict était du zèle, et
+  le retirer redevient une option — mesure à refaire sur les sidecars réels, pas de mémoire.
+- 🔴 **Un écart survient qui dégrade réellement l'état restauré** (médias partiels, migration non
+  jouée) : alors `avec_ecarts` est trop doux pour lui, et c'est un quatrième cas qu'il faut —
+  pas un assouplissement de celui-ci.
+
+### Suivi
+
+1. **Application (cas 2)** : branche directe `fix/reussie-veut-dire-zero-ecart`, périmètre posé au
+   premier message, pas d'`/ouverture`. Test-verrous dus : les trois valeurs, dont **un sidecar à
+   `termine_le` posé ET `ecarts` non vide ⇒ `avec_ecarts`** (le cas qui n'existe pas encore en
+   vrai, et qui doit exister en test).
+2. La **slice 2** rend les trois valeurs — et son compte rendu de surface dira comment.
