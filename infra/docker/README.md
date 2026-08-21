@@ -67,12 +67,26 @@ backend qui ne reviennent pas laissaient le worker se relever dans le vide. Verr
 
 ⚠️ La propriété est **inerte sans deux conditions hôte**, et elles ne sont pas dans ce dépôt :
 
-1. 🔴 **Docker Desktop doit démarrer à l'ouverture de session** — *Settings → General → « Start
-   Docker Desktop when you sign in »*. Mesuré le 2026-08-17 sur le Mac Studio : `AutoStart = False`.
-   Sans le démon, aucune politique de redémarrage ne s'applique : la prod reste éteinte.
+1. 🔴 **Docker Desktop doit démarrer à l'ouverture de session** — et la case *Settings → General →
+   « Start Docker Desktop when you sign in »* ne le **garantit pas**. Mesuré le 2026-08-17 sur le
+   Mac Studio : `AutoStart = False`. Puis le 2026-08-21, case cochée (`AutoStart = True` dans le
+   `settings-store.json`) : toujours rien au login — le login item de Docker.app était **désactivé
+   côté macOS (BTM)**, et macOS interdit à une app de ré-activer un login item que l'utilisateur a
+   coupé. La condition se vérifie donc dans BTM, pas dans la case : `sfltool dumpbtm` → item
+   `com.docker.docker` (type app), la disposition doit dire `enabled` (diagnostic complet :
+   `TROUBLESHOOTING.md` § « la case cochée ne suffit pas »). Sans le démon, aucune politique de
+   redémarrage ne s'applique : la prod reste éteinte.
 2. 🔴 **Le disque externe doit être monté avant le démon.** `Docker.raw` vit sur
    `/Volumes/NX-Projects` (réglage `DataFolder`) et les modèles Ollama sur `/Volumes/NX-Models`.
    Disque absent au boot = Docker ne démarre pas, ou démarre sur un disque vide.
+
+Sur le Mac Studio, depuis le 2026-08-21, un **LaunchAgent hors dépôt** tient les deux conditions
+d'un seul geste : `com.atlas.docker-on-nx` (`RunAtLoad` + `StartOnMount`) ne lance Docker que si
+`Docker.raw` est présent sur le volume — jamais de démon avant le disque, jamais de démarrage sur
+disque vide — et ne fait rien si le démon tourne déjà. Patron identique au jumeau
+`com.atlas.ollama-on-ssd`. Fichiers, journal et diagnostic : la même entrée de
+`TROUBLESHOOTING.md`. Sur toute autre machine (le MacBook), l'agent est à re-poser à la main —
+même famille que la liste « Gestes à refaire sur le MacBook » de `MEMORY.md`.
 
 **Vérifier que ça marche** — et surtout pas avec `docker compose kill`, qui rend un **faux négatif**
 (un arrêt d'opérateur est exclu par définition du mot *unless* ; mesuré le 2026-08-08). Il faut tuer

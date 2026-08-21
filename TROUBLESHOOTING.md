@@ -4,6 +4,39 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Hôte — la case cochée ne suffit pas : BTM peut la neutraliser (Docker absent au login malgré « Start when you sign in ») — 2026-08-21
+
+La condition n°1 des conditions hôte (`infra/docker/README.md`, § « La prod se relève seule »)
+disait : cocher *Settings → General → « Start Docker Desktop when you sign in »*. Mesuré le
+2026-08-21 sur le Mac Studio : la case était cochée (`AutoStart = True` dans
+`~/Library/Group Containers/group.com.docker/settings-store.json`) — et Docker ne démarrait
+toujours pas au login. La case n'écrit qu'une **préférence** ; le vrai interrupteur est le
+**login item** enregistré auprès de macOS (BTM — Background Task Management). Une fois ce login
+item désactivé par l'utilisateur (Réglages Système → Général → Ouverture de session), **macOS
+interdit à l'app de le ré-activer** : Docker peut re-cocher sa case autant qu'il veut, la
+disposition BTM reste `disabled` — cochée, mais inerte.
+
+**Diagnostic** — la préférence ne prouve rien, seule la table BTM fait foi :
+
+```bash
+sfltool dumpbtm | grep -i -B 8 -A 8 'com\.docker\.docker'
+```
+
+Chercher l'item de **type app** dont l'identifiant est `com.docker.docker` et lire sa
+disposition : `[disabled]` = neutralisé, quelle que soit la case. (Le ré-activer à la main dans
+Réglages Système marcherait, mais reste à la merci d'un clic — et ne dit rien de la condition
+n°2, l'ordre disque → démon.)
+
+**Parade en place sur le Mac Studio — elle couvre les DEUX conditions hôte** : un LaunchAgent
+`~/Library/LaunchAgents/com.atlas.docker-on-nx.plist` (`RunAtLoad` + `StartOnMount`) appelle le
+script de garde `~/bin/start-docker-if-nx.sh`, qui ne lance Docker **que si**
+`/Volumes/NX-Projects/_docker/DockerDesktop/Docker.raw` est présent — jamais de démon avant le
+disque (condition n°2 ; `StartOnMount` rejoue la garde quand le volume se monte) — et no-op si
+`com.docker.backend` tourne déjà. Journal : `~/Library/Logs/docker-autostart.log`. Patron
+identique au jumeau `com.atlas.ollama-on-ssd`. 🔴 Le plist et le script sont **hors dépôt** —
+gestes machine, même famille que la liste « Gestes à refaire sur le MacBook » de `MEMORY.md` : à
+re-poser à la main sur toute nouvelle machine.
+
 ## 📖 RUNBOOK — re-swap `zetis_avant` : annuler une restauration à la main (ADR-0066 §4) — écrit et prouvé le 2026-08-19
 
 > **Quand** : une restauration vient d'aboutir et l'état restauré est le mauvais — revenir à
