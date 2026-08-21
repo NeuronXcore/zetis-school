@@ -293,8 +293,10 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
 - **E** — occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
   remises à zéro **portées** (2) · restaurer (2) — ✅ **cadré par l'`adr-0066`** (swap à réveil
   suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · **la fin d'un geste se raconte (1)** —
-  ✅ **cadré par l'`adr-0067`** (attente armée et bornée, verdict lu du sidecar, succès en toast /
-  échec persistant) · export RGPD (1).
+  ✅ **LIVRÉ le 2026-08-21** par l'`adr-0067` (slice 1 #174 · Amendement 1 #175 · slice 2 #176 ·
+  compte rendu de surface `adr-0068`) : attente armée et bornée, verdict lu du sidecar, succès en
+  toast / échec persistant. ⚠️ **Le §6 de l'`adr-0067` — une seule mécanique pour les TROIS gestes
+  — reste dû** : différé à son propre chantier, décision active · export RGPD (1).
   🔴 **Trouvé au cadrage du 0067, et ce n'est pas un manque de surface** : une restauration qui
   échoue **après** le swap n'écrit **nulle part** — `run_ai_job` cherche une ligne morte et
   renonce en silence. Elle n'est ni dans Échecs, ni dans la barre, ni au Journal. Le sidecar,

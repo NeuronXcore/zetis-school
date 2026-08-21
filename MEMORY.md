@@ -6,18 +6,30 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, fin de session) — `main` = `origin/main`, **rien à pousser
-> sur `main`** (vérifié : les deux `rev-parse` sont égaux). Une branche de chantier vivante :
-> **`feat/attente-et-deux-issues`**, née de `b1d6f48`, **locale uniquement** (absente de
-> `origin`). ⚠️ Au moment d'écrire ces lignes, son travail est **entièrement dans l'arbre de
-> travail, non commité** — et il ne le restera pas : la clôture se committe juste après. **L'état
-> réel se lit par `git log --oneline main..HEAD` et `git status`**, jamais ici (`WORKFLOW.md §5` :
-> une ligne qui compte les commits qui la contiennent ne peut pas rester vraie).
+> **Où en est le dépôt** (2026-08-21, **étape 4bis FAITE**) — `main` = `origin/main` =
+> **`a3a3de9`**, **rien à pousser**. **Aucune branche de chantier vivante** :
+> `feat/attente-et-deux-issues` a été supprimée au merge, **locale ET distante** — vérifié par
+> `git ls-remote --heads origin` **et** par l'API GitHub, qui ne rendent plus que `main`.
+>
+> ⚠️ **Piège relevé à ce merge, et il peut tromper la prochaine session** : juste après
+> `gh pr merge --delete-branch`, `git ls-remote` rendait **encore** la branche, et `git branch -r`
+> aussi. La suppression côté GitHub n'est pas instantanée ; il a fallu un `git remote prune origin`
+> pour que les deux vues concordent. **Un « elle existe encore » à cet instant-là n'est pas une
+> preuve** — relancer après un prune.
 
-### 🟢 SLICE 2/2 « L'ATTENTE ET LES DEUX ISSUES » — **COMPLÈTE, non commitée**
+### ✅ SLICE 2/2 « L'ATTENTE ET LES DEUX ISSUES » — **MERGÉE** (PR #176, squash `a3a3de9`)
 
 **Chantier** : ADR-0067 §1 et §3, cas **2** de l'ADR-0060 (application). Branche
-`feat/attente-et-deux-issues`, base `b1d6f48`.
+`feat/attente-et-deux-issues`, base `b1d6f48` — supprimée au merge.
+
+🔴 **L'ADR-0067 EST DONC ENTIÈREMENT LIVRÉ** : slice 1 (#174, `8a315e0`) · Amendement 1 (#175,
+`e4d707f`) · slice 2 (#176, `a3a3de9`) · compte rendu de surface **ADR-0068**. Son §Suivi est
+soldé, **sauf le §6, délibérément différé** (voir l'encadré ci-dessous).
+
+**Chiffres vérifiés DANS LA CI** (pas seulement en local — le dépôt a déjà payé la différence) :
+`frontends — vitest` **893 / 80 fichiers** (Papa, +12) et **920 / 84** (Massimo, intact) ·
+`backend — pytest` **1575** (intact) · `verrous du dépôt` et GitGuardian au vert. Le hook
+`pre-push` avait rendu les mêmes trois nombres avant le push.
 
 🔴 **L'arbitrage qui n'est écrit dans aucun ADR et qui commande tout** : la slice ne câble
 l'attente que sur **Restaurer**. Le **§6** de l'ADR-0067 (*une seule mécanique pour Sauvegarder,
@@ -153,11 +165,21 @@ la stack `zetis-prod` qui ne publie pas ses ports.
 
 **PROCHAIN PAS :**
 
-1. **Vérifier le diff, puis committer et pousser** `feat/attente-et-deux-issues` (elle n'existe pas
-   encore sur `origin`) → **PR → merge** → **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici
-   le squash, le n° de PR, la branche supprimée.
-2. **Arrêter l'environnement de dev** laissé debout (voir RÉSIDUS) — 🔴 `docker compose down`
-   **sans `-v`**.
+1. 🔴 **Arrêter l'environnement de dev, laissé debout** (voir RÉSIDUS) — `docker compose down`
+   **sans `-v`**, puis fermer les deux préviews `:8005` et `:5181`. C'est la seule chose qui
+   traîne de cette session.
+2. **Choisir le chantier suivant** — rien n'est engagé, `main` est propre. Trois pistes, par ordre
+   de dette :
+   - le **§6 de l'ADR-0067** (une seule mécanique pour Sauvegarder / Vérifier / Restaurer) —
+     décision **active et différée**, donc cas **2** de l'ADR-0060 : *aucun ADR neuf*, on cite le
+     §6. ⚠️ Lire d'abord « CE QUI EST SPÉCIFIQUE À LA RESTAURATION » ci-dessus : trois des
+     mécanismes livrés **ne se généralisent pas** ;
+   - le **reste de la phase E** (`BACKLOG.md` L293) : occupation disque + cohérence
+     Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro portées (2) ·
+     export RGPD (1). Aucun n'est cadré — ceux-là sont des **cas 3**, donc `/cadrage` puis
+     `/ouverture` ;
+   - les **dettes ouvertes** ci-dessous, dont deux nées de ce chantier (la date d'une interruption,
+     le texte d'un écart) et qui touchent le **contrat** — donc cas 3 elles aussi.
 3. Facultatif, et c'est le commanditaire qui l'a pris pour lui : **une vraie restauration** pour
    voir le toast et l'attente ⏳ à l'écran (suspendre ZETIS d'abord, sinon 409).
 
