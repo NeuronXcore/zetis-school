@@ -1,5 +1,50 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.16 — La page attend la fin du geste, et dit laquelle des trois
+
+> **ADR-0067, slice 2/2** (§1 et §3). Cas **2** de l'ADR-0060 — application d'une décision déjà
+> écrite, aucun ADR nouveau. ⚠️ Le **§6** de cet ADR (*une seule mécanique pour les trois gestes*)
+> reste **actif mais différé** à son propre chantier : cette slice ne câble l'attente que sur
+> **↺ Restaurer**.
+
+Le geste le plus destructif du produit cesse de se terminer par une consigne de surveillance. Le
+message *« ⟳ ensuite pour relire l'état »* disparaît de **Restaurer** : la page attend elle-même.
+
+**L'attente armée (§1)** — après un 202 **parti de cette page**, l'onglet 💾 relit
+`GET /donnees` toutes les **4 s**. Elle ne démarre jamais au montage, meurt au **premier verdict**,
+meurt au démontage, et **renonce** après 15 lectures (~1 min). 🔴 **Le renoncement ne rend aucun
+verdict** : il dit que la fin n'a pas été vue, et rend la main au ⟳.
+
+⚠️ **Ce n'est pas le sondage que l'ADR-0062 §5 interdit**, et le code le dit noir sur blanc :
+le §5 vise une page qui se rafraîchit *toute seule* et *« ferait bouger un champ sous les
+doigts »* ; l'onglet 💾 n'a aucun champ hors du dialogue, déjà fermé quand l'attente commence.
+
+**Les trois issues (§3 + Amendement 1)** — `reussie` : un toast · 🔴 `avec_ecarts` : **les deux**,
+le toast *et* la marque durable en ambre, tranché ici (c'est un succès, mais un écart est un fait
+qui reste vrai — six secondes ne peuvent pas porter une réserve) · 🔴 `interrompue` : **jamais un
+toast**, l'état persistant sur la ligne avec son étape et son motif rendus tels quels, **sans
+acquittement** (ADR-0041 §8).
+
+🔴 **L'emplacement vient de l'écran.** L'histoire d'une restauration quitte la cellule « Archive »
+— **117 px** mesurés le 2026-08-21, où le texte se coupait en deux sous un nom de fichier qui se
+coupe déjà, invisible au commanditaire malgré un contraste de 5,73:1 — pour **sa propre ligne,
+pleine largeur**. L'état d'interruption est plus long que le succès : au même endroit, un échec
+aurait été *moins* visible qu'une réussite.
+
+**Deux mesures faites pour ce chantier** (§Suivi 4 de l'ADR) :
+
+- la **plus grosse base disponible** compte **9 173 lignes** — il n'en existe pas de plus grosse
+  au dépôt ; le geste complet y a duré **1,738 s** (relevé du sidecar réel, 8 étapes) ;
+- pendant la bascule, `GET /donnees` rend **500** (la base est absente entre les deux `RENAME`) —
+  🔴 une lecture ratée est donc **ignorée** par l'attente, jamais lue comme un échec, et surtout
+  jamais passée par `charger()`, qui viderait tout le tableau au milieu du geste. Le cas voisin
+  des connexions tuées est, lui, **transparent** (`pool_pre_ping`) : 60 lectures sur 60 à 200.
+
+**Un rendu faux, trouvé par son test-verrou** : pendant la restauration, le sidecar existe sans
+`termine_le`, donc la route en dérive `interrompue` — en toute bonne foi. La page peignait un
+**échec rouge au milieu d'un geste sain**. Un journal ouvert sans étape en échec se dit désormais
+en gris, sans conclure.
+
 ## 0.99.15 — « Réussie » veut dire zéro écart, ici comme ailleurs
 
 > **ADR-0067, Amendement 1.** Cas **2** de l'ADR-0060 (application : la règle vient d'être écrite,

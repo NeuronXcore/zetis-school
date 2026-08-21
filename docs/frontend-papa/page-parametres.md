@@ -70,9 +70,44 @@ les archives au verdict `reussie` (test-verrou) ; la compatibilité de schéma d
 `danger` qui **nomme l'archive**, énonce la séquence (sauvegarde-filet comprise, réveil
 suspendu) et **exige la saisie de `RESTAURER`** (classe A4 — un clic seul ne part jamais,
 test-verrou). **🗑 Supprimer** : dialogue qui nomme l'archive, **sans saisie** — le serveur garde
-de toute façon la dernière archive vérifiée (409 « jamais zéro filet », `adr-0066` §6). L'état
-« **↺ restaurée le …** » s'affiche sous le nom d'archive, lu du sidecar `.restauration.json` via
-le GET (la ligne du travail meurt au swap — le sidecar est le seul survivant du geste).
+de toute façon la dernière archive vérifiée (409 « jamais zéro filet », `adr-0066` §6).
+
+🔴 **La fin d'un geste se dit** (`adr-0067`, livré le 2026-08-21). Jusque-là, l'écran renvoyait
+Papa surveiller : *« ⟳ ensuite pour relire l'état »*. C'était une consigne de surveillance, et
+elle a disparu du geste **↺ Restaurer**.
+
+- **L'attente armée** (§1) : après un 202 **parti de cette page** — jamais au montage — l'onglet
+  relit `GET /donnees` toutes les **4 s** (la cadence déjà mesurée du dépôt, `adr-0041`), meurt au
+  **premier verdict**, meurt si Papa quitte l'onglet, et **renonce** au bout de ~1 min. 🔴 Le
+  renoncement ne rend **aucun verdict** : « je n'ai pas vu la fin » n'est pas « ça a échoué » — il
+  rend la main au ⟳. Ce n'est pas le sondage que l'`adr-0062` §5 interdit : le §5 vise une page
+  qui se rafraîchit **toute seule** et *« ferait bouger un champ sous les doigts »* — cet onglet
+  n'a aucun champ hors du dialogue, déjà fermé quand l'attente commence.
+- **L'histoire de la restauration** vit sur **sa propre ligne, pleine largeur, sous celle de
+  l'archive** — et cet emplacement vient de l'écran, pas d'un avis : dans la cellule « Archive »,
+  mesurée à **117 px** le 2026-08-21, la mention se coupait en deux sous un nom de fichier qui se
+  coupe déjà, et le commanditaire ne la voyait pas (elle était pourtant contrastée à 5,73:1 — ce
+  n'était **pas** un problème de couleur). L'état d'interruption étant **plus long** que le
+  succès, y rester aurait rendu un échec **moins visible** qu'une réussite.
+- **Trois issues** (`adr-0067` Amendement 1), lues du sidecar `.restauration.json` via le GET — la
+  ligne du travail meurt au swap, le sidecar est le seul survivant du geste :
+
+  | Issue | Ce que l'écran en fait |
+  |---|---|
+  | `reussie` (au bout, zéro écart) | un **toast** éphémère + « ↺ restaurée le … » sur la ligne |
+  | `avec_ecarts` (au bout, N écarts) | 🔴 **les deux** : le toast (c'est un succès) **et** la marque durable en **ambre** (un écart est un fait qui reste vrai). Jamais le vocabulaire de la panne : la base est remplacée, les médias sont en place |
+  | `interrompue` (une étape a échoué) | 🔴 **jamais un toast** — l'état persistant sur la ligne, avec l'**étape** et le **motif** rendus **tels quels**, **sans acquittement** : ce n'est pas une notification, c'est l'état de l'archive (`adr-0041` §8) |
+
+  ⚠️ Un journal **ouvert et jamais clos, sans étape en échec**, n'est **ni** l'un **ni** l'autre :
+  c'est un geste en vol — ou tué net. L'écran le dit sans conclure, en gris.
+- **Le toast** est le composant existant (`role="status"`, 6 s). Il **nomme l'archive**, ne porte
+  ni pourcentage ni durée ni promesse, et rappelle que **ZETIS s'est réveillé suspendu** — la
+  levée appartient à Papa (`adr-0063`). Le taire ferait croire que le produit est reparti.
+
+> Le §6 de l'`adr-0067` — une seule mécanique pour **Sauvegarder**, **Vérifier** et **Restaurer** —
+> reste **actif mais différé** à son propre chantier (arbitrage du 2026-08-21). Les deux autres
+> gestes gardent donc leur « ⟳ ensuite » : leur ligne de travail, elle, survit, et leur échec
+> atterrit dans **Échecs** comme aujourd'hui.
 
 🔴 **Aucun octet d'archive ne passe par HTTP** (`adr-0065` §1) : pas de bouton « Télécharger »,
 et le pied de page dit pourquoi. La **destination ne se choisit pas ici** — elle se certifie sur

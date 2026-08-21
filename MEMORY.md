@@ -6,105 +6,130 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, étape 4bis FAITE **deux fois** ce jour) — `main` =
-> `origin/main`, **rien à pousser**, **aucune branche de chantier vivante** (`feat/la-fin-d-un-geste-
-> se-raconte` puis `fix/reussie-veut-dire-zero-ecart` supprimées au merge, distantes ET locales —
-> vérifié). Un seul checkout, une seule branche. CI de `main` verte sur `8a315e0`.
+> **Où en est le dépôt** (2026-08-21, fin de session) — `main` = `origin/main`, **rien à pousser
+> sur `main`** (vérifié : les deux `rev-parse` sont égaux). Une branche de chantier vivante :
+> **`feat/attente-et-deux-issues`**, née de `b1d6f48`, **locale uniquement** (absente de
+> `origin`). ⚠️ Au moment d'écrire ces lignes, son travail est **entièrement dans l'arbre de
+> travail, non commité** — et il ne le restera pas : la clôture se committe juste après. **L'état
+> réel se lit par `git log --oneline main..HEAD` et `git status`**, jamais ici (`WORKFLOW.md §5` :
+> une ligne qui compte les commits qui la contiennent ne peut pas rester vraie).
 
-### ✅ AMENDEMENT 1 « RÉUSSIE VEUT DIRE ZÉRO ÉCART » — **MERGÉ** (PR #175, squash `e4d707f`)
+### 🟢 SLICE 2/2 « L'ATTENTE ET LES DEUX ISSUES » — **COMPLÈTE, non commitée**
 
-Cas **2** de l'ADR-0060 (application — aucun ADR neuf, et celui qu'on exécute est cité :
-**ADR-0067, Amendement 1**, écrit et commité sur `main` juste avant, `60a8448`).
+**Chantier** : ADR-0067 §1 et §3, cas **2** de l'ADR-0060 (application). Branche
+`feat/attente-et-deux-issues`, base `b1d6f48`.
 
-`restauration.verdict` prend **trois** valeurs : `reussie` (au bout **ET zéro écart**) ·
-`avec_ecarts` · `interrompue`. ⚠️ **`avec_ecarts` n'est PAS un échec** — la base est remplacée, les
-médias sont en place, le monde s'est réveillé suspendu ; le rendre comme une panne enverrait Papa
-relancer un second swap.
+🔴 **L'arbitrage qui n'est écrit dans aucun ADR et qui commande tout** : la slice ne câble
+l'attente que sur **Restaurer**. Le **§6** de l'ADR-0067 (*une seule mécanique pour Sauvegarder,
+Vérifier et Restaurer*) est **actif mais DIFFÉRÉ** à son propre chantier — il n'est pas annulé.
+Sans cette ligne, une relecture du §6 recâblerait les trois.
 
-**Le motif, à ne pas re-débattre** : sur la même page, le verdict de **vérification** signifie déjà
-« zéro écart » (`"reussie" if not ecarts else "echec"`, `sauvegarde.py:686`) — celui qui fait qu'une
-archive mérite le mot « sauvegarde ». La slice 1 donnait au même mot un second sens. ⚠️ Le
-raisonnement était parti **dans l'autre sens** (« ne pas inventer de vocabulaire pour un cas jamais
-observé », et le cas ne s'était jamais produit) : c'est cette ligne 686, non vue au cadrage, qui l'a
-retourné.
+**FAIT.**
 
-**Chiffres** : au changement, **1572 verts / 0 rouge** — aucun cas déjà exercé ne bouge, et aucun
-test ne couvrait le cas neuf ; c'est ce qui le rendait facile à bénir. Après verrous : **1575**
-(compte vérifié DANS LA CI, pas seulement en local). Contre-épreuve : binaire réintroduit ⇒ 2
-rouges, les bons.
+- **L'attente armée (§1)** dans `DonneesTab` : armée par un 202 **parti de cette page**, jamais au
+  montage · cadence **4 s** (`CADENCE_MS`, la valeur déjà mesurée du dépôt) · morte au **premier
+  verdict** et au démontage · **renoncement** après **15 lectures** (`LECTURES_MAX`, ≈ 1 min) qui
+  **ne rend aucun verdict** et rend la main au ⟳.
+- **Les trois issues (§3 + Amendement 1)** sur une **ligne dédiée pleine largeur** sous l'archive
+  (`LigneRestauration`) : `reussie` vert discret · `avec_ecarts` **ambre** · `interrompue` **rose**
+  avec étape et motif bruts.
+- **Le toast** — le composant existant, réutilisé tel quel. Il nomme l'archive, rappelle le réveil
+  suspendu, ne porte ni pourcentage ni durée.
+- **`RestaurationArchive` ré-exporté** de `packages/types/src/index.ts` — la slice 1 l'avait laissé
+  injoignable depuis le front (défaut trouvé au typecheck).
+- **Spec** `docs/frontend-papa/page-parametres.md` §💾 · **CHANGELOG 0.99.16** · **ADR-0068**
+  (compte rendu de surface, cas 4) + front-matter et `DECISIONS.md` régénérés par les scripts.
 
-### ✅ SLICE 1/2 « LE VERDICT : LE SIDECAR CESSE D'ÊTRE JETÉ » — **MERGÉE** (PR #174, squash `8a315e0`)
+**EN COURS** : rien. **Aucun fichier instable.**
 
-**Chantier** : ADR-0067, cas **3** de l'ADR-0060 (décision neuve), cadré la veille du code sur
-`main`. Convention du dépôt vérifiée sur le chantier frère : **une PR par slice** (#166→#169 pour
-l'ADR-0065/0066), donc cette slice se merge seule et la slice 2 repart d'une branche neuve.
+**À FAIRE — la première action de reprise** : voir PROCHAIN PAS.
 
-**FAIT.** `GET /api/settings/donnees` lit le sidecar `.restauration.json` **en entier** au lieu de
-sa seule clé `termine_le` (`_resume_restauration`). Une restauration interrompue rend désormais
-`verdict: "interrompue"` + `etape_arretee` + `motif` + `ecarts`, là où elle était **indiscernable
-d'une archive jamais restaurée**. Le champ publié `restauree_le` est **REMPLACÉ** (jamais doublé)
-par `restauration`, des deux côtés dans le même lot. Contrat **capturé** depuis le serveur réel →
-`packages/types/contracts/donnees.example.json`, relu par deux tests (un par côté).
+### 🔴 LES DEUX MESURES DUES PAR LE §Suivi 4 — faites, et elles ont retourné le prompt
 
-**EN COURS** : rien. Aucun fichier instable.
+**1. Il n'existe PAS de base plus grosse.** La base de dev fait **9 173 lignes / 16 Mo**, et c'est
+la plus grosse du dépôt ; la cible « prod » (`/Volumes/NX-Models/zetis-sauvegardes`) ne porte
+qu'une archive de **174 Ko**. La mesure déjà connue **était** celle de la plus grosse base. Le
+détail complet s'est lu **sans rien relancer**, dans le sidecar du vrai geste
+(`…-1844.tar.restauration.json`) : filet 210 ms · restauration 378 ms · réveil 85 ms · **swap
+62 ms** · médias 26 ms · purge 4 ms · migrations 342 ms · recyclage 2 ms — **1,738 s** au total.
+⚠️ 627 ms séparent le dernier `franchir` de `terminer` et ne sont expliqués par aucune étape.
 
-**À FAIRE — la slice 2** : l'attente armée (§1), le toast de succès et l'état persistant d'échec
-(§3). Le prompt l'attend dans `prompts/claude-code/prompts-claude-code-adr-0067.md`.
+**2. Pendant la bascule, `GET /donnees` rend 500 — mais pas pour la raison attendue.** Deux cas
+opposés : connexions tuées (`pg_terminate_backend`) ⇒ **200**, 60 sur 60, grâce à
+`pool_pre_ping=True` · base **absente** entre les deux `RENAME` ⇒ **500**. Détail et parade :
+`TROUBLESHOOTING.md`, deuxième entrée.
 
 **DÉCISIONS ACTIVES — à relire, jamais à rouvrir :**
 
-- `restauration` **remplace** `restauree_le` — deux formulations d'un même fait divergent (§2).
-- **Aucun échec ne passe par un toast** (§3) — l'ADR-0041 §8 a payé cette leçon.
-- **Aucune ligne écrite dans la base restaurée** — l'ADR-0066 §3 tient intact.
-- Le renoncement de l'attente **ne rend aucun verdict** (§1.5).
-- Le motif est rendu **tel quel** — aucune table de traduction.
+- 🔴 **`avec_ecarts` reçoit LES DEUX** : le toast (c'est un succès) **et** la marque durable en
+  ambre (un écart est un fait qui reste vrai). Tranché cette session, c'était la question ouverte.
+- 🔴 **Aucun échec ne passe par un toast** (§3 / ADR-0041 §8) — et l'échec ne demande **aucun
+  acquittement**.
+- 🔴 **Le renoncement ne rend AUCUN verdict** (§1.5).
+- 🔴 **Une lecture ratée pendant l'attente s'IGNORE** — elle ne passe **jamais** par le chargeur,
+  qui viderait tout le tableau au milieu du geste.
+- **L'emplacement** : ligne dédiée pleine largeur (117 px → 854 px). Le rattachement à l'archive
+  vient du jeu des traits du bas, pas d'un ornement.
+- Le motif et l'étape sont rendus **tels quels** — aucune table de traduction.
+- Le §6 est **différé, pas annulé** (voir l'encadré ci-dessus).
 
-**✅ ~~LE POINT NON TRANCHÉ~~ — TRANCHÉ ET APPLIQUÉ le jour même** (Amendement 1, PR #175) :
-`journal.ecart()` est **réellement appelé**
-(`sauvegarde.py`, étape recyclage ⑧). Une restauration peut donc **se terminer AVEC des écarts**,
-et le §2 la fait alors lire « **réussie · 1 écart** » — le verdict est adossé au seul `termine_le`.
-Implémenté selon la lettre de l'ADR, **signalé, pas décidé seul**. Si ça doit changer, c'est un
-addendum d'une ligne — pas une retouche de code silencieuse.
+**🔴 UN RENDU FAUX, et ce n'est pas l'œil qui l'a vu** : pendant une restauration le sidecar existe
+sans `termine_le`, donc la route dérive `interrompue` en toute bonne foi — la page peignait un
+**échec rouge au milieu d'un geste sain**. Un journal ouvert sans étape en échec se dit maintenant
+en **gris**, sans conclure. C'est une assertion de test qui est tombée, pas un regard.
 
-**🔴 CE QUE L'ÉCRAN A DÉMENTI (mesuré, et ça commande la slice 2)** : la mention « ↺ restaurée
-le … » est peinte, `visible`, contrastée à **5,73:1** (passe AA — ⚠️ **ce n'est PAS un problème de
-couleur**) — mais elle se peint sur **2 lignes** dans une cellule de **117 px**, juste sous un nom
-de fichier monospace qui se coupe déjà. Le commanditaire ne l'a pas vue. **L'état d'échec de la
-slice 2 est PLUS LONG** (verdict + étape + motif) : au même endroit, un échec serait **moins
-visible qu'un succès** — l'inverse du §3. **La slice 2 tranche l'EMPLACEMENT pour les deux états**
-(arbitrage du 2026-08-21). Le détail chiffré est en tête de la section slice 2 du prompt, et c'est
-la matière de la section « ce que l'écran a démenti » du compte rendu de surface (ADR-0060 §2).
+**CE QUI EST SPÉCIFIQUE À LA RESTAURATION** (le chantier du §6 en aura besoin) :
 
-**PIÈGES** : `TROUBLESHOOTING.md`, quatre entrées en tête — le test de contrat qui ne compare que
-le **premier niveau** et ne mord donc pas sur un renommage imbriqué (trouvé par la contre-épreuve,
-pas par l'écriture du test) · une assertion « ce mot n'apparaît nulle part » qui échoue sur **sa
-propre prose** (deux fois le même jour) · un texte lisible et contrasté rendu **invisible par un
-retour à la ligne** · `autoPort` sur un serveur dont le pair code le port en dur.
+- la **règle d'état terminal** (`termine_le !== null || etape_arretee !== null`) est liée au
+  **sidecar** ; Sauvegarder et Vérifier gardent leur ligne `ai_jobs`, donc `status ∈ {succeeded,
+  failed}` — autre source, autre règle ;
+- le **témoin** (`empreinteRestauration`) n'existe que parce que le sidecar **survit** au geste
+  précédent ; un travail de file a un `job_id` neuf ;
+- 🔴 la **clémence du `catch`** est propre au swap : seul Restaurer tue la base. La généraliser
+  masquerait de vraies erreurs pour les deux autres gestes ;
+- **généraux** : `CADENCE_MS`, `LECTURES_MAX`, l'armement sur 202, la mort au premier verdict et au
+  démontage, et la note qui explique pourquoi ce n'est pas le sondage de l'ADR-0062 §5.
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- ✅ ~~L'environnement de dev laissé debout~~ — **ARRÊTÉ** en fin de session : les deux préviews
-  (backend `:8005` + worker, front `:5181`) puis `docker compose down` **SANS `-v`**. Vérifié
-  après coup : **les 7 volumes survivent** (dont `zetis_postgres_data`, qui porte l'état restauré
-  dont la slice 2 aura besoin), **les 8 conteneurs `zetis-prod` intacts**, ports 5432/6379/9000/
-  9001/8005/5181 libres. 🔴 *Jamais `down -v` — la règle est écrite dans la maquette de l'ADR-0066,
-  et c'est ce volume-là qu'elle protège.* Rien n'avait été réveillé pendant la session : `ai_jobs`
-  recomptés APRÈS démarrage du worker — 875 succeeded / 24 failed, **0 queued, 0 running**.
-- ✅ ~~`.claude/launch.json` hors périmètre~~ — parti dans son **propre commit** (`chore(devops)`),
-  squashé avec la slice au merge.
-- La base de dev reste l'état restauré de `…-1844.tar` (`zetis_avant` présente, suspension levée).
+- 🔴 **Le toast et l'attente ⏳ n'ont PAS été vus dans un geste réel** — seulement sous test. La
+  vraie restauration destructive a été **écartée par le commanditaire**, qui la fera lui-même.
+  Vu en vrai, sur le serveur réel : les trois états peints côte à côte, le dialogue A4 (bouton
+  désarmé champ vide), et le **409 en ambre** avec la preuve au réseau qu'un refus **n'arme pas**
+  l'attente. L'ADR-0068 le dit dans sa section « ce que je n'ai pas pu voir ».
+- **Pour revoir les trois états** : deux sidecars fabriqués (sanctionnés par le §Suivi 5) ont
+  servi puis ont été **retirés**. Le script les refait et les défait :
+  `python3 <scratchpad>/fabriquer-sidecars-relecture.py [--retirer]` — ⚠️ le scratchpad est
+  volatil ; le script est court, il se réécrit (deux sidecars sur la cible **de dev**).
+  🔴 **Ne jamais recapturer `donnees.example.json` pendant qu'ils sont là.**
+- **L'environnement de dev est LAISSÉ DEBOUT** (contrairement à la clôture précédente) : infra
+  docker de dev relevée (`docker compose up -d postgres redis minio`, **jamais `-v`**) + deux
+  préviews, backend `:8005` et front `:5181`. 🔴 **À arrêter à la main.**
+- `production_suspended: false`, base de dev inchangée (toujours l'état restauré de `…-1844.tar`).
   Les échecs #890/#896/#897 y attendent toujours un acquittement dans Échecs — sans urgence.
-- **L'écran n'a été regardé que pour la ligne « restaurée le … »** — le reste de l'onglet 💾 n'a
-  pas été re-parcouru après le changement de contrat.
+- ⚠️ **Hors périmètre, signalé sans être traité** : `ConfirmDialog` peint son bouton de
+  confirmation en **rose plein alors qu'il est `disabled`** — il se lit comme armé quand il ne
+  l'est pas. Vu à l'écran cette session.
 
-**🧾 DETTES OUVERTES (remontées de l'élagage du chantier « le réveil clôt les fantômes ») :**
+**🧾 DETTES OUVERTES (portées depuis l'élagage du chantier « la fin d'un geste se raconte ») :**
 
+- 🔴 **Une interruption n'a pas de DATE et ne peut pas en avoir** : `commence_le` existe dans le
+  sidecar, la route ne le publie pas. L'ADR-0067 §3 illustrait pourtant l'état persistant *avec*
+  une date. Changement de contrat ⇒ son propre cadrage.
+- 🔴 **Le TEXTE d'un écart est inatteignable** : la route publie leur **compte**. Pour une
+  vérification le détail vit dans l'`output_json` du travail ; pour une **restauration** ce travail
+  n'existe plus — il meurt au swap. Papa lit « 1 écart » et ne peut apprendre lequel.
+- ⚠️ **Le lien « Voir au Journal → » de la barre mène sur du VIDE pour la famille sauvegarde** — le
+  Journal exclut `created_by='file'` par construction (`journal_filters.py`), la barre affiche tout
+  `queued|running`. Observé par l'utilisateur le 2026-08-19, jamais traité. *(La demande jumelle —
+  « un toast qui confirme la restauration » — est **SOLDÉE** par cette slice.)*
 - 🔴 **Le chemin « tête plus ancienne » du §5 de l'ADR-0066 reste NON MESURÉ** — aucune archive
   d'une tête Alembic antérieure n'existe ; il se mesurera au premier vrai déploiement qui migre.
 - ⚠️ **Les messages de refus/retour persistent après ⟳** dans l'onglet 💾 (hérité de la slice 3 du
   0065) — signalé, jamais traité.
-- ⚠️ **Trois boutons par ligne d'archive** : sur écran étroit le tableau défile (`overflow-x-auto`)
-  — à juger si l'iPad de Papa est une cible. **Rejoint la question d'emplacement de la slice 2.**
+- ⚠️ **Le tableau des archives défile en largeur** : mesuré cette session à 768 px — **703 px de
+  contenu dans 407 px visibles**. Les trois énoncés principaux tiennent (344 / 308 / 184 px), mais
+  le **motif brut déborde** (596 px). Hérité (trois boutons par ligne), pas créé par la slice 2.
 - **Ménage machine** : kegs brew `postgresql@16` (le BON) et `libpq` (redondant, désinstallable) ·
   `/Volumes/NX-Models/secours/` existe et est VIDE — à supprimer ou garder comme emplacement.
 - **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16` (jamais
@@ -112,50 +137,33 @@ retour à la ligne** · `autoPort` sur un serveur dont le pair code le port en d
 - `API_SPEC.md` ne documente toujours pas les autres routes `/api/settings` (`/autonomy`,
   `/machine`, `/ecarts`, `/production-suspension`) — la note en tête de sa section 💾 le dit.
 - 📌 `gen_tableau_amendements.py` **ne crée jamais le bloc** `> ### Amendements` : le premier
-  amendement d'un ADR s'amorce à la main — à documenter dans le script un jour.
-- 📌 **`gen_frontmatter.py` a été corrigé le 2026-08-21** (il tronquait
-  `annexes/rapport-revocations.md`) : le correctif et ses trois verrous sont sur `main`, **non
-  poussés**. Plus besoin de restaurer le rapport à la main.
+  amendement d'un ADR s'amorce à la main — à documenter dans le script un jour. ⚠️ Et la dette ne
+  couvre que l'**amorce**, pas le contenu : `TROUBLESHOOTING.md`, entrée « bloc GÉNÉRÉ ».
+- 📌 `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa confirmation dans
+  `REVOCATION_DECLAREE` de `gen_tableau_amendements.py` (repli « — », ce que sa section dit bien).
+- ✅ ~~`gen_frontmatter.py` non poussé~~ — **FAUX, corrigé à cette clôture** : `main` =
+  `origin/main`, le correctif et ses verrous sont bien sur `origin`. Vérifié cette session
+  (`rapport-revocations.md` n'a pas bougé après régénération).
 
-**🔴 LE PIÈGE DU JOUR, et il a rendu `main` ROUGE** : *amorcer un bloc généré et en REMPLIR les
-cellules sont deux gestes différents.* Le tableau d'amendements a été amorcé à la main (dette
-connue : le script ne crée jamais le bloc) — mais sa cellule `Révoque` a été **écrite** au lieu
-d'être **dérivée**. `TROUBLESHOOTING.md`, en tête. ⚠️ Parade : après toute amorce d'un bloc généré,
-relancer `--write` et committer ce que le script produit. Et **vérifier `gh run list --branch main`
-avant de choisir OÙ réparer** — c'est ce qui a montré que le correctif appartenait à `main`
-(`d3a3fc3`), pas à la branche, laquelle a été rebasée puis `--force-with-lease`.
-
-**RÉSIDU porté ici** : `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa
-confirmation dans `REVOCATION_DECLAREE` de `gen_tableau_amendements.py` (repli « — », c'est-à-dire
-« ne révoque rien », ce que sa section dit bien). Chantier antérieur, jamais traité.
+**PIÈGES** : `TROUBLESHOOTING.md`, **cinq entrées neuves en tête** — un verdict dérivé d'une
+absence, faux tant que la chose court · `pool_pre_ping` transparent sur les connexions tuées mais
+pas sur une base absente · deux éléments portant `role="status"` qui rendent verte une assertion
+« aucun toast » · un contraste calculé sur `oklch` qui rend n'importe quoi (1,03:1 pour du 14:1) ·
+la stack `zetis-prod` qui ne publie pas ses ports.
 
 **PROCHAIN PAS :**
 
-1. **Slice 2**, sur une **branche neuve** depuis `main` — le prompt est déjà écrit
-   (`prompts/claude-code/prompts-claude-code-adr-0067.md`), avec les mesures d'écran en tête de sa
-   section. ⚠️ **Pas de `/ouverture`** : l'ADR existe déjà, la branche part directement.
-3. Après la slice 2 : le **compte rendu de surface** (cas 4 de l'ADR-0060), écrit **dans la même
-   session que la relecture visuelle**, jamais reporté.
+1. **Vérifier le diff, puis committer et pousser** `feat/attente-et-deux-issues` (elle n'existe pas
+   encore sur `origin`) → **PR → merge** → **étape 4bis** (`WORKFLOW.md §5`) : revenir écrire ici
+   le squash, le n° de PR, la branche supprimée.
+2. **Arrêter l'environnement de dev** laissé debout (voir RÉSIDUS) — 🔴 `docker compose down`
+   **sans `-v`**.
+3. Facultatif, et c'est le commanditaire qui l'a pris pour lui : **une vraie restauration** pour
+   voir le toast et l'attente ⏳ à l'écran (suspendre ZETIS d'abord, sinon 409).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
-- ✅ ~~**Sidebar Papa : l'emoji du mode ZETIS doit ouvrir Paramètres SUR l'onglet Autonomie**~~ —
-  **SOLDÉ le 2026-08-21** (PR #173, squash `1a8d3b2`). Le défaut réel n'était pas « le lien est à
-  revoir » mais une **duplication** de l'entrée ⚙️ de la barre ; le mécanisme d'onglet par URL
-  existait déjà, une ligne a suffi. Détail et verrou : l'en-tête ci-dessus.
-- **Un toast ÉPHÉMÈRE qui confirme la restauration ou son échec** (demande utilisateur du
-  2026-08-19 au soir, pendant l'essai du geste). À cadrer avant de coder, trois contraintes se
-  croisent : la ligne du travail MEURT au swap (ADR-0066 §3) — le front n'a AUCUN événement de
-  fin, le toast devrait naître d'une relecture qui découvre `restauree_le` (ou d'un sondage,
-  interdit par adr-0062 §5) · « toast = retour d'action SEULEMENT » (ADR-0066 §7) — un toast de
-  RÉSULTAT est une extension de doctrine à écrire · aucun système de toast n'existe chez Papa
-  (les retours sont des `MessageGeste` inline). Cas `adr-0060` à déclarer (probablement 4 —
-  surface — voire 3 si le mécanisme de découverte de fin devient une décision). **Même famille,
-  observé par l'utilisateur le 2026-08-19 au soir** : le lien « Voir au Journal → » de la barre
-  mène sur du VIDE pour la famille sauvegarde — le Journal exclut `created_by='file'` par
-  construction (`journal_filters.py` : « les traces ne sont pas des travaux ») ; la barre, elle,
-  affiche tout `queued|running`. À trancher ensemble : comment la fin (et la vie) d'un geste
-  sauvegarde se raconte à Papa.
+- *(vide — les deux demandes du 2026-08-19 sont soldées ou remontées en dettes ci-dessus.)*
 
 ## ⬆️ REMONTÉ de l'élagage du 2026-08-19 — la journée du 2026-08-18 et la phase A (2026-08-19)
 
