@@ -6,12 +6,14 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, fin de session) — branche **`feat/la-fin-d-un-geste-se-raconte`**,
-> basée sur **`2193f00`**. ⚠️ **`main` est EN AVANCE DE 2 COMMITS SUR `origin` et n'a pas été
-> poussé** : le cadrage de l'ADR-0067 et le correctif d'outillage du rapport des révocations. Les
-> pousser fait partie du prochain pas. (Les commits de la branche : `git log --oneline main..HEAD`.)
+> **Où en est le dépôt** (2026-08-21, étape 4bis FAITE) — `main` = `origin/main`, **rien à
+> pousser**, **aucune branche de chantier vivante** (`feat/la-fin-d-un-geste-se-raconte` supprimée
+> au merge, distante ET locale — vérifié). Un seul checkout, une seule branche.
+>
+> ⚠️ **La CI de `main` sur le squash `8a315e0` reste à voir VERTE** avant d'y bâtir la slice 2
+> (parade du chantier #169).
 
-### ⚡ SLICE 1/2 « LE VERDICT : LE SIDECAR CESSE D'ÊTRE JETÉ » — **COMPLÈTE, non commitée**
+### ✅ SLICE 1/2 « LE VERDICT : LE SIDECAR CESSE D'ÊTRE JETÉ » — **MERGÉE** (PR #174, squash `8a315e0`)
 
 **Chantier** : ADR-0067, cas **3** de l'ADR-0060 (décision neuve), cadré la veille du code sur
 `main`. Convention du dépôt vérifiée sur le chantier frère : **une PR par slice** (#166→#169 pour
@@ -60,14 +62,15 @@ retour à la ligne** · `autoPort` sur un serveur dont le pair code le port en d
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **L'ENVIRONNEMENT DE DEV EST LAISSÉ DEBOUT** : conteneurs `zetis-postgres-1`, `zetis-redis-1`,
-  `zetis-minio-1` (compose racine) · backend `:8005` **avec son worker** (préview
-  `backend-restauration`) · front Papa `:5181`. À arrêter quand ils ne servent plus
-  (`docker compose down` + arrêt des préviews). Rien n'a été réveillé : `ai_jobs` recomptés après
-  démarrage du worker — **875 succeeded / 24 failed, 0 queued, 0 running**, lots en vol 0.
-- ⚠️ **`.claude/launch.json` est modifié et c'est HORS PÉRIMÈTRE du chantier** : `autoPort: false`
-  sur `backend-restauration`, posé pour réparer un démarrage. À sortir dans un commit à part si on
-  veut un lot propre.
+- ✅ ~~L'environnement de dev laissé debout~~ — **ARRÊTÉ** en fin de session : les deux préviews
+  (backend `:8005` + worker, front `:5181`) puis `docker compose down` **SANS `-v`**. Vérifié
+  après coup : **les 7 volumes survivent** (dont `zetis_postgres_data`, qui porte l'état restauré
+  dont la slice 2 aura besoin), **les 8 conteneurs `zetis-prod` intacts**, ports 5432/6379/9000/
+  9001/8005/5181 libres. 🔴 *Jamais `down -v` — la règle est écrite dans la maquette de l'ADR-0066,
+  et c'est ce volume-là qu'elle protège.* Rien n'avait été réveillé pendant la session : `ai_jobs`
+  recomptés APRÈS démarrage du worker — 875 succeeded / 24 failed, **0 queued, 0 running**.
+- ✅ ~~`.claude/launch.json` hors périmètre~~ — parti dans son **propre commit** (`chore(devops)`),
+  squashé avec la slice au merge.
 - La base de dev reste l'état restauré de `…-1844.tar` (`zetis_avant` présente, suspension levée).
   Les échecs #890/#896/#897 y attendent toujours un acquittement dans Échecs — sans urgence.
 - **L'écran n'a été regardé que pour la ligne « restaurée le … »** — le reste de l'onglet 💾 n'a
@@ -95,11 +98,14 @@ retour à la ligne** · `autoPort` sur un serveur dont le pair code le port en d
 
 **PROCHAIN PAS, dans cet ordre :**
 
-1. `git push origin main` — **2 commits d'avance non poussés**, et la branche en dépend ;
-2. vérifier le diff de la slice, puis commiter et pousser `feat/la-fin-d-un-geste-se-raconte` ;
-3. PR → merge → **étape 4bis** (revenir écrire ici squash, n° de PR, branche supprimée) ;
-4. trancher (ou non) le point « réussie · N écarts » — un addendum d'une ligne à l'ADR-0067 ;
-5. slice 2, sur une branche neuve, avec le prompt déjà écrit.
+1. **Trancher (ou non) le point « réussie · N écarts »** — un addendum d'une ligne à l'ADR-0067.
+   ⚠️ **À faire AVANT la slice 2**, qui rendra ce verdict à l'écran : le décider après reviendrait
+   à le justifier.
+2. **Slice 2**, sur une **branche neuve** depuis `main` — le prompt est déjà écrit
+   (`prompts/claude-code/prompts-claude-code-adr-0067.md`), avec les mesures d'écran en tête de sa
+   section. ⚠️ **Pas de `/ouverture`** : l'ADR existe déjà, la branche part directement.
+3. Après la slice 2 : le **compte rendu de surface** (cas 4 de l'ADR-0060), écrit **dans la même
+   session que la relecture visuelle**, jamais reporté.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
