@@ -20,9 +20,9 @@
 > à deux conditions (`TROUBLESHOOTING.md`, en tête). Les runs CI de `main` sur chaque squash
 > attendus VERTS avant leur 4bis (parade du #169, réf `b29a985`). Chantier précédent : « le
 > réveil clôt les fantômes » MERGÉ (PR #169, squash `0b7bdde`) — l'ADR-0066 soldé DE BOUT EN
-> BOUT (#167/#168/#169), détail section ci-dessous. ℹ️ Branches de worktree d'agent
-> `claude/fervent-stonebraker-bfa5b9` et `claude/gallant-faraday-4eeef8` toujours là
-> (infrastructure Claude Code).
+> BOUT (#167/#168/#169), détail section ci-dessous. Ménage du 2026-08-21 : le worktree de
+> session et les deux branches d'agent `claude/*` supprimés (vérifié : ancêtres de `main`, rien
+> d'unique) — plus AUCUNE branche locale hors `main`, un seul checkout.
 > **La prod est RECONSTRUITE et vérifiée à l'écran** (2026-08-19, nuit — après l'incident VM et
 > le reboot du Mac) : 8/8 conteneurs `healthy` sur images neuves, `/backups` monté, cible
 > certifiée lue à travers, **première archive prod vérifiée** (`zetis-2026-08-19-1817.tar`,
