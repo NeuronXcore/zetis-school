@@ -6,10 +6,50 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, **trois fois** ce jour) — `main` =
+> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, **quatre fois** ce jour) — `main` =
 > `origin/main`, rien à pousser, **aucune branche de chantier vivante**
-> (`chore/piege-pre-push-worktree`, `chore/la-case-cochee-ne-suffit-pas` puis
-> `chore/carte-des-ports` supprimées au merge, distantes ET locales).
+> (`chore/piege-pre-push-worktree`, `chore/la-case-cochee-ne-suffit-pas`,
+> `chore/carte-des-ports` puis `fix/emoji-zetis-ouvre-autonomie` supprimées au merge, distantes
+> ET locales — la dernière vérifiée par un 404 de l'API).
+>
+> ⚡ **④ « L'EMOJI ZETIS MÈNE À L'AUTONOMIE » — MERGÉ (PR #173, squash `1a8d3b2`)**, cas **2**
+> `adr-0060` (application — aucun ADR, mais la règle exécutée est citée : **ADR-0062 §5**,
+> *« l'onglet vit dans l'URL »*). Solde la demande « Sidebar Papa » de la liste À CASER
+> (2026-08-19). Le bloc ZETIS de la barre **montre** l'autonomie et menait à `/parametres`,
+> donc à la carte : il **dupliquait exactement** l'entrée ⚙️ Paramètres de `PAPA_NAV` — deux
+> portes pour la même pièce, dont aucune n'ouvrait sur la bonne. Il mène désormais à
+> `/parametres?onglet=autonomie`.
+>
+> **Verdicts du read-before-code (à ne pas re-vérifier)** : le mécanisme d'onglet par URL
+> existait **de bout en bout** (`ParametresPage` lit `?onglet=`, `estOngletRendu` le garde,
+> `ParametresPage.onglets.test.tsx` le prouve) — **rien n'a été construit, une ligne a changé** ·
+> la carte reste la porte et le défaut de la page (ADR-0062 §1), servie par l'entrée ⚙️, non
+> touchée · `EtatZetis` n'utilise pas `isActive` (className fixe), le `?query` ne perturbe donc
+> rien.
+>
+> 🔴 **Verrou neuf contre un repli SILENCIEUX** : `estOngletRendu` retombe sur la carte **sans
+> rien dire** si l'onglet est inconnu — filet voulu pour les signets périmés, mais qui avalerait
+> ce lien-ci au premier **renommage d'onglet**, l'écran ayant l'air de marcher. Le test lie la
+> cible à la **liste `ONGLETS`**, pas à une chaîne recopiée. Contre-épreuve : l'ancien lien ET un
+> id inexistant rendent chacun 2 rouges, les bons. ⚠️ **Un test existant a été modifié** (il
+> assertait `href="/parametres"`) — c'est le comportement qui change, pas un verrou assoupli ; son
+> autre assertion (« aucun bouton : ce bloc lit, il ne règle pas ») est conservée.
+>
+> ✅ **Relecture visuelle FAITE** par le commanditaire sur la paire de dev avant le commit — la
+> dette « sept merges d'affilée sans relecture » n'a pas resservi ici.
+>
+> 🧾 **Noté, non traité** : le nom accessible du lien dit « Ouvrir les Paramètres ». Il reste
+> **vrai** (l'onglet est dans les Paramètres) mais moins précis que « — Autonomie ». Un libellé
+> est une **surface** (cas 4 `adr-0060`) : se décide devant l'écran, pas en passant.
+>
+> 🔴 **LEÇON DE MANŒUVRE, payée QUATRE fois ce jour** : « c'est mergé » annoncé alors que l'API
+> répondait `state: open` / `merged: false` — trois fois de suite sur la #173, une sur la #172.
+> Diagnostic fait au 3ᵉ coup : rien ne bloquait (MERGEABLE/CLEAN, 4 checks verts, droits admin,
+> aucune revue requise) et **la chronologie de la PR ne portait aucune tentative** — le geste
+> n'atteignait pas le serveur (formulaire web dont la 2ᵉ confirmation échappe). Résolu en lançant
+> `gh pr merge <n> --squash --delete-branch` **depuis la session** — sans confirmation
+> intermédiaire, il passe du premier coup. ⚠️ *Le 4bis a été REFUSÉ les trois fois : vérifier
+> `gh pr view <n> --json state,mergedAt` AVANT d'écrire quoi que ce soit, jamais sur parole.*
 >
 > 🔌 **③ « LA CARTE DES PORTS » — MERGÉ (PR #172, squash `6f3a89f`)**, cas **1** `adr-0060`
 > (rangement : rien n'est décidé, aucun ADR). Trois commits squashés, 11 fichiers, +638/−23.
@@ -183,9 +223,10 @@ des slices mergées.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
-- **Sidebar Papa : l'emoji du mode ZETIS (en haut) doit ouvrir la page Paramètres SUR l'onglet
-  Autonomie** — le lien actuel est à revoir (demande utilisateur du 2026-08-19, notée pendant la
-  clôture de la slice 1 du 0065). Chore/fix à part, hors périmètre sauvegarde.
+- ✅ ~~**Sidebar Papa : l'emoji du mode ZETIS doit ouvrir Paramètres SUR l'onglet Autonomie**~~ —
+  **SOLDÉ le 2026-08-21** (PR #173, squash `1a8d3b2`). Le défaut réel n'était pas « le lien est à
+  revoir » mais une **duplication** de l'entrée ⚙️ de la barre ; le mécanisme d'onglet par URL
+  existait déjà, une ligne a suffi. Détail et verrou : l'en-tête ci-dessus.
 - **Un toast ÉPHÉMÈRE qui confirme la restauration ou son échec** (demande utilisateur du
   2026-08-19 au soir, pendant l'essai du geste). À cadrer avant de coder, trois contraintes se
   croisent : la ligne du travail MEURT au swap (ADR-0066 §3) — le front n'a AUCUN événement de
