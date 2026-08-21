@@ -3083,11 +3083,11 @@ sidecar `<archive>.restauration.json` (ADR-0066 §3) — le **seul survivant du 
 
 ```txt
 { termine_le?,        # null = geste INTERROMPU : le journal n'a jamais été clos
-  verdict,            # "reussie" | "interrompue" — adossé à `termine_le`
+  verdict,            # "reussie" (au bout ET zéro écart) | "avec_ecarts" | "interrompue"
   etape_arretee?,     # le nom BRUT du journal serveur (filet · restauration · reveil · swap ·
                       #   medias · purge_files · migrations · recyclage), jamais un libellé réécrit
   motif?,             # celui du sidecar, RENDU TEL QUEL (doctrine ADR-0041 §8)
-  ecarts }            # comptés à côté du verdict — ils ne le changent pas
+  ecarts }            # leur PRÉSENCE fait passer le verdict à `avec_ecarts` (Amendement 1)
 ```
 
 🔴 **`restauration: null` ne signifie plus qu'une chose : jamais restaurée** (ou sidecar
@@ -3095,6 +3095,17 @@ illisible — l'archive s'affiche quand même). Jusqu'au 2026-08-21, un geste **
 `null` lui aussi : à l'écran il était indiscernable d'une archive jamais restaurée, alors que le
 sidecar portait déjà l'étape fautive et son motif. C'est cette confusion que l'ADR-0067 casse —
 l'information existait, personne ne la demandait.
+
+🔴 **`reussie` veut dire « zéro écart », ici comme ailleurs** (ADR-0067 Amendement 1). C'est le
+sens qu'a déjà le verdict de **vérification** sur la même page (`"reussie" if not ecarts else
+"echec"`), celui qui fait qu'une archive mérite le mot « sauvegarde » (ADR-0065 §7). Un geste allé
+au bout mais portant des écarts rend donc **`avec_ecarts`** — et ⚠️ **ce n'est PAS un échec** : la
+base est remplacée, les médias sont en place, le monde s'est réveillé suspendu. Le rendre comme
+une panne ferait relancer un second swap pour rien.
+
+⚠️ Les deux verdicts de cette page partagent le mot `reussie` — et **rien d'autre**. `echec`
+appartient à la vérification ; une restauration aboutit (`reussie`/`avec_ecarts`) ou s'arrête
+(`interrompue`).
 
 ⚠️ **Ce champ REMPLACE `restauree_le`**, il ne s'y ajoute pas : deux formulations d'un même fait
 finissent par diverger. Contrat capturé : `packages/types/contracts/donnees.example.json`.

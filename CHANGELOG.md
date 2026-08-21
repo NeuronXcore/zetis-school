@@ -1,5 +1,29 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.15 — « Réussie » veut dire zéro écart, ici comme ailleurs
+
+> **ADR-0067, Amendement 1.** Cas **2** de l'ADR-0060 (application : la règle vient d'être écrite,
+> on l'exécute) — aucun ADR nouveau, et celui qu'on exécute est cité.
+
+`restauration.verdict` prend **trois** valeurs au lieu de deux : `reussie` (allée au bout **et zéro
+écart**) · `avec_ecarts` (allée au bout, N écarts consignés) · `interrompue` (inchangé).
+
+🔴 **Le motif n'est pas une préférence de vocabulaire.** Sur la même page, le verdict de
+**vérification** signifie déjà « zéro écart » (`"reussie" if not ecarts else "echec"`) — c'est lui
+qui fait qu'une archive mérite le mot « sauvegarde ». La version livrée la veille donnait au même
+mot un second sens (« la séquence est allée au bout ») : un mot, deux significations, un seul
+écran. Le premier écart réel se serait rendu « réussie ».
+
+⚠️ **`avec_ecarts` n'est PAS un échec** : la base est remplacée, les médias sont en place, le monde
+s'est réveillé suspendu. C'est un succès qui se dit avec sa réserve — le rendre comme une panne
+enverrait Papa relancer un second swap pour rien.
+
+**Aucun cas déjà exercé ne change** : les 1572 tests sont restés verts au moment du changement, et
+le contrat capturé (`ecarts: 0`) rend toujours `reussie`. Le cas neuf — allée au bout AVEC des
+écarts — **ne s'était jamais produit en vrai** (un seul site d'appel de `journal.ecart()`, une
+seule restauration réelle dans le dépôt). C'est exactement ce qui le rendait facile à bénir par
+erreur ; il a désormais son verrou, éprouvé rouge.
+
 ## 0.99.14 — Une restauration interrompue cesse de se lire comme une archive jamais restaurée
 
 > **ADR-0067, slice 1/2.** Cas **3** de l'ADR-0060 (décision neuve), cadré la veille du code sur

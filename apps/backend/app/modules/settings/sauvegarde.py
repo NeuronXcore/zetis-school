@@ -1513,14 +1513,27 @@ def _resume_restauration(sidecar: Path) -> dict | None:
             None,
         )
         termine_le = donnees.get("termine_le")
+        ecarts = len(donnees.get("ecarts") or [])
         return {
             "termine_le": termine_le,
-            # Binaire adossé à `termine_le` (§2) : le geste est allé au bout, ou il s'est arrêté.
-            # Les écarts se comptent À CÔTÉ — ils ne changent pas le verdict.
-            "verdict": "reussie" if termine_le else "interrompue",
+            # 🔴 TROIS valeurs (ADR-0067 Amendement 1) — et `reussie` a ici le sens qu'il a
+            # PARTOUT AILLEURS sur cette page : « zéro écart ». C'est celui du verdict de
+            # vérification (`_verdict_verification` : `"reussie" if not ecarts else "echec"`),
+            # celui-là même qui fait qu'une archive mérite le mot « sauvegarde » (ADR-0065 §7).
+            #
+            # La v1 de la slice 1 adossait ce verdict au SEUL `termine_le` : le même mot portait
+            # alors deux sens sur le même écran, et le premier écart réel se serait rendu
+            # « réussie ». Mesuré au moment de trancher : `journal.ecart()` n'a qu'un site
+            # d'appel, et une seule restauration réelle existe (`ecarts: 0`) — le cas ne s'était
+            # jamais produit, ce qui le rendait d'autant plus facile à bénir par erreur.
+            #
+            # ⚠️ `avec_ecarts` n'est PAS un échec : la base est remplacée, les médias sont en
+            # place, le monde s'est réveillé suspendu. C'est un succès qui se dit avec sa
+            # réserve — le rendre comme une panne enverrait Papa relancer un second swap.
+            "verdict": ("reussie" if not ecarts else "avec_ecarts") if termine_le else "interrompue",
             "etape_arretee": (echec or {}).get("etape"),
             "motif": (echec or {}).get("motif"),
-            "ecarts": len(donnees.get("ecarts") or []),
+            "ecarts": ecarts,
         }
     except (OSError, ValueError, TypeError, AttributeError):
         return None

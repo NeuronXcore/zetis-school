@@ -261,6 +261,99 @@ def test_un_geste_interrompu_rend_son_etape_ET_son_motif(
     assert archive["restauration"]["ecarts"] == 1
 
 
+
+def test_un_geste_alle_au_bout_AVEC_des_ecarts_rend_avec_ecarts(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """🔴 LE verrou de l'Amendement 1 — et il garde un cas qui ne s'est JAMAIS produit en vrai.
+
+    Mesuré le 2026-08-21 : `journal.ecart()` n'a qu'UN site d'appel, et la seule restauration
+    réelle du dépôt porte `ecarts: 0`. C'est précisément ce qui rendait le défaut facile à bénir —
+    la v1 adossait le verdict au seul `termine_le`, et le premier écart réel se serait rendu
+    « réussie », alors que sur cette page ce mot signifie déjà « zéro écart » (le verdict de
+    vérification, `"reussie" if not ecarts else "echec"`).
+
+    ⚠️ `avec_ecarts` n'est PAS un échec : le geste est allé au bout.
+    """
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    (cible / f"{nom}.restauration.json").write_text(
+        json_lib.dumps(
+            {
+                "archive": nom,
+                "termine_le": "2026-08-19T16:46:16.708438+00:00",
+                "etapes": [{"etape": "recyclage", "statut": "franchie"}],
+                "ecarts": ["recyclage ⑧ non demandé : aucun worker courant (appel hors file)"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (archive,) = client.get(API).json()["archives"]
+
+    assert archive["restauration"]["verdict"] == "avec_ecarts"
+    # Le geste EST allé au bout — c'est ce qui interdit de le rendre comme une interruption.
+    assert archive["restauration"]["termine_le"] is not None
+    assert archive["restauration"]["ecarts"] == 1
+    assert archive["restauration"]["etape_arretee"] is None  # aucune étape en échec
+
+
+def test_zero_ecart_est_la_CONDITION_du_mot_reussie(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """🔒 Le même sidecar, au seul écart près, doit changer de verdict.
+
+    Formulé en COMPARAISON plutôt qu'en deux assertions séparées : c'est la formulation qui
+    rougirait si quelqu'un remettait le verdict sur le seul `termine_le` — les deux cas rendraient
+    alors la même valeur, et un test qui n'assert qu'une valeur en dur ne le verrait pas.
+    """
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    sidecar = cible / f"{nom}.restauration.json"
+    socle = {"archive": nom, "termine_le": "2026-08-19T16:46:16.708438+00:00"}
+
+    sidecar.write_text(json_lib.dumps({**socle, "ecarts": []}), encoding="utf-8")
+    (sans,) = client.get(API).json()["archives"]
+
+    sidecar.write_text(json_lib.dumps({**socle, "ecarts": ["quoi que ce soit"]}), encoding="utf-8")
+    (avec,) = client.get(API).json()["archives"]
+
+    assert sans["restauration"]["verdict"] == "reussie"
+    assert avec["restauration"]["verdict"] != sans["restauration"]["verdict"], (
+        "Un écart ne change plus le verdict : le binaire est revenu, et « réussie » a repris "
+        "deux sens sur la même page."
+    )
+
+
+def test_le_verdict_de_restauration_n_emprunte_pas_le_vocabulaire_de_la_verification(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """🔒 Les deux verdicts de cette page partagent le mot `reussie` — et RIEN d'autre.
+
+    `echec` appartient à la vérification (intégrité de l'archive). Une restauration ne le rend
+    jamais : elle aboutit (`reussie`/`avec_ecarts`) ou elle s'arrête (`interrompue`). Deux
+    vocabulaires qui se mélangent finissent par se contredire.
+    """
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    sidecar = cible / f"{nom}.restauration.json"
+
+    for corps in (
+        {"archive": nom, "termine_le": "2026-08-19T16:46:16+00:00"},
+        {"archive": nom, "termine_le": "2026-08-19T16:46:16+00:00", "ecarts": ["x"]},
+        {"archive": nom, "termine_le": None, "etapes": [{"etape": "swap", "statut": "echec"}]},
+    ):
+        sidecar.write_text(json_lib.dumps(corps), encoding="utf-8")
+        (archive,) = client.get(API).json()["archives"]
+        assert archive["restauration"]["verdict"] in {"reussie", "avec_ecarts", "interrompue"}
+
+
 def test_une_archive_jamais_restauree_rend_null(
     client_db, cible, media, monkeypatch
 ) -> None:
