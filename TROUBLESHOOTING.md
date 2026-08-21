@@ -4,6 +4,34 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## Un worktree d'agent n'a pas l'outillage : le hook `pre-push` y est TOUJOURS rouge — pousser depuis le checkout principal — 2026-08-21
+
+Vécu au push du #170 (`chore/la-case-cochee-ne-suffit-pas`, diff doc pur) : depuis un worktree
+`.claude/worktrees/*`, le hook versionné rend « PUSH REFUSÉ » — backend « OUTIL ABSENT
+(`.venv/bin/python`) », massimo/papa ROUGES sur `ERR_MODULE_NOT_FOUND` (« Could not resolve
+'@tailwindcss/vite' », `vite` introuvable depuis le `node_modules/.vite-temp` du checkout
+principal). Ce n'est pas du rouge de code : **rien de non-versionné ne suit un worktree** — ni
+`.venv`, ni les `node_modules` installés — les suites y sont immesurables, et le hook traite
+« immesurable » comme rouge (c'est voulu).
+
+**Parade prouvée (exit 0, trois suites vertes)** : pousser depuis le checkout principal — les
+refs sont partagées entre les worktrees d'un même dépôt :
+
+```bash
+git -C /Volumes/NX-Projects/ZETIS push -u origin <branche>
+```
+
+⚠️ Honnête à DEUX conditions, à vérifier AVANT : le checkout principal est **propre sur le
+parent exact** de la branche (sinon les suites mesurent un autre code que celui qu'on pousse), et
+le diff de la branche **ne touche pas au code mesuré** (doc pure, config hors suites). Sinon :
+installer l'outillage dans le worktree, ou laisser le push à l'humain après merge local.
+🔴 `--no-verify` n'est PAS cette parade : il reste réservé au rouge assumé, le hook le dit
+lui-même.
+
+Même famille : `graphify-out/` ne suit pas non plus — `graphify query` rend « graph file not
+found » dans un worktree ; interroger la carte du checkout principal
+(`cd /Volumes/NX-Projects/ZETIS && graphify query …`).
+
 ## 🔴 Hôte — la case cochée ne suffit pas : BTM peut la neutraliser (Docker absent au login malgré « Start when you sign in ») — 2026-08-21
 
 La condition n°1 des conditions hôte (`infra/docker/README.md`, § « La prod se relève seule »)
