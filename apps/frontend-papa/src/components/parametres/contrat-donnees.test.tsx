@@ -58,7 +58,13 @@ describe("le contrat /api/settings/donnees", () => {
 
     expect(restaurees.length).toBeGreaterThan(0);
     expect(restaurees[0].restauration?.verdict).toBeDefined();
-    expect(["reussie", "interrompue"]).toContain(restaurees[0].restauration?.verdict);
+    // ⚠️ TROIS valeurs depuis l'Amendement 1 de l'ADR-0067 : cette énumération n'en portait que
+    // deux — elle a été écrite AVANT l'amendement, et elle restait verte parce que le contrat
+    // capturé porte `reussie`. Elle aurait viré au rouge le jour où une vraie restauration
+    // consigne un écart, pour une valeur parfaitement légitime.
+    expect(["reussie", "avec_ecarts", "interrompue"]).toContain(
+      restaurees[0].restauration?.verdict,
+    );
   });
 
   it("🔒 une archive jamais restaurée rend `null` — et ce n'est pas la même chose qu'un geste interrompu", () => {

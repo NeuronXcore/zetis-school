@@ -4,6 +4,119 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un verdict DÉRIVÉ d'une absence est faux tant que la chose n'est pas finie — 2026-08-21
+
+`GET /api/settings/donnees` dérive le verdict d'une restauration de son sidecar : `termine_le`
+nul ⇒ `verdict: "interrompue"`. Rigoureusement juste **une fois le geste terminé**. Pendant qu'il
+court, `termine_le` est nul aussi — et le journal existe déjà, écrit à la première étape. La route
+répond donc `interrompue` **en toute bonne foi pendant une restauration parfaitement saine**, et
+l'écran qui rend ce champ tel quel peint un **échec rouge au milieu du geste**.
+
+🔴 Le piège n'est pas dans la route : elle ne peut pas savoir. Il est dans l'**hypothèse implicite
+du lecteur** — « ce champ décrit un geste fini » — que rien dans le contrat ne dit.
+
+**Parade** : distinguer *terminal* de *en vol* **avant** de rendre quoi que ce soit. Ici, le
+sidecar porte déjà de quoi le faire : une étape n'est en échec que si `_etape()` a écrit
+`statut: "echec"`, ce qu'il fait **avant** de laisser remonter l'exception, quelle qu'elle soit.
+D'où la règle `termine_le !== null || etape_arretee !== null`. Un cas résiduel reste : le
+processus **tué net** laisse un journal ouvert pour toujours — il ne se dit ni en succès ni en
+échec, et c'est à ça que sert un renoncement qui n'affirme rien.
+
+⚠️ **Ce n'est pas l'œil qui l'a vu, c'est un test.** L'assertion « aucune interruption affichée
+pendant que l'attente court » est tombée au premier passage. Un rendu faux qui n'apparaît que
+pendant 1,7 s ne se voit pas à la relecture d'écran.
+
+## 🔴 `pool_pre_ping` rend les connexions TUÉES invisibles — mais pas une base ABSENTE — 2026-08-21
+
+Deux pannes de base voisines, deux réponses HTTP opposées. Mesuré sur le serveur réel, pour savoir
+ce que l'attente de l'ADR-0067 §1 rencontrerait pendant le swap :
+
+| Cas | Réponse | Mesure |
+|---|---|---|
+| Connexions terminées (`pg_terminate_backend`, la ligne même du swap) | **200** | 60 lectures sur 60 |
+| Base absente (entre les deux `RENAME`) ou postgres injoignable | **500** | `psycopg.OperationalError` non rattrapée |
+
+La différence tient à `create_engine(..., pool_pre_ping=True)` (`app/db/base.py`) : le ping
+invalide la connexion morte et en ouvre une neuve — **si la base existe encore**. Elle n'existe pas
+pendant le double `RENAME`, et il n'y a alors plus rien à rattraper.
+
+🔴 **Conclusion à ne pas simplifier** : « le pool se reconnaît tout seul » est vrai à moitié, et
+c'est la moitié fausse qui compte quand on raisonne sur une fenêtre d'indisponibilité.
+
+**Corollaire côté écran, et il était plus grave que la panne** : le chargeur de l'onglet 💾 **vide**
+son état sur erreur (règle voulue de l'`adr-0062` §6 — un état périmé serait un mensonge). Une
+attente qui aurait réutilisé ce chargeur aurait effacé **tout le tableau** pour une erreur de
+quelques dizaines de millisecondes, au milieu du geste le plus destructif du produit. Une lecture
+de sondage et une lecture d'écran ne se traitent pas pareil : la première **s'ignore**, la seconde
+**s'affiche**.
+
+## ⚠️ Deux éléments portant `role="status"` rendent l'assertion « aucun toast » toujours verte — 2026-08-21
+
+Le verrou qui porte l'ADR-0067 §3 est : *un échec ne passe JAMAIS par un toast*. Écrit
+naturellement `expect(screen.queryByRole("status")).toBeNull()`… sauf que la ligne d'attente en vol
+porte elle aussi `role="status"` (elle informe sans interrompre — même règle que le toast). Selon
+le moment du test, l'assertion échouait sur le mauvais élément, ou — pire — aurait pu **passer
+pour la mauvaise raison**.
+
+**Parade** : asserter sur ce qui n'appartient **qu'au** composant visé. Ici, le bouton
+`aria-label="Fermer l'annonce"` n'existe que dans `Toast` :
+
+```ts
+function toastAffiche(): HTMLElement | null {
+  const fermer = screen.queryByRole("button", { name: "Fermer l'annonce" });
+  return fermer ? (fermer.closest('[role="status"]') as HTMLElement) : null;
+}
+```
+
+⚠️ Un rôle ARIA est un **contrat d'accessibilité**, pas un identifiant. Deux composants ont le
+droit de porter le même — c'est même souvent correct.
+
+## ⚠️ Un contraste calculé sur `oklch`/`oklab` avec une regex de nombres rend n'importe quoi — 2026-08-21
+
+Première mesure de contraste de la relecture d'écran : **1,03:1** et **1,2:1** sur des textes
+parfaitement lisibles à l'œil. La formule WCAG était juste ; l'entrée ne l'était pas.
+`getComputedStyle(el).color` rend désormais `oklch(0.892 0.058 10.001)` ou
+`oklab(0.81 0.114 0.023 / 0.9)` — Tailwind v4 sert ses couleurs ainsi. Une regex `[\d.]+` y lit
+`0.892, 0.058, 10.001` et les traite comme du sRGB 0-255 : trois quasi-zéros, donc deux luminances
+identiques, donc un ratio de 1.
+
+🔴 **Le symptôme trompe** : un ratio absurde ressemble à un vrai problème de couleur, et on part
+corriger une palette qui n'a rien. Les vraies valeurs étaient **11,21 / 12,34 / 14,03:1**.
+
+**Parade** : ne pas parser une couleur CSS — la faire convertir par le navigateur.
+
+```js
+const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+ctx.fillStyle = fond;    ctx.fillRect(0,0,1,1);   // le fond d'abord
+ctx.fillStyle = couleur; ctx.fillRect(0,0,1,1);   // puis la couleur, alpha compris
+const [r,g,b] = ctx.getImageData(0,0,1,1).data;   // sRGB, quel que soit l'espace d'origine
+```
+
+⚠️ Même piège pour compter les lignes d'un texte : `getClientRects().length` compte les **boîtes**,
+pas les lignes — un JSX qui coupe le texte en plusieurs nœuds en rend plusieurs sur une seule
+ligne. Comparer `getBoundingClientRect().height` à `lineHeight`.
+
+## ⚠️ La stack `zetis-prod` NE PUBLIE PAS postgres/redis — un backend natif à côté tombe en 500 — 2026-08-21
+
+Symptôme : `docker ps` montre 8 conteneurs `zetis-prod` **healthy**, et pourtant un backend natif
+lancé sur `:8005` rend **500** sur toute route à session, avec `connection refused` sur
+`127.0.0.1:5432`. On cherche du côté du backend ; le défaut est ailleurs.
+
+🔴 **Deux stacks, deux comportements de ports.** `docker-compose.yml` (dev) publie
+`5432/6379/9000/9001` sur l'hôte ; `docker-compose.prod.yml` **ne les publie pas** — ils ne vivent
+que sur le réseau interne. Un `docker ps` « tout est vert » ne dit donc **rien** sur la
+joignabilité depuis l'hôte.
+
+**Diagnostic en une commande** : `docker ps --format "{{.Names}}\t{{.Ports}}"` — un `5432/tcp` nu
+(sans `0.0.0.0:5432->`) veut dire « non publié ». Ou plus direct : `nc -z localhost 5432`.
+
+**Parade** : relever l'infra de dev à part — `docker compose up -d postgres redis minio`. Les deux
+stacks cohabitent sans conflit de port, précisément parce que la prod ne publie rien.
+
+🔴 **Jamais `docker compose down -v`** : `zetis_postgres_data` et `zetis-prod_postgres_data` sont
+deux volumes distincts, et le premier porte l'état restauré dont les chantiers sauvegarde ont
+besoin. Le dépôt en compte **7 nommés** ; ils doivent tous survivre à un arrêt.
+
 ## 🔴 Amorcer un bloc GÉNÉRÉ et en REMPLIR les cellules sont deux gestes différents — 2026-08-21
 
 A rendu la CI de **`main`** rouge, sur le verrou « le tableau Amendements n'a pas dérivé de ses

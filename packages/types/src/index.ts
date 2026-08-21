@@ -333,6 +333,7 @@ export {
   type TestMoteur,
   type CertificatCible,
   type VerificationArchive,
+  type RestaurationArchive,
   type ArchiveSauvegarde,
   type ArchiveSupprimee,
   type Donnees,

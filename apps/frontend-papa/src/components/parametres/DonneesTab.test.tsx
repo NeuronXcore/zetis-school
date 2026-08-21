@@ -12,9 +12,13 @@
 // Slice 2 de l'ADR-0066 (§6-§7) — les verrous d'administration, plus bas : « Restaurer »
 // absent des archives non vérifiées, la SAISIE exigée (un clic seul ne part jamais), le
 // dialogue de suppression qui nomme l'archive, « restaurée le … » lu du GET.
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { type ArchiveSauvegarde, type Donnees } from "@zetis/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  type ArchiveSauvegarde,
+  type Donnees,
+  type RestaurationArchive,
+} from "@zetis/types";
 
 import { DonneesTab } from "./DonneesTab";
 import { HttpError } from "../../lib/httpClient";
@@ -360,5 +364,290 @@ describe("supprimer", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Supprimer cette archive" }));
 
     await screen.findByText(/dernière archive au verdict « réussie »/);
+  });
+});
+
+// --- 🔴 ADR-0067 §1 et §3 — l'attente armée, et les TROIS issues -------------------------------
+//
+// Ce que ces verrous tiennent, et pourquoi chacun a coûté quelque chose :
+//
+//   • **l'attente ne démarre pas au montage** — c'est la première des cinq bornes du §1, et la
+//     seule qui distingue cette exception du sondage que l'adr-0062 §5 interdit ;
+//   • 🔴 **aucun échec ne passe par un toast** (§3) — l'ADR-0041 §8 a payé cette leçon : six
+//     secondes pendant que Papa est dans une autre pièce, c'est un travail perdu en silence ;
+//   • 🔴 **le renoncement ne rend aucun verdict** (§1.5) — « je n'ai pas vu la fin » n'est pas
+//     « ça a échoué » ;
+//   • 🔴 **un geste EN VOL ne se lit pas comme une interruption** — trouvé au read-before-code :
+//     pendant la restauration, `termine_le` est nul, donc la route dérive `verdict:
+//     "interrompue"` en toute bonne foi. Sans ce verrou, une restauration parfaitement saine
+//     peindrait un échec rouge en cours de route ;
+//   • 🔴 **le verdict du geste PRÉCÉDENT ne compte pas** — une archive déjà restaurée porte un
+//     sidecar terminal ; sans témoin, la première lecture rendrait la fin d'hier ;
+//   • 🔴 **une lecture en erreur ne vide pas la page** — mesuré le 2026-08-21 : pendant la
+//     bascule, `GET /donnees` rend 500 (la base est absente entre les deux RENAME).
+
+/** Une restauration telle que le GET la publie (§2 + Amendement 1). */
+function geste(surcharge: Partial<RestaurationArchive> = {}): RestaurationArchive {
+  return {
+    termine_le: "2026-08-19T21:12:00+00:00",
+    verdict: "reussie",
+    etape_arretee: null,
+    motif: null,
+    ecarts: 0,
+    ...surcharge,
+  };
+}
+
+const unEtat = (r: RestaurationArchive | null) =>
+  donnees({ archives: [verifiee({ restauration: r })] });
+
+/** 🔴 Le TOAST, et lui seul. L'attente en vol porte elle aussi `role="status"` (elle informe sans
+ *  interrompre, même règle) : asserter « aucun `role="status"` » confondrait les deux et rendrait
+ *  vert un test qui ne prouve rien. Le bouton de fermeture n'appartient qu'au composant `Toast`. */
+function toastAffiche(): HTMLElement | null {
+  const fermer = screen.queryByRole("button", { name: "Fermer l'annonce" });
+  return fermer ? (fermer.closest('[role="status"]') as HTMLElement) : null;
+}
+
+/** Avance le temps ET laisse les promesses se résoudre — `advanceTimersByTime` seul rendrait la
+ *  main avant que la lecture ne soit revenue. */
+async function avancer(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+/** Rend l'onglet, franchit le dialogue de classe A4, et s'arrête juste après le 202 : l'attente
+ *  est armée, aucune lecture n'a encore eu lieu. */
+async function armer(etatInitial = unEtat(null)) {
+  vi.mocked(fetchDonnees).mockResolvedValue(etatInitial);
+  vi.mocked(lancerRestauration).mockResolvedValue({ job_id: 4, status: "queued" });
+
+  const vue = render(<DonneesTab />);
+  await avancer(0);
+  fireEvent.click(screen.getByRole("button", { name: "↺ Restaurer" }));
+  fireEvent.change(screen.getByLabelText("saisie de confirmation"), {
+    target: { value: "RESTAURER" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Restaurer cette archive" }));
+  await avancer(0);
+  return vue;
+}
+
+describe("l'attente armée (§1)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("🔒 NE DÉMARRE PAS au montage — ouvrir l'onglet ne déclenche rien", async () => {
+    // La borne §1.1, et c'est elle qui tient l'exception à l'adr-0062 §5 : une page de réglages
+    // qui se relit toute seule en arrivant est exactement ce que le §5 interdit.
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(null));
+
+    render(<DonneesTab />);
+    await avancer(60_000);
+
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(1);
+  });
+
+  it("🔒 armée par le 202, elle interroge à 4 s et MEURT au premier verdict", async () => {
+    await armer();
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(1); // rien encore : le 202 vient de partir
+
+    // En vol : le journal existe, `termine_le` est nul. La lecture ne conclut pas.
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(geste({ termine_le: null, verdict: "interrompue" })),
+    );
+    await avancer(4000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(2);
+
+    // Le verdict arrive.
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(geste()));
+    await avancer(4000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(3);
+
+    // …et l'attente est morte avec sa réponse : plus une seule lecture, jamais.
+    await avancer(60_000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(3);
+  });
+
+  it("🔒 s'arrête au DÉMONTAGE — rien ne continue en arrière-plan (§1.4)", async () => {
+    // Quitter l'onglet démonte `DonneesTab` (`ParametresPage` ne rend que l'onglet actif).
+    const { unmount } = await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(geste({ termine_le: null, verdict: "interrompue" })),
+    );
+    await avancer(4000);
+    const avantDemontage = vi.mocked(fetchDonnees).mock.calls.length;
+
+    unmount();
+    await avancer(60_000);
+
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(avantDemontage);
+  });
+
+  it("🔴 un geste EN VOL n'est PAS lu comme une interruption", async () => {
+    // Le piège du read-before-code : pendant la restauration le sidecar existe SANS `termine_le`,
+    // donc la route en dérive `verdict: "interrompue"` — alors que rien n'a échoué. Ce qui
+    // sépare « arrêtée » de « en train de courir » est `etape_arretee`, nul tant qu'aucune étape
+    // n'a échoué.
+    await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(geste({ termine_le: null, verdict: "interrompue", etape_arretee: null })),
+    );
+    await avancer(12_000);
+
+    // 🔴 Aucun échec peint : ni le mot, ni le rose. Le journal est ouvert, rien n'a échoué.
+    expect(screen.queryByText(/restauration interrompue/)).toBeNull();
+    expect(screen.getByText(/jamais close/)).toBeInTheDocument();
+    // Et l'attente COURT toujours : elle n'a pas pris ce reflet pour une réponse.
+    const lues = vi.mocked(fetchDonnees).mock.calls.length;
+    await avancer(4000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(lues + 1);
+  });
+
+  it("🔴 le verdict du geste PRÉCÉDENT n'est pas pris pour celui-ci", async () => {
+    // Restaurer une archive DÉJÀ restaurée laisse son sidecar terminal sur la cible. Sans témoin,
+    // la toute première lecture rendrait « réussie » à l'instant — la fin d'hier, prise pour celle
+    // d'aujourd'hui, sur le geste le plus destructif du produit.
+    const hier = geste({ termine_le: "2026-08-18T10:00:00+00:00" });
+    await armer(unEtat(hier));
+
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(hier)); // le sidecar n'a pas encore bougé
+    await avancer(8000);
+
+    expect(toastAffiche()).toBeNull(); // aucun toast : rien n'a été conclu
+    const lues = vi.mocked(fetchDonnees).mock.calls.length;
+    await avancer(4000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(lues + 1); // elle attend toujours
+  });
+
+  it("🔴 une lecture en ERREUR pendant la bascule ne vide pas la page", async () => {
+    // Mesuré le 2026-08-21 : entre les deux RENAME du swap, la base `zetis` n'existe pas et
+    // `GET /donnees` rend 500. Passer par `charger()` remplacerait tout le tableau par « État de
+    // la sauvegarde illisible », au milieu du geste. La lecture est ignorée ; la suivante arrive.
+    await armer();
+    vi.mocked(fetchDonnees).mockRejectedValue(new Error("500 — la base bascule"));
+    await avancer(8000);
+
+    expect(screen.queryByText(/État de la sauvegarde illisible/)).toBeNull();
+    expect(screen.getByText("zetis-2026-08-19-1430.tar")).toBeInTheDocument();
+
+    // Puis la base revient, et le verdict est lu normalement.
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(geste()));
+    await avancer(4000);
+    expect(screen.getByText(/↺ restaurée le/)).toBeInTheDocument();
+  });
+
+  it("🔴 le RENONCEMENT ne rend AUCUN verdict — il rend la main au ⟳ (§1.5)", async () => {
+    await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(geste({ termine_le: null, verdict: "interrompue" })),
+    );
+    await avancer(15 * 4000);
+
+    const dit = screen.getByText(/a cessé de demander/);
+    expect(dit).toHaveTextContent(/ni un succès ni un échec/);
+    // 🔴 Ni succès, ni échec : aucun toast, et aucune interruption inscrite sur la ligne.
+    expect(toastAffiche()).toBeNull();
+    expect(screen.queryByText(/restauration interrompue/)).toBeNull();
+
+    // Elle a cessé de demander : c'est son unique effet.
+    const lues = vi.mocked(fetchDonnees).mock.calls.length;
+    await avancer(60_000);
+    expect(vi.mocked(fetchDonnees).mock.calls.length).toBe(lues);
+  });
+});
+
+describe("les trois issues (§3, Amendement 1)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("🔒 un SUCCÈS passe par un toast qui NOMME l'archive et rappelle la suspension", async () => {
+    // §5 : un toast anonyme après un geste de classe A4 ne vaut rien ; et taire le réveil suspendu
+    // ferait croire que ZETIS est reparti (ADR-0063 : Papa lève).
+    await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(geste()));
+    await avancer(4000);
+
+    const toast = toastAffiche()!;
+    expect(toast).toHaveTextContent("zetis-2026-08-19-1430.tar");
+    expect(toast).toHaveTextContent(/réveillé suspendu/);
+    // Ni pourcentage, ni durée, ni promesse (§5).
+    expect(toast.textContent).not.toMatch(/%|seconde|minute|bientôt/);
+  });
+
+  it("🔴 un ÉCHEC ne passe JAMAIS par un toast — il s'inscrit sur la ligne", async () => {
+    // La contre-épreuve du §3, et c'est le verrou qui porte le chantier : on force l'issue
+    // d'échec et on asserte qu'AUCUNE annonce éphémère n'apparaît.
+    await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(
+        geste({
+          termine_le: null,
+          verdict: "interrompue",
+          etape_arretee: "medias",
+          motif: "FileNotFoundError: storage/audio absent",
+        }),
+      ),
+    );
+    await avancer(4000);
+
+    expect(toastAffiche()).toBeNull();
+    // …et l'état est là, durablement, sur la page.
+    expect(screen.getByText(/restauration interrompue/)).toBeInTheDocument();
+  });
+
+  it("🔒 l'interruption rend l'ÉTAPE et le MOTIF tels quels — aucune table de traduction", async () => {
+    // `etape_arretee` est le nom BRUT du journal serveur (`ETAPES_RESTAURATION`) et `motif` le
+    // texte du serveur : une jolie phrase réécrite ici divergerait au premier motif reformulé
+    // (doctrine ADR-0041 §8).
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      unEtat(
+        geste({
+          termine_le: null,
+          verdict: "interrompue",
+          etape_arretee: "purge_files",
+          motif: "redis.exceptions.ConnectionError: Error 61 connecting to localhost:6379",
+        }),
+      ),
+    );
+
+    render(<DonneesTab />);
+    await avancer(0);
+
+    expect(screen.getByText(/purge_files/)).toBeInTheDocument();
+    expect(
+      screen.getByText("redis.exceptions.ConnectionError: Error 61 connecting to localhost:6379"),
+    ).toBeInTheDocument();
+    // Sans acquittement : ce n'est pas une notification, c'est l'état de l'archive (§3).
+    expect(screen.queryByRole("button", { name: /J'ai vu|Acquitter/ })).toBeNull();
+  });
+
+  it("🔴 `avec_ecarts` reçoit les DEUX — le toast ET la marque durable — et n'est pas un échec", async () => {
+    // La question ouverte par l'Amendement 1, tranchée ici : c'est un SUCCÈS (donc son toast,
+    // §3), mais un écart est un FAIT DURABLE (donc la ligne). Six secondes ne peuvent pas porter
+    // une réserve qui reste vraie.
+    await armer();
+    vi.mocked(fetchDonnees).mockResolvedValue(unEtat(geste({ verdict: "avec_ecarts", ecarts: 1 })));
+    await avancer(4000);
+
+    // ① le toast, parce que le geste a abouti
+    const toast = toastAffiche()!;
+    expect(toast).toHaveTextContent("zetis-2026-08-19-1430.tar");
+    expect(toast).toHaveTextContent(/1 écart consigné/);
+    // ② la marque durable, parce que l'écart, lui, reste vrai
+    expect(screen.getByText(/↺ restaurée le .* — 1 écart consigné/)).toBeInTheDocument();
+    // 🔴 et JAMAIS le vocabulaire de la panne : la base est remplacée, les médias sont en place.
+    expect(screen.queryByText(/interrompue|échec|a échoué/)).toBeNull();
+  });
+
+  it("🔒 le 202 de restauration n'envoie plus Papa SURVEILLER", async () => {
+    // « ⟳ ensuite pour relire l'état » était une consigne de surveillance : on demandait à Papa
+    // de guetter la disparition d'une ligne pour deviner un résultat. C'est ce chantier qui la
+    // supprime — la page attend elle-même.
+    await armer();
+
+    expect(screen.queryByText(/⟳ ensuite pour relire l'état/)).toBeNull();
+    expect(screen.getByText(/Cette page attend la fin et vous la dira/)).toBeInTheDocument();
   });
 });
