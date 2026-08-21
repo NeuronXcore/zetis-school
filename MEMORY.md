@@ -80,15 +80,24 @@ au démontage.
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **Deux archives créées pour regarder l'écran restent sur la cible de dev** :
-  `zetis-2026-08-21-2044.tar` (vérifiée) et `zetis-2026-08-21-2057.tar` (**non vérifiée**, c'est
-  elle qui montre l'état ambre). ~96 Mo. Je ne les ai pas supprimées de moi-même.
-  ⚠️ **Ne pas recapturer `donnees.example.json` sans y penser** : le contrat capturé ne les
-  connaît pas.
+- ✅ ~~Deux archives créées pour regarder l'écran restent sur la cible de dev~~ — **SUPPRIMÉES**
+  en fin de session, sur décision du commanditaire : les deux tars **et leurs sidecars** (6
+  fichiers, 97 Mo). Vérifié après coup : la cible est **revenue à son état initial** — trois
+  archives (`-1844`, `-1846`, `-1847`), chacune avec ses sidecars, `-1844` gardant son
+  `.restauration.json` (la preuve vivante du §Suivi 5), **aucun orphelin**. Les trois restantes
+  sont toutes au verdict `reussie` : l'invariant « jamais zéro filet » n'a jamais été menacé.
+  ⚠️ Suppression faite **sur le disque**, le backend étant éteint — pas par la route `DELETE` ;
+  son garde n'aurait rien refusé (contrôlé avant).
+  📌 `donnees.example.json` redevient donc fidèle à la cible : plus de précaution à prendre.
 - `zetis-2026-08-19-1847.tar` a été **rendue à son verdict `reussie`** après avoir servi à montrer
-  l'état d'échec (empreinte corrompue puis réparée, vérifié par `shasum`).
-- 🔴 **L'environnement de dev est LAISSÉ DEBOUT** : infra docker de dev (`up -d postgres redis
-  minio`, **jamais `-v`**) + préviews backend `:8005` et front `:5181`. **À arrêter à la main.**
+  l'état d'échec (empreinte corrompue puis réparée, vérifié par `shasum`). ⚠️ Son `.sha256` porte
+  un **mtime du 2026-08-21** parce qu'il a été réécrit — le **contenu**, lui, est identique, et
+  c'est le seul point qui compte : rien ne lit le mtime d'un sidecar.
+- ✅ ~~L'environnement de dev est laissé debout~~ — **ARRÊTÉ** en fin de session : les deux
+  préviews (`:8005`, `:5181`) puis `docker compose down` **SANS `-v`**. Vérifié après coup : **les
+  7 volumes survivent** (dont `zetis_postgres_data`, qui porte l'état restauré), **les 8 conteneurs
+  `zetis-prod` intacts**, ports 5432/6379/9000/9001/8005/5181 **tous libres**.
+  🔴 *Jamais `down -v`.*
 - 🔴 **Le toast et l'attente ⏳ de RESTAURER n'ont toujours pas été vus dans un geste réel** —
   seulement sous test. Le commanditaire l'a pris pour lui (il faut suspendre ZETIS d'abord, sinon
   409). Écrit aussi dans l'ADR-0068.
