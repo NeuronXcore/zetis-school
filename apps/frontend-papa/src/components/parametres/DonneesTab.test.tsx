@@ -905,3 +905,78 @@ describe("le bouton de vérification dit ce que le CLIC fait", () => {
     expect(screen.getByText(/Sauvegarde vérifiée · /)).toBeInTheDocument();
   });
 });
+
+// --- 🔴 Une vérification dit son ÂGE, et ne le juge pas ------------------------------------------
+
+describe("l'âge d'une vérification", () => {
+  /** ⚠️ **La date est calculée depuis `Date.now()`, jamais écrite en dur.** `statutArchive` appelle
+   *  `depuis()` sans injecter d'horloge : une date figée rendrait « il y a 4 mois » aujourd'hui et
+   *  « il y a 7 mois » au printemps. Ce fichier porte déjà la trace de deux tests du dashboard qui
+   *  se relaient au rouge autour de minuit — on ne recommence pas. */
+  const ilYAJours = (n: number) => new Date(Date.now() - n * 24 * 3600 * 1000).toISOString();
+
+  const verifieeIlYA = (n: number) =>
+    donnees({
+      archives: [
+        verifiee({
+          verification: {
+            archive: "zetis-2026-08-19-1430.tar",
+            verdict: "reussie",
+            verifie_le: ilYAJours(n),
+            ecarts: 0,
+          },
+        }),
+      ],
+    });
+
+  it("🔒 le badge porte la DATE **et** l'âge — l'une est le fait, l'autre la lecture", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(verifieeIlYA(120));
+
+    render(<DonneesTab />);
+
+    // ⚠️ On vise la CELLULE, pas la pastille : l'âge vit **sous** le badge, et c'est délibéré —
+    // dedans, il faisait passer la pastille de 2 à 4 lignes et coupait « il y a 2 / j ». Ce que
+    // le verrou doit tenir, c'est que la date ET l'âge se lisent ensemble, pas qu'ils partagent
+    // un même `<span>`.
+    const cellule = (await screen.findByText(/Sauvegarde vérifiée/)).closest("td")!;
+    expect(cellule).toHaveTextContent(/il y a 4 mois/);
+    expect(cellule).toHaveTextContent(/\d{2}\/\d{2}\/\d{4}/); // la date reste, elle n'est pas remplacée
+    // 🔴 …et l'âge ne peut pas se couper en deux : son unité ne quitte jamais son nombre.
+    expect(screen.getByText("il y a 4 mois").className).toMatch(/whitespace-nowrap/);
+  });
+
+  it("🔴 l'âge s'affiche TOUJOURS — le montrer « seulement quand il est grand » serait un seuil déguisé", async () => {
+    // La décision du 2026-08-21 : on dit l'âge, on ne juge pas. Une vérification de ce matin
+    // l'affiche comme une de l'an dernier.
+    //
+    // ⚠️ **`à l'instant`, pas `il y a 0 s`** — et l'assertion doit accepter les deux formes.
+    // Écrite sur le seul `/il y a /`, elle tombait sur le cas le plus frais : `depuis()` rend
+    // « à l'instant » sous la seconde, ce qui EST l'âge. Le verrou porte sur « quelque chose est
+    // dit », pas sur une tournure.
+    vi.mocked(fetchDonnees).mockResolvedValue(verifieeIlYA(0));
+
+    render(<DonneesTab />);
+
+    expect((await screen.findByText(/Sauvegarde vérifiée/)).closest("td")).toHaveTextContent(
+      /il y a |à l'instant/,
+    );
+  });
+
+  it("🔴 AUCUN seuil : le rendu d'une vérification ancienne est le MÊME que celui d'une fraîche", async () => {
+    // La contre-épreuve de tout ce chantier. Si quelqu'un fait un jour virer le badge à l'ambre
+    // au-delà de N jours, ce test tombe — et c'est une DÉCISION, pas un ajustement de rendu :
+    // le verdict `reussie` est une précondition fail-closed du serveur, deux fois.
+    vi.mocked(fetchDonnees).mockResolvedValue(verifieeIlYA(900));
+    const { unmount } = render(<DonneesTab />);
+    const ancien = (await screen.findByText(/Sauvegarde vérifiée/)).className;
+    unmount();
+
+    vi.mocked(fetchDonnees).mockResolvedValue(verifieeIlYA(0));
+    render(<DonneesTab />);
+    const frais = (await screen.findByText(/Sauvegarde vérifiée/)).className;
+
+    expect(ancien).toBe(frais);
+    // …et « Restaurer » s'offre à l'une comme à l'autre : la péremption ne ferme aucun geste.
+    expect(screen.getByRole("button", { name: "↺ Restaurer" })).toBeInTheDocument();
+  });
+});

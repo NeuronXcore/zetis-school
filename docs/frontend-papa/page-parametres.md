@@ -134,8 +134,25 @@ case à cocher « vérifié » a été proposée puis écartée pour deux raison
 la colonne « Statut » porte déjà mieux (avec sa date et son compte d'écarts), et elle dirait « plus
 rien à faire » d'une chose qui se périme.
 
-📌 **Ce qui manque encore** : rien ne dit qu'une vérification a **vieilli**. Le seuil de péremption
-est une décision, elle n'existe nulle part.
+🔴 **Une vérification dit son ÂGE, et ne le juge pas** (2026-08-21). Sous la pastille, en petit et
+dans sa teinte : « il y a 2 j », « il y a 4 mois ». Le badge garde le **jour** (l'heure est partie —
+pour une vérification, la minute est une précision que personne n'utilise, et elle reste en pied de
+section).
+
+⚠️ **AUCUN seuil de péremption, et c'est une décision, pas un oubli.** Trois raisons :
+
+- **aucune mesure ne le justifierait** — poser un nombre ici inventerait un risque ;
+- 🔴 le verdict `reussie` est une **précondition fail-closed du serveur**, deux fois : il ouvre
+  **↺ Restaurer** et **protège la dernière archive de la suppression**. Une péremption « qui
+  compte » bloquerait Papa au pire moment et affaiblirait l'invariant « jamais zéro filet » en
+  silence ;
+- rien ne pourrait l'exploiter : l'`adr-0023` §4 refuse tout ordonnanceur, donc une péremption ne
+  peut **rien déclencher** — seulement se rendre.
+
+⚠️ Et n'afficher l'âge que « quand il est grand » serait un **seuil déguisé** : il s'affiche
+toujours, uniformément, jusqu'à « à l'instant ». Un test-verrou tient l'absence de seuil — le rendu
+d'une vérification de 900 jours est **identique** à celui d'une vérification de ce matin, Restaurer
+compris.
 
 🔴 **Aucun octet d'archive ne passe par HTTP** (`adr-0065` §1) : pas de bouton « Télécharger »,
 et le pied de page dit pourquoi. La **destination ne se choisit pas ici** — elle se certifie sur

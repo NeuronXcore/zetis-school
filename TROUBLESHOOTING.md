@@ -47,6 +47,63 @@ leçon pour le défaut symétrique — *« ils n'ont attrapé le bug que parce q
 00 h 16 — 22 h par jour ils étaient verts sur du code faux… un verrou qui ne mord que deux heures
 sur vingt-quatre n'est pas un verrou, c'est une loterie »*. La leçon n'avait pas voyagé d'un fichier
 à l'autre. **Chercher les frères** : `grep -rn "now(timezone.utc)" app/tests | grep date`.
+## 🔴 Deux paliers à diviseurs différents laissent un TROU entre eux — 2026-08-21
+
+`depuis()` gagnait les mois et les années. Écrit naturellement :
+
+```ts
+const mois = Math.floor(jours / 30);
+if (mois < 12) return `il y a ${mois} mois`;   // ← le piège est ici
+const ans = Math.floor(jours / 365);
+return `il y a ${ans} an…`;
+```
+
+**Douze mois de trente jours font 360, pas 365.** Les jours **360 à 364** sortaient donc du palier
+« mois » (`mois = 12`, la condition est fausse) et entraient dans « ans » avec
+`floor(364/365) = 0` — rendant **« il y a 0 an »**.
+
+🔴 **La cause générale** : la condition de sortie d'un palier était exprimée dans **son** unité
+(`mois < 12`) alors que le palier suivant compte dans **une autre** (`jours / 365`). Dès que deux
+paliers n'ont pas le même diviseur, leur frontière doit se décider dans **une seule unité** — ici
+les jours :
+
+```ts
+if (jours < 365) return `il y a ${Math.floor(jours / 30)} mois`;
+```
+
+⚠️ **Invisible à la lecture, trouvé par son test-verrou** — et seulement parce que ce test
+énumérait les **frontières** (`364 j`, `365 j`) plutôt que des valeurs commodes au milieu des
+plages. Un test de paliers qui ne teste pas ses bords ne teste rien d'intéressant.
+
+**Le même risque existe partout où on empile des unités** : Ko/Mo/Go, secondes/minutes, points/%.
+
+## ⚠️ Un libellé dont la LARGEUR dépend de la donnée ne se règle pas au rabotage — 2026-08-21
+
+Ajouter l'âge d'une vérification dans la pastille « Sauvegarde vérifiée · 19/08/2026 » l'a fait
+passer de **2 à 4 lignes** dans une cellule de **166 px**, en coupant « il y a 2 / **j** » —
+l'unité orpheline de son nombre. Le même défaut que les 117 px de la slice 1 de l'ADR-0067, à ceci
+près que cette fois c'est l'ajout qui le causait.
+
+**Le raccourci qui ne marche pas** : raccourcir le libellé. Retirer l'heure a bien ramené
+« … · il y a 2 j » à 2 lignes… mais pas « … · il y a 47 min », **plus long de trois caractères**.
+
+🔴 **Parce que la largeur du libellé dépend de la DONNÉE**, pas du gabarit. Chaque rabotage n'achète
+qu'un cas ; le suivant revient par une autre valeur. Un conteneur contraint plus une chaîne de
+longueur variable, ça ne se règle pas — ça se **sépare**.
+
+**Parade** : sortir la partie variable du conteneur contraint, et l'empêcher de se couper.
+
+```tsx
+<span className="rounded-full border px-2 py-0.5 …">{statut.label}</span>
+{statut.age && <span className="mt-1 block whitespace-nowrap text-[11px] …">{statut.age}</span>}
+```
+
+⚠️ **`whitespace-nowrap` n'est pas un détail** : sans lui, une unité courte (`j`, `s`, `min`) se
+retrouve seule sur sa ligne, ce qui est pire qu'un texte long — un nombre sans son unité ne veut
+rien dire.
+
+**Comment le voir** : comparer `getBoundingClientRect().height` à `lineHeight`, pas se fier à l'œil.
+Et tester la valeur qui donne la chaîne la **plus longue**, pas celle qu'on a sous la main.
 
 ## 🔴 Un verdict d'ÉCHEC peut être la sortie d'un travail RÉUSSI — 2026-08-21
 

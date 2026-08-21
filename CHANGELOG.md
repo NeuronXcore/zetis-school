@@ -1,5 +1,38 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.19 — Une vérification dit son âge, et ne le juge pas
+
+> **Cas 4** de l'ADR-0060, **voie légère du §3** — réversible en un commit, sans migration, aucun
+> texte vu par Massimo : une entrée ici et des tests, **pas d'ADR**. Le cadrage a conclu qu'il n'y
+> avait pas de décision neuve à écrire, et c'est son résultat.
+
+Sous la pastille « Sauvegarde vérifiée », l'âge : « il y a 2 j », « il y a 4 mois ». Une archive
+vérifiée il y a quatre mois ne se regarde pas comme une vérifiée ce matin, et « 19/08/2026 » ne
+disait pas lequel des deux c'était.
+
+🔴 **Aucun seuil de péremption, et c'est décidé, pas oublié.** Le verdict `reussie` est une
+**précondition fail-closed du serveur**, deux fois : il ouvre Restaurer et protège la dernière
+archive de la suppression. Une péremption « qui compte » aurait bloqué Papa au pire moment **et**
+affaibli l'invariant « jamais zéro filet » en silence. S'ajoutent : aucune mesure ne justifierait un
+nombre, et l'ADR-0023 §4 refuse tout ordonnanceur — une péremption ne peut donc **rien déclencher**.
+⚠️ N'afficher l'âge que « quand il est grand » serait un seuil déguisé : il s'affiche toujours.
+
+**`depuis()` gagne les jours, semaines, mois et ans.** Il s'arrêtait aux heures et rendait
+« il y a 2952 h » — juste et illisible. ⚠️ Ça change ce qu'il rend au-delà de 24 h **pour tous ses
+appelants** (`ProductionPopover`), assumé : un lot de production dure des minutes, et le seul cas
+atteignable est un travail resté en file pendant que le worker était mort, où « il y a 3 j » vaut
+mieux que « il y a 72 h ».
+
+🔴 **Un défaut de frontière trouvé par son test-verrou** : les mois divisaient par 30, les ans par
+365 — les jours **360 à 364** tombaient dans le trou et rendaient « il y a **0 an** ». La bascule se
+décide désormais en jours.
+
+**Mesuré à l'écran, et le rendu a changé deux fois à cause de ça** : glissé dans le libellé du
+badge, l'âge le faisait passer de **2 à 4 lignes** dans une cellule de 166 px et coupait
+« il y a 2 / j » — l'unité orpheline de son nombre, le défaut des 117 px de la slice 1. Retirer
+l'heure ne suffisait pas (la longueur de l'âge **varie**). Il vit donc **sous** la pastille, en
+`whitespace-nowrap`, dans sa teinte — **9,06:1** au lieu de 5,73 en gris. Badge revenu à 2 lignes,
+largeur du tableau inchangée.
 ## 0.99.18 — Quatre tests cessent d'être rouges deux heures par nuit
 
 > **Rangement** (cas 1 de l'ADR-0060) — aucun ADR. Entrée ici parce qu'un **défaut réel** est
