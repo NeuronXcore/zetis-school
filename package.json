@@ -19,6 +19,7 @@
     "dev:worker": "cd apps/backend && .venv/bin/python -m app.production_worker",
     "prod:up": "docker compose -f docker-compose.prod.yml up --build",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
-    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
+    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f",
+    "ports": "python3 scripts/carte_des_ports.py"
   }
 }

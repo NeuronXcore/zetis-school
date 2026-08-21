@@ -25,6 +25,25 @@ Scripts utilitaires (setup, seed DB, backups).
 | `migration/zetis-verify.sh` | **cible** — contrôle post-migration : conteneurs, base, volumétrie, MinIO, backend (lecture seule) |
 | `check_media_integrity.py` | confronte ce que la base **promet** aux fichiers qui existent — lit le backend RÉELLEMENT configuré, ne devine pas |
 | `mise-en-route.sh` | met une **nouvelle machine** en état de développer ZETIS — installe, puis **vérifie que chaque commande répond** |
+| `carte_des_ports.py` | `pnpm ports` — qui écoute quoi **maintenant** : démon, conteneurs, ports **nommés**, HTTP, journal du boot (lecture seule) |
+
+## `carte_des_ports.py` — l'état des ports, dérivé et non recopié
+
+`pnpm ports` répond à « quel port pour quoi » en lisant la machine, pas une table écrite d'avance.
+
+🔴 **Ses libellés sont DÉRIVÉS** de `.claude/launch.json` et des deux compose : une paire ajoutée
+apparaît dans la sortie sans qu'on touche au script. C'est l'ADR-0062 appliqué à l'outillage —
+*« si elle dérive, elle doit être DÉRIVÉE, pas écrite »* — et c'est ce qui le distingue de la
+page `docs/devops/ports.md`, qui porte la prose (les pièges, les raisons) et que garde le verrou
+`apps/backend/app/tests/test_carte_des_ports.py`.
+
+Il **sort toujours en 0** : c'est un rapport, pas un verrou. Lecture seule, sûr en pleine séance
+de Massimo. Il distingue « la prod sert ce port » d'une vraie collision `launch.json` en regardant
+les conteneurs — sans ce discriminant, les trois ports canoniques s'affichaient en faux heurt.
+
+⚠️ Comme `check_migration_drift.py`, il **déduit la racine du dépôt de sa propre position** : le
+déplacer sans rien dire casse la déduction (il le signale alors, plutôt que de rendre une carte
+vide).
 
 ## Le registre ADR — six scripts, un ordre imposé
 

@@ -1,5 +1,42 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.12 — La carte des ports, dérivée plutôt que recopiée
+
+> Rangement (cas 1 de l'ADR-0060 : rien n'est décidé, tout existait déjà — aucun ADR). Né d'une
+> question posée deux fois dans la même journée : *« quels ports pour le dev, pour la prod ? »*
+> La réponse vivait éparpillée entre deux compose, `launch.json` et une table de `DEPLOYMENT.md`
+> **périmée** — elle donnait 8000/5173/5174 comme ports « de développement » alors que ce sont
+> les ports canoniques que la prod tient en permanence, ignorait les six paires (8001 → 8005) et
+> annonçait joignable une console MinIO inerte.
+
+- **`docs/devops/ports.md`** — source unique : prod, paires de dev, infra de dev, et les pièges
+  qui coûtent une heure (la collision `5177`, la règle « un frontend avec SON backend », la paire
+  LAN seule joignable d'un iPhone, `pnpm dev` qui refuse de démarrer quand la prod tient les
+  ports). La table de `DEPLOYMENT.md` est remplacée par un renvoi qui **dit pourquoi** elle était
+  fausse ; `infra/docker/README.md` pointe vers la carte et voit sa plage de paires corrigée
+  (`8001→8005` / `5175→5181`, elle s'était arrêtée à 8004/5180).
+- **`scripts/carte_des_ports.py`** (`pnpm ports`) — l'état RÉEL de la machine : démon, 8
+  conteneurs, ports **nommés**, réponses HTTP, journal du démarrage au boot. Lecture seule, sort
+  toujours en 0. 🔴 **Ses libellés sont dérivés** de `launch.json` et des compose (ADR-0062
+  appliqué à l'outillage) : une paire ajoutée apparaît sans qu'on touche au script. Il distingue
+  « la prod sert ce port » d'une vraie collision en regardant les conteneurs — sans ce
+  discriminant les trois ports canoniques s'affichaient en faux heurt.
+- **Verrou `test_carte_des_ports.py`** — la carte porte de la prose qu'aucun script ne saurait
+  produire ; elle est donc écrite, et gardée : tout port de `launch.json` ou publié par un compose
+  doit y figurer, et **toute collision doit y être AVERTIE**, pas seulement listée.
+  ⚠️ La contre-épreuve a démasqué une première version trop faible : exiger que les deux noms
+  voisinent laissait passer une carte amputée de son avertissement, deux lignes de tableau
+  successives se citant l'une l'autre. C'est le **terme** de heurt qui mord. Chaque sabotage rend
+  désormais **un** rouge, le bon, décor intact.
+- Complémentaire de `test_compose_ports_cohabitent.py`, qui garde les compose entre eux et ne dit
+  rien de la documentation ni de `launch.json`.
+
+> 🧾 Dette laissée ouverte, sciemment : **`papa-srs` est un doublon exact de `papa-dev`** (même
+> frontend, même backend `8001`, seul le port change) — reliquat du 2026-07-04, d'une slice SRS
+> close depuis. C'est lui qui crée la collision `5177`, signalée deux fois dans `MEMORY.md` et
+> jamais traitée. La retirer est une ligne, mais `launch.json` était **hors périmètre** de ce
+> rangement : la carte la signale, le verrou l'empêche d'être oubliée.
+
 ## 0.99.11 — Le réveil clôt les travaux d'une autre époque
 
 > ADR-0066 Amendement 1, né du premier essai réel du geste (2026-08-19) : toute archive du
