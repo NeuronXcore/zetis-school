@@ -6,19 +6,23 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE) — `main` = `origin/main`, rien à
-> pousser, **aucune branche de chantier vivante** (`chore/la-case-cochee-ne-suffit-pas` supprimée
-> au merge, distante ET locale — la locale vivait dans un worktree d'agent, détaché depuis).
-> **Chantier du jour MERGÉ** : « la case cochée ne suffit pas » — PR #170, squash `4f6baa4`, doc
-> pure (cas 2 `adr-0060`, aucun ADR) : la condition hôte n°1 de l'autostart prod (case « Start
-> Docker Desktop when you sign in ») est neutralisable par BTM même cochée — diagnostic
-> `sfltool dumpbtm` + parade LaunchAgent hors dépôt `com.atlas.docker-on-nx`, consignés en tête
-> de `TROUBLESHOOTING.md` et dans `infra/docker/README.md`. Le run CI de `main` sur `4f6baa4`
-> attendu VERT avant ce 4bis (parade du #169, réf `b29a985`) — success, 3 min 44. Chantier
-> précédent : « le réveil clôt les fantômes » MERGÉ (PR #169, squash `0b7bdde`, CI verte du
-> premier coup) — l'ADR-0066 soldé DE BOUT EN BOUT (#167/#168/#169), détail section ci-dessous.
-> ℹ️ Branches de worktree d'agent `claude/fervent-stonebraker-bfa5b9` et
-> `claude/gallant-faraday-4eeef8` toujours là (infrastructure Claude Code).
+> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, deux fois ce jour) — `main` =
+> `origin/main`, rien à pousser, **aucune branche de chantier vivante**
+> (`chore/piege-pre-push-worktree` puis `chore/la-case-cochee-ne-suffit-pas` supprimées au
+> merge, distantes ET locales — les locales vivaient dans un worktree d'agent, détaché depuis).
+> **Deux chantiers doc MERGÉS ce jour** (cas 2 `adr-0060`, aucun ADR, doc pure) :
+> ① « la case cochée ne suffit pas » — PR #170, squash `4f6baa4` : la condition hôte n°1 de
+> l'autostart prod est neutralisable par BTM même cochée — diagnostic `sfltool dumpbtm` + parade
+> LaunchAgent hors dépôt `com.atlas.docker-on-nx` (`TROUBLESHOOTING.md` +
+> `infra/docker/README.md`) ; ② « le piège pre-push en worktree » — PR #171, squash `80916da` :
+> un worktree d'agent n'a pas l'outillage (`.venv`/`node_modules`/`graphify-out` ne suivent
+> pas), le hook y est toujours rouge — parade « pousser depuis le checkout principal », honnête
+> à deux conditions (`TROUBLESHOOTING.md`, en tête). Les runs CI de `main` sur chaque squash
+> attendus VERTS avant leur 4bis (parade du #169, réf `b29a985`). Chantier précédent : « le
+> réveil clôt les fantômes » MERGÉ (PR #169, squash `0b7bdde`) — l'ADR-0066 soldé DE BOUT EN
+> BOUT (#167/#168/#169), détail section ci-dessous. ℹ️ Branches de worktree d'agent
+> `claude/fervent-stonebraker-bfa5b9` et `claude/gallant-faraday-4eeef8` toujours là
+> (infrastructure Claude Code).
 > **La prod est RECONSTRUITE et vérifiée à l'écran** (2026-08-19, nuit — après l'incident VM et
 > le reboot du Mac) : 8/8 conteneurs `healthy` sur images neuves, `/backups` monté, cible
 > certifiée lue à travers, **première archive prod vérifiée** (`zetis-2026-08-19-1817.tar`,
@@ -37,11 +41,9 @@ vérifiée — voir l'en-tête et les dettes ✅ ci-dessous). Les candidats du p
 l'arbitrage du commanditaire : le chore sidebar (À CASER) · le toast + le lien Journal de la
 barre (À CASER, même famille — « comment un geste sauvegarde se raconte à Papa ») · le prochain
 sous-chantier de la phase E (occupation disque · purges/rétention · remises à zéro · export
-RGPD) · consigner dans `TROUBLESHOOTING.md` le piège « pre-push immesurable depuis un worktree
-d'agent » (vécu au push du #170 : `.venv`/`node_modules` absents du worktree → les trois suites
-« OUTIL ABSENT »/rouges à tort ; parade prouvée : pousser depuis le checkout principal PROPRE sur
-le parent exact de la branche, pas `--no-verify` — rangement doc, pastille d'agent posée le
-2026-08-21) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3.
+RGPD) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3. (Le candidat
+« consigner le piège pre-push en worktree » du matin est SOLDÉ le jour même — PR #171, squash
+`80916da`.)
 
 **FAIT (MERGÉ : PR #169, squash `0b7bdde` — 7 fichiers avec la clôture, +275/−214) :**
 
