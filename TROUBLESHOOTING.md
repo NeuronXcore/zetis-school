@@ -4,6 +4,40 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Amorcer un bloc GÉNÉRÉ et en REMPLIR les cellules sont deux gestes différents — 2026-08-21
+
+A rendu la CI de **`main`** rouge, sur le verrou « le tableau Amendements n'a pas dérivé de ses
+sections ».
+
+Une dette connue dit que `gen_tableau_amendements.py` **ne crée jamais** le bloc
+`> ### Amendements` — le premier amendement d'un ADR doit donc l'**amorcer à la main**. Vrai, et
+c'est ce qui a été fait. Mais la même main a **rempli la cellule** de la colonne `Révoque` avec une
+prose utile (« le binaire du §2 ») là où le script dérive une valeur (`oui`). Le bloc porte
+pourtant sa propre mise en garde en dernière ligne : *« ne pas éditer à la main »*.
+
+🔴 **La dette ne couvrait que l'amorce ; elle a été lue comme si elle couvrait le contenu.** C'est
+le mode d'échec général d'une exception documentée : on retient qu'il y a une exception, on oublie
+où elle s'arrête.
+
+**Parade** : après avoir amorcé un bloc généré, **relancer le générateur avec `--write`** et
+committer ce qu'il produit, jamais ce qu'on a écrit. Ici : `python3
+scripts/gen_tableau_amendements.py docs/decisions --write`, puis `--check` doit sortir en **0**.
+
+⚠️ **Le verrou de CI, lui, a parfaitement fonctionné** — c'est même sa raison d'être, écrite dans
+le workflow : *« sans ce verrou, la mention "ne pas éditer à la main" est un vœu, pas un fait »*.
+
+**Corollaire de placement, vérifié plutôt que supposé** : le défaut vivait dans un commit de
+`main`, donc la CI de `main` était rouge elle aussi. Le correctif appartenait à `main`, pas à la
+branche en cours — un `git stash` pour l'y porter, puis un `rebase` de la branche et un
+`--force-with-lease` (jamais `--force`). Vérifier `gh run list --branch main` avant de choisir où
+réparer : c'est ce qui a tranché.
+
+**Bonus attrapé au passage** : le script signalait que le verdict de révocation de cet amendement
+était obtenu **par repli heuristique**, et demandait de l'inscrire dans `REVOCATION_DECLAREE`. Le
+repli rendait déjà la bonne valeur — l'inscription la fait passer d'**inférée à déclarée**, avec
+sa citation. ⚠️ `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours la
+sienne.
+
 ## 🔴 Un test de contrat qui ne compare que les clés de PREMIER NIVEAU ne mord pas — 2026-08-21
 
 Chantier `feat/la-fin-d-un-geste-se-raconte`, slice 1. Le test « la réponse a exactement les clés

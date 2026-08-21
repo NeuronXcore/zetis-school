@@ -6,12 +6,32 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, étape 4bis FAITE) — `main` = `origin/main`, **rien à
-> pousser**, **aucune branche de chantier vivante** (`feat/la-fin-d-un-geste-se-raconte` supprimée
-> au merge, distante ET locale — vérifié). Un seul checkout, une seule branche.
->
-> ⚠️ **La CI de `main` sur le squash `8a315e0` reste à voir VERTE** avant d'y bâtir la slice 2
-> (parade du chantier #169).
+> **Où en est le dépôt** (2026-08-21, étape 4bis FAITE **deux fois** ce jour) — `main` =
+> `origin/main`, **rien à pousser**, **aucune branche de chantier vivante** (`feat/la-fin-d-un-geste-
+> se-raconte` puis `fix/reussie-veut-dire-zero-ecart` supprimées au merge, distantes ET locales —
+> vérifié). Un seul checkout, une seule branche. CI de `main` verte sur `8a315e0`.
+
+### ✅ AMENDEMENT 1 « RÉUSSIE VEUT DIRE ZÉRO ÉCART » — **MERGÉ** (PR #175, squash `e4d707f`)
+
+Cas **2** de l'ADR-0060 (application — aucun ADR neuf, et celui qu'on exécute est cité :
+**ADR-0067, Amendement 1**, écrit et commité sur `main` juste avant, `60a8448`).
+
+`restauration.verdict` prend **trois** valeurs : `reussie` (au bout **ET zéro écart**) ·
+`avec_ecarts` · `interrompue`. ⚠️ **`avec_ecarts` n'est PAS un échec** — la base est remplacée, les
+médias sont en place, le monde s'est réveillé suspendu ; le rendre comme une panne enverrait Papa
+relancer un second swap.
+
+**Le motif, à ne pas re-débattre** : sur la même page, le verdict de **vérification** signifie déjà
+« zéro écart » (`"reussie" if not ecarts else "echec"`, `sauvegarde.py:686`) — celui qui fait qu'une
+archive mérite le mot « sauvegarde ». La slice 1 donnait au même mot un second sens. ⚠️ Le
+raisonnement était parti **dans l'autre sens** (« ne pas inventer de vocabulaire pour un cas jamais
+observé », et le cas ne s'était jamais produit) : c'est cette ligne 686, non vue au cadrage, qui l'a
+retourné.
+
+**Chiffres** : au changement, **1572 verts / 0 rouge** — aucun cas déjà exercé ne bouge, et aucun
+test ne couvrait le cas neuf ; c'est ce qui le rendait facile à bénir. Après verrous : **1575**
+(compte vérifié DANS LA CI, pas seulement en local). Contre-épreuve : binaire réintroduit ⇒ 2
+rouges, les bons.
 
 ### ✅ SLICE 1/2 « LE VERDICT : LE SIDECAR CESSE D'ÊTRE JETÉ » — **MERGÉE** (PR #174, squash `8a315e0`)
 
@@ -39,7 +59,8 @@ par `restauration`, des deux côtés dans le même lot. Contrat **capturé** dep
 - Le renoncement de l'attente **ne rend aucun verdict** (§1.5).
 - Le motif est rendu **tel quel** — aucune table de traduction.
 
-**🔴 LE POINT NON TRANCHÉ, à remonter à l'ADR** : `journal.ecart()` est **réellement appelé**
+**✅ ~~LE POINT NON TRANCHÉ~~ — TRANCHÉ ET APPLIQUÉ le jour même** (Amendement 1, PR #175) :
+`journal.ecart()` est **réellement appelé**
 (`sauvegarde.py`, étape recyclage ⑧). Une restauration peut donc **se terminer AVEC des écarts**,
 et le §2 la fait alors lire « **réussie · 1 écart** » — le verdict est adossé au seul `termine_le`.
 Implémenté selon la lettre de l'ADR, **signalé, pas décidé seul**. Si ça doit changer, c'est un
@@ -96,12 +117,21 @@ retour à la ligne** · `autoPort` sur un serveur dont le pair code le port en d
   `annexes/rapport-revocations.md`) : le correctif et ses trois verrous sont sur `main`, **non
   poussés**. Plus besoin de restaurer le rapport à la main.
 
-**PROCHAIN PAS, dans cet ordre :**
+**🔴 LE PIÈGE DU JOUR, et il a rendu `main` ROUGE** : *amorcer un bloc généré et en REMPLIR les
+cellules sont deux gestes différents.* Le tableau d'amendements a été amorcé à la main (dette
+connue : le script ne crée jamais le bloc) — mais sa cellule `Révoque` a été **écrite** au lieu
+d'être **dérivée**. `TROUBLESHOOTING.md`, en tête. ⚠️ Parade : après toute amorce d'un bloc généré,
+relancer `--write` et committer ce que le script produit. Et **vérifier `gh run list --branch main`
+avant de choisir OÙ réparer** — c'est ce qui a montré que le correctif appartenait à `main`
+(`d3a3fc3`), pas à la branche, laquelle a été rebasée puis `--force-with-lease`.
 
-1. **Trancher (ou non) le point « réussie · N écarts »** — un addendum d'une ligne à l'ADR-0067.
-   ⚠️ **À faire AVANT la slice 2**, qui rendra ce verdict à l'écran : le décider après reviendrait
-   à le justifier.
-2. **Slice 2**, sur une **branche neuve** depuis `main` — le prompt est déjà écrit
+**RÉSIDU porté ici** : `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa
+confirmation dans `REVOCATION_DECLAREE` de `gen_tableau_amendements.py` (repli « — », c'est-à-dire
+« ne révoque rien », ce que sa section dit bien). Chantier antérieur, jamais traité.
+
+**PROCHAIN PAS :**
+
+1. **Slice 2**, sur une **branche neuve** depuis `main` — le prompt est déjà écrit
    (`prompts/claude-code/prompts-claude-code-adr-0067.md`), avec les mesures d'écran en tête de sa
    section. ⚠️ **Pas de `/ouverture`** : l'ADR existe déjà, la branche part directement.
 3. Après la slice 2 : le **compte rendu de surface** (cas 4 de l'ADR-0060), écrit **dans la même
