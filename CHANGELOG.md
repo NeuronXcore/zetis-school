@@ -1,5 +1,42 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.14 — Une restauration interrompue cesse de se lire comme une archive jamais restaurée
+
+> **ADR-0067, slice 1/2.** Cas **3** de l'ADR-0060 (décision neuve), cadré la veille du code sur
+> `main`. La slice 2 — l'attente armée, le toast de succès, l'état persistant d'échec — suit.
+
+Jusqu'ici, `GET /api/settings/donnees` ne lisait **qu'une seule clé** du sidecar
+`.restauration.json` : `termine_le`. Une restauration arrêtée en route rendait donc `null`, et
+s'affichait **exactement comme une archive jamais restaurée**.
+
+🔴 Le sidecar portait pourtant déjà l'étape fautive et son motif — `_JournalRestauration.echouer()`
+les écrit **avant** de laisser l'exception remonter, précisément pour que le fichier survive au
+crash. **L'information existait sur le disque ; aucune ligne de code ne la demandait.** Ce
+changement ne produit rien de neuf : il cesse de jeter ce qui était écrit.
+
+Ce que la page reçoit désormais, par archive :
+
+```txt
+restauration: { termine_le, verdict, etape_arretee, motif, ecarts } | null
+```
+
+`verdict` vaut `reussie` ou `interrompue` ; `etape_arretee` est le nom **brut** du journal serveur
+et `motif` est rendu **tel quel** (aucune table « motif technique → phrase douce », doctrine
+ADR-0041 §8). `null` ne signifie plus qu'une chose : **jamais restaurée**.
+
+⚠️ **Rupture de contrat assumée** : le champ `restauree_le` est **remplacé**, pas doublé — deux
+formulations d'un même fait finissent par diverger. Le renommage est fait des deux côtés dans le
+même lot, et gardé par un **contrat capturé** depuis le serveur réel
+(`packages/types/contracts/donnees.example.json`) que deux tests relisent, un de chaque côté : la
+seule parade contre un renommage de clé, que ni la suite backend ni la suite front ne voient
+lorsqu'elles sont seules.
+
+**Aucun changement visible à l'écran dans cette slice** : « ↺ restaurée le … » s'affiche comme
+avant, seule la clé lue change. Ce que Papa verra d'un geste interrompu se décide en slice 2 —
+la relecture visuelle a d'ailleurs montré que l'emplacement actuel ne peut pas l'accueillir (la
+mention se coupe en deux lignes dans une colonne de 117 px, sous un nom de fichier qui se coupe
+déjà).
+
 ## 0.99.13 — L'emoji ZETIS mène là où l'autonomie se règle
 
 > Cas **2** de l'ADR-0060 (application : la règle existe déjà, on l'exécute) — aucun ADR, mais

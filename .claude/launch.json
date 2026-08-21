@@ -117,7 +117,9 @@
         "-c",
         "cd /Volumes/NX-Projects/ZETIS/apps/backend || exit 1\nexport ZETIS_CORS_ORIGINS='[\"http://localhost:5181\"]'\nexport ZETIS_BACKUP_DIR=/Volumes/NX-Models/zetis-sauvegardes-dev\nexport PRODUCTION_WORKER_SUPERVISED=true\n.venv/bin/python -m app.production_worker &\nWORKER_PID=$!\ntrap 'kill \"$WORKER_PID\" 2>/dev/null || true' EXIT INT TERM\n.venv/bin/uvicorn app.main:app --port 8005"
       ],
-      "port": 8005
+      "port": 8005,
+      "// autoPort": "false ASSUMÉ : 8005 est CODÉ EN DUR dans le front appairé (VITE_API_URL) et le CORS est épinglé sur http://localhost:5181. Un port attribué automatiquement laisserait le frontend appeler un 8005 mort — panne SILENCIEUSE, l'écran se chargeant sans données. Le port fait partie de la paire, il ne se déplace pas seul.",
+      "autoPort": false
     },
     {
       "name": "papa-restauration",

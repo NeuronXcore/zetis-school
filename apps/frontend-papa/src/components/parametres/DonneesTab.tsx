@@ -274,12 +274,15 @@ export function DonneesTab() {
                     <tr key={a.nom} className="border-b border-papa-border/60">
                       <td className="py-2.5 pr-3 font-mono text-xs">
                         {a.nom}
-                        {/* L'état « restaurée le … » (ADR-0066 §7) — du sidecar
-                            `.restauration.json`, seul survivant du geste : la ligne du travail
-                            est morte au swap, c'est ici que l'histoire se lit. */}
-                        {a.restauree_le && (
+                        {/* L'état du dernier geste (ADR-0067 §2) — du sidecar
+                            `.restauration.json`, seul survivant : la ligne du travail est morte
+                            au swap, c'est ici que l'histoire se lit.
+                            ⚠️ Cette slice ne rend QUE le succès. Le serveur sait désormais
+                            qu'un geste s'est interrompu (`verdict: "interrompue"`, son étape,
+                            son motif) — l'état persistant qui le MONTRE est la slice 2 (§3). */}
+                        {a.restauration?.termine_le && (
                           <span className="mt-0.5 block font-sans text-[11px] text-papa-muted">
-                            ↺ restaurée le {quand(a.restauree_le)}
+                            ↺ restaurée le {quand(a.restauration.termine_le)}
                           </span>
                         )}
                       </td>

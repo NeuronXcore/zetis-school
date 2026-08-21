@@ -3061,7 +3061,7 @@ pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify
                 sha256?, lignes?, tables?,       #   pas du mtime ; sidecar illisible ⇒ champs
                 verification?,                   #   null, l'archive s'affiche quand même
                 restaurable, motif?,             # compatibilité ADR-0066 §5 (voir ci-dessous)
-                restauree_le? } ],               # « restaurée le … » (ADR-0066 §7, ci-dessous)
+                restauration? } ],              # le dernier geste de restauration (ADR-0067 §2)
   derniere_verification? }                       # résumé du dernier backup_verify réussi
 ```
 
@@ -3077,7 +3077,24 @@ true` ; tête inconnue (archive plus récente que le code, ou étrangère), mani
 tête ⇒ `false` + motif (fail-closed). ⚠️ Il ne dit RIEN de l'intégrité — ça, c'est
 `verification` : la route de restauration exige **les deux** verdicts favorables.
 
-`restauree_le` (ADR-0066 §7) : « restaurée le … », lu du sidecar `<archive>.restauration.json`
-(§3) — le **seul survivant du geste**, la ligne `ai_jobs` du travail étant morte au swap. C'est
-le `termine_le` du sidecar : `null` = jamais restaurée, geste interrompu (un swap à moitié
-franchi n'a pas droit au mot) ou sidecar illisible.
+`restauration` (ADR-0067 §2) : le **dernier geste de restauration** visant cette archive, lu du
+sidecar `<archive>.restauration.json` (ADR-0066 §3) — le **seul survivant du geste**, la ligne
+`ai_jobs` du travail étant morte au swap.
+
+```txt
+{ termine_le?,        # null = geste INTERROMPU : le journal n'a jamais été clos
+  verdict,            # "reussie" | "interrompue" — adossé à `termine_le`
+  etape_arretee?,     # le nom BRUT du journal serveur (filet · restauration · reveil · swap ·
+                      #   medias · purge_files · migrations · recyclage), jamais un libellé réécrit
+  motif?,             # celui du sidecar, RENDU TEL QUEL (doctrine ADR-0041 §8)
+  ecarts }            # comptés à côté du verdict — ils ne le changent pas
+```
+
+🔴 **`restauration: null` ne signifie plus qu'une chose : jamais restaurée** (ou sidecar
+illisible — l'archive s'affiche quand même). Jusqu'au 2026-08-21, un geste **interrompu** rendait
+`null` lui aussi : à l'écran il était indiscernable d'une archive jamais restaurée, alors que le
+sidecar portait déjà l'étape fautive et son motif. C'est cette confusion que l'ADR-0067 casse —
+l'information existait, personne ne la demandait.
+
+⚠️ **Ce champ REMPLACE `restauree_le`**, il ne s'y ajoute pas : deux formulations d'un même fait
+finissent par diverger. Contrat capturé : `packages/types/contracts/donnees.example.json`.

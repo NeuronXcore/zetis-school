@@ -1,0 +1,72 @@
+{
+    "certificat": {
+        "valable": true,
+        "motif": null,
+        "cible": "/Volumes/NX-Models/zetis-sauvegardes-dev"
+    },
+    "archives": [
+        {
+            "nom": "zetis-2026-08-19-1847.tar",
+            "taille": 50585600,
+            "cree_le": "2026-08-19T18:47",
+            "sha256": "2b8d737ce2d2bc9bea1ebc69060d6b6fed206cc10c9e45b527301ae12a723c9f",
+            "lignes": 9170,
+            "tables": 48,
+            "verification": {
+                "archive": "zetis-2026-08-19-1847.tar",
+                "verdict": "reussie",
+                "verifie_le": "2026-08-19T17:01:10.714888+00:00",
+                "ecarts": 0
+            },
+            "restaurable": true,
+            "motif": null,
+            "restauration": null
+        },
+        {
+            "nom": "zetis-2026-08-19-1846.tar",
+            "taille": 50585600,
+            "cree_le": "2026-08-19T18:46",
+            "sha256": "f915af3eed41363f01412e97e30ebda2ae0b5c6f588ed7843de095051f29fddb",
+            "lignes": 9172,
+            "tables": 48,
+            "verification": {
+                "archive": "zetis-2026-08-19-1846.tar",
+                "verdict": "reussie",
+                "verifie_le": "2026-08-19T17:01:19.591909+00:00",
+                "ecarts": 0
+            },
+            "restaurable": true,
+            "motif": null,
+            "restauration": null
+        },
+        {
+            "nom": "zetis-2026-08-19-1844.tar",
+            "taille": 50575360,
+            "cree_le": "2026-08-19T18:44",
+            "sha256": "45cf9239f6418d63c63a37af9b0ee8ff0790c824896e63aa75038eb8e00c4010",
+            "lignes": 9169,
+            "tables": 48,
+            "verification": {
+                "archive": "zetis-2026-08-19-1844.tar",
+                "verdict": "reussie",
+                "verifie_le": "2026-08-19T17:01:17.344655+00:00",
+                "ecarts": 0
+            },
+            "restaurable": true,
+            "motif": null,
+            "restauration": {
+                "termine_le": "2026-08-19T16:46:16.708438+00:00",
+                "verdict": "reussie",
+                "etape_arretee": null,
+                "motif": null,
+                "ecarts": 0
+            }
+        }
+    ],
+    "derniere_verification": {
+        "archive": "zetis-2026-08-19-1846.tar",
+        "verdict": "reussie",
+        "verifie_le": "2026-08-19T17:01:19.591909+00:00",
+        "ecarts": 0
+    }
+}

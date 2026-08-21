@@ -1483,6 +1483,49 @@ def _resume_verdict(sortie: dict) -> dict:
     }
 
 
+def _resume_restauration(sidecar: Path) -> dict | None:
+    """Ce que la page dit du DERNIER geste de restauration visant cette archive — lu du sidecar
+    `.restauration.json` (ADR-0066 §3), le seul survivant : la ligne `ai_jobs` meurt au swap.
+
+    🔴 **Un geste interrompu cesse d'être muet** (ADR-0067 §2). Jusqu'au 2026-08-21 seul
+    `termine_le` était lu : une restauration arrêtée en route rendait `None`, donc s'affichait
+    exactement comme une archive **jamais restaurée** — alors que le sidecar portait déjà l'étape
+    fautive et son motif, écrits par `_JournalRestauration.echouer()` AVANT que l'exception ne
+    remonte. L'information existait sur le disque ; aucune ligne de code ne la demandait.
+
+    `None` = aucun sidecar (jamais restaurée) **ou** sidecar illisible : l'archive s'affiche
+    quand même — cacher un fichier présent sur la cible serait un mensonge (même règle que le
+    `.sha256`).
+
+    ⚠️ `etape_arretee` est le nom BRUT du journal (`ETAPES_RESTAURATION`), jamais un libellé
+    réécrit ici ; `motif` est rendu TEL QUEL — une table « motif technique → phrase douce » est
+    exactement ce que l'ADR-0041 §8 a écarté.
+    """
+    if not sidecar.is_file():
+        return None
+    try:
+        donnees = json.loads(sidecar.read_text(encoding="utf-8"))
+        etapes = donnees.get("etapes") or []
+        # Le DERNIER pas en échec : un journal réécrit à chaque étape peut en porter plusieurs
+        # si quelqu'un a rejoué le geste, et c'est le plus récent qui raconte l'arrêt courant.
+        echec = next(
+            (e for e in reversed(etapes) if isinstance(e, dict) and e.get("statut") == "echec"),
+            None,
+        )
+        termine_le = donnees.get("termine_le")
+        return {
+            "termine_le": termine_le,
+            # Binaire adossé à `termine_le` (§2) : le geste est allé au bout, ou il s'est arrêté.
+            # Les écarts se comptent À CÔTÉ — ils ne changent pas le verdict.
+            "verdict": "reussie" if termine_le else "interrompue",
+            "etape_arretee": (echec or {}).get("etape"),
+            "motif": (echec or {}).get("motif"),
+            "ecarts": len(donnees.get("ecarts") or []),
+        }
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
 def etat_donnees(db: Session) -> dict:
     """`GET /donnees` (§7) : archives, certificat, dernière vérification.
 
@@ -1557,18 +1600,9 @@ def etat_donnees(db: Session) -> dict:
                     # Sidecar illisible : l'archive s'affiche quand même, sans ses comptes —
                     # la page ne cache jamais un fichier qui existe sur la cible.
                     pass
-            # L'état « restaurée le … » (ADR-0066 §7) : lu du sidecar `.restauration.json` (§3),
-            # le seul survivant du geste — la ligne `ai_jobs` est morte au swap. `termine_le`
-            # nul (geste interrompu) ⇒ pas restaurée : un swap à moitié n'a pas droit au mot.
-            restauree_le = None
-            sidecar_restauration = dossier / f"{nom}.restauration.json"
-            if sidecar_restauration.is_file():
-                try:
-                    restauree_le = json.loads(
-                        sidecar_restauration.read_text(encoding="utf-8")
-                    ).get("termine_le")
-                except (OSError, ValueError, TypeError, AttributeError):
-                    restauree_le = None  # illisible : l'archive s'affiche sans cet état
+            # L'état du dernier geste de restauration (ADR-0067 §2) — le sidecar en entier,
+            # plus seulement `termine_le`. Voir `_resume_restauration`.
+            restauration = _resume_restauration(dossier / f"{nom}.restauration.json")
             # ⚠️ Pas `motif` tout court : ce nom porte déjà le refus du CERTIFICAT plus haut,
             # et le `return` le relit — l'écraser ici ferait dire au certificat le verdict de
             # la dernière archive (payé une fois : suite rouge du 2026-08-19).
@@ -1592,7 +1626,7 @@ def etat_donnees(db: Session) -> dict:
                     "verification": verdicts.get(nom),
                     "restaurable": restaurable,
                     "motif": motif_compat,
-                    "restauree_le": restauree_le,
+                    "restauration": restauration,
                 }
             )
 

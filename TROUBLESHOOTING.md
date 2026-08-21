@@ -4,6 +4,80 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un test de contrat qui ne compare que les clés de PREMIER NIVEAU ne mord pas — 2026-08-21
+
+Chantier `feat/la-fin-d-un-geste-se-raconte`, slice 1. Le test « la réponse a exactement les clés
+du contrat » a été copié du patron `autonomy` :
+
+```python
+assert sorted(corps["archives"][0]) == sorted(contrat["archives"][0])
+```
+
+Il compare les clés **de l'archive**. Or le chantier changeait un objet **imbriqué**
+(`archive.restauration`). Renommer un champ à l'intérieur ne bouge **aucune** clé au niveau
+comparé : le test restait **VERT** avec `motif` renommé côté serveur.
+
+⚠️ **Trouvé en écrivant la contre-épreuve, pas en écrivant le test.** Un test de contrat rédigé
+sans sa mutation de preuve est une décoration : il faut le voir rougir. Parade posée — une seconde
+assertion sur les clés de l'objet imbriqué, prise sur l'archive du contrat qui en porte un :
+
+```python
+attendu = next(a["restauration"] for a in contrat["archives"] if a["restauration"] is not None)
+assert sorted(reponse) == sorted(attendu)
+```
+
+**Corollaire pour la capture** : un contrat capturé sur une cible où le cas n'existe pas (ici :
+aucune archive restaurée) rend `null` et ne garde **rien** des sous-clés. Capturer depuis la
+cible de DEV — la seule à porter une restauration réelle — était la condition pour que ce fichier
+serve à quelque chose. Un test dédié le verrouille (`test_le_contrat_porte_les_cinq_cles…`).
+
+## ⚠️ Une assertion « ce mot n'apparaît nulle part » échoue sur SA PROPRE prose — 2026-08-21
+
+Deux fois dans la même journée, sur deux chantiers différents :
+
+- un script de migration de champ finissait par `assert "restauree_le" not in t` — **rouge**,
+  parce que la docstring qu'il venait d'insérer explique *« ce champ REMPLACE `restauree_le` »* ;
+- un test à faux ADR nommait ses jouets en majuscules, ce que `check_adr_refs.sh` refuse — et le
+  **commentaire écrit pour l'interdire** portait le motif interdit, donc échouait aussi.
+
+**Parade** : viser la **déclaration**, pas la chaîne. `re.search(r"^\s*restauree_le\s*:", t, re.M)`
+plutôt que `"restauree_le" in t`. Et pour un motif interdit dans un commentaire : le **décrire**
+sans l'**écrire**. La prose qui documente un retrait cite forcément ce qui est retiré — c'est une
+qualité, pas un oubli.
+
+## 🔴 Un texte peint, lisible, contrasté — et invisible quand même : il PASSE À LA LIGNE — 2026-08-21
+
+Relecture visuelle de la slice 1. Le commanditaire ne voyait pas la mention « ↺ restaurée le … »
+alors qu'elle figurait dans le texte qu'il copiait de la page. Mesuré au DOM :
+
+| Mesure | Valeur |
+|---|---|
+| `visibility` / `opacity` | `visible` / `1` |
+| Contraste | **5,73:1** — passe AA |
+| Taille | 11 px |
+| 🔴 Lignes peintes | **2** |
+| Largeur de la cellule | **117 px** |
+
+La mention se coupe en deux **juste sous un nom de fichier monospace qui se coupe déjà lui-même** :
+elle ne se lit pas comme une information distincte, elle se confond avec le retour à la ligne du
+nom. **1572 tests backend et 881 tests front étaient verts** — aucun ne pouvait voir ça.
+
+⚠️ **Le réflexe « c'est un problème de contraste » est faux ici, et il aurait coûté une demi-heure**
+— la couleur passe AA. La bonne question n'est pas *« comment ne pas couper cette ligne »* mais
+*« où vit cette information dans ce tableau »*. Reporté à la slice 2, qui apporte le second état
+(l'échec, plus long) : c'est lui qui rend la décision d'emplacement possible.
+
+## ⚠️ `autoPort: true` sur un serveur dont le port est CODÉ EN DUR chez son pair = panne silencieuse — 2026-08-21
+
+La paire d'essai `backend-restauration` (8005) / `papa-restauration` (5181) épingle 8005 **deux
+fois** : `VITE_API_URL=http://localhost:8005` côté front, et `ZETIS_CORS_ORIGINS=["…:5181"]` côté
+back. Laisser le préview attribuer un port automatiquement ferait partir le backend ailleurs
+pendant que le front continue d'appeler un 8005 mort — **l'écran se charge, sans données, sans
+erreur**. `"autoPort": false` est posé sur l'entrée, avec son motif écrit à côté.
+
+⚠️ Et quand le port est « occupé » : vérifier **à qui** avant de tuer (`lsof -nP -iTCP:<port>
+-sTCP:LISTEN`). C'était un uvicorn lancé par la session elle-même quelques minutes plus tôt.
+
 ## 🔴 Un verrou de documentation qui n'exige que le VOISINAGE ne verrouille RIEN — c'est le TERME qui mord — 2026-08-21
 
 Écrit au chantier `chore/carte-des-ports` : `test_carte_des_ports.py` devait garantir que toute

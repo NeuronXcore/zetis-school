@@ -46,7 +46,7 @@ function archive(surcharge: Partial<ArchiveSauvegarde> = {}): ArchiveSauvegarde 
     verification: null,
     restaurable: true,
     motif: null,
-    restauree_le: null,
+    restauration: null,
     ...surcharge,
   };
 }
@@ -300,7 +300,19 @@ describe("restaurer", () => {
 
   it("« restaurée le … » s'affiche sous l'archive — l'état vient du sidecar via le GET", async () => {
     vi.mocked(fetchDonnees).mockResolvedValue(
-      donnees({ archives: [verifiee({ restauree_le: "2026-08-19T21:12:00+00:00" })] }),
+      donnees({
+        archives: [
+          verifiee({
+            restauration: {
+              termine_le: "2026-08-19T21:12:00+00:00",
+              verdict: "reussie",
+              etape_arretee: null,
+              motif: null,
+              ecarts: 0,
+            },
+          }),
+        ],
+      }),
     );
 
     render(<DonneesTab />);
