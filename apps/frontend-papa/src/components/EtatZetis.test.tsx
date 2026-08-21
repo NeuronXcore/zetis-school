@@ -5,6 +5,9 @@ import { type Autonomy } from "@zetis/types";
 
 import { NIVEAU_DESCRIPTION, NIVEAU_LABEL } from "../lib/settings";
 import { type AutonomyState } from "../hooks/useAutonomyState";
+// La LISTE des onglets rendus, pas une chaîne recopiée : c'est elle qui rend le verrou de la
+// cible du lien capable de voir un renommage d'onglet.
+import { ONGLETS } from "./parametres/OngletsParametres";
 import { EtatZetis } from "./EtatZetis";
 
 function ready(overrides: Partial<Autonomy> = {}): AutonomyState {
@@ -226,9 +229,23 @@ describe("EtatZetis", () => {
   it("est un LIEN vers les Paramètres — il lit, il ne règle pas (§7.3)", () => {
     show(ready({ niveau: "semi" }));
     const lien = screen.getByRole("link");
-    expect(lien).toHaveAttribute("href", "/parametres");
+    // Le bloc montre l'autonomie : il mène là où elle se règle, pas à l'accueil des réglages.
+    // Sans le `?onglet=`, ce lien dupliquait l'entrée « ⚙️ Paramètres » de la barre.
+    expect(lien).toHaveAttribute("href", "/parametres?onglet=autonomie");
     // Aucun bouton : rien ne se change depuis ce bloc.
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("🔴 l'onglet visé EXISTE — sinon la page retombe sur la carte SANS LE DIRE", () => {
+    // `ParametresPage` garde son onglet par `estOngletRendu` (ADR-0062 §5) : un id inconnu
+    // ouvre la carte, en silence. Ce repli protège des signets périmés — mais il avalerait
+    // aussi ce lien-ci le jour où l'onglet serait renommé, et l'écran aurait l'air de marcher.
+    // Le verrou lie donc le lien à la LISTE des onglets rendus, pas à une chaîne recopiée.
+    show(ready({ niveau: "semi" }));
+    const cible = screen.getByRole("link").getAttribute("href") ?? "";
+    const onglet = new URLSearchParams(cible.split("?")[1] ?? "").get("onglet");
+    expect(onglet).toBe("autonomie");
+    expect(ONGLETS.map((o) => o.id)).toContain(onglet);
   });
 
   it("son nom accessible porte les DEUX axes, et l'image n'en porte aucun", () => {

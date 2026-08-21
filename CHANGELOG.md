@@ -1,5 +1,36 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.13 — L'emoji ZETIS mène là où l'autonomie se règle
+
+> Cas **2** de l'ADR-0060 (application : la règle existe déjà, on l'exécute) — aucun ADR, mais
+> celui qu'on exécute est cité : **ADR-0062 §5**, *« l'onglet vit dans l'URL : rechargement, lien
+> et retour arrière le gardent »*. Demande utilisateur du 2026-08-19, notée « À CASER » pendant la
+> clôture de la slice 1 du 0065.
+
+Le bloc **ZETIS** en haut de la barre de Papa **montre** l'autonomie (régime, déclencheur, halo) et
+menait à `/parametres` — donc à la carte. Il **dupliquait exactement** l'entrée « ⚙️ Paramètres »
+de la barre : deux portes pour la même pièce, dont aucune n'ouvrait sur la bonne. Il mène désormais
+à `/parametres?onglet=autonomie`, là où ce qu'il affiche se règle.
+
+- **Rien n'a été construit** : le mécanisme d'onglet par URL existait déjà de bout en bout
+  (`ParametresPage` lit `?onglet=`, `estOngletRendu` le garde, `ParametresPage.onglets.test.tsx`
+  le prouve). Une ligne changée, et le comportement était livrable.
+- **La carte reste la porte et le défaut de la page** (ADR-0062 §1) : c'est l'entrée ⚙️ qui la
+  sert, et elle n'est pas touchée.
+- 🔴 **Un verrou neuf contre un repli silencieux** : `estOngletRendu` fait retomber sur la carte
+  **sans rien dire** quand l'onglet demandé est inconnu — un filet voulu pour les signets périmés,
+  mais qui avalerait ce lien-ci le jour d'un renommage d'onglet, l'écran ayant l'air de marcher.
+  Le test lie donc la cible du lien à la **liste** `ONGLETS`, pas à une chaîne recopiée.
+  Contre-épreuve : l'ancien lien **et** un id d'onglet inexistant rendent chacun 2 rouges, les
+  bons, décor intact.
+- ⚠️ **Un test existant a été modifié** — celui qui assertait `href="/parametres"`. C'est le
+  comportement qui change, pas le verrou qu'on assouplit : son autre assertion (« aucun bouton :
+  ce bloc lit, il ne règle pas ») est conservée telle quelle.
+
+> 🧾 Noté, non traité : le nom accessible du lien dit « Ouvrir les Paramètres ». Il reste **vrai**
+> (l'onglet Autonomie est dans les Paramètres) mais il est moins précis qu'il ne pourrait l'être.
+> Un libellé est une **surface** (cas 4 `adr-0060`) : il se décide devant l'écran, pas en passant.
+
 ## 0.99.12 — La carte des ports, dérivée plutôt que recopiée
 
 > Rangement (cas 1 de l'ADR-0060 : rien n'est décidé, tout existait déjà — aucun ADR). Né d'une

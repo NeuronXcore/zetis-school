@@ -97,7 +97,17 @@ export function EtatZetis({ state }: { state: AutonomyState }) {
     >
     <NavLink
       ref={ancre}
-      to="/parametres"
+      // Le bloc MONTRE l'autonomie : il mène donc là où elle se RÈGLE, pas à l'accueil des
+      // réglages. Sans le `?onglet=`, ce lien dupliquait exactement l'entrée « ⚙️ Paramètres »
+      // de la barre (`PAPA_NAV`) — deux portes pour la même pièce, dont aucune n'ouvrait sur la
+      // bonne. La carte, elle, reste la porte et le défaut de la page (ADR-0062 §1) : c'est
+      // l'entrée ⚙️ qui la sert, et elle n'est pas touchée.
+      //
+      // ⚠️ `autonomie` doit rester un id d'onglet RENDU : `ParametresPage` retombe sinon sur la
+      // carte **sans le dire** (`estOngletRendu`, ADR-0062 §5 — le repli protège des signets
+      // périmés, mais il masquerait aussi ce lien-ci). Un verrou du test le tient contre
+      // `ONGLETS`.
+      to="/parametres?onglet=autonomie"
       aria-label={nomAccessible}
       aria-busy={state.status === "loading" || undefined}
       onFocus={montrer}
