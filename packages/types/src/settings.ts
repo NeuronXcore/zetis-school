@@ -206,6 +206,24 @@ export interface VerificationArchive {
   ecarts: number;
 }
 
+/** Le dernier geste de restauration visant une archive (ADR-0067 §2).
+ *
+ * 🔴 **Ce champ REMPLACE l'ancien « restaurée le … », il ne s'y ajoute pas** : deux formulations
+ * d'un même fait finissent par diverger. Son intérêt est le geste INTERROMPU, qui se lisait
+ * jusqu'ici comme une archive jamais restaurée — l'étape fautive et son motif étaient écrits
+ * dans le sidecar et n'étaient demandés par personne. */
+export interface RestaurationArchive {
+  /** `null` = geste interrompu : le journal n'a jamais été clos. */
+  termine_le: string | null;
+  /** `reussie` | `interrompue`. Adossé à `termine_le` ; les écarts se comptent à côté. */
+  verdict: string;
+  /** Le nom BRUT du journal serveur — jamais un libellé réécrit côté front. */
+  etape_arretee: string | null;
+  /** Rendu TEL QUEL (doctrine ADR-0041 §8 : aucune table de traduction). */
+  motif: string | null;
+  ecarts: number;
+}
+
 export interface ArchiveSauvegarde {
   nom: string;
   taille: number;
@@ -225,10 +243,11 @@ export interface ArchiveSauvegarde {
   /** Pourquoi pas restaurable — `null` quand `restaurable` est vrai (adr-0062 §6 : un cadenas
    *  muet se lit comme une panne). */
   motif: string | null;
-  /** « Restaurée le … » (ADR-0066 §7) — lu du sidecar `.restauration.json`, le seul survivant
-   *  du geste (la ligne du travail meurt au swap). `null` = jamais restaurée, ou geste
-   *  interrompu : un swap à moitié franchi n'a pas droit au mot. */
-  restauree_le: string | null;
+  /** Le dernier geste de restauration (ADR-0067 §2), lu du sidecar `.restauration.json` — le
+   *  seul survivant (la ligne du travail meurt au swap). `null` = jamais restaurée, ou sidecar
+   *  illisible. ⚠️ Un geste INTERROMPU n'est plus `null` : il porte son verdict, son étape et
+   *  son motif. */
+  restauration: RestaurationArchive | null;
 }
 
 export interface Donnees {

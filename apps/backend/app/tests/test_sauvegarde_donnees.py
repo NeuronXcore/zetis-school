@@ -187,14 +187,22 @@ def test_un_sidecar_manifeste_illisible_n_efface_pas_l_archive(
     assert archive["sha256"] is not None  # l'autre sidecar, lui, est intact
 
 
-# --- « Restaurée le … » vient du sidecar `.restauration.json` (ADR-0066 §3 et §7) ------------------
+# --- Le verdict de restauration vient du sidecar `.restauration.json` (ADR-0067 §2) --------------
+#
+# ⚠️ **Deux tests de ce bloc ont CHANGÉ DE COMPORTEMENT le 2026-08-21, et c'est voulu** — ce ne
+# sont pas des verrous desserrés pour passer au vert. Ils assertaient `restauree_le`, un champ que
+# l'ADR-0067 §2 REMPLACE. Surtout, le second figeait le défaut que ce chantier répare : il exigeait
+# qu'un geste interrompu réponde comme une archive jamais restaurée (sa docstring disait « et sans
+# sidecar du tout, même réponse »). C'est exactement cette confusion qui est cassée ici.
+#
+# Mesure du changement : 1564 tests verts, **2 rouges — ces deux-là et aucun autre**.
 
 
-def test_restauree_le_est_lu_du_sidecar_restauration(
+def test_le_verdict_de_restauration_est_lu_du_sidecar(
     client_db, cible, media, monkeypatch
 ) -> None:
-    """Le seul survivant du geste : la ligne `ai_jobs` du travail meurt au swap — c'est le
-    sidecar qui dit « restaurée le … », et le GET le relaie."""
+    """Le seul survivant du geste : la ligne `ai_jobs` meurt au swap — c'est le sidecar qui dit
+    ce qui s'est passé, et le GET le relaie."""
     import json as json_lib
 
     client, TestSession = client_db
@@ -207,27 +215,197 @@ def test_restauree_le_est_lu_du_sidecar_restauration(
     corps = client.get(API).json()
 
     (archive,) = corps["archives"]
-    assert archive["restauree_le"] == "2026-08-19T21:12:00+00:00"
+    assert archive["restauration"]["termine_le"] == "2026-08-19T21:12:00+00:00"
+    assert archive["restauration"]["verdict"] == "reussie"
+    assert archive["restauration"]["etape_arretee"] is None
+    assert archive["restauration"]["ecarts"] == 0
 
 
-def test_un_geste_interrompu_ne_rend_pas_restauree_le(
+def test_un_geste_interrompu_rend_son_etape_ET_son_motif(
     client_db, cible, media, monkeypatch
 ) -> None:
-    """`termine_le` nul = le geste s'est arrêté en route : un swap à moitié franchi n'a pas
-    droit au mot « restaurée » — et sans sidecar du tout, même réponse."""
+    """🔴 LE test du chantier — et il assert l'INVERSE de ce qu'il assertait avant.
+
+    Jusqu'au 2026-08-21, une restauration arrêtée en route rendait `None` : à l'écran, elle était
+    **indiscernable d'une archive jamais restaurée**. Le sidecar portait pourtant l'étape fautive
+    et son motif, écrits par `_JournalRestauration.echouer()` avant que l'exception ne remonte.
+    L'information existait ; personne ne la demandait (ADR-0067 §Contexte).
+    """
     import json as json_lib
 
     client, TestSession = client_db
     nom = _archive_valide(TestSession, cible, media, monkeypatch)
-
-    corps = client.get(API).json()
-    (archive,) = corps["archives"]
-    assert archive["restauree_le"] is None  # aucun sidecar : jamais restaurée
-
     (cible / f"{nom}.restauration.json").write_text(
-        json_lib.dumps({"archive": nom, "termine_le": None, "etapes": [{"etape": "swap"}]}),
+        json_lib.dumps(
+            {
+                "archive": nom,
+                "termine_le": None,
+                "etapes": [
+                    {"etape": "filet", "statut": "franchie"},
+                    {"etape": "medias", "statut": "echec", "motif": "bucket injoignable"},
+                ],
+                "ecarts": ["recyclage ⑧ non demandé"],
+            }
+        ),
         encoding="utf-8",
     )
+
     corps = client.get(API).json()
+
     (archive,) = corps["archives"]
-    assert archive["restauree_le"] is None
+    assert archive["restauration"]["verdict"] == "interrompue"
+    assert archive["restauration"]["termine_le"] is None
+    assert archive["restauration"]["etape_arretee"] == "medias"
+    # Rendu TEL QUEL — aucune table « motif technique → phrase douce » (ADR-0041 §8).
+    assert archive["restauration"]["motif"] == "bucket injoignable"
+    assert archive["restauration"]["ecarts"] == 1
+
+
+def test_une_archive_jamais_restauree_rend_null(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """Aucun sidecar = jamais restaurée. C'est le SEUL cas qui rend `null` — et il ne se confond
+    plus avec un geste interrompu, ce qui est tout l'objet du chantier."""
+    client, TestSession = client_db
+    _archive_valide(TestSession, cible, media, monkeypatch)
+
+    corps = client.get(API).json()
+
+    (archive,) = corps["archives"]
+    assert archive["restauration"] is None
+
+
+def test_un_sidecar_illisible_n_empeche_pas_l_archive_de_s_afficher(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """Même règle que le `.sha256` : cacher un fichier présent sur la cible serait un mensonge."""
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    (cible / f"{nom}.restauration.json").write_text("{ pas du JSON", encoding="utf-8")
+
+    corps = client.get(API).json()
+
+    (archive,) = corps["archives"]
+    assert archive["restauration"] is None
+    assert archive["nom"] == nom  # l'archive est là, et le reste de ses métadonnées aussi
+    assert archive["sha256"] is not None
+
+
+def test_l_etape_arretee_appartient_aux_etapes_du_journal(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """🔒 La valeur est liée à la CONSTANTE du journal, pas à une chaîne recopiée.
+
+    Une assertion sur `"medias"` en dur resterait verte le jour où quelqu'un renomme une étape
+    dans `ETAPES_RESTAURATION` — le dépôt a déjà payé ce patron ailleurs. Ici, le test rougit.
+    """
+    import json as json_lib
+
+    from app.modules.settings.sauvegarde import ETAPES_RESTAURATION
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    for etape in ETAPES_RESTAURATION:
+        (cible / f"{nom}.restauration.json").write_text(
+            json_lib.dumps(
+                {"archive": nom, "termine_le": None, "etapes": [{"etape": etape, "statut": "echec"}]}
+            ),
+            encoding="utf-8",
+        )
+        (archive,) = client.get(API).json()["archives"]
+        assert archive["restauration"]["etape_arretee"] in ETAPES_RESTAURATION
+
+
+def test_le_champ_restauree_le_ne_revient_pas(client_db, cible, media, monkeypatch) -> None:
+    """🔒 Cliquet — le champ REMPLACÉ par l'ADR-0067 §2 ne se réintroduit pas « pour
+    compatibilité ». Deux formulations d'un même fait finissent par diverger."""
+    client, TestSession = client_db
+    _archive_valide(TestSession, cible, media, monkeypatch)
+
+    (archive,) = client.get(API).json()["archives"]
+
+    assert "restauree_le" not in archive, (
+        "Le champ retiré est revenu : le §2 tranche pour UNE seule formulation."
+    )
+
+
+# --- Le contrat avec le front (ADR-0067) ---------------------------------------------------------
+#
+# ⚠️ **Ces deux tests sont la SEULE chose qui empêche un renommage de clé de passer inaperçu.**
+# Le reste de ce fichier teste le backend contre lui-même, et le front mocke `fetchDonnees` :
+# renommez une clé d'un seul côté et **les deux suites restent vertes**. C'est arrivé le
+# 2026-08-04 sur `preset` → `niveau`, et seul un appel réel l'a montré. Le remplacement du champ
+# de restauration (ADR-0067 §2) est exactement le même genre de renommage.
+#
+# Point de contact : `packages/types/contracts/donnees.example.json`, CAPTURÉ le 2026-08-21
+# depuis le backend réel (port 8005, cible de dev — la seule qui porte une archive réellement
+# restaurée). Relu ICI (la réponse a-t-elle ces clés ?) et LÀ-BAS (l'écran sait-il les lire ?).
+#
+# ⚠️ Le contrat se CAPTURE, il ne s'écrit pas — cf. le README du dossier.
+
+
+def _contrat_donnees() -> dict:
+    import json as json_lib
+    from pathlib import Path as P
+
+    racine = P(__file__).resolve().parents[4]
+    return json_lib.loads(
+        (racine / "packages/types/contracts/donnees.example.json").read_text(encoding="utf-8")
+    )
+
+
+def test_la_reponse_a_exactement_les_cles_du_contrat(
+    client_db, cible, media, monkeypatch
+) -> None:
+    """Une clé en plus est aussi grave qu'une clé en moins : la première dit qu'on a livré sans
+    mettre le contrat à jour, la seconde qu'on a cassé le front."""
+    import json as json_lib
+
+    client, TestSession = client_db
+    nom = _archive_valide(TestSession, cible, media, monkeypatch)
+    (cible / f"{nom}.restauration.json").write_text(
+        json_lib.dumps({"archive": nom, "termine_le": "2026-08-19T16:46:16.708438+00:00"}),
+        encoding="utf-8",
+    )
+
+    corps = client.get(API).json()
+    contrat = _contrat_donnees()
+
+    assert sorted(corps) == sorted(contrat), (
+        "La racine de la réponse ne correspond plus au contrat capturé. "
+        "Si c'est voulu : RE-CAPTURER le fichier ET adapter le front."
+    )
+    assert sorted(corps["archives"][0]) == sorted(contrat["archives"][0])
+
+    # 🔴 Et les clés IMBRIQUÉES, sinon le test ne mord pas là où le chantier a changé quelque
+    # chose : renommer un champ DANS `restauration` ne bouge aucune clé au niveau de l'archive.
+    # Relevé en écrivant la contre-épreuve — la première version de ce test passait au vert avec
+    # `motif` renommé côté serveur.
+    reponse = corps["archives"][0]["restauration"]
+    attendu = next(a["restauration"] for a in contrat["archives"] if a["restauration"] is not None)
+    assert reponse is not None, "l'archive de ce test porte un sidecar : elle doit rendre l'objet"
+    assert sorted(reponse) == sorted(attendu), (
+        "Les clés de `restauration` ne correspondent plus au contrat capturé."
+    )
+
+
+def test_le_contrat_porte_les_cinq_cles_de_la_restauration(client_db) -> None:
+    """🔴 Le cœur de l'ADR-0067 §2. ⚠️ Les VALEURS n'engagent rien — seules les clés font foi :
+    figer un horodatage rendrait ce test rouge au premier geste rejoué en dev, pour une raison
+    qui n'est pas une régression."""
+    contrat = _contrat_donnees()
+
+    restaurees = [a for a in contrat["archives"] if a["restauration"] is not None]
+    assert restaurees, (
+        "Le contrat capturé ne porte AUCUNE archive restaurée : il ne garde donc rien des "
+        "sous-clés du verdict. Re-capturer depuis une cible qui en a une."
+    )
+    assert sorted(restaurees[0]["restauration"]) == [
+        "ecarts",
+        "etape_arretee",
+        "motif",
+        "termine_le",
+        "verdict",
+    ]
+    # Le champ REMPLACÉ ne traîne nulle part dans la réponse capturée.
+    assert all("restauree_le" not in a for a in contrat["archives"])

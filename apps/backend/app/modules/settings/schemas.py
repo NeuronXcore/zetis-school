@@ -289,6 +289,30 @@ class VerificationArchiveOut(BaseModel):
     ecarts: int = 0
 
 
+class RestaurationArchiveOut(BaseModel):
+    """Le dernier geste de restauration visant cette archive (ADR-0067 §2) — lu du sidecar
+    `.restauration.json`, seul survivant : la ligne `ai_jobs` du travail meurt au swap.
+
+    🔴 **Ce champ REMPLACE l'ancien « restaurée le … », il ne s'y ajoute pas.** Garder les deux
+    ferait deux formulations d'un même fait, qui divergeraient — le §2 tranche pour une seule.
+
+    Le point du champ : un geste INTERROMPU se lisait jusqu'ici comme une archive jamais
+    restaurée. Il porte désormais son verdict, l'étape où il s'est arrêté et le motif.
+    """
+
+    #: `None` = geste interrompu (le sidecar existe, mais le journal n'a jamais été clos).
+    termine_le: str | None = None
+    #: `reussie` (le geste est allé au bout) | `interrompue`. Adossé à `termine_le` — les
+    #: écarts se comptent à côté et ne changent pas le verdict.
+    verdict: str
+    #: Le nom BRUT du journal (`ETAPES_RESTAURATION`) — jamais un libellé réécrit côté serveur.
+    etape_arretee: str | None = None
+    #: Rendu TEL QUEL. Une table « motif technique → phrase douce » est ce que l'ADR-0041 §8 a
+    #: écarté, et ce n'est pas à rouvrir ici.
+    motif: str | None = None
+    ecarts: int = 0
+
+
 class ArchiveOut(BaseModel):
     """Une archive telle que la CIBLE la porte — métadonnées de sidecars, jamais un contenu.
 
@@ -310,10 +334,10 @@ class ArchiveOut(BaseModel):
     #: Pourquoi pas restaurable — `None` quand `restaurable` est vrai (adr-0062 §6 : un
     #: cadenas muet se lit comme une panne).
     motif: str | None = None
-    #: « Restaurée le … » (ADR-0066 §7) — lu du sidecar `.restauration.json` (§3), le seul
-    #: survivant du geste : la ligne `ai_jobs` du travail meurt au swap. `None` = jamais
-    #: restaurée, ou geste interrompu — un swap à moitié franchi n'a pas droit au mot.
-    restauree_le: str | None = None
+    #: Le dernier geste de restauration (ADR-0067 §2). `None` = jamais restaurée, ou sidecar
+    #: illisible. ⚠️ Un geste INTERROMPU n'est plus `None` : il rend `verdict: "interrompue"`
+    #: avec son étape et son motif — c'est tout l'objet du chantier.
+    restauration: RestaurationArchiveOut | None = None
 
 
 class DonneesOut(BaseModel):
