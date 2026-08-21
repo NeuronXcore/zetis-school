@@ -31,11 +31,16 @@
 - Complémentaire de `test_compose_ports_cohabitent.py`, qui garde les compose entre eux et ne dit
   rien de la documentation ni de `launch.json`.
 
-> 🧾 Dette laissée ouverte, sciemment : **`papa-srs` est un doublon exact de `papa-dev`** (même
-> frontend, même backend `8001`, seul le port change) — reliquat du 2026-07-04, d'une slice SRS
-> close depuis. C'est lui qui crée la collision `5177`, signalée deux fois dans `MEMORY.md` et
-> jamais traitée. La retirer est une ligne, mais `launch.json` était **hors périmètre** de ce
-> rangement : la carte la signale, le verrou l'empêche d'être oubliée.
+- ✅ **Dette soldée dans la foulée, sur décision du commanditaire : `papa-srs` est retiré.** Il
+  était un **doublon exact de `papa-dev`** (même frontend Papa, même backend `8001` — seul le port
+  changeait), reliquat du 2026-07-04 d'une slice SRS close depuis, et c'est lui qui créait la
+  collision `5177` **signalée deux fois dans `MEMORY.md` et jamais traitée**. Aucune donnée, aucune
+  route, aucune carte de révision n'est concernée : `.claude/launch.json` n'est lu par **rien** à
+  l'exécution — ni l'app, ni le build, ni les tests — c'est une liste de façons d'ouvrir une
+  fenêtre de dev. Les cartes SRS vivent dans `SpacedReviewCard` (`db/models/progress.py`), en base.
+  Seule perte réelle : on ne peut plus ouvrir **deux** fenêtres Papa à la fois sur le backend 8001.
+  Le verrou de collision passe désormais à vide — c'est sa vocation : il garde celle qu'on créera
+  un jour sans y penser.
 
 ## 0.99.11 — Le réveil clôt les travaux d'une autre époque
 

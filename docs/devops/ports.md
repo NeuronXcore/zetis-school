@@ -52,15 +52,15 @@ n'accepte que **ses** origines en CORS. Mélanger deux paires ne marche pas.
 
 | Paire | Backend | Frontends |
 |---|---:|---|
-| principale | **8001** `backend-dev` | **5175** `papa-dev` · **5176** `massimo-dev` · **5177** `papa-srs` |
+| principale | **8001** `backend-dev` | **5175** `papa-dev` · **5176** `massimo-dev` |
 | seconde | **8002** `backend-dev2` | **5177** `massimo-dev2` · **5178** `papa-dev2` |
 | galaxy | **8003** `backend-galaxy` | **5179** `massimo-galaxy` |
 | LAN | **8004** `backend-lan` | **5180** `massimo-lan` |
 | restauration | **8005** `backend-restauration` | **5181** `papa-restauration` |
 
-🔴 **`5177` est réclamé deux fois** — par `massimo-dev2` (vers 8002) et par `papa-srs` (vers 8001).
-Les deux portent `--strictPort` : le second à démarrer échoue au lieu de glisser sur un port
-voisin. **Ils ne peuvent pas tourner ensemble.**
+⚠️ **Un port par entrée, et `--strictPort` partout** : une entrée dont le port est déjà pris
+**échoue** au lieu de glisser sur le port voisin. Le verrou `test_carte_des_ports.py` exige que
+toute entrée en double soit avertie ici — au 2026-08-21 il n'y en a aucune.
 
 ⚠️ **La paire LAN est la seule joignable depuis un vrai iPhone.** Toutes les autres lient
 `127.0.0.1` : le téléphone ne les atteint pas, quelle que soit l'URL tapée. Quatre choses doivent

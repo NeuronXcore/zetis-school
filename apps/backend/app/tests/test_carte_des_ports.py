@@ -92,8 +92,14 @@ def test_toute_collision_de_launch_json_est_signalee_dans_la_carte() -> None:
     """Deux entrées sur un même port : la carte doit le DIRE, pas seulement lister le port.
 
     `--strictPort` fait échouer la seconde entrée à démarrer au lieu de glisser sur un port
-    voisin — un lecteur qui ne le sait pas cherche la panne ailleurs. Au 2026-08-21 la collision
-    connue est 5177 (`massimo-dev2` et `papa-srs`).
+    voisin — un lecteur qui ne le sait pas cherche la panne ailleurs.
+
+    ⚠️ **Au 2026-08-21 il n'existe plus aucune collision** : la seule connue (5177, `massimo-dev2`
+    contre `papa-srs`) a été soldée en retirant `papa-srs`, doublon exact de `papa-dev`. Ce test
+    passe donc à vide — c'est sa vocation. Il garde la collision **qu'on créera un jour sans y
+    penser**, exactement comme `test_compose_ports_cohabitent.py` garde « le port qu'on publiera
+    un jour ». Un test qui ne trouve rien aujourd'hui n'est pas un test mort ; le garde-fou
+    au-dessus vérifie séparément que le parseur, lui, trouve bien quelque chose.
     """
     texte = CARTE.read_text(encoding="utf-8")
     for port, noms in sorted(_ports_de_launch_json().items()):
