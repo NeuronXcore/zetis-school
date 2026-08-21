@@ -302,8 +302,11 @@ class RestaurationArchiveOut(BaseModel):
 
     #: `None` = geste interrompu (le sidecar existe, mais le journal n'a jamais été clos).
     termine_le: str | None = None
-    #: `reussie` (le geste est allé au bout) | `interrompue`. Adossé à `termine_le` — les
-    #: écarts se comptent à côté et ne changent pas le verdict.
+    #: 🔴 TROIS valeurs (ADR-0067 Amendement 1) — `reussie` (au bout ET zéro écart) |
+    #: `avec_ecarts` (au bout, N écarts consignés) | `interrompue` (pas au bout).
+    #: `reussie` a ici le sens qu'il a partout ailleurs sur cette page : celui du verdict de
+    #: vérification. ⚠️ `avec_ecarts` n'est PAS un échec — le rendre comme tel enverrait Papa
+    #: relancer un second swap pour rien.
     verdict: str
     #: Le nom BRUT du journal (`ETAPES_RESTAURATION`) — jamais un libellé réécrit côté serveur.
     etape_arretee: str | None = None

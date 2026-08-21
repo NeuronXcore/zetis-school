@@ -215,7 +215,9 @@ export interface VerificationArchive {
 export interface RestaurationArchive {
   /** `null` = geste interrompu : le journal n'a jamais été clos. */
   termine_le: string | null;
-  /** `reussie` | `interrompue`. Adossé à `termine_le` ; les écarts se comptent à côté. */
+  /** 🔴 `reussie` (au bout ET zéro écart) | `avec_ecarts` (au bout, N écarts) | `interrompue`
+   *  (ADR-0067 Amendement 1). `reussie` a le même sens que le verdict de vérification.
+   *  ⚠️ `avec_ecarts` n'est PAS un échec : le rendre comme une panne ferait relancer un swap. */
   verdict: string;
   /** Le nom BRUT du journal serveur — jamais un libellé réécrit côté front. */
   etape_arretee: string | null;
