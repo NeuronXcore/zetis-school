@@ -136,6 +136,11 @@ REVOCATION_DECLAREE: dict[str, bool] = {
     #   « **Ce document RÉVOQUE le §1 de l'ADR-0035**, vieux de quelques heures »
     "adr-0038::Progression nomme ce qu'elle compte, et on peut agir depuis là": True,
     #   « ⚠️ **RÉVOQUE une décision de l'ADR-0038 §6**, écrite le matin même »
+    "adr-0067::« Réussie » veut dire zéro écart, ici comme ailleurs": True,
+    #   « **RÉVOQUE le caractère BINAIRE du `verdict`**, et rien d'autre »
+    #   ⚠️ Le repli heuristique rendait DÉJÀ `True` ici — l'inscription ne corrige pas un
+    #   verdict, elle le fait passer d'inféré à DÉCLARÉ. C'est ce que la docstring de ce
+    #   module demande, et c'est ce qui distingue une table de vérité d'une devinette.
 
     # — Ne révoquent rien ————————————————————————————————————————————————
     # Les huit premières le DISENT, mot pour mot ; la détection de surface les comptait

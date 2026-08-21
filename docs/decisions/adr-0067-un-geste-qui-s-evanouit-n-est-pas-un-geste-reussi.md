@@ -44,7 +44,7 @@ comme geste explicite de Papa (ADR-0063).
 >
 > | # | Date | Titre | Statut | Révoque |
 > |---|---|---|---|---|
-> | 1 | 2026-08-21 | « Réussie » veut dire zéro écart, ici comme ailleurs | Proposé | le binaire du §2 |
+> | 1 | 2026-08-21 | « Réussie » veut dire zéro écart, ici comme ailleurs | Proposé | oui |
 >
 > *Tableau généré par `scripts/gen_tableau_amendements.py` — ne pas éditer à la main.*
 
