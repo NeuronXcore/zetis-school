@@ -295,12 +295,13 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
   suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · **la fin d'un geste se raconte (1)** —
   ✅ **LIVRÉ le 2026-08-21** par l'`adr-0067` (slice 1 #174 · Amendement 1 #175 · slice 2 #176 ·
   compte rendu de surface `adr-0068`) : attente armée et bornée, verdict lu du sidecar, succès en
-  toast / échec persistant. ⚠️ **Le §6 — la fin de Sauvegarder et de Vérifier — reste dû (0,5)**,
-  ✅ **cadré le 2026-08-21 par l'`adr-0067` Amendement 2** : le §6 est **restreint**, pas révoqué —
-  une seule mécanique **par NATURE de geste**. Les deux gestes dont la ligne survit basculent sur
-  le suiveur partagé `travaux.ts` (`adr-0041` §4/§9), qui existe déjà ; seule la restauration garde
-  l'attente du §1, sa ligne mourant au swap. Cas **2** : branche directe, pas d'`/ouverture` ·
-  export RGPD (1).
+  toast / échec persistant. Le **§6** — la fin de Sauvegarder et de Vérifier — est **livré lui
+  aussi** (Amendement 2, PR #177) : le §6 a été **restreint**, pas révoqué — *une seule mécanique
+  par NATURE de geste*. Les deux gestes dont la ligne `ai_jobs` survit passent par le suiveur
+  partagé `travaux.ts` (`adr-0041` §4/§9) ; seule la restauration garde l'attente du §1, sa ligne
+  mourant au swap. 🔴 **L'`adr-0067` est donc entièrement soldé** · export RGPD (1).
+  📌 **Reste, né de ce chantier** : rien ne dit qu'une vérification a **vieilli** — le seuil de
+  péremption est une décision qui n'existe nulle part (cas 3).
   🔴 **Trouvé au cadrage du 0067, et ce n'est pas un manque de surface** : une restauration qui
   échoue **après** le swap n'écrit **nulle part** — `run_ai_job` cherche une ligne morte et
   renonce en silence. Elle n'est ni dans Échecs, ni dans la barre, ni au Journal. Le sidecar,

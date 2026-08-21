@@ -6,16 +6,25 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21, fin de session) — `main` = `origin/main` = **`c85c737`**,
-> rien à pousser sur `main`. Une branche de chantier vivante :
-> **`feat/sauvegarder-et-verifier-disent-leur-fin`**, née de `c85c737`, **locale uniquement**
-> (absente d'`origin`). Son état réel se lit par `git log --oneline main..HEAD` et `git status` —
-> jamais ici (`WORKFLOW.md §5`).
+> **Où en est le dépôt** (2026-08-21, **étape 4bis FAITE**) — `main` = `origin/main` =
+> **`89e3333`**, **rien à pousser**. **Aucune branche de chantier vivante** :
+> `feat/sauvegarder-et-verifier-disent-leur-fin` a été supprimée au merge, **locale ET distante** —
+> vérifié par `git ls-remote`, `git branch` et l'API GitHub, qui ne rendent plus que `main`.
+> (Le `git remote prune origin` a été lancé sans attendre cette fois : voir le piège écrit à la
+> clôture précédente.)
 
-### 🟢 « SAUVEGARDER ET VÉRIFIER DISENT LEUR FIN » — **COMPLET, non poussé**
+### ✅ « SAUVEGARDER ET VÉRIFIER DISENT LEUR FIN » — **MERGÉE** (PR #177, squash `89e3333`)
 
 **Chantier** : ADR-0067 §6 tel que l'**Amendement 2** le restreint. Cas **2** de l'ADR-0060
-(application) — 🔴 **pas d'`/ouverture`**, branche directe depuis `main`.
+(application) — 🔴 **pas d'`/ouverture`**, branche directe depuis `c85c737`, supprimée au merge.
+
+🔴 **L'ADR-0067 EST ENTIÈREMENT LIVRÉ, §6 COMPRIS.** Slice 1 (#174, `8a315e0`) · Amendement 1
+(#175, `e4d707f`) · slice 2 (#176, `a3a3de9`) · compte rendu de surface **ADR-0068** · Amendement 2
+(`c85c737`) · §6 (#177, `89e3333`). **Son §Suivi est soldé.**
+
+**Chiffres vérifiés DANS LA CI** : `frontends — vitest` **903 / 80 fichiers** (Papa, +10) et
+**920 / 84** (Massimo) · `backend — pytest` **1575** · `verrous du dépôt` et GitGuardian au vert.
+⚠️ Massimo intact malgré deux types ajoutés à `packages/types` — c'était le risque de cette PR.
 
 **FAIT.**
 
@@ -120,14 +129,18 @@ au démontage.
 
 **PROCHAIN PAS :**
 
-1. **Vérifier le diff, puis committer et pousser** la branche (absente d'`origin`) → **PR → merge**
-   → **étape 4bis** (`WORKFLOW.md §5`).
-2. 🔴 **Arrêter l'environnement de dev** — `docker compose down` **sans `-v`**, puis les deux
-   préviews.
-3. **Choisir la suite.** L'ADR-0067 est alors **entièrement livré, §6 compris**. Reste de la
-   phase E (`BACKLOG.md` L293), aucun cadré, donc **cas 3** (`/cadrage` puis `/ouverture`) :
-   occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
-   remises à zéro portées (2) · export RGPD (1).
+1. 🔴 **Arrêter l'environnement de dev, laissé debout** — `docker compose down` **sans `-v`**, puis
+   les deux préviews `:8005` et `:5181`. Et **trancher le sort des deux archives de test**
+   (voir RÉSIDUS). Ce sont les seules choses qui traînent.
+2. **Choisir le chantier suivant** — rien n'est engagé, `main` est propre, l'ADR-0067 est soldé.
+   Le reste de la **phase E** (`BACKLOG.md` L293) : occupation disque + cohérence Postgres ↔ MinIO
+   (1,5) · purges et rétention des voix (1) · remises à zéro portées (2) · export RGPD (1).
+   🔴 **Aucun n'est cadré** — ce sont des **cas 3** : `/cadrage` sur `main`, **puis** `/ouverture`.
+   ⚠️ Ne pas confondre avec les deux derniers chantiers, qui étaient des cas 2 partant directement
+   sur leur branche.
+3. Sinon, les **dettes ouvertes** ci-dessous. La plus mûre : le **seuil de péremption d'une
+   vérification** — la seule pièce manquante d'un écran qu'on vient de finir, et une vraie décision
+   (donc cas 3).
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
