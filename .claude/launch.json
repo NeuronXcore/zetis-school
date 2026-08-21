@@ -110,15 +110,6 @@
       "port": 5179
     },
     {
-      "name": "papa-srs",
-      "runtimeExecutable": "sh",
-      "runtimeArgs": [
-        "-c",
-        "cd apps/frontend-papa && VITE_API_URL=http://localhost:8001 npx vite --port 5177 --strictPort"
-      ],
-      "port": 5177
-    },
-    {
       "// essai restauration": "Paire d'ESSAI du geste backup_restore en dev (ADR-0066, résidu n°1 de la slice 2). ⚠️ SUPERVISED=true est un MENSONGE d'essai ASSUMÉ : rien ne supervise ce worker — après le recyclage ⑧ il MEURT et rien ne le relance, c'est attendu (en prod, le superviseur Docker fait ce travail). Cible de sauvegarde DEV séparée de la prod : /Volumes/NX-Models/zetis-sauvegardes-dev, certifiée par le même script que la vraie.",
       "name": "backend-restauration",
       "runtimeExecutable": "sh",

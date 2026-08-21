@@ -60,17 +60,18 @@ frontend-massimo
 frontend-papa
 ```
 
-## Ports recommandés en développement
+## Ports
 
-| Service | Port |
-|---|---:|
-| frontend-massimo | 5173 |
-| frontend-papa | 5174 |
-| api | 8000 |
-| postgres | 5432 |
-| redis | 6379 |
-| minio api | 9000 |
-| minio console | 9001 |
+> 📍 **Source unique : [`docs/devops/ports.md`](docs/devops/ports.md)** — et `pnpm ports` pour
+> l'état réel de la machine.
+
+La table qui vivait ici donnait **8000 / 5173 / 5174 comme ports « de développement »**. C'est
+faux depuis que la prod tourne en permanence sur le Mac : ce sont les **ports canoniques**, tenus
+par les conteneurs, et `pnpm dev` refuse de démarrer tant qu'ils sont pris. Elle ignorait aussi
+les six paires de `.claude/launch.json` (8001 → 8005) qui existent précisément pour développer
+pendant que la prod tourne, et annonçait la console MinIO joignable alors que sa publication est
+inerte. Une seconde table ici la ferait mentir à nouveau : la carte est ailleurs, ce renvoi la
+remplace.
 
 ## Variables
 

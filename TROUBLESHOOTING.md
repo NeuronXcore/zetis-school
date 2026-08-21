@@ -4,6 +4,52 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un verrou de documentation qui n'exige que le VOISINAGE ne verrouille RIEN — c'est le TERME qui mord — 2026-08-21
+
+Écrit au chantier `chore/carte-des-ports` : `test_carte_des_ports.py` devait garantir que toute
+collision de ports de `launch.json` soit **avertie** dans `docs/devops/ports.md`. Première
+version : *« un passage doit citer les deux entrées à moins de 400 caractères »*. **Elle passait
+au vert sur une carte amputée de son avertissement** — dans un tableau, deux lignes successives se
+citent l'une l'autre bien en deçà de 400 caractères. Le verrou mesurait une **mise en page**, pas
+une mise en garde.
+
+**Parade retenue** : exiger un **terme** de heurt dans la fenêtre (`heurt`, `collision`,
+`réclamé`, `strictport`, `tourner ensemble`), en plus des deux noms. La contre-épreuve devient
+alors franche : supprimer le paragraphe rend **un** rouge, le bon, décor intact.
+
+⚠️ **Généralisable à tout verrou de doc** : « le mot X apparaît près du mot Y » est satisfait par
+n'importe quel tableau qui les liste. Formuler ce qu'on garde comme *un avertissement*, pas comme
+*une cooccurrence*. C'est le pendant documentaire de la règle déjà écrite pour les tests —
+*un verrou qui n'assert qu'une absence ne verrouille rien*.
+
+## 🔴 macOS — un heredoc DANS une substitution de commande casse en bash 3.2, et l'erreur accuse le Python — 2026-08-21
+
+Vécu en écrivant `scripts/carte-des-ports.sh` (abandonné pour ça) :
+
+```bash
+CARTE="$(python3 - "$RACINE" <<'PY'
+… du Python …
+PY
+)"
+```
+
+rend `syntax error near unexpected token '('` **en pointant une ligne de Python**. Le réflexe est
+de chercher la faute dans le Python : il est correct. `/bin/bash` de macOS est en **3.2** (2007),
+et son analyseur de `$( )` ne gère pas le heredoc imbriqué — il finit par interpréter le corps
+comme du shell. Le `<<'PY'` cité, qui devrait tout protéger, n'y change rien.
+
+**Parades**, par ordre de préférence : (1) **écrire le script en Python** quand il fait déjà du
+JSON, du regex ou du parsing — c'est le choix retenu, `scripts/carte_des_ports.py` ; (2) sortir le
+heredoc de la substitution (`cat > "$TMP" <<'PY'` au niveau de l'instruction, puis appeler le
+fichier) ; (3) ne pas compter sur `#!/usr/bin/env bash` pour attraper un bash moderne — sur cette
+machine il reste le 3.2 du système.
+
+⚠️ **Piège de manœuvre voisin, rencontré dans la foulée** : le répertoire courant **persiste entre
+deux commandes** d'une session Claude Code. Un `cd apps/backend && pytest` laisse la session dans
+`apps/backend`, et la commande suivante qui croit partir de la racine échoue sur des chemins
+relatifs — ici, une contre-épreuve a détruit un fichier sans pouvoir le restaurer, sa sauvegarde
+n'ayant jamais été écrite. **Chemins absolus dans tout script de contre-épreuve.**
+
 ## Un worktree d'agent n'a pas l'outillage : le hook `pre-push` y est TOUJOURS rouge — pousser depuis le checkout principal — 2026-08-21
 
 Vécu au push du #170 (`chore/la-case-cochee-ne-suffit-pas`, diff doc pur) : depuis un worktree

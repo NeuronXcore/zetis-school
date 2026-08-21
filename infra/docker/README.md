@@ -44,8 +44,11 @@ pnpm prod:down    # tout arrêter
 **La prod possède les ports canoniques** (`8000` / `5173` / `5174`) — c'est elle qui tourne en
 permanence et dont Massimo garde l'adresse. **Le dev et la prod peuvent tourner ensemble** sur la
 même machine, à une condition : sur cette machine, le dev passe par les **paires de
-`.claude/launch.json`** (`8001`→`8004` / `5175`→`5180`), pas par `pnpm dev` — qui vise 8000/5173/5174
+`.claude/launch.json`** (`8001`→`8005` / `5175`→`5181`), pas par `pnpm dev` — qui vise 8000/5173/5174
 et échouerait.
+
+> 📍 **La carte complète, paire par paire, avec les pièges : [`docs/devops/ports.md`](../../docs/devops/ports.md).**
+> Pour l'état réel de la machine : `pnpm ports`.
 
 Ce qui rend la cohabitation possible, et qui était mal documenté jusqu'au 2026-08-17 :
 
