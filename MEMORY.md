@@ -6,11 +6,43 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, deux fois ce jour) — `main` =
+> **Où en est le dépôt** (2026-08-21 — étape 4bis FAITE, **trois fois** ce jour) — `main` =
 > `origin/main`, rien à pousser, **aucune branche de chantier vivante**
-> (`chore/piege-pre-push-worktree` puis `chore/la-case-cochee-ne-suffit-pas` supprimées au
-> merge, distantes ET locales — les locales vivaient dans un worktree d'agent, détaché depuis).
-> **Deux chantiers doc MERGÉS ce jour** (cas 2 `adr-0060`, aucun ADR, doc pure) :
+> (`chore/piege-pre-push-worktree`, `chore/la-case-cochee-ne-suffit-pas` puis
+> `chore/carte-des-ports` supprimées au merge, distantes ET locales).
+>
+> 🔌 **③ « LA CARTE DES PORTS » — MERGÉ (PR #172, squash `6f3a89f`)**, cas **1** `adr-0060`
+> (rangement : rien n'est décidé, aucun ADR). Trois commits squashés, 11 fichiers, +638/−23.
+> Né d'une question posée **deux fois dans la même journée** (« quels ports pour le dev, pour la
+> prod ? ») : la réponse vivait éparpillée entre deux compose, `launch.json` et une table de
+> `DEPLOYMENT.md` **périmée** (elle donnait 8000/5173/5174 comme ports « de dev » — ce sont les
+> canoniques que la prod tient — ignorait les paires et annonçait joignable une console MinIO
+> inerte). Livré : **`docs/devops/ports.md`** source unique · **`pnpm ports`**
+> (`scripts/carte_des_ports.py`) dont les libellés sont **DÉRIVÉS** de `launch.json` et des
+> compose — ADR-0062 appliqué à l'outillage, une paire ajoutée apparaît sans qu'on touche au
+> script · son verrou `test_carte_des_ports.py` · les renvois depuis `DEPLOYMENT.md` et
+> `infra/docker/README.md` (dont la plage de paires, restée à `8001→8004`, corrigée en
+> `8001→8005`). ✅ **Dette 5177 SOLDÉE au passage** : `papa-srs` retiré — **doublon exact de
+> `papa-dev`** (même frontend, même backend 8001), reliquat du 2026-07-04 d'une slice SRS close ;
+> collision signalée deux fois ici et jamais traitée. Aucune donnée touchée, `launch.json`
+> n'étant lu par **rien** à l'exécution.
+>
+> 🔴 **Deux leçons du chantier, dans `TROUBLESHOOTING.md` (en tête)** : ① **un verrou de doc qui
+> n'exige que le VOISINAGE de deux termes ne verrouille rien** — la 1ʳᵉ version restait VERTE sur
+> une carte amputée de son avertissement, deux lignes de tableau se citant l'une l'autre sous les
+> 400 caractères ; c'est le **terme** de heurt qui mord (pendant documentaire de « un verrou qui
+> n'assert qu'une absence ne verrouille rien ») ; ② **macOS : un heredoc DANS une substitution de
+> commande casse en bash 3.2**, et l'erreur accuse une ligne de Python correcte — d'où le script
+> écrit en Python. ⚠️ Piège de manœuvre voisin : le **répertoire courant persiste** entre deux
+> commandes d'une session — chemins absolus dans toute contre-épreuve (une l'a appris en
+> détruisant un fichier dont la sauvegarde n'avait jamais été écrite).
+>
+> ⚠️ **Le merge a échoué une première fois sans le dire** : l'annonce « c'est mergé » est arrivée
+> alors que `gh pr view` répondait encore `OPEN` / `mergedAt: JAMAIS`. Le 4bis a été **refusé** et
+> la vérification refaite — la mémoire aurait sinon écrit un merge inexistant. *Vérifier l'état
+> de la PR AVANT tout 4bis, jamais sur parole.*
+>
+> **Les deux chantiers doc précédents du jour** (cas 2 `adr-0060`, aucun ADR, doc pure) :
 > ① « la case cochée ne suffit pas » — PR #170, squash `4f6baa4` : la condition hôte n°1 de
 > l'autostart prod est neutralisable par BTM même cochée — diagnostic `sfltool dumpbtm` + parade
 > LaunchAgent hors dépôt `com.atlas.docker-on-nx` (`TROUBLESHOOTING.md` +
@@ -23,6 +55,17 @@
 > BOUT (#167/#168/#169), détail section ci-dessous. Ménage du 2026-08-21 : le worktree de
 > session et les deux branches d'agent `claude/*` supprimés (vérifié : ancêtres de `main`, rien
 > d'unique) — plus AUCUNE branche locale hors `main`, un seul checkout.
+> ✅ **LE DÉMARRAGE AU BOOT EST PROUVÉ EN VRAI** (2026-08-21, ~09:40 — le Mac a redémarré, et
+> personne n'a touché à rien) : le journal `~/Library/Logs/docker-autostart.log` porte
+> `Docker.raw present, lancement Docker Desktop` **signé de l'agent de garde**, puis une
+> seconde ligne `deja lance` une minute plus tard (l'événement `StartOnMount`, qui prouve
+> l'idempotence en conditions réelles). Ensuite : 8/8 conteneurs `zetis-prod` Up, Massimo et
+> Papa en **HTTP 200**. 🔴 **C'est bien l'agent qui a lancé Docker, pas la case** — le login item
+> reste `disabled` côté BTM ; sans l'agent, ce reboot aurait reproduit la panne. *Décision tenue :
+> laisser le toggle macOS sur off — l'agent est alors le seul lanceur, donc Docker ne peut jamais
+> partir sans son disque.* Le dispositif s'auto-documente : si la prod manque un jour à l'appel,
+> ce journal est la première chose à lire (`pnpm ports` en rend les 3 dernières lignes).
+>
 > **La prod est RECONSTRUITE et vérifiée à l'écran** (2026-08-19, nuit — après l'incident VM et
 > le reboot du Mac) : 8/8 conteneurs `healthy` sur images neuves, `/backups` monté, cible
 > certifiée lue à travers, **première archive prod vérifiée** (`zetis-2026-08-19-1817.tar`,
@@ -43,7 +86,8 @@ barre (À CASER, même famille — « comment un geste sauvegarde se raconte à 
 sous-chantier de la phase E (occupation disque · purges/rétention · remises à zéro · export
 RGPD) — chacun avec son cas `adr-0060` déclaré, et un `/cadrage` si c'est un cas 3. (Le candidat
 « consigner le piège pre-push en worktree » du matin est SOLDÉ le jour même — PR #171, squash
-`80916da`.)
+`80916da`. La journée a soldé un **troisième** chantier non prévu, « la carte des ports » — PR
+#172, squash `6f3a89f` — né d'une question de l'utilisateur, pas d'un candidat de cette liste.)
 
 **FAIT (MERGÉ : PR #169, squash `0b7bdde` — 7 fichiers avec la clôture, +275/−214) :**
 
