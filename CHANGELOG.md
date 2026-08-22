@@ -1,5 +1,32 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.22 — La carte cesse d'annoncer « à venir » ce qui est livré
+
+> **Cas 2** de l'ADR-0060 (application) — **aucun ADR** : l'`adr-0069` avait déjà tranché, sa
+> §Hors périmètre sépare explicitement les deux postes. On cite, on n'écrit pas.
+
+La 🗺 carte des réglages portait **une seule ligne pour deux choses** — *« Occupation disque par
+famille · cohérence Postgres ↔ MinIO »*, en « ⏸ tranche 4 ». Depuis la `0.99.20`, la moitié
+gauche est **livrée** : la carte annonçait donc comme à venir un bloc que Papa voit à l'écran.
+
+🔴 **C'est exactement ce que la carte existe pour empêcher.** Elle n'est pas un réglage : c'est
+l'outil qui dit ce que l'écran **ne** couvre pas. Une ligne fausse y coûte plus qu'ailleurs — elle
+fait douter des autres.
+
+Deux lignes, donc, comme l'ADR-0069 les avait séparées :
+
+- **Le poids des données** → `✅ livré · ici · Données`, avec le motif du refus d'espace libre ;
+- **Cohérence Postgres ↔ MinIO à l'écran** → `⏸ à décider`, en disant ce qui existe déjà :
+  `scripts/check_media_integrity.py` fait le contrôle, et **mieux** qu'une reprise puisqu'il LIT
+  le backend actif au lieu de le deviner. Ce qui reste à décider n'est pas de le construire —
+  c'est de l'amener à l'écran.
+
+⚠️ **Au passage, les comptes de la spec étaient faux depuis un moment** : « 67 lignes, 25 ici,
+5 nulle part » quand le fichier en portait 68, dont 22 ici et 15 nulle part. Ils sont recopiés à
+la main et rien ne les vérifie. Corrigés (**69 lignes** — 23 ici, 7 ailleurs, 15 nulle part,
+24 à décider) et le signal est écrit dans la spec : le jour où la dérive gagne le **contenu** et
+non plus seulement le compte, cette liste devra être dérivée plutôt qu'écrite.
+
 ## 0.99.21 — Un test cesse de tirer au sort son verdict
 
 > **Cas 1** de l'ADR-0060 (rangement) — aucun ADR : le code de production n'est pas en cause, le

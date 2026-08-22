@@ -4,6 +4,33 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## ⚠️ Un COMPTE recopié à la main à côté d'une liste qui grandit — 2026-08-22
+
+**Le piège.** `docs/frontend-papa/page-parametres.md` annonçait *« **67 lignes** — 25 ici,
+7 ailleurs, 5 nulle part, 30 à décider »*. Le fichier `inventaireReglages.ts` en portait **68**,
+dont **22** ici et **15** nulle part : **quatre nombres sur cinq étaient faux**, et personne ne
+l'avait vu.
+
+**La cause.** Ces cinq nombres sont **recopiés à la main** depuis un tableau qui gagne une ligne
+à chaque chantier, et **rien ne les vérifie** — ni test, ni génération. Ils ne peuvent que
+dériver. ⚠️ Le piège n'est pas l'erreur : c'est qu'un chiffre faux dans une doc de spec se lit
+comme un fait mesuré.
+
+**La parade, et sa limite.** Les compter avant d'y toucher :
+
+```bash
+grep -o 'famille: "[a-z]*"' apps/frontend-papa/src/lib/inventaireReglages.ts | sort | uniq -c
+```
+
+🔴 **Mais recompter ne règle rien à la source.** L'`adr-0062` avait nommé le signal d'avance —
+*« si elle dérive, c'est qu'elle doit être DÉRIVÉE »*. La dérive est aujourd'hui sur le **compte**
+seulement ; le jour où elle gagne le **contenu**, la liste doit cesser d'être écrite à la main.
+
+📌 **Détail du même chantier, sans entrée dédiée** : les chaînes de l'inventaire sont rendues
+**telles quelles**, sans markdown — des backticks dans un champ `ou` s'affichent **littéralement**
+dans la pastille. La convention du fichier est le chemin nu (`apps/backend/app/prompts`,
+`.env — LOG_LEVEL`). Vu à l'écran, pas en test : aucun verrou ne regarde ces chaînes.
+
 ## 🔴 Un `getByRole` SYNCHRONE après un `waitFor` qui surveille autre chose — 2026-08-22
 
 **Le piège.** `CouverturePage.test.tsx` a rendu **deux verdicts opposés sur le même commit** :

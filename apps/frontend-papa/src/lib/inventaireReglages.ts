@@ -565,10 +565,32 @@ export const INVENTAIRE: LigneReglage[] = [
     famille: "nulle",
   },
   {
-    nom: "Occupation disque par famille · cohérence Postgres ↔ MinIO",
+    nom: "Le poids des données",
     concerne: "machine",
-    ou: "à venir · Données",
-    statut: "⏸ tranche 4",
+    ou: "ici · Données",
+    // Livré par l'ADR-0069 : médias produits, base, archives, total — et les modèles AFFICHÉS
+    // HORS du total, parce qu'ils sont régénérables et que la sauvegarde les exclut déjà.
+    // Aucun espace libre : il a deux plafonds (bind-mount de l'hôte contre disque virtuel de
+    // Docker) qui ne répondent pas à la même question. Aucun geste non plus — les purges sont
+    // la ligne suivante.
+    statut: "✅ livré — ce que ZETIS a produit, jamais l'espace libre (ADR-0069 §1)",
+    famille: "ici",
+    onglet: "donnees",
+  },
+  {
+    // 🔴 Cette ligne était EMPAQUETÉE avec la précédente, et l'ADR-0069 les a séparées : le
+    // `BACKLOG` promettait « occupation disque par famille · cohérence Postgres ↔ MinIO » comme
+    // un seul poste. Elles n'ont ni la même maturité ni la même question — laisser la moitié
+    // livrée sous un « ⏸ à venir » faisait mentir la carte, qui existe précisément pour dire ce
+    // que l'écran ne couvre PAS.
+    nom: "Cohérence Postgres ↔ MinIO à l'écran",
+    concerne: "machine",
+    ou: "scripts/check_media_integrity.py",
+    // ⚠️ Le contrôle EXISTE et il est meilleur qu'une reprise : il LIT le backend actif au lieu
+    // de le deviner (vidéo, audio, orphelins, RAG). Il est né d'un faux diagnostic de perte de
+    // contenu, le 2026-08-18. Ce qui reste à décider n'est pas de le construire — c'est de
+    // l'amener à l'écran, et ça a son propre cadrage.
+    statut: "⏸ à décider — le contrôle existe en script, l'amener à l'écran est un autre chantier",
     famille: "decider",
   },
   {

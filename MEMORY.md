@@ -11,13 +11,42 @@
 > `fix/loterie-couverture` supprimée au merge, **locale ET distante** — `git ls-remote --heads
 > origin` et `git branch` ne rendent plus que `main`.
 >
-> Trois chantiers livrés ce jour-là : le **poids des données** (#180), la commande
-> **`/livraison`** avec son alignement dans `WORKFLOW.md`, puis la **loterie** (#181).
+> ⚠️ **Une branche de chantier est VIVANTE et NON COMMITÉE** : `fix/carte-occupation-livree`
+> — voir la section en tête. `git status` avant `git log`.
+>
+> Chantiers livrés ce jour-là : le **poids des données** (#180), la commande **`/livraison`**
+> avec son alignement dans `WORKFLOW.md`, la **loterie** (#181), et la **carte** ci-dessous.
 >
 > 🔴 **`/livraison` a fait son premier trajet complet sur #181, et il s'est bien passé** — §0 à
 > §5 d'affilée, CI verte du premier coup, aucun de ses trois arrêts déclenché. Ce n'est pas une
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
+
+### 🔧 « LA CARTE CESSE D'ANNONCER À VENIR CE QUI EST LIVRÉ » — en cours (non commitée)
+
+**Cas 2** de l'ADR-0060 (application) — **aucun ADR** : l'`adr-0069` avait déjà séparé les deux
+postes dans sa §Hors périmètre. On cite, on n'écrit pas. `CHANGELOG` **0.99.22**.
+
+**FAIT.** La ligne unique « Occupation disque par famille · cohérence Postgres ↔ MinIO » (⏸ tranche
+4) devient **deux** : *Le poids des données* (`✅ livré · ici · Données`) et *Cohérence Postgres ↔
+MinIO à l'écran* (`⏸ à décider`, en nommant `scripts/check_media_integrity.py`, qui fait déjà le
+contrôle et **mieux** — il LIT le backend actif). Verrou de l'inventaire vert : `onglet: "donnees"`
+désigne bien un onglet rendu. **914 passés**, typecheck propre.
+
+🔴 **Deux choses que seul l'ÉCRAN a montrées**, et c'est le §5bis en action :
+
+1. **Les backticks s'affichaient littéralement** dans la pastille — les chaînes de l'inventaire
+   sont rendues telles quelles, sans markdown. Corrigé ; aucun test ne regardait ces chaînes.
+2. **Les comptes de la spec étaient FAUX** avant ce chantier : « 67 lignes, 25 ici, 5 nulle part »
+   pour 68 réelles, dont 22 ici et 15 nulle part. Recopiés à la main, rien ne les vérifie.
+   Corrigés (**69 · 23 ici · 7 ailleurs · 15 nulle part · 24 à décider**), et le **signal de
+   l'`adr-0062`** est écrit dans la spec : la dérive est sur le compte, pas encore sur le contenu.
+
+⚠️ **La surface n'a pas encore l'accord du commanditaire** : le libellé des deux lignes et leurs
+`statut` sont des **choix**, pas des faits. `/livraison` §6 s'arrête là-dessus — capture livrée,
+décision attendue.
+
+**PROCHAIN PAS :** accord sur les deux libellés, puis `/livraison`.
 
 ### ✅ « UN TEST CESSE DE TIRER AU SORT SON VERDICT » — **MERGÉ** (PR #181, squash `a1fc2db`)
 
@@ -138,11 +167,8 @@ dangereuse qu'hier.
   loterie ci-dessus repartira au vert dès le re-run, **sans que personne ne regarde pourquoi**.
   C'est le rouge de #180 qui a produit le diagnostic ; l'auto-merge l'aurait enterré.
 
-- 🔴 **Une ligne de la 🗺 carte est devenue FAUSSE** : `inventaireReglages.ts:568` annonce
-  « Occupation disque par famille · cohérence Postgres ↔ MinIO » en **« ⏸ tranche 4 »**, alors que
-  la moitié gauche est livrée. Elle empaquette les deux postes que l'ADR-0069 a justement séparés.
-  **Non traitée** — hors du périmètre posé à l'ouverture (« toute surface hors de l'onglet 💾 »).
-  Deux issues : la scinder en deux lignes, ou la traiter avec le sous-chantier des purges.
+- ✅ **La ligne fausse de la 🗺 carte est CORRIGÉE** (branche `fix/carte-occupation-livree`,
+  `CHANGELOG` 0.99.22) — scindée en deux, comme l'ADR-0069 l'avait tranché.
 - ⚠️ **`pnpm -r typecheck` échoue sur `apps/extension-zetis-clip`** (`import.meta.glob` dans
   `packages/ui/src/lib/subjectIcons.ts`). **Antérieur à ce chantier**, prouvé en relançant le
   typecheck sur l'arbre remisé (`git stash`). Non traité.
