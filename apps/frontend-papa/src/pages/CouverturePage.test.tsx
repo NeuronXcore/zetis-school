@@ -433,20 +433,42 @@ describe("CouverturePage — pastilles de matière", () => {
     // pour les pastilles, on ne pourrait plus passer d'une matière à l'autre sans repasser par
     // « Toutes ».
     const both = coverageWith([FIVE_STATES]);
+    // 🔴 Le second appel est DIFFÉRÉ À LA MAIN, et ce n'est pas une commodité de test : cliquer
+    // une pastille change `?subject=`, donc `subjectId`, donc l'identité de `reload` — l'effet
+    // de `useCoverage` refait `setLoading(true)` et la page repasse par son SQUELETTE, pastilles
+    // comprises. Sans ce différé la fenêtre existe quand même, mais elle dure une microtâche :
+    // le test passait ici et tombait sur un runner chargé. Il a rendu deux verdicts opposés SUR
+    // LE MÊME COMMIT (CI de la PR #180, rouge puis verte). Un verrou dont le résultat dépend de
+    // la machine n'est pas un verrou.
+    let rendreLaSuite!: (v: Awaited<ReturnType<typeof fetchCoverage>>) => void;
     vi.mocked(fetchCoverage)
       .mockResolvedValueOnce({ ...both, subjects: [...both.subjects, MATHS] })
-      .mockResolvedValue({ ...both, subjects: [MATHS] });
+      .mockReturnValueOnce(new Promise((resolve) => (rendreLaSuite = resolve)));
 
     renderPage();
     // Scopé au groupe de pastilles : l'en-tête de la matrice porte le même nom, et il apparaît
     // AVANT la pastille (la liste des matières est posée par un effet, un cran plus tard).
     await waitFor(() => expect(chips().getByRole("button", { name: /Mathématiques/ })).toBeTruthy());
-    const mathsChip = chips().getByRole("button", { name: /Mathématiques/ });
-    fireEvent.click(mathsChip);
+    fireEvent.click(chips().getByRole("button", { name: /Mathématiques/ }));
 
-    await waitFor(() => expect(mathsChip.getAttribute("aria-pressed")).toBe("true"));
-    expect(chips().getByRole("button", { name: /Français/ })).toBeTruthy();
-    expect(chips().getByRole("button", { name: /Toutes les matières/ })).toBeTruthy();
+    // La fenêtre du piège, rendue CERTAINE — et on l'affirme, pour que la prochaine réécriture
+    // du composant qui la supprimerait fasse tomber ce test au lieu de le rendre décoratif.
+    await screen.findByLabelText("Chargement de la matrice");
+    expect(screen.queryByRole("group", { name: "Filtrer par matière" })).toBeNull();
+
+    rendreLaSuite({ ...both, subjects: [MATHS] });
+
+    // ⚠️ TOUT dans un seul `waitFor`, et les pastilles se RE-REQUÊTENT à chaque tour. Garder la
+    // référence prise avant le clic la laisserait DÉTACHÉE du document : `aria-pressed` s'y lit
+    // encore parfaitement, et l'assertion passerait sur un nœud mort pendant que la vraie
+    // pastille, elle, n'existe pas. C'est exactement ce qui a masqué la panne jusqu'ici.
+    await waitFor(() => {
+      expect(
+        chips().getByRole("button", { name: /Mathématiques/ }).getAttribute("aria-pressed"),
+      ).toBe("true");
+      expect(chips().getByRole("button", { name: /Français/ })).toBeTruthy();
+      expect(chips().getByRole("button", { name: /Toutes les matières/ })).toBeTruthy();
+    });
   });
 });
 

@@ -6,14 +6,39 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`d1611a3`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
-> `feat/occupation-disque` a été supprimée au merge, **locale ET distante** — vérifié par
-> `git ls-remote --heads origin` et l'API GitHub, qui ne rendent plus que `main` (la référence
-> locale périmée a été élaguée par `git remote prune origin`).
+> **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`bc6c2a4`**, rien à pousser.
+> Une branche de chantier VIVANTE : **`fix/loterie-couverture`**, basée sur `bc6c2a4`, **non
+> commitée** (le correctif vit dans l'arbre — `git status` avant `git log`).
 >
-> ⚠️ **Un réglage du DÉPÔT a changé ce jour-là, et il change la façon de merger** — voir la
-> dette « loterie » plus bas, qui en dépend directement.
+> Trois chantiers ont été livrés ce jour-là : le **poids des données** (#180, mergé), la
+> commande **`/livraison`** et son alignement dans `WORKFLOW.md`, puis la **loterie** ci-dessous.
+
+### 🔧 « UN TEST CESSE DE TIRER AU SORT SON VERDICT » — en cours (branche non commitée)
+
+**Cas 1** de l'ADR-0060 (rangement) — **aucun ADR** : le code de production n'était pas en cause,
+le test avait tort. Même forme que la 0.99.18. `CHANGELOG` **0.99.21**.
+
+**Le défaut, établi et non déduit.** Cliquer une pastille de matière change `?subject=`, donc
+`subjectId`, donc l'identité de `reload` — et [useCoverage.ts:79](apps/frontend-papa/src/hooks/useCoverage.ts:79)
+refait `setLoading(true)`. La page repasse par son **squelette**, et le groupe « Filtrer par
+matière » **quitte le DOM à chaque clic**. Le test tenait une référence prise **avant** le clic
+(un nœud **détaché**, où `aria-pressed` se lit encore) puis interrogeait le groupe **hors de
+toute attente**.
+
+🔴 **La panne a été REPRODUITE avant d'être corrigée** — second appel différé à la main, refetch
+laissé en vol : erreur identique à celle de la CI, au mot près. Sans cette étape, le correctif
+n'aurait été qu'une hypothèse rendue verte.
+
+**Le correctif ne se contente pas d'attendre : il rend la fenêtre CERTAINE.** Le test affirme que
+le groupe a quitté le document, puis vérifie tout dans **un seul `waitFor`** en re-requêtant les
+pastilles à chaque tour. Il mord à **chaque** exécution — **10/10** en local, suite complète
+**914 passés**, typecheck propre.
+
+⚠️ **Une seule ligne était concernée**, vérifié : les pilules de filtre ne touchent pas
+`subjectId` et ne déclenchent donc aucun refetch. Le critère n'est pas « une requête après un
+`await` » mais « une requête après une action qui **relance un fetch** ».
+
+**PROCHAIN PAS :** `/livraison` — ce serait le **premier chantier à l'emprunter de bout en bout**.
 
 ### ✅ « LE POIDS DES DONNÉES » — **MERGÉ** (PR #180, squash `d1611a3`) — ADR-0069
 
@@ -92,14 +117,9 @@ dangereuse qu'hier.
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **`CouverturePage.test.tsx` est une LOTERIE — rouge puis verte sur le MÊME commit.** La PR
-  #180 a échoué au premier run de la CI, passé au second, sans qu'une ligne ne change. Le défaut
-  se lit dans le test : ligne **448**, un `chips()` **synchrone** juste après un `waitFor` qui
-  surveille **autre chose** (`aria-pressed`). Or le clic sur une pastille déclenche un refetch et
-  la page **repasse en chargement** — le dump de la CI le montre (`aria-busy="true"`, squelettes),
-  et le groupe disparaît du DOM. Sur un runner chargé, le refetch tombe pile dans cette fenêtre.
-  **Parade** : envelopper la ligne 448 dans le `waitFor` qui la précède. ⚠️ **Non corrigée** —
-  hors périmètre, et le fichier n'a pas bougé depuis la PR #112.
+- ✅ **La LOTERIE de `CouverturePage.test.tsx` est CORRIGÉE** (branche `fix/loterie-couverture`,
+  `CHANGELOG` 0.99.21) — voir la section de chantier en tête. Elle était la dette n°1 de la
+  clôture précédente ; elle ne l'est plus.
 - 🔴 **`allow_auto_merge` et `delete_branch_on_merge` ont été ACTIVÉS sur le dépôt** (2026-08-22,
   API GitHub, vérifiés). Deux conséquences : `gh pr merge --squash --auto` arme désormais le
   merge, et la branche **distante** est supprimée toute seule — ⚠️ **la locale, non** (`git branch

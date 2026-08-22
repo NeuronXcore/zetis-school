@@ -23,8 +23,23 @@ la CI le prouve (`aria-busy="true"`, « Chargement de la matrice », squelettes)
 `"Filtrer par matière"` disparaît alors du DOM, et l'appel synchrone de la ligne suivante lève.
 Sur une machine rapide la fenêtre est trop courte pour être touchée ; sur un runner chargé, non.
 
-**La parade.** Envelopper l'assertion dans le `waitFor` qui la précède (ou attendre explicitement
-la fin du refetch) — jamais un `getByRole` à sec après un `await` qui surveille un autre signal.
+**La parade — appliquée le 2026-08-22 (`CHANGELOG` 0.99.21).** Trois gestes, et le troisième est
+celui qui compte :
+
+1. **Ne jamais garder une référence prise avant l'action.** Le nœud est **détaché** après le
+   re-rendu, et `getAttribute` y répond encore : l'assertion passe sur un mort. Re-requêter à
+   chaque tour.
+2. **Tout vérifier dans UN seul `waitFor`**, jamais un `getByRole` à sec après un `await` qui
+   surveille un autre signal.
+3. 🔴 **Rendre la fenêtre CERTAINE plutôt que d'espérer la manquer.** Le second appel est
+   **différé à la main** (`mockReturnValueOnce(new Promise(...))`), et le test **affirme** que le
+   groupe a quitté le document avant de résoudre. Il mord désormais à **chaque** exécution — une
+   attente seule aurait rendu le test vert sans le rendre probant, et le défaut serait resté
+   invisible jusqu'au prochain runner lent.
+
+⚠️ **Le contrôle qui prouve qu'une parade en est une** : remettre l'ancienne assertion sous la
+fenêtre différée doit rendre le test ROUGE. Fait — l'erreur reproduite est mot pour mot celle de
+la CI (*« Unable to find an accessible element with the role "group" »*).
 
 ⚠️ **Pourquoi ça compte plus qu'avant** : `allow_auto_merge` a été activé sur le dépôt le même
 jour. Une PR qui croise cette loterie repartira au vert dès le re-run et **fusionnera sans que
