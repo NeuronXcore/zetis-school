@@ -35,6 +35,30 @@ describe("depuis — depuis combien de temps, en mots de Papa", () => {
     expect(ilYA(2 * 3600 + 59 * 60)).toBe("il y a 2 h 59");
   });
 
+  it("au-delà du jour : jours, semaines, mois, ans", () => {
+    // ⚠️ Ces paliers sont nés pour la vérification d'une sauvegarde : « il y a 2952 h » était
+    // juste et illisible. Aucun n'est un SEUIL — ils changent le mot, jamais le sens.
+    const J = 24 * 3600;
+    expect(ilYA(23 * 3600 + 59 * 60)).toBe("il y a 23 h 59"); // la frontière, côté heures
+    expect(ilYA(J)).toBe("il y a 1 j"); // …et côté jours
+    expect(ilYA(6 * J)).toBe("il y a 6 j");
+    expect(ilYA(7 * J)).toBe("il y a 1 sem.");
+    expect(ilYA(59 * J)).toBe("il y a 8 sem.");
+    expect(ilYA(60 * J)).toBe("il y a 2 mois");
+    expect(ilYA(120 * J)).toBe("il y a 4 mois"); // le cas qui a motivé tout ça
+    expect(ilYA(364 * J)).toBe("il y a 12 mois");
+    expect(ilYA(365 * J)).toBe("il y a 1 an"); // ⚠️ « an », pas « ans »
+    expect(ilYA(800 * J)).toBe("il y a 2 ans");
+  });
+
+  it("🔒 aucune sortie ne rend un nombre d'heures à trois chiffres", () => {
+    // La contre-épreuve du défaut d'origine : c'est « il y a 2952 h » qu'on répare, et rien
+    // n'autorise à le faire revenir sous une autre forme.
+    for (const jours of [1, 3, 10, 45, 90, 200, 400, 1500]) {
+      expect(ilYA(jours * 24 * 3600)).not.toMatch(/\d{3,} h/);
+    }
+  });
+
   it("🔒 une horloge client en avance ne rend JAMAIS une durée négative", () => {
     // Le `started_at` vient du SERVEUR ; l'horloge du navigateur peut être en avance de quelques
     // secondes. « il y a -3 s » se lirait comme un bug, pas comme un décalage.

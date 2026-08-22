@@ -300,8 +300,10 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
   par NATURE de geste*. Les deux gestes dont la ligne `ai_jobs` survit passent par le suiveur
   partagé `travaux.ts` (`adr-0041` §4/§9) ; seule la restauration garde l'attente du §1, sa ligne
   mourant au swap. 🔴 **L'`adr-0067` est donc entièrement soldé** · export RGPD (1).
-  📌 **Reste, né de ce chantier** : rien ne dit qu'une vérification a **vieilli** — le seuil de
-  péremption est une décision qui n'existe nulle part (cas 3).
+  ✅ **La dette née de ce chantier est soldée** (2026-08-21) : une vérification **dit son âge**
+  (« il y a 4 mois »), et **aucun seuil de péremption n'est posé** — décision, pas oubli. Le verdict
+  `reussie` est une précondition fail-closed du serveur (Restaurer, et le garde anti-suppression) :
+  une péremption « qui compte » bloquerait Papa au pire moment. Cas 4, voie légère du §3 : aucun ADR.
   🔴 **Trouvé au cadrage du 0067, et ce n'est pas un manque de surface** : une restauration qui
   échoue **après** le swap n'écrit **nulle part** — `run_ai_job` cherche une ligne morte et
   renonce en silence. Elle n'est ni dans Échecs, ni dans la barre, ni au Journal. Le sidecar,

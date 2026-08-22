@@ -31,6 +31,7 @@ import { Button, ConfirmDialog, Input, cn } from "@zetis/ui";
 import { type ArchiveSauvegarde, type Donnees, type RestaurationArchive } from "@zetis/types";
 
 import { Toast, type ToastMessage } from "../Toast";
+import { depuis } from "../../lib/depuis";
 import { estRefus } from "../../lib/httpClient";
 import { signalerEnfilement } from "../../lib/productionSignal";
 import {
@@ -63,19 +64,30 @@ function taille(octets: number): string {
  *  en UTC (`…+00:00`) et s'affichait 09:43 à côté d'une archive créée 11:42 (heure locale du nom).
  *  Un ISO à fuseau se convertit en heure locale ; le `cree_le` du nom, déjà local, ne se décale
  *  jamais. */
-function quand(iso: string | null): string {
+function quand(iso: string | null, { heure = true }: { heure?: boolean } = {}): string {
   if (!iso) return "—";
   if (iso.includes("+") || iso.endsWith("Z")) {
     const d = new Date(iso);
-    return `${d.toLocaleDateString("fr-FR")} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+    const jmy = d.toLocaleDateString("fr-FR");
+    return heure
+      ? `${jmy} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+      : jmy;
   }
-  const [date, heure] = iso.split("T");
+  const [date, h] = iso.split("T");
   const jmy = date.split("-").reverse().join("/");
-  return heure ? `${jmy} ${heure.slice(0, 5)}` : jmy;
+  return heure && h ? `${jmy} ${h.slice(0, 5)}` : jmy;
 }
 
 /** Le STATUT d'une archive — c'est ici que le mot « sauvegarde » se gagne ou se refuse (§7). */
-function statutArchive(a: ArchiveSauvegarde): { label: string; classe: string } {
+function statutArchive(a: ArchiveSauvegarde): {
+  label: string;
+  classe: string;
+  /** L'âge de la vérification, rendu SOUS la pastille — voir le commentaire de la branche
+   *  `reussie`. `undefined` quand il n'y a rien à dater. */
+  age?: string;
+  /** La teinte que l'âge emprunte à sa pastille. */
+  teinte?: string;
+} {
   if (!a.verification) {
     return {
       label: "export non vérifié",
@@ -83,9 +95,37 @@ function statutArchive(a: ArchiveSauvegarde): { label: string; classe: string } 
     };
   }
   if (a.verification.verdict === "reussie") {
+    // 🔴 **L'ÂGE, à côté de la date — et sans aucun seuil.** Une archive vérifiée il y a quatre
+    // mois ne se regarde pas comme une vérifiée ce matin, et « 19/08/2026 » ne dit pas lequel des
+    // deux c'est. La date reste : c'est le fait. L'âge s'ajoute : c'est la lecture.
+    //
+    // 🔴 **Rien ici ne juge**, et c'est la décision du 2026-08-21 (cas 4 de l'ADR-0060, voie
+    // légère du §3). Trois raisons de n'avoir posé aucun seuil :
+    //   · **aucune mesure ne le justifierait** — un nombre choisi ici inventerait un risque ;
+    //   · le verdict `reussie` est une **précondition fail-closed du serveur**, deux fois : il
+    //     ouvre Restaurer (`sauvegarde.py:880`) ET protège la dernière archive de la suppression
+    //     (`:1436`). Une péremption « qui compte » bloquerait Papa au pire moment et affaiblirait
+    //     l'invariant « jamais zéro filet » en silence ;
+    //   · rien ne pourrait l'exploiter : l'ADR-0023 §4 refuse tout ordonnanceur, donc une
+    //     péremption ne peut RIEN déclencher — seulement se rendre.
+    //
+    // ⚠️ Et n'afficher l'âge que « quand il est grand » serait un seuil déguisé. Il s'affiche
+    // toujours, uniformément.
     return {
-      label: `Sauvegarde vérifiée · ${quand(a.verification.verifie_le)}`,
+      label: `Sauvegarde vérifiée · ${quand(a.verification.verifie_le, { heure: false })}`,
       classe: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+      // 🔴 **L'âge vit SOUS le badge, pas dedans — et c'est mesuré, pas choisi.** Glissé dans le
+      // libellé, il faisait passer la pastille de **2 à 4 lignes** dans une cellule de 166 px, et
+      // coupait « il y a 2 / j » — l'unité orpheline de son nombre. Le défaut des 117 px de la
+      // slice 1, à ceci près que cette fois c'est l'ajout qui le causait.
+      //
+      // ⚠️ Retirer l'HEURE ne suffisait pas : la longueur de l'âge VARIE (« il y a 2 j » tenait,
+      // « il y a 47 min » non). Un libellé dont la largeur dépend de la donnée ne se règle pas au
+      // rabotage. Dehors, l'âge ne dispute plus sa place au badge et porte `whitespace-nowrap` :
+      // il ne peut plus se couper. L'heure, elle, reste retirée : pour une vérification, le JOUR
+      // est ce qui compte, et la minute demeure en pied de section.
+      age: depuis(a.verification.verifie_le),
+      teinte: "text-emerald-200/80",
     };
   }
   const n = a.verification.ecarts;
@@ -637,6 +677,23 @@ export function DonneesTab() {
                         >
                           {statut.label}
                         </span>
+                        {/* ⚠️ L'âge emprunte la couleur de son badge — la même règle que le bouton
+                            de vérification. En `text-papa-muted` il tombait à **5,73:1**, la
+                            valeur exacte que la relecture de la slice 1 avait trouvée
+                            insuffisante en pratique : il aurait été l'élément le MOINS lisible de
+                            la ligne, alors qu'il est la raison d'être de ce chantier. Emprunter
+                            la teinte le relie à ce qu'il date, sans rien ajouter d'alarmant —
+                            dire l'âge n'est pas le juger. */}
+                        {statut.age && (
+                          <span
+                            className={cn(
+                              "mt-1 block whitespace-nowrap text-[11px]",
+                              statut.teinte,
+                            )}
+                          >
+                            {statut.age}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 text-right">
                         <div className="flex justify-end gap-2">
