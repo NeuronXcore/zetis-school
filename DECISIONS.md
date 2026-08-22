@@ -4,7 +4,7 @@
 > Le motif d'une décision vit dans son ADR, jamais ici — un index qui recopie
 > le contenu se périme deux fois plus vite et ne s'utilise plus.
 
-68 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
+69 décisions. Amendements fusionnés dans leur parent (`## Amendement N`, tableau récapitulatif en tête de chaque ADR).
 
 ## Décisions d'architecture
 
@@ -94,4 +94,5 @@
 | [0066](docs/decisions/adr-0066-restaurer-est-un-swap-au-reveil-suspendu.md) | Restaurer est un swap à réveil suspendu, et le mot se mérite dans les deux sens | 🟡 Proposé | 2026-08-19 |
 | [0067](docs/decisions/adr-0067-un-geste-qui-s-evanouit-n-est-pas-un-geste-reussi.md) | Un geste qui s'évanouit n'est pas un geste réussi | 🟡 Proposé | 2026-08-21 |
 | [0068](docs/decisions/adr-0068-la-fin-d-une-restauration-se-lit-sur-sa-propre-ligne.md) | La fin d'une restauration se lit sur sa propre ligne | 🟡 Proposé | 2026-08-21 |
+| [0069](docs/decisions/adr-0069-ce-qui-prend-de-la-place-se-nomme-avant-de-se-compter.md) | Ce qui prend de la place se nomme avant de se compter | 🟡 Proposé | 2026-08-22 |
 

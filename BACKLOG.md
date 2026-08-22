@@ -290,7 +290,12 @@ menace le projet. Tout le reste peut attendre sans qu'on perde quoi que ce soit.
   ✅ **Mesuré le 2026-08-19** : le prénom, ce sont **52 lignes sur 26 fichiers** hors tests, hors
   identifiants, hors commentaires — pas les 508 occurrences brutes. Et `/api/student/motivation`
   sert **déjà** `first_name` : la donnée arrive, il reste à l'employer.
-- **E** — occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) ·
+- **E** — **occupation disque (1)** — ✅ **cadré le 2026-08-22 par l'`adr-0069`** : quatre postes
+  (médias du backend ACTIF · base · archives · total), 🔴 **les modèles EXCLUS du total** (194 Mo
+  régénérables contre 139 Mo de données), **aucun espace libre** (deux plafonds distincts, mesurés)
+  · ⚠️ **la « cohérence Postgres ↔ MinIO » SORT de cette ligne** : `scripts/check_media_integrity.py`
+  la fait déjà (vidéo, audio, orphelins, RAG, et il **lit** le backend au lieu de le deviner) —
+  l'amener à l'écran est un autre sujet · purges et rétention des voix (1) ·
   remises à zéro **portées** (2) · restaurer (2) — ✅ **cadré par l'`adr-0066`** (swap à réveil
   suspendu, 8 ms mesurés ; inclut le DELETE d'archive) · **la fin d'un geste se raconte (1)** —
   ✅ **LIVRÉ le 2026-08-21** par l'`adr-0067` (slice 1 #174 · Amendement 1 #175 · slice 2 #176 ·

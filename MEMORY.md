@@ -147,11 +147,47 @@ de la donnée** ne se règle pas au rabotage (retirer l'heure sauvait « il y a 
 - 📌 `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa confirmation dans
   `REVOCATION_DECLAREE`.
 
+### 📐 CADRAGE FAIT — ADR-0069, « ce qui prend de la place se nomme avant de se compter » (2026-08-22, sur `main`)
+
+Cas **3** de l'ADR-0060 (décision neuve) : l'ADR engage un contrat publié **et** fixe ce que le mot
+« place » désignera. **Aucune ligne de code.**
+
+🔴 **La ligne du `BACKLOG` empaquetait TROIS choses, et l'une était déjà construite** :
+`scripts/check_media_integrity.py` fait la cohérence Postgres ↔ MinIO — mieux qu'une reprise, car
+il **lit** le backend actif au lieu de le deviner (il est né d'un faux diagnostic de perte de
+contenu, le 2026-08-18). Elle sort donc du chantier.
+
+**Les trois surprises de la mesure, toutes dans l'ADR :**
+
+1. 🔴 **Deux `storage/` coexistent**, et le bon n'est pas celui qu'on croit : `audio_storage_dir` est
+   **relatif** (`"storage/generated"`), résolu depuis le cwd → `apps/backend/storage/generated`. Le
+   `storage/` de la racine ne contient **que les modèles**.
+2. 🔴 **Le plus gros poste n'est pas une donnée de Massimo** : 194 Mo de modèles Piper contre 139 Mo
+   pour tout le reste. Régénérables, déjà exclus des archives ⇒ **exclus du total**, affichés à part.
+3. 🔴 **MinIO est quasi vide et c'est NORMAL** (`storage_backend=disk`). Afficher les deux backends
+   côte à côte referait la peur du 2026-08-18.
+
+⚠️ **Et une intuition que la mesure a CORRIGÉE** : je croyais l'espace libre illisible du conteneur.
+Faux — un **bind-mount** rend l'espace réel de l'hôte (3,6 T / 3,6 T des deux côtés). C'est la
+**racine du conteneur** qui rend le disque virtuel de Docker (845,5 G / 910,7 G) et non le Mac
+(809 Gi / 926 Gi). **Deux plafonds distincts** ⇒ l'ADR n'affiche **aucun** espace libre, et renvoie
+la question « vais-je manquer de place ? » à son propre cadrage.
+
+**Chiffres relevés le 2026-08-22** : audio `apps/backend/storage/generated` **47,6 Mo / 76 fichiers,
+mesuré en 1 ms** · modèles **194 Mo** · base `zetis_postgres_data` **90,4 Mo** · MinIO **1,2 Mo** ·
+archives 3 × 48 Mo (dev), 174 Ko (prod).
+
 **PROCHAIN PAS :**
 
-1. 🔴 **Arrêter l'environnement de dev, laissé debout** — `docker compose down` **sans `-v`**, puis
-   les préviews `:8005` et `:5181`. C'est la seule chose qui traîne.
-2. **Choisir le chantier suivant** — rien n'est engagé, `main` est propre. L'onglet 💾 n'a plus de
+1. ✅ ~~Arrêter l'environnement de dev~~ — **ARRÊTÉ** : les **quatre** préviews (dont deux qui
+   n'étaient pas de cette session, `backend-dev` :8001 et `massimo-dev` :5176 — l'une tenait une
+   connexion sur la base) puis `docker compose down` **SANS `-v`**. Vérifié : **7 volumes**, les 8
+   conteneurs `zetis-prod` intacts, **8 ports libres**, zéro connexion applicative au moment du
+   `down`. 🔴 *L'ordre a compté : les serveurs d'abord, l'infra ensuite.*
+2. 🔴 **Le chantier suivant est CADRÉ** (voir ci-dessus) : `/ouverture` puis `/slice` pour
+   l'ADR-0069. ⚠️ Cas 3, donc `/ouverture` **est** l'outil — contrairement aux quatre derniers
+   chantiers, qui partaient directement sur leur branche.
+3. **Ou choisir autre chose** — rien n'est engagé, `main` est propre. L'onglet 💾 n'a plus de
    dette de surface connue. Le reste de la **phase E** (`BACKLOG.md` L293) attend, et **aucun n'est
    cadré** — ce sont des **cas 3** : `/cadrage` sur `main`, **puis** `/ouverture`. Occupation
    disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro
