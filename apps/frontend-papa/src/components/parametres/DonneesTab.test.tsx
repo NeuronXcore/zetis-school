@@ -17,6 +17,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import {
   type ArchiveSauvegarde,
   type Donnees,
+  type Occupation,
   type RestaurationArchive,
   type SortieSauvegarde,
   type SortieVerification,
@@ -98,11 +99,25 @@ function sortieVerification(surcharge: Partial<SortieVerification> = {}): Sortie
   };
 }
 
+/** L'occupation (ADR-0069). ⚠️ `base` à `null` par DÉFAUT n'est pas un cas tordu : c'est ce que
+ *  rend tout moteur non-Postgres, donc toute la suite backend — l'écran doit savoir vivre avec. */
+function occupation(surcharge: Partial<Occupation> = {}): Occupation {
+  return {
+    medias: 47_600_000,
+    base: 12_090_391,
+    archives: 3_200_000,
+    total: 62_890_391,
+    modeles: 194_000_000,
+    ...surcharge,
+  };
+}
+
 function donnees(surcharge: Partial<Donnees> = {}): Donnees {
   return {
     certificat: { valable: true, motif: null, cible: "/Volumes/NX-Models/zetis-sauvegardes" },
     archives: [archive()],
     derniere_verification: null,
+    occupation: occupation(),
     ...surcharge,
   };
 }
@@ -978,5 +993,96 @@ describe("l'âge d'une vérification", () => {
     expect(ancien).toBe(frais);
     // …et « Restaurer » s'offre à l'une comme à l'autre : la péremption ne ferme aucun geste.
     expect(screen.getByRole("button", { name: "↺ Restaurer" })).toBeInTheDocument();
+  });
+});
+
+// --- 🔴 Le poids des données (ADR-0069) --------------------------------------------------------
+
+describe("le poids des données", () => {
+  it("affiche les quatre postes, et le total est celui du serveur", async () => {
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+
+    render(<DonneesTab />);
+
+    const panneau = (await screen.findByText("Le poids des données")).closest("section")!;
+    expect(panneau).toHaveTextContent("Médias produits");
+    expect(panneau).toHaveTextContent("Base");
+    expect(panneau).toHaveTextContent("Archives");
+    // ⚠️ Le total ne se RECALCULE pas côté écran : il vient du serveur, qui seul sait quels
+    // postes sont mesurables. Un total additionné ici rendrait un nombre là où le serveur a
+    // délibérément refusé d'en rendre un.
+    expect(panneau).toHaveTextContent("Total des données");
+    expect(panneau).toHaveTextContent("60,0 Mo");
+  });
+
+  it("🔴 les modèles s'affichent, et le texte dit qu'ils sont HORS du total", async () => {
+    // Les deux moitiés du §2. Les taire ferait de 194 Mo un mystère sur le disque ; les compter
+    // ferait croire que ZETIS grossit alors que c'est un téléchargement figé.
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+
+    render(<DonneesTab />);
+
+    const note = await screen.findByText(/Les modèles de voix pèsent/);
+    expect(note).toHaveTextContent("185,0 Mo");
+    expect(note).toHaveTextContent(/pas.{0,5}dans ce total/);
+  });
+
+  it("🔴 AUCUN geste dans le panneau (§6) — pas de purge, pas de suppression", async () => {
+    // Le contre-modèle est nommé : la maquette v2 portait trois boutons « Purger > 30 j ». Les
+    // purges sont le sous-chantier SUIVANT, avec son propre cadrage — un bouton qui apparaîtrait
+    // ici agirait sans qu'aucune décision ne l'ait encadré.
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+
+    render(<DonneesTab />);
+
+    const panneau = (await screen.findByText("Le poids des données")).closest("section")!;
+    expect(panneau.querySelectorAll("button")).toHaveLength(0);
+    expect(panneau).not.toHaveTextContent(/purger/i);
+  });
+
+  it("🔴 AUCUN espace libre affiché (§1) — deux plafonds, aucun ne se choisit ici", async () => {
+    // Un bind-mount rend le disque de l'hôte, la racine du conteneur celui de Docker : en
+    // montrer un seul mentirait le jour où il compte. Le jour où la question se pose vraiment,
+    // c'est son propre cadrage.
+    vi.mocked(fetchDonnees).mockResolvedValue(donnees());
+
+    render(<DonneesTab />);
+
+    const panneau = (await screen.findByText("Le poids des données")).closest("section")!;
+    // ⚠️ L'assertion porte sur les VALEURS, pas sur la prose : le chapeau du panneau parle bien
+    // d'espace libre — pour dire qu'il n'est pas là et pourquoi. Interdire le MOT ferait tomber
+    // ce test sur l'explication elle-même, et pousserait à retirer la seule phrase qui empêche
+    // de lire l'absence comme un oubli.
+    const postes = panneau.querySelector("dl")!;
+    expect(postes).not.toHaveTextContent(/libre|restant|disponible|%/i);
+    expect(postes.querySelectorAll("dt")).toHaveLength(4);
+  });
+
+  it("🔴 une mesure impossible se dit « non mesurable », JAMAIS zéro", async () => {
+    // `pg_database_size` hors Postgres, un MinIO injoignable : « je ne sais pas » n'est pas
+    // « c'est vide ». Afficher 0 ici, c'est le faux diagnostic de perte de contenu du
+    // 2026-08-18 refait à l'identique — et le total refuse de se rendre avec elle.
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      donnees({ occupation: occupation({ base: null, total: null }) }),
+    );
+
+    render(<DonneesTab />);
+
+    const panneau = (await screen.findByText("Le poids des données")).closest("section")!;
+    expect(panneau.querySelectorAll("dd")[1]).toHaveTextContent("non mesurable");
+    expect(panneau.querySelectorAll("dd")[3]).toHaveTextContent("non mesurable");
+  });
+
+  it("🔴 un poste VIDE se dit « 0 Ko » — le plancher de `taille()` en ferait « 1 Ko »", async () => {
+    // Le piège est réel : `taille()` fait `Math.max(1, …)`, utile pour une archive (jamais vide)
+    // et faux pour un poste. Un déploiement neuf afficherait « 1 Ko » d'archives inexistantes.
+    vi.mocked(fetchDonnees).mockResolvedValue(
+      donnees({ occupation: occupation({ archives: 0 }) }),
+    );
+
+    render(<DonneesTab />);
+
+    const panneau = (await screen.findByText("Le poids des données")).closest("section")!;
+    expect(panneau.querySelectorAll("dd")[2]).toHaveTextContent("0 Ko");
   });
 });

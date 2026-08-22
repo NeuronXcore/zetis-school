@@ -1,5 +1,40 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.20 — Le poids des données se lit sans ouvrir un terminal
+
+> **Cas 3** de l'ADR-0060 : `adr-0069`, écrit au cadrage la veille. Slice unique.
+
+L'onglet 💾 porte un quatrième bloc. Papa peut répondre à « qu'est-ce qui grossit ? » sans ouvrir
+un terminal — **médias produits**, **base**, **archives**, et le **total des données** — avec des
+chiffres qui veulent dire la même chose en dev et en prod, parce qu'ils ne dépendent d'aucun
+montage.
+
+🔴 **Les modèles de voix (194 Mo) sont affichés HORS du total, et l'écran le dit.** Ils dominent
+tout le reste réuni et se retéléchargent à l'identique ; la sauvegarde les excluait déjà pour la
+même raison. Les compter ferait croire que ZETIS grossit alors que c'est un téléchargement figé —
+les taire en ferait un mystère sur le disque.
+
+🔴 **Aucun espace libre n'est affiché**, et c'est un choix, pas un manque : la place restante a
+**deux plafonds** — un bind-mount rend le disque de l'hôte, la racine du conteneur celui de Docker
+— qui ne répondent pas à la même question. En montrer un seul mentirait le jour où il compte.
+« Vais-je manquer de place ? » aura son propre cadrage, plafond choisi explicitement.
+
+⚠️ **Aucun geste** : ni purge, ni suppression, ni réglage — un test-verrou compte zéro bouton dans
+le bloc. Les purges sont le sous-chantier suivant.
+
+**Sous le capot** — trois choses que la mesure a corrigées :
+
+- **L'audio n'est jamais dans MinIO.** `storage_backend` ne gouverne que le MP4 rendu : le poste
+  « médias » compte donc **toujours** l'audio du disque, plus la vidéo du backend actif. Mesurer
+  « le backend actif et lui seul » aurait tu toutes les pistes voix à la première bascule.
+- **`pg_database_size` rend la taille LOGIQUE** de la base (12 Mo en prod), pas celle du volume
+  Docker (90 Mo, WAL et espace non rendu compris).
+- **« Non mesurable » n'est pas « 0 »** : un poste que le moteur ne sait pas mesurer rend `null`,
+  et le total refuse de se rendre avec lui plutôt que de sous-compter en silence.
+
+La mesure est synchrone, dans le `GET /donnees` existant, sans cache ni tâche de fond :
+**0,9 ms** pour 76 fichiers audio, ~2 ms en tout.
+
 ## 0.99.19 — Une vérification dit son âge, et ne le juge pas
 
 > **Cas 4** de l'ADR-0060, **voie légère du §3** — réversible en un commit, sans migration, aucun

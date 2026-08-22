@@ -54,6 +54,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import AIJob
+from app.modules.settings import occupation
 
 logger = logging.getLogger(__name__)
 
@@ -1647,4 +1648,14 @@ def etat_donnees(db: Session) -> dict:
         "certificat": {"valable": motif is None, "motif": motif, "cible": cible},
         "archives": archives,
         "derniere_verification": derniere,
+        # ⚠️ Ce qui prend de la place (ADR-0069 §5) entre dans CETTE réponse, pas dans une route
+        # à elle : l'onglet 💾 a déjà UN appel qui rend un instantané cohérent, un second en
+        # ferait deux instants. La mesure est synchrone et sans cache — parcourir les 76 fichiers
+        # audio prend 1 ms (mesuré le 2026-08-22). Le jour où elle dépasse la centaine de
+        # millisecondes, c'est le NOMBRE DE FICHIERS qui a changé d'ordre de grandeur, et c'est
+        # cette information-là qui compte : remesurer le volume réel avant de songer à un cache.
+        #
+        # 🔴 `archives` lui est passée DÉJÀ CONSTRUITE : le total se somme sur les `stat` que la
+        # boucle ci-dessus vient de poser, il ne se recalcule pas sur un second `glob`.
+        "occupation": occupation.mesurer(db, archives),
     }

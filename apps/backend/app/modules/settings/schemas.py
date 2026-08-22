@@ -343,6 +343,35 @@ class ArchiveOut(BaseModel):
     restauration: RestaurationArchiveOut | None = None
 
 
+class OccupationOut(BaseModel):
+    """Ce qui prend de la place (ADR-0069 §2) — des tailles de ce que ZETIS a PRODUIT.
+
+    🔴 **Aucun espace libre ici, et c'est un choix** (§1) : il a deux plafonds (bind-mount de
+    l'hôte contre disque virtuel de Docker) qui ne répondent pas à la même question. Une taille
+    produite, elle, est vraie en natif comme en conteneur.
+
+    ⚠️ **`None` = non mesurable, `0` = vide.** Un répertoire absent rend 0 (il n'y a rien
+    dedans) ; `pg_database_size` sous SQLite ou un MinIO injoignable rendent `None`.
+    """
+
+    #: L'audio (toujours sur disque) + la vidéo du backend ACTIF, en un seul nombre. 🔴 Le
+    #: backend inactif n'est jamais interrogé (§3) : un « MinIO : 0 Mo » à côté du disque a
+    #: déjà fait diagnostiquer une perte de contenu sur des données intactes (2026-08-18).
+    medias: int | None = None
+    #: `pg_database_size` de la base courante — la taille LOGIQUE, pas le volume Docker (qui
+    #: porte en plus les WAL et l'espace non rendu : 90 Mo contre 12).
+    base: int | None = None
+    #: La somme des `.tar` de la cible certifiée — sommée sur les archives déjà listées.
+    archives: int
+    #: 🔴 **Le nombre qui compte** : `medias + base + archives`, et `None` dès qu'un des trois
+    #: manque. Un total amputé serait pire qu'un total absent.
+    total: int | None = None
+    #: 🔴 **HORS TOTAL** (§2), mais à l'écran. Ils dominent tout le reste réuni et sont
+    #: régénérables — la sauvegarde les exclut déjà nommément. Les compter dirait que ZETIS
+    #: grossit alors que c'est un téléchargement figé ; les taire en ferait un mystère.
+    modeles: int
+
+
 class DonneesOut(BaseModel):
     """Le 200 de `GET /donnees` (ADR-0065 §7). Des listes, des tailles, des empreintes, des
     verdicts — AUCUN octet d'archive ne passe par HTTP (§1), ni ici ni ailleurs."""
@@ -350,6 +379,9 @@ class DonneesOut(BaseModel):
     certificat: CertificatCibleOut
     archives: list[ArchiveOut]
     derniere_verification: VerificationArchiveOut | None = None
+    #: Ce qui prend de la place (ADR-0069 §5) — dans CETTE réponse, pas dans une route à elle :
+    #: deux appels sur cette page rendraient deux instants là où l'onglet en veut un.
+    occupation: OccupationOut
 
 
 class SuspensionRequest(BaseModel):

@@ -15,7 +15,7 @@
             "verification": {
                 "archive": "zetis-2026-08-19-1847.tar",
                 "verdict": "reussie",
-                "verifie_le": "2026-08-19T17:01:10.714888+00:00",
+                "verifie_le": "2026-08-21T18:57:47.467631+00:00",
                 "ecarts": 0
             },
             "restaurable": true,
@@ -64,9 +64,16 @@
         }
     ],
     "derniere_verification": {
-        "archive": "zetis-2026-08-19-1846.tar",
+        "archive": "zetis-2026-08-19-1847.tar",
         "verdict": "reussie",
-        "verifie_le": "2026-08-19T17:01:19.591909+00:00",
+        "verifie_le": "2026-08-21T18:57:47.467631+00:00",
         "ecarts": 0
+    },
+    "occupation": {
+        "medias": 47620740,
+        "base": 16727063,
+        "archives": 151746560,
+        "total": 216094363,
+        "modeles": 203460777
     }
 }
