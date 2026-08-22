@@ -181,6 +181,12 @@ résidus-là ne vivent nulle part ailleurs** — ni Git ni les ADR ne les porten
 
 Puis ARRÊTE-TOI. Ne committe pas, ne push pas.
 
+> 🔴 **Sauf si l'humain enchaîne sur `/livraison`** (ajoutée le 2026-08-22) : c'est elle, et elle
+> seule, qui committe, ouvre la PR, attend la **CI**, merge et fait la 4bis. Elle **refuse de
+> partir** si cette clôture-ci n'a pas eu lieu — `MEMORY.md` sans le chantier, ou `CHANGELOG.md`
+> sans son entrée alors qu'un comportement change. Les deux commandes se tiennent : celle-ci
+> écrit la mémoire pendant que tu es lucide, l'autre exécute le rituel git qui ne varie jamais.
+
 > **Après le merge** (donc hors de cette commande, et **seulement si le chantier était fini**) :
 > reviens remettre `MEMORY.md` au réel — squash, n° de PR, branche supprimée, « rien à pousser », et
 > les **résidus** de clôture. C'est l'étape **4bis** de `WORKFLOW.md §5`. Ce fichier a déjà survécu
