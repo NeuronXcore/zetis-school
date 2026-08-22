@@ -7,22 +7,21 @@
 ## État à la reprise
 
 > **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`a1fc2db`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
-> `fix/loterie-couverture` supprimée au merge, **locale ET distante** — `git ls-remote --heads
-> origin` et `git branch` ne rendent plus que `main`.
+> **`9144d0e`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
+> `fix/loterie-couverture` et `fix/carte-occupation-livree` ont été supprimées au merge,
+> **locales ET distantes** — `git ls-remote --heads origin` et `git branch` ne rendent plus
+> que `main`.
 >
-> ⚠️ **Une branche de chantier est VIVANTE et NON COMMITÉE** : `fix/carte-occupation-livree`
-> — voir la section en tête. `git status` avant `git log`.
->
-> Chantiers livrés ce jour-là : le **poids des données** (#180), la commande **`/livraison`**
-> avec son alignement dans `WORKFLOW.md`, la **loterie** (#181), et la **carte** ci-dessous.
+> Quatre chantiers livrés ce jour-là : le **poids des données** (#180), la commande
+> **`/livraison`** avec son alignement dans `WORKFLOW.md`, la **loterie** (#181) et la
+> **carte** (#182).
 >
 > 🔴 **`/livraison` a fait son premier trajet complet sur #181, et il s'est bien passé** — §0 à
 > §5 d'affilée, CI verte du premier coup, aucun de ses trois arrêts déclenché. Ce n'est pas une
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
-### 🔧 « LA CARTE CESSE D'ANNONCER À VENIR CE QUI EST LIVRÉ » — en cours (non commitée)
+### ✅ « LA CARTE CESSE D'ANNONCER À VENIR CE QUI EST LIVRÉ » — **MERGÉ** (PR #182, squash `9144d0e`)
 
 **Cas 2** de l'ADR-0060 (application) — **aucun ADR** : l'`adr-0069` avait déjà séparé les deux
 postes dans sa §Hors périmètre. On cite, on n'écrit pas. `CHANGELOG` **0.99.22**.
@@ -42,11 +41,13 @@ désigne bien un onglet rendu. **914 passés**, typecheck propre.
    Corrigés (**69 · 23 ici · 7 ailleurs · 15 nulle part · 24 à décider**), et le **signal de
    l'`adr-0062`** est écrit dans la spec : la dérive est sur le compte, pas encore sur le contenu.
 
-⚠️ **La surface n'a pas encore l'accord du commanditaire** : le libellé des deux lignes et leurs
-`statut` sont des **choix**, pas des faits. `/livraison` §6 s'arrête là-dessus — capture livrée,
-décision attendue.
+✅ **La surface a été validée AVANT le merge** — c'est le §6 de `/livraison` qui a servi, et
+c'était son premier exercice réel : la commande s'est arrêtée après la clôture, le commanditaire
+a tranché sur le suffixe « à l'écran », la chaîne est repartie. ⚠️ Le garde-fou du §3 (le
+vert-après-rouge), lui, n'a **toujours pas** été exercé : les deux livraisons sont passées vertes
+du premier coup. Il faudra un vrai rouge étranger pour le voir travailler.
 
-**PROCHAIN PAS :** accord sur les deux libellés, puis `/livraison`.
+**PROCHAIN PAS :** chantier clos.
 
 ### ✅ « UN TEST CESSE DE TIRER AU SORT SON VERDICT » — **MERGÉ** (PR #181, squash `a1fc2db`)
 
