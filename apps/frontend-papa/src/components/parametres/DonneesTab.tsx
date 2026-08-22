@@ -58,6 +58,20 @@ function taille(octets: number): string {
   return `${Math.max(1, Math.round(octets / 1024))} Ko`;
 }
 
+/** Un poste d'occupation (ADR-0069) — et il distingue TROIS états là où `taille` en connaît un.
+ *
+ *  🔴 `null` (non mesurable) ne se rend jamais « 0 » : `pg_database_size` hors Postgres, un MinIO
+ *  injoignable, ce sont des « je ne sais pas ». Les afficher à zéro, c'est le faux diagnostic de
+ *  perte de contenu du 2026-08-18, refait à l'identique.
+ *
+ *  ⚠️ Et `0` ne passe pas par `taille()` : son plancher `Math.max(1, …)` rendrait « 1 Ko » pour
+ *  un répertoire vide. Utile pour une archive (jamais vide), faux pour un poste. */
+function poste(octets: number | null): string {
+  if (octets === null) return "non mesurable";
+  if (octets === 0) return "0 Ko";
+  return taille(octets);
+}
+
 /** `2026-08-19T14:30` (heure LOCALE du nom d'archive) ou ISO complet AVEC fuseau → `19/08/2026 14:30`.
  *
  *  ⚠️ Deux natures de chaîne, deux traitements — vu à l'écran le 2026-08-19 : `verifie_le` arrive
@@ -852,6 +866,55 @@ export function DonneesTab() {
             · {quand(donnees.derniere_verification.verifie_le)}
           </p>
         )}
+      </section>
+
+      {/* 🔴 LE POIDS DES DONNÉES (ADR-0069). Il répond à « qu'est-ce qui grossit ? », et
+          **pas** à « vais-je manquer de place ? » — aucun espace libre n'est affiché, aucun ne
+          transite : le §1 a écarté les deux plafonds (bind-mount de l'hôte contre disque virtuel
+          de Docker) parce qu'en montrer un seul mentirait.
+
+          ⚠️ **Aucun geste ici** (§6) — pas de purge, pas de suppression, pas de réglage. On
+          assume donc, pour un temps, un chiffre sans bouton attaché : c'est tenable parce que
+          Papa POSE déjà la question, et qu'il en a un usage immédiat — décider s'il faut purger,
+          et quoi. Les purges sont le sous-chantier suivant, avec son propre cadrage.
+
+          ⚠️ L'ORDRE des postes et la place de la note sur les modèles sont des choix de surface :
+          l'ADR les renvoie explicitement au compte rendu de relecture (§Suivi 3), pas ici. */}
+      <section className="mb-4 rounded-xl border border-papa-border bg-papa-surface p-5">
+        <h2 className="mb-1 text-base font-semibold">Le poids des données</h2>
+        <p className="mb-3 text-xs text-papa-muted">
+          Ce que ZETIS a produit — des tailles vraies en local comme en conteneur, parce
+          qu'elles ne dépendent d'aucun montage. L'espace libre du disque n'est pas ici : il n'a
+          pas la même réponse selon qu'on le demande au Mac ou à Docker.
+        </p>
+        <dl className="text-sm">
+          {[
+            ["Médias produits", donnees.occupation.medias],
+            ["Base", donnees.occupation.base],
+            ["Archives", donnees.occupation.archives],
+          ].map(([libelle, octets]) => (
+            <div
+              key={libelle as string}
+              className="flex justify-between border-b border-papa-border/60 py-2"
+            >
+              <dt className="text-papa-muted">{libelle}</dt>
+              <dd className="font-mono">{poste(octets as number | null)}</dd>
+            </div>
+          ))}
+          {/* 🔴 Le nombre qui compte (§2). Il exclut les modèles, et la note juste dessous doit
+              suffire à le faire comprendre : quelqu'un lira ce total avec bien plus que ça sur
+              le disque. */}
+          <div className="flex justify-between py-2 font-semibold">
+            <dt>Total des données</dt>
+            <dd className="font-mono">{poste(donnees.occupation.total)}</dd>
+          </div>
+        </dl>
+        <p className="mt-2 border-t border-papa-border pt-3 text-xs text-papa-muted">
+          Les modèles de voix pèsent {poste(donnees.occupation.modeles)} et ne sont{" "}
+          <strong>pas</strong> dans ce total : ils se retéléchargent à l'identique, et la
+          sauvegarde les exclut déjà pour la même raison. Les compter ferait croire que ZETIS
+          grossit alors que c'est un téléchargement figé.
+        </p>
       </section>
 
       <p className="text-xs text-papa-muted">

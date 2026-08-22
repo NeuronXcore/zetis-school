@@ -4,6 +4,61 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 `storage_backend` ne gouverne QUE la vidéo — l'audio n'est jamais dans MinIO — 2026-08-22
+
+**Le piège.** `settings.storage_backend` (`disk` | `minio`) se lit comme « où vivent les médias ».
+C'est faux : il ne choisit que le backend du **MP4 rendu**. Les pistes voix restent sur le disque
+sous `audio_storage_dir` **quel que soit** le backend — c'est écrit dans le docstring de
+`apps/backend/app/modules/capsules/storage.py`, et personne ne le lit avant d'avoir eu le bug.
+
+**Ce que ça casse.** Toute mesure ou tout contrôle qui interroge « le backend actif, et lui seul »
+tait **100 % de l'audio** dès que `storage_backend` passe à `minio` — soit, aujourd'hui, la
+quasi-totalité du poste médias (46 Mo). L'ADR-0069 §3 avait été écrit sur cette lecture erronée ;
+le read-before-code l'a rattrapé avant la première ligne de code.
+
+**La parade.** L'audio se compte **toujours** sur le disque ; la vidéo suit le backend actif. Et
+sous `disk`, ⚠️ **ne pas additionner les deux** : le MP4 vit *dans* le répertoire audio
+(`_capsule_dir/video.mp4`), la marche du répertoire l'a déjà compté — l'ajouter doublerait chaque
+vidéo. Un test-verrou tient ce cas précis (`test_sous_disque_le_mp4_n_est_pas_compte_deux_fois`).
+
+## 🔴 Un contrat CAPTURÉ vire au rouge dès qu'une clé racine s'ajoute — et il se re-capture — 2026-08-22
+
+**Le piège.** `packages/types/contracts/*.example.json` sont relus par **deux** suites, et le test
+backend compare les clés **à l'identique** : *« une clé en plus est aussi grave qu'une clé en
+moins »*. Ajouter un champ à une réponse documentée fait donc tomber un test qui n'a rien à voir
+avec le chantier — `1 échec / 1588`, sur un fichier qu'on n'a pas touché.
+
+**Ce que ça n'est PAS.** Ce n'est pas une régression, et ⚠️ **ça ne se répare pas en modifiant
+l'assertion** : le message d'échec dit lui-même quoi faire — *« Si c'est voulu : RE-CAPTURER le
+fichier ET adapter le front. »*
+
+**La parade.** Re-capturer depuis un backend RÉEL (`curl … | python3 -m json.tool`), jamais éditer
+le JSON à la main — un contrat écrit à la main n'est qu'un mock de plus. ⚠️ **Capturer depuis la
+bonne cible** : les tests exigent une archive réellement restaurée **et** une archive jamais
+restaurée dans le même fichier ; seule la cible de dev (`backend-restauration`, :8005) les a.
+
+## ⚠️ `pg_database_size` n'existe pas sous SQLite — où tourne TOUTE la suite backend — 2026-08-22
+
+**Le piège.** `app/tests/conftest.py` monte un `create_engine("sqlite://")` in-memory. Toute
+fonction SQL spécifique à Postgres (`pg_database_size`, et ses cousines) y lève. Un appel nu dans
+une route lue par les tests fait tomber **toutes** les suites qui la traversent, pas seulement la
+nouvelle.
+
+**La parade.** Rendre `None` — *pas* `0` : « je ne sais pas » n'est pas « c'est vide », et un 0 se
+lit comme une donnée perdue. ⚠️ Et **`db.rollback()` dans le `except`** : sous Postgres, une erreur
+SQL **avorte la transaction**, et tout ce qui réutilise la session échoue ensuite pour une raison
+sans rapport. Un test enchaîne deux appels pour le prouver.
+
+## ⚠️ Le formateur `taille()` a un plancher qui rend « 1 Ko » pour ZÉRO octet — 2026-08-22
+
+**Le piège.** `DonneesTab.tsx` formate les octets avec `Math.max(1, Math.round(o / 1024))`. Le
+plancher est juste pour une **archive** (elle n'est jamais vide) et faux pour un **poste
+d'occupation** : un déploiement neuf afficherait « 1 Ko » de médias inexistants.
+
+**La parade.** Un formateur séparé pour les postes (`poste()`), qui traite `0` et `null` avant de
+déléguer — plutôt que de corriger `taille()`, dont le comportement actuel est **voulu** partout
+ailleurs. Un test-verrou tient le « 0 Ko ».
+
 ## 🔴 Un test ROUGE 2 h par jour et VERT 22 — et la CI ne peut pas le voir — 2026-08-22
 
 À **00 h 57 CEST**, quatre tests de `test_agenda.py` sont tombés en `IndexError`, sur du code que

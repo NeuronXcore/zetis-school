@@ -54,6 +54,9 @@ class VideoBackend(Protocol):
     def put_video(self, capsule_id: int, data: bytes) -> None: ...
     def read_video(self, capsule_id: int) -> bytes | None: ...
     def delete_video(self, capsule_id: int) -> None: ...
+    #: Le poids total des vidéos de CE backend (ADR-0069 §2), ou `None` s'il est injoignable —
+    #: c'est le backend qui sait se mesurer, l'appelant n'a pas à connaître son stockage.
+    def taille_videos(self) -> int | None: ...
 
 
 class DiskVideoBackend:
@@ -76,6 +79,21 @@ class DiskVideoBackend:
 
     def delete_video(self, capsule_id: int) -> None:
         self._path(capsule_id).unlink(missing_ok=True)
+
+    def taille_videos(self) -> int | None:
+        """⚠️ Ces octets vivent DANS `audio_storage_dir` — qui les compte déjà.
+
+        `occupation._medias()` ne s'en sert donc pas sous `disk` : les additionner doublerait
+        chaque MP4. La méthode existe pour que le contrat du Protocol tienne, et pour qu'un
+        appelant qui veut la vidéo SEULE puisse la demander.
+        """
+        total = 0
+        for chemin in (Path(settings.audio_storage_dir) / "capsules").glob("*/video.mp4"):
+            try:
+                total += chemin.stat().st_size
+            except OSError:
+                continue
+        return total
 
 
 class MinioVideoBackend:
@@ -130,6 +148,20 @@ class MinioVideoBackend:
         except S3Error:
             pass
 
+    def taille_videos(self) -> int | None:
+        """Le poids du bucket. Bucket absent ⇒ **0** (rien n'y a jamais été écrit) ; MinIO
+        injoignable ⇒ **`None`** — « je ne sais pas » n'est pas « c'est vide », et c'est
+        exactement la confusion qui a fait diagnostiquer une perte de contenu le 2026-08-18."""
+        try:
+            if not self._client.bucket_exists(self._bucket):
+                return 0
+            return sum(
+                objet.size or 0
+                for objet in self._client.list_objects(self._bucket, recursive=True)
+            )
+        except Exception:  # noqa: BLE001 — réseau, credentials, S3Error : tous « non mesurable »
+            return None
+
 
 @lru_cache(maxsize=1)
 def video_backend() -> VideoBackend:
@@ -145,6 +177,11 @@ def put_video(capsule_id: int, data: bytes) -> None:
 
 def read_video(capsule_id: int) -> bytes | None:
     return video_backend().read_video(capsule_id)
+
+
+def taille_videos() -> int | None:
+    """Le poids des vidéos du backend ACTIF (ADR-0069 §2) — `None` s'il est injoignable."""
+    return video_backend().taille_videos()
 
 
 def delete_capsule_video(capsule_id: int) -> None:

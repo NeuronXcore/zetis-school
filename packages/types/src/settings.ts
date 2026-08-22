@@ -252,10 +252,37 @@ export interface ArchiveSauvegarde {
   restauration: RestaurationArchive | null;
 }
 
+/** Ce qui prend de la place (ADR-0069 §2) — des tailles de ce que ZETIS a **produit**.
+ *
+ * 🔴 **Aucun espace libre, et c'est un choix** (§1) : il a deux plafonds — le bind-mount rend le
+ * disque de l'hôte, la racine du conteneur rend le disque virtuel de Docker — qui ne répondent
+ * pas à la même question. Une taille produite est vraie partout, elle ne dépend d'aucun montage.
+ *
+ * ⚠️ **`null` = non mesurable, `0` = vide.** Un répertoire absent rend 0 ; `pg_database_size`
+ * hors Postgres, ou un MinIO injoignable, rendent `null`. L'écran doit dire « non mesurable »,
+ * jamais « 0 » : c'est la même confusion qui a fait diagnostiquer une perte de contenu le
+ * 2026-08-18 sur des données intactes. */
+export interface Occupation {
+  /** L'audio (toujours sur disque) + la vidéo du backend ACTIF, en UN nombre. Le backend
+   *  inactif n'est jamais interrogé, et jamais affiché à côté (§3). */
+  medias: number | null;
+  /** La taille LOGIQUE de la base (`pg_database_size`), pas celle du volume Docker. */
+  base: number | null;
+  /** La somme des `.tar` de la cible — le total que la liste par archive ne donnait pas. */
+  archives: number;
+  /** 🔴 Le nombre qui compte — et `null` dès qu'un poste manque : un total amputé sans le dire
+   *  serait le « chiffre faux le jour où il compte » que le §1 refuse. */
+  total: number | null;
+  /** 🔴 **Hors total** (§2) — régénérables, et déjà exclus de la sauvegarde. Affichés quand
+   *  même : ils dominent tout le reste, les taire en ferait un mystère. */
+  modeles: number;
+}
+
 export interface Donnees {
   certificat: CertificatCible;
   archives: ArchiveSauvegarde[];
   derniere_verification: VerificationArchive | null;
+  occupation: Occupation;
 }
 
 /** Le 200 du DELETE d'archive (ADR-0066 §6) : les NOMS retirés de la cible — le tar et TOUS

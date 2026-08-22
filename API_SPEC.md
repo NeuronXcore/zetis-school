@@ -3063,8 +3063,40 @@ pour ça au §5 — la vérité scellée reste dans le tar, c'est `backup_verify
                 verification?,                   #   null, l'archive s'affiche quand même
                 restaurable, motif?,             # compatibilité ADR-0066 §5 (voir ci-dessous)
                 restauration? } ],              # le dernier geste de restauration (ADR-0067 §2)
-  derniere_verification? }                       # résumé du dernier backup_verify réussi
+  derniere_verification?,                        # résumé du dernier backup_verify réussi
+  occupation }                                   # ce qui prend de la place (ADR-0069)
 ```
+
+`occupation` (ADR-0069) : **ce qui prend de la place**, mesuré à la demande dans CETTE réponse —
+pas dans une route à elle (l'onglet 💾 a déjà un appel qui rend un instantané cohérent ; un
+second en ferait deux instants). Coût mesuré le 2026-08-22 : **0,9 ms** pour les médias
+(76 fichiers), 0,08 ms pour les modèles, ~2 ms en tout à chaud. Aucun cache, aucune tâche de
+fond (ADR-0023 §4).
+
+```txt
+{ medias,     # audio (TOUJOURS sur disque) + vidéo du backend ACTIF, en UN nombre
+  base,       # pg_database_size de la base courante — la taille LOGIQUE
+  archives,   # somme des .tar de la cible, sommée sur les archives ci-dessus
+  total,      # medias + base + archives — 🔴 le nombre qui compte
+  modeles }   # 🔴 HORS TOTAL, mais servi : régénérables, déjà exclus de la sauvegarde
+```
+
+🔴 **Aucun espace libre n'est servi** (§1), et c'est un choix : il a **deux plafonds** — un
+bind-mount rend le disque de l'hôte, la racine du conteneur le disque virtuel de Docker (3,6 T
+contre 910,7 G, mesurés) — qui ne répondent pas à la même question. Une taille **produite** est
+vraie en natif comme en conteneur, parce qu'elle ne dépend d'aucun montage.
+
+🔴 **`null` = non mesurable, `0` = vide.** Un répertoire absent rend 0 (déploiement neuf : rien
+n'a encore été produit) ; `pg_database_size` hors Postgres ou un MinIO injoignable rendent
+`null` — et `total` devient `null` avec eux plutôt que de sous-compter en silence. Afficher un 0
+à la place d'une ignorance, c'est le faux diagnostic de perte de contenu du 2026-08-18.
+
+🔴 **Le backend de stockage INACTIF n'est jamais interrogé** (§3) : `medias` lit celui que
+`settings.storage_backend` désigne, et lui seul — jamais les deux côte à côte. ⚠️ Mais l'**audio
+n'est jamais dans MinIO** (`storage_backend` ne gouverne que le MP4) : il se compte donc
+toujours sur le disque, sinon la bascule vers MinIO tairait toutes les pistes voix. Sous `disk`,
+le MP4 vit DANS le répertoire audio et n'est pas ajouté deux fois. `check_media_integrity.py`
+reste l'outil qui voit les DEUX backends.
 
 `verification` (et `derniere_verification`) : `{archive, verdict, verifie_le, ecarts}` — le
 verdict le plus récent par archive, lu dans l'`output_json` des travaux `backup_verify`

@@ -336,6 +336,7 @@ export {
   type RestaurationArchive,
   type ArchiveSauvegarde,
   type ArchiveSupprimee,
+  type Occupation,
   type Donnees,
   type SauvegardeAcceptee,
   type SortieSauvegarde,

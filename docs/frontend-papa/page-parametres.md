@@ -162,6 +162,39 @@ et l'explique. Un refus (409) s'affiche en **ambre avec son motif**, jamais en p
 hors de cette page ; annuler une restauration = runbook `TROUBLESHOOTING.md` (re-swap
 `zetis_avant`), pas un bouton.
 
+#### Le poids des données (`adr-0069`, livré le 2026-08-22)
+
+Un **quatrième bloc** dans l'onglet, servi par le **même** `GET /donnees` que les trois autres
+(§5 : un second appel ferait deux instants sur une page qui existe pour donner un état cohérent).
+Quatre postes — **Médias produits**, **Base**, **Archives**, **Total des données** — et les
+**modèles en note, hors du total**.
+
+🔴 **Il répond à « qu'est-ce qui grossit ? », pas à « vais-je manquer de place ? »** Aucun espace
+libre n'est affiché, et le chapeau du bloc le dit : la place restante a **deux plafonds**
+(bind-mount de l'hôte contre disque virtuel de Docker) qui ne se valent pas, et en montrer un
+seul mentirait le jour où il compte. Le jour où la question se pose vraiment, elle aura son
+propre cadrage, plafond choisi explicitement.
+
+🔴 **Les modèles sont hors du total, et l'écran l'écrit.** Ils dominent tout le reste réuni
+(203 Mo contre 216 pour les trois postes en dev, mesuré) et ils sont **régénérables** — la
+sauvegarde les exclut déjà nommément. Les compter dirait que ZETIS grossit alors que c'est un
+téléchargement figé ; les **taire** en ferait un mystère sur le disque. Un test-verrou tient les
+deux moitiés.
+
+⚠️ **Aucun geste ici** (§6) : ni purge, ni suppression, ni réglage — un test-verrou compte
+**zéro bouton** dans ce bloc. On assume donc, pour un temps, un chiffre sans geste attaché : la
+maquette v2 portait trois « Purger > 30 j », les purges sont le **sous-chantier suivant** et
+auront leur cadrage. C'est tenable parce que Papa pose déjà la question et qu'il en a un usage
+immédiat — décider s'il faut purger, et quoi.
+
+🔴 **« Non mesurable » n'est pas « 0 ».** `pg_database_size` hors Postgres, un MinIO injoignable :
+le poste rend `null` et l'écran écrit « non mesurable » ; le **total refuse de se rendre** avec
+lui, plutôt que de sous-compter en silence. Un répertoire simplement **absent**, lui, rend bien
+« 0 Ko » — c'est un fait, pas une ignorance.
+
+⚠️ **L'ordre des postes, les libellés et la place de la note** sont des choix de **surface** que
+l'ADR renvoie explicitement au compte rendu de relecture (§Suivi 3) — pas figés ici.
+
 ### Les règles transverses (`adr-0062` §6)
 
 | Règle | Ce qu'elle interdit |
@@ -458,8 +491,14 @@ ouverts divergent jusqu'au rechargement, et c'est accepté (addendum §7.4).
 
 **De la tranche 1 de l'`adr-0062`** (la carte + Autonomie + La machine) : les onglets 🎒 Massimo,
 👤 Papa et 💾 Données · tout geste destructif · sauvegarde et restauration · code parental et
-verrou d'inactivité · alertes et SMTP · SSD, UUID de volume et occupation disque · le commit git
+verrou d'inactivité · alertes et SMTP · SSD et UUID de volume · le commit git
 (pas baké dans l'image) · « Suspendre ZETIS ».
+
+> ⚠️ **L'occupation disque a QUITTÉ cette liste le 2026-08-22** (`adr-0069`, livrée dans
+> l'onglet 💾 — voir sa section plus haut). Elle y figurait comme repoussée à plus tard ; la
+> laisser ici ferait dire à la spec le contraire de l'écran. ⚠️ Ce qui reste hors périmètre,
+> c'est **l'espace libre** — « vais-je manquer de place ? » a deux réponses selon le plafond
+> qu'on choisit, et ce choix aura son propre cadrage.
 
 **Jamais bâti**, motif dans l'`adr-0062` : journal technique · sélecteur de modèle de génération ·
 réinitialisation totale à l'écran · sessions ouvertes et révocation.

@@ -6,121 +6,119 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`39aab8a`**, **rien à pousser**. **Aucune branche de chantier vivante** : les deux du jour ont
-> été supprimées au merge, **locales ET distantes** — vérifié par `git ls-remote`, `git branch` et
-> l'API GitHub, qui ne rendent plus que `main`.
+> **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`eecdba6`** (l'ADR-0069 seul).
+> Une branche de chantier VIVANTE : **`feat/occupation-disque`**, basée sur `eecdba6`.
 >
-> ⚠️ **DEUX chantiers ont été mergés ce jour-là, et le second est né du premier** — c'est
-> l'histoire à ne pas perdre, elle est racontée ci-dessous.
+> ✅ **Le chantier est COMMITÉ et POUSSÉ** — un commit unique (15 fichiers), `origin` au même
+> point que le local, arbre de travail **propre**. Le contenu se lit par
+> `git log --oneline main..HEAD` et `git show --stat HEAD`.
+>
+> 🔴 **La PR n'est PAS ouverte, et `main` n'a pas bougé** (toujours `eecdba6`, l'ADR seul).
+> C'est le geste suivant, et il appartient à l'humain.
 
-### ✅ « LES TRACES DU JOUR SE COMPTENT EN HEURE LOCALE » — **MERGÉ** (PR #178, squash `21eacb0`)
+### ✅ « LE POIDS DES DONNÉES » — chantier **COMPLET** (ADR-0069), reste à committer
 
-**Chantier NON PRÉVU, né d'un `git push` refusé à 00 h 57.** Cas **1** de l'ADR-0060 (rangement) —
-aucun ADR. `CHANGELOG` **0.99.18**.
+**Cas 3** de l'ADR-0060, ADR écrit au cadrage la veille. Slice unique. **Rien n'est en cours,
+aucun fichier instable** : il ne manque que la vérification humaine et le geste git.
 
-Quatre tests de `test_agenda.py` dataient leur événement avec `hier.date()` — la date **UTC** —
-alors que la route range dans un jour **Europe/Paris** (`range_bounds_utc`). Entre minuit et 2 h
-locales les deux diffèrent : l'événement sortait des bornes, `subjects` rendait `[]`, `IndexError`.
-🔴 **Aucun code de production n'était en cause** : la route avait raison, les tests avaient tort.
-Ils étaient **rouges 2 h par nuit et verts 22**.
+**FAIT — et vérifié.**
 
-🔴 **La CI ne pouvait structurellement pas le voir** — ses runners tournent en **UTC**, où jour
-local = jour UTC. Il s'est manifesté en bloquant un `push`, jamais en CI. **Corollaire durable :
-une CI verte ne dit rien d'un défaut de fuseau.**
+- **Quatre postes** dans `GET /api/settings/donnees` : médias produits · base · archives · total.
+  Nouveau module `apps/backend/app/modules/settings/occupation.py`, appelé par `etat_donnees`.
+  Les **modèles** sont servis **hors total** et affichés en note.
+- **Le rendu** dans l'onglet 💾 (`DonneesTab.tsx`), **vu à l'écran** sur données réelles :
+  médias 45,4 Mo · base 16,0 Mo · archives 144,7 Mo · **total 206,1 Mo** · modèles 194,0 Mo hors
+  total. Recoupé sur place : 3 archives × 48,2 Mo ≈ le poste archives.
+- **18 test-verrous neufs** (12 back, 6 front) : le backend inactif n'est **jamais interrogé** ·
+  les modèles ne sont **jamais** dans le total · aucun chemin en dur · **zéro bouton** dans le
+  bloc (§6) · aucun espace libre dans les valeurs · « non mesurable » ≠ « 0 ».
+- **Le contrat capturé a été RE-CAPTURÉ**, pas édité (`packages/types/contracts/donnees.example.json`).
+- **Doc** : `API_SPEC.md` (le contrat d'`occupation`) · `page-parametres.md` (section 💾 neuve **et**
+  ligne 461 corrigée — l'occupation disque y était encore listée en *hors périmètre*).
 
-Les **cinq** sites (un cinquième, latent) passent par `local_day()`, le helper qui existait déjà et
-porte exactement ce nom. ⚠️ `astimezone()` nu aurait été faux aussi : fuseau de la **machine**, pas
-de l'**app**. Et un verrou neuf **fige l'instant** (15 juillet 22 h 30 UTC = le 16 à Paris) : il
-mord à n'importe quelle heure, là où les quatre autres ne mordaient que de minuit à 2 h.
+**EN COURS :** rien. **Aucun fichier instable.**
 
-📌 **La leçon existait déjà dans le fichier d'à côté** (`test_agenda_plan.py` : *« un verrou qui ne
-mord que deux heures sur vingt-quatre n'est pas un verrou, c'est une loterie »*) et n'avait pas
-voyagé. Elle est maintenant dans `TROUBLESHOOTING.md`, avec la commande pour chercher les frères.
+**Le LIBELLÉ du bloc est ARRÊTÉ — « Le poids des données », validé par le commanditaire.** Deux
+propositions l'ont précédé et ont été **rejetées** : « Ce qui prend de la place » (le titre même
+de l'ADR) puis « Occupation disque ». Ce qui a fait gagner la troisième : **« poids » ne peut pas
+se lire comme une capacité** — c'est ce qui manquait aux deux autres, dont la seconde tirait vers
+« le disque est-il plein ? », précisément la question que le §1 refuse. Elle reprend en plus le
+mot de la ligne de total (« Total des données ») et du nom de l'onglet (💾 Données).
+⚠️ **Ne pas la rouvrir sans relire ça** : le libellé porte une décision, pas un goût.
 
-### ✅ « UNE VÉRIFICATION DIT SON ÂGE » — **MERGÉE** (PR #179, squash `39aab8a`)
+**À FAIRE (dans l'ordre) :** vérifier (diff + tests) → commit → push → **PR** → merge →
+**étape 4bis** (`WORKFLOW.md §5` : revenir écrire ici le squash, le n° de PR, « branche supprimée »,
+« rien à pousser », et solder les résidus ci-dessous).
 
-**Chantier** : **cas 4** de l'ADR-0060 (surface), **voie légère du §3** — réversible en un commit,
-sans migration, aucun texte vu par Massimo. Donc **aucun ADR** : une entrée `CHANGELOG` et des
-tests. Branche directe depuis `main`, **rebasée** ensuite sur le correctif ci-dessus.
+### 🔴 LES DÉCISIONS DE CE CHANTIER — à relire, pas à rouvrir
 
-⚠️ **Le rebase a renuméroté son entrée `CHANGELOG` de `0.99.18` en `0.99.19`** — le correctif,
-mergé en premier, avait pris le 18. Deux conflits en tête de `CHANGELOG.md` et
-`TROUBLESHOOTING.md`, résolus en gardant tout. 🔴 **Le contrôle qui l'a prouvé** : le diff de ces
-deux fichiers face à `main` était **90 insertions, 0 suppression**.
+1. **« Médias produits » = l'audio du disque (TOUJOURS) + la vidéo du backend actif**, en un seul
+   nombre. 🔴 **Correction imposée par le read-before-code, contre la lettre du §3 de l'ADR** :
+   `settings.storage_backend` ne gouverne **que le MP4** ; l'audio reste sur disque quel que soit
+   le backend. Mesurer « le backend actif et lui seul » tairait **100 % des pistes voix** dès une
+   bascule vers MinIO. Sous `disk`, le MP4 vit **dans** le répertoire audio et n'est donc **pas**
+   ajouté deux fois (un verrou le tient).
+2. **`null` = non mesurable, `0` = vide**, et le **total refuse de se rendre** dès qu'un poste
+   manque. Un total amputé en silence est le « chiffre faux le jour où il compte » du §1.
+3. **Aucun espace libre**, **aucun geste** (ni purge ni suppression), **aucun chemin en dur**.
+4. **L'occupation du DOSSIER ZETIS (1,4 Go) a été mesurée puis ÉCARTÉE** — demandée en session,
+   répondue par la mesure : ~1,07 Go de `node_modules` + `.venv` + `graphify-out` + `.git`, et
+   surtout **ce nombre n'existe pas en production** (en Docker il n'y a pas de dossier ZETIS).
+   Il échoue au critère du §1 exactement comme l'espace libre. 🔴 **Vérifié au passage : aucune
+   donnée produite n'échappe au panneau** — pas de `storage/uploads`, pas de `storage/exports`.
 
-**Chiffres vérifiés DANS LA CI** : `frontends — vitest` **908 / 80 fichiers** (Papa, +5) et
-**920 / 84** (Massimo) · `backend — pytest` **1576** · `verrous du dépôt` et GitGuardian au vert.
+### 🔢 CE QUE LA MESURE A CORRIGÉ DANS L'ADR — deux chiffres
 
-🔴 **Le cadrage a conclu qu'il n'y avait rien à cadrer, et c'est son RÉSULTAT** — pas une esquive.
-Ce qui a été demandé (« cadre le seuil de péremption ») s'est avéré ne pas être une décision neuve.
+- 🔴 **`pg_database_size` rend 12 Mo en prod (16 en dev), pas les 90,4 Mo annoncés** par le tableau
+  de contexte de l'ADR : ces 90 Mo étaient le **volume Docker**, pas la taille logique. La décision
+  ne bouge pas (le §Alternatives avait déjà écarté `du` sur le volume) ; l'argument « 194 Mo de
+  modèles contre 139 pour le reste » se lit désormais **194 contre ~58** en prod.
+- **Droits `pg_database_size` : OK** depuis l'utilisateur applicatif (read-before-code n°1 de
+  l'ADR, qui était **non mesuré**). Rien à accorder.
+- **Coût réel de la mesure** : **0,89 ms** les médias (76 fichiers) · 0,08 ms les modèles ·
+  **~2,3 ms** en tout à chaud. Le §Signaux surveille les 100 ms : très loin.
 
-**FAIT.**
+**PIÈGES** : `TROUBLESHOOTING.md`, **quatre entrées neuves en tête** — le backend de stockage ne
+gouverne que la vidéo · un contrat capturé casse dès qu'une clé racine s'ajoute (et se
+**re-capture**, ne s'édite pas) · `pg_database_size` n'existe pas sous SQLite, où tourne toute la
+suite · le formateur `taille()` a un plancher qui rend « 1 Ko » pour zéro octet.
 
-- **`depuis()` gagne les jours, semaines, mois et ans** — il s'arrêtait aux heures et rendait
-  « il y a 2952 h », juste et illisible.
-- **Le badge « Sauvegarde vérifiée » porte le JOUR** (l'heure est partie) et **l'âge vit SOUS lui**,
-  en `whitespace-nowrap`, dans sa teinte.
-- **Spec** `§💾` · **CHANGELOG 0.99.19** · la dette du `BACKLOG` est **close par une décision**.
-
-**EN COURS** : rien. **Aucun fichier instable.**
-
-### 🔴 LA DÉCISION DU CHANTIER — aucun seuil, et ce n'est pas un oubli
-
-Trois raisons, à ne pas rouvrir sans les avoir relues :
-
-1. **Aucune mesure ne justifierait un nombre** — le poser inventerait un risque.
-2. 🔴 **Le verdict `reussie` est une précondition fail-closed du SERVEUR, deux fois** : il ouvre
-   **↺ Restaurer** (`sauvegarde.py:880`) **et protège la dernière archive de la suppression**
-   (`:1436`). Une péremption « qui compte » bloquerait Papa **au pire moment** et affaiblirait
-   l'invariant « jamais zéro filet » **en silence**. C'est ce second effet qui a tranché.
-3. **Rien ne pourrait l'exploiter** : l'ADR-0023 §4 refuse tout ordonnanceur (et le §G.3 a écarté
-   la quarantaine temporelle *pour cette raison même*). Une péremption ne peut **rien déclencher** —
-   seulement se rendre.
-
-⚠️ **N'afficher l'âge que « quand il est grand » serait un seuil déguisé.** Il s'affiche toujours,
-jusqu'à « à l'instant ». Un test-verrou tient l'absence de seuil : le rendu d'une vérification de
-**900 jours** est **identique** à celui d'une de ce matin, Restaurer compris.
-
-**DÉCISIONS ACTIVES — à relire, jamais à rouvrir :**
-
-- **La péremption est une LECTURE, jamais un état stocké** (ADR-0034 §2) — vaut ici comme ailleurs.
-- **L'âge emprunte la teinte de son badge** — la même règle que le bouton de vérification, posée au
-  chantier précédent.
-- **Le badge garde le JOUR, pas l'heure** : pour une vérification, la minute est une précision que
-  personne n'utilise. Elle reste lisible en pied de section (« Dernière vérification »).
-
-**REGARDÉ À L'ÉCRAN** — badge à **2 lignes** (exactement comme avant l'ajout), âge sur **1 ligne**
-jamais coupée, à **9,06:1** (contre 5,73 en gris), largeur du tableau **inchangée** (854 px).
-⚠️ **Le rendu a changé DEUX fois à cause de l'écran** : voir le piège ci-dessous.
-
-**PIÈGES** : `TROUBLESHOOTING.md`, **deux entrées neuves en tête** — 🔴 deux paliers à diviseurs
-différents laissent un **trou** entre eux (mois/30 vs ans/365 ⇒ « il y a **0 an** » aux jours
-360-364, trouvé par un test qui énumérait ses **frontières**) · un libellé dont la **largeur dépend
-de la donnée** ne se règle pas au rabotage (retirer l'heure sauvait « il y a 2 j », pas
-« il y a 47 min »).
-📌 Détail sans entrée dédiée : `depuis()` rend **« à l'instant »** sous la seconde, pas
-« il y a 0 s » — une assertion sur le seul `/il y a /` tombe sur le cas le plus frais.
+**PROCHAIN PAS (précis) :** **ouvrir la PR** depuis `feat/occupation-disque`, la faire passer au
+vert, merger — puis revenir ici pour l'**étape 4bis**. Commit et push sont **faits** ; le diff et
+le périmètre, eux, restent à relire par l'humain (`WORKFLOW.md §2` étape 4).
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **L'environnement de dev est TOUJOURS DEBOUT** (relevé pour la relecture d'écran du
-  2026-08-21 au soir, et jamais arrêté depuis) : infra docker de dev (`up -d postgres redis
-  minio`, **jamais `-v`**) + préviews `:8005` et `:5181`. **À arrêter à la main** —
-  `docker compose down` **sans `-v`**.
-- ⚠️ **Le changement de `depuis()` au-delà de 24 h n'a PAS été vu à l'écran** pour son autre
-  appelant (`ProductionPopover`) : je n'ai pas fabriqué un travail vieux de trois jours pour le
-  regarder. Argumenté dans le code — un lot dure des minutes, et le seul cas atteignable est un
-  travail resté en file worker mort.
-- 🔴 **Le toast et l'attente ⏳ de RESTAURER n'ont toujours pas été vus dans un geste réel** —
-  seulement sous test. Le commanditaire l'a pris pour lui (suspendre ZETIS d'abord, sinon 409).
+- 🔴 **Une ligne de la 🗺 carte est devenue FAUSSE** : `inventaireReglages.ts:568` annonce
+  « Occupation disque par famille · cohérence Postgres ↔ MinIO » en **« ⏸ tranche 4 »**, alors que
+  la moitié gauche est livrée. Elle empaquette les deux postes que l'ADR-0069 a justement séparés.
+  **Non traitée** — hors du périmètre posé à l'ouverture (« toute surface hors de l'onglet 💾 »).
+  Deux issues : la scinder en deux lignes, ou la traiter avec le sous-chantier des purges.
+- ⚠️ **`pnpm -r typecheck` échoue sur `apps/extension-zetis-clip`** (`import.meta.glob` dans
+  `packages/ui/src/lib/subjectIcons.ts`). **Antérieur à ce chantier**, prouvé en relançant le
+  typecheck sur l'arbre remisé (`git stash`). Non traité.
+- ✅ **Tout a été rejoué APRÈS le renommage de libellé, rien ne reste dans l'ombre** : backend
+  **1588 passés / 0 échec** (2 min 05, sur SQLite seul — l'infra Docker était déjà arrêtée),
+  front `frontend-papa` **914 passés / 80 fichiers**, typecheck propre.
+- ✅ **L'environnement de dev a été relancé pour la capture du contrat, puis ARRÊTÉ** — les deux
+  préviews (`:8005`, `:5181`) d'abord, puis `docker compose down` **SANS `-v`**. Vérifié : les
+  3 volumes `zetis_*` intacts (14 volumes au total), les 8 conteneurs `zetis-prod` jamais touchés,
+  5 ports libres. ⚠️ **Le refaire sera nécessaire pour toute nouvelle capture de contrat** : le
+  backend `:8005` seul rend un **500** sans l'infra (Postgres injoignable sur `localhost:5432` —
+  la prod ne publie pas ce port).
+- ⚠️ **Le changement de `depuis()` au-delà de 24 h n'a toujours pas été vu à l'écran** pour son
+  autre appelant (`ProductionPopover`). *(Hérité de la session précédente.)*
+- 🔴 **Le toast et l'attente ⏳ de RESTAURER n'ont toujours pas été vus dans un geste réel.**
+  *(Hérité.)*
 - Les échecs #890/#896/#897 attendent toujours un acquittement dans Échecs — sans urgence.
+- 📌 De la session précédente, **close** : la décision « aucun seuil de péremption » du chantier de
+  l'âge vit désormais dans la **spec** `§💾` et son test-verrou, pas ici.
 
 **🧾 DETTES OUVERTES :**
 
 - 📌 **Une vérification en ÉCHEC n'affiche pas son âge** — seul le succès le porte. Cohérent avec le
-  chantier (« une preuve vieillit »), mais un échec vieux de trois mois est aussi une information.
-  *(Née de cette session.)*
+  chantier de l'âge (« une preuve vieillit »), mais un échec vieux de trois mois est aussi une
+  information.
 - ⚠️ **Trois boutons par ligne d'archive font passer chaque bouton sur 2 lignes** — mesuré : le
   libellé long n'y coûte **0 px**, c'est le nombre de boutons qui coince. Le tableau défile en
   largeur dès 768 px (703 px de contenu dans 407 px visibles).
@@ -140,61 +138,16 @@ de la donnée** ne se règle pas au rabotage (retirer l'heure sauvait « il y a 
   `/Volumes/NX-Models/secours/` existe et est VIDE.
 - **`mise-en-route.sh` n'installe pas le client PostgreSQL** : ajouter `postgresql@16`, jamais
   `libpq`. Chore à part.
-- `API_SPEC.md` ne documente toujours pas les autres routes `/api/settings` (`/autonomy`,
-  `/machine`, `/ecarts`, `/production-suspension`).
+- `API_SPEC.md` documente désormais `GET /donnees` **en entier**, mais toujours pas les autres
+  routes `/api/settings` (`/autonomy`, `/machine`, `/ecarts`, `/production-suspension`).
 - 📌 `gen_tableau_amendements.py` **ne crée jamais le bloc** `> ### Amendements` — l'amorce se fait
   à la main. ⚠️ Et la dette ne couvre que l'**amorce**, pas le contenu des cellules.
 - 📌 `adr-0066::Le réveil clôt les travaux d'une autre époque` attend toujours sa confirmation dans
   `REVOCATION_DECLAREE`.
-
-### 📐 CADRAGE FAIT — ADR-0069, « ce qui prend de la place se nomme avant de se compter » (2026-08-22, sur `main`)
-
-Cas **3** de l'ADR-0060 (décision neuve) : l'ADR engage un contrat publié **et** fixe ce que le mot
-« place » désignera. **Aucune ligne de code.**
-
-🔴 **La ligne du `BACKLOG` empaquetait TROIS choses, et l'une était déjà construite** :
-`scripts/check_media_integrity.py` fait la cohérence Postgres ↔ MinIO — mieux qu'une reprise, car
-il **lit** le backend actif au lieu de le deviner (il est né d'un faux diagnostic de perte de
-contenu, le 2026-08-18). Elle sort donc du chantier.
-
-**Les trois surprises de la mesure, toutes dans l'ADR :**
-
-1. 🔴 **Deux `storage/` coexistent**, et le bon n'est pas celui qu'on croit : `audio_storage_dir` est
-   **relatif** (`"storage/generated"`), résolu depuis le cwd → `apps/backend/storage/generated`. Le
-   `storage/` de la racine ne contient **que les modèles**.
-2. 🔴 **Le plus gros poste n'est pas une donnée de Massimo** : 194 Mo de modèles Piper contre 139 Mo
-   pour tout le reste. Régénérables, déjà exclus des archives ⇒ **exclus du total**, affichés à part.
-3. 🔴 **MinIO est quasi vide et c'est NORMAL** (`storage_backend=disk`). Afficher les deux backends
-   côte à côte referait la peur du 2026-08-18.
-
-⚠️ **Et une intuition que la mesure a CORRIGÉE** : je croyais l'espace libre illisible du conteneur.
-Faux — un **bind-mount** rend l'espace réel de l'hôte (3,6 T / 3,6 T des deux côtés). C'est la
-**racine du conteneur** qui rend le disque virtuel de Docker (845,5 G / 910,7 G) et non le Mac
-(809 Gi / 926 Gi). **Deux plafonds distincts** ⇒ l'ADR n'affiche **aucun** espace libre, et renvoie
-la question « vais-je manquer de place ? » à son propre cadrage.
-
-**Chiffres relevés le 2026-08-22** : audio `apps/backend/storage/generated` **47,6 Mo / 76 fichiers,
-mesuré en 1 ms** · modèles **194 Mo** · base `zetis_postgres_data` **90,4 Mo** · MinIO **1,2 Mo** ·
-archives 3 × 48 Mo (dev), 174 Ko (prod).
-
-**PROCHAIN PAS :**
-
-1. ✅ ~~Arrêter l'environnement de dev~~ — **ARRÊTÉ** : les **quatre** préviews (dont deux qui
-   n'étaient pas de cette session, `backend-dev` :8001 et `massimo-dev` :5176 — l'une tenait une
-   connexion sur la base) puis `docker compose down` **SANS `-v`**. Vérifié : **7 volumes**, les 8
-   conteneurs `zetis-prod` intacts, **8 ports libres**, zéro connexion applicative au moment du
-   `down`. 🔴 *L'ordre a compté : les serveurs d'abord, l'infra ensuite.*
-2. 🔴 **Le chantier suivant est CADRÉ** (voir ci-dessus) : `/ouverture` puis `/slice` pour
-   l'ADR-0069. ⚠️ Cas 3, donc `/ouverture` **est** l'outil — contrairement aux quatre derniers
-   chantiers, qui partaient directement sur leur branche.
-3. **Ou choisir autre chose** — rien n'est engagé, `main` est propre. L'onglet 💾 n'a plus de
-   dette de surface connue. Le reste de la **phase E** (`BACKLOG.md` L293) attend, et **aucun n'est
-   cadré** — ce sont des **cas 3** : `/cadrage` sur `main`, **puis** `/ouverture`. Occupation
-   disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro
-   portées (2) · export RGPD (1).
-   ⚠️ Ne pas confondre avec les derniers chantiers, qui partaient **directement sur leur branche**
-   (cas 1, 2 et 4).
-3. Sinon, les **dettes ouvertes** ci-dessous.
+- 🔴 **La phase E n'est pas finie** (`BACKLOG.md` L293), et aucun reste n'est cadré — ce sont des
+  **cas 3** (`/cadrage` sur `main`, **puis** `/ouverture`) : cohérence Postgres ↔ MinIO à l'écran ·
+  purges et rétention des voix · remises à zéro portées · export RGPD. ⚠️ « Vais-je manquer de
+  place ? » en fait désormais partie : l'ADR-0069 §1 la lui renvoie, plafond à choisir explicitement.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
