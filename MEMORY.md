@@ -7,21 +7,21 @@
 ## État à la reprise
 
 > **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`9144d0e`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
+> **`115955d`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
 > `fix/loterie-couverture` et `fix/carte-occupation-livree` ont été supprimées au merge,
 > **locales ET distantes** — `git ls-remote --heads origin` et `git branch` ne rendent plus
 > que `main`.
 >
-> Quatre chantiers livrés ce jour-là : le **poids des données** (#180), la commande
-> **`/livraison`** avec son alignement dans `WORKFLOW.md`, la **loterie** (#181) et la
-> **carte** (#182).
+> Cinq chantiers livrés ce jour-là : le **poids des données** (#180), la commande
+> **`/livraison`** avec son alignement dans `WORKFLOW.md`, la **loterie** (#181), la
+> **carte** (#182) et l'**angle mort du typecheck** (#183).
 >
 > 🔴 **`/livraison` a fait son premier trajet complet sur #181, et il s'est bien passé** — §0 à
 > §5 d'affilée, CI verte du premier coup, aucun de ses trois arrêts déclenché. Ce n'est pas une
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
-### 🔧 « LE TYPECHECK CESSE D'AVOIR UN ANGLE MORT » — en cours (non commitée)
+### ✅ « LE TYPECHECK CESSE D'AVOIR UN ANGLE MORT » — **MERGÉ** (PR #183, squash `115955d`)
 
 **Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**. `CHANGELOG` **0.99.23**.
 
@@ -51,7 +51,11 @@ compile `packages/` sans avoir sa ligne dans le job de typage est un angle mort.
 le trou ouvert — et c'est la même décision que le 2026-08-18, appliquée à l'app oubliée. À dire,
 pas à cacher.
 
-**PROCHAIN PAS :** `/livraison`.
+🔴 **La nouvelle étape de CI a tourné pour la PREMIÈRE fois sur sa propre PR**, et elle est
+verte — `tsc — extension ZETIS Clip`, dans le job `frontends — vitest` (dont le nom reste
+inchangé : c'est une *required check* de l'`adr-0061`).
+
+**PROCHAIN PAS :** chantier clos.
 
 ### ✅ « LA CARTE CESSE D'ANNONCER À VENIR CE QUI EST LIVRÉ » — **MERGÉ** (PR #182, squash `9144d0e`)
 
