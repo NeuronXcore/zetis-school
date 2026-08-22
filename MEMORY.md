@@ -21,6 +21,38 @@
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
+### 🔧 « LE TYPECHECK CESSE D'AVOIR UN ANGLE MORT » — en cours (non commitée)
+
+**Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**. `CHANGELOG` **0.99.23**.
+
+**Le défaut.** `pnpm -r typecheck` échouait sur `apps/extension-zetis-clip`, sur un fichier que
+l'extension **ne possède pas** : `packages/ui/src/lib/subjectIcons.ts` utilise `import.meta.glob`,
+dont le type vit dans `vite/client`. Papa et Massimo ont chacun leur `vite-env.d.ts` ;
+l'extension, née plus tard, ne l'a jamais eu.
+
+🔴 **Le vrai sujet est ailleurs : personne ne le voyait.** La CI typait Massimo et Papa, et eux
+seuls. Le workflow portait la croyance qui a échoué — *« une seule commande par app suffit à
+couvrir `packages/` »* — vraie, mais incomplète : **chaque consommateur compile `packages/ui`
+avec SON tsconfig**, et celui de l'extension (`"types": ["chrome"]`, qui restreint les types
+ambiants) n'était vérifié par personne.
+
+**FAIT.** Le `vite-env.d.ts` manquant (convention exacte des deux autres apps) **et** une
+troisième étape `tsc` en CI pour l'extension. ⚠️ **Contre-épreuve faite** : sans le `.d.ts`, la
+commande exacte de la CI rougit avec l'erreur d'origine — l'étape n'est pas décorative.
+
+**Vérifications** : `pnpm -r typecheck` **code de sortie 0** (une première de la session) · papa
+**914** · massimo **920** · l'extension n'a aucun script de test.
+
+📌 **La règle qui en sort**, écrite dans le workflow et dans `TROUBLESHOOTING.md` : *une app qui
+compile `packages/` sans avoir sa ligne dans le job de typage est un angle mort.*
+
+⚠️ **Élargissement de périmètre ASSUMÉ** : l'étape de CI n'était pas dans le périmètre annoncé
+(« la configuration de build qui a tort »). Elle y est entrée parce que le correctif seul laissait
+le trou ouvert — et c'est la même décision que le 2026-08-18, appliquée à l'app oubliée. À dire,
+pas à cacher.
+
+**PROCHAIN PAS :** `/livraison`.
+
 ### ✅ « LA CARTE CESSE D'ANNONCER À VENIR CE QUI EST LIVRÉ » — **MERGÉ** (PR #182, squash `9144d0e`)
 
 **Cas 2** de l'ADR-0060 (application) — **aucun ADR** : l'`adr-0069` avait déjà séparé les deux
@@ -170,9 +202,8 @@ dangereuse qu'hier.
 
 - ✅ **La ligne fausse de la 🗺 carte est CORRIGÉE** (branche `fix/carte-occupation-livree`,
   `CHANGELOG` 0.99.22) — scindée en deux, comme l'ADR-0069 l'avait tranché.
-- ⚠️ **`pnpm -r typecheck` échoue sur `apps/extension-zetis-clip`** (`import.meta.glob` dans
-  `packages/ui/src/lib/subjectIcons.ts`). **Antérieur à ce chantier**, prouvé en relançant le
-  typecheck sur l'arbre remisé (`git stash`). Non traité.
+- ✅ **L'échec de `pnpm -r typecheck` sur `extension-zetis-clip` est CORRIGÉ** (branche
+  `fix/typecheck-extension`, `CHANGELOG` 0.99.23) — voir la section de chantier en tête.
 - ✅ **Tout a été rejoué APRÈS le renommage de libellé, rien ne reste dans l'ombre** : backend
   **1588 passés / 0 échec** (2 min 05, sur SQLite seul — l'infra Docker était déjà arrêtée),
   front `frontend-papa` **914 passés / 80 fichiers**, typecheck propre.

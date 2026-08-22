@@ -112,11 +112,22 @@ jobs:
       #
       # ⚠️ Une seule commande par app suffit à couvrir `packages/` : `@zetis/types` et `@zetis/ui`
       # sont résolus vers leurs SOURCES (`exports: ./src/index.ts`), donc compilés avec l'app.
+      #
+      # 🔴 **MAIS « couvrir `packages/` » ne veut pas dire « couvrir toutes ses compilations »**, et
+      # ça a été payé le 2026-08-22 : chaque consommateur compile `packages/ui` avec SON tsconfig.
+      # L'extension a `"types": ["chrome"]` (qui RESTREINT les types ambiants) et n'avait pas de
+      # `vite-env.d.ts` — `import.meta.glob` de `subjectIcons.ts` y était donc une erreur, sur un
+      # fichier que Papa et Massimo compilaient sans broncher. Elle a vécu dans `main` parce
+      # qu'AUCUN job ne typait cette app. Une app qui compile `packages/` sans être ici est un
+      # angle mort : toute app neuve doit gagner sa ligne le jour où elle naît.
       - name: tsc — frontend Massimo
         run: pnpm --filter @zetis/frontend-massimo exec tsc -b --force --noEmit
 
       - name: tsc — frontend Papa
         run: pnpm --filter @zetis/frontend-papa exec tsc -b --force --noEmit
+
+      - name: tsc — extension ZETIS Clip
+        run: pnpm --filter @zetis/extension-zetis-clip exec tsc -b --force --noEmit
 
       - name: vitest — frontend Massimo
         run: pnpm --filter @zetis/frontend-massimo exec vitest run --reporter=dot

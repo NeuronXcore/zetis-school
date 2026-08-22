@@ -4,6 +4,34 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 « `packages/` est couvert » ne veut PAS dire « toutes ses compilations le sont » — 2026-08-22
+
+**Le piège.** Le workflow de CI affirmait — et c'était vrai — qu'*« une seule commande par app
+suffit à couvrir `packages/` »*, puisque `@zetis/types` et `@zetis/ui` sont résolus vers leurs
+**sources**. On en avait déduit que typer Papa et Massimo suffisait.
+
+**Ce que ça manque.** Chaque consommateur compile ces sources **avec SON tsconfig**.
+`apps/extension-zetis-clip` a `"types": ["chrome"]` — un champ qui **restreint** les `@types/*`
+chargés automatiquement — et n'avait pas de `vite-env.d.ts`. `import.meta.glob`, utilisé par
+`packages/ui/src/lib/subjectIcons.ts`, y était donc une **erreur de type**… sur un fichier que
+Papa et Massimo compilaient sans broncher, parce qu'ils ont la référence `vite/client`.
+
+**Pourquoi ça a duré.** Aucun job de CI ne typait cette app. L'erreur ne se voyait qu'en lançant
+`pnpm -r typecheck` à la main — ce que personne ne fait, puisque la CI est censée le faire.
+
+**La parade.** Une étape `tsc` par app dans le job `frontends — vitest`, l'extension comprise.
+⚠️ Et la **contre-épreuve** qui prouve qu'une étape de CI n'est pas décorative : retirer le
+correctif, relancer la commande exacte de la CI, vérifier qu'elle rougit. Fait.
+
+📌 **La règle qui en sort** : *une app qui compile `packages/` sans avoir sa ligne dans le job de
+typage est un angle mort.* Toute app neuve doit gagner sa ligne le jour où elle naît.
+
+⚠️ **Et le correctif lui-même a une subtilité** : ne pas remplacer la directive
+`/// <reference types="vite/client" />` par un `"types": ["chrome", "vite/client"]`. `vite/client`
+déclare aussi les modules d'assets (`*.png`, `*.svg`…) ; le charger globalement noierait les
+déclarations propres à l'extension. La directive de fichier est plus étroite, et c'est le motif
+que Papa emploie déjà avec `"types": []`.
+
 ## ⚠️ Un COMPTE recopié à la main à côté d'une liste qui grandit — 2026-08-22
 
 **Le piège.** `docs/frontend-papa/page-parametres.md` annonçait *« **67 lignes** — 25 ici,

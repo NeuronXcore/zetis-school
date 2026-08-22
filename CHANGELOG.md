@@ -1,5 +1,32 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.23 — Le typecheck cesse d'avoir un angle mort
+
+> **Cas 1** de l'ADR-0060 (rangement) — aucun ADR : une configuration de build avait tort.
+
+`pnpm -r typecheck` échouait sur `apps/extension-zetis-clip`, et **sur un fichier que l'extension
+ne possède pas** : `packages/ui/src/lib/subjectIcons.ts` utilise `import.meta.glob`, dont le type
+vit dans `vite/client`. Papa et Massimo ont chacun leur `vite-env.d.ts` depuis toujours ;
+l'extension, née plus tard, ne l'a jamais eu — et le défaut n'est apparu que le jour où elle a
+importé `@zetis/ui`.
+
+🔴 **Le vrai sujet n'est pas le fichier manquant, c'est que personne ne le voyait.** La CI typait
+Massimo et Papa, et eux seuls. Le workflow portait même la croyance qui a échoué : *« une seule
+commande par app suffit à couvrir `packages/` »*. C'est vrai — mais **chaque consommateur compile
+`packages/ui` avec SON tsconfig**, et celui de l'extension (`"types": ["chrome"]`, qui restreint
+les types ambiants) n'était vérifié par personne.
+
+Deux gestes, donc :
+
+- le `vite-env.d.ts` manquant, avec la référence `vite/client` — la convention exacte des deux
+  autres apps ;
+- une **troisième étape `tsc` en CI**, pour l'extension. ⚠️ Vérifiée par contre-épreuve : sans le
+  `.d.ts`, elle rougit avec l'erreur d'origine. Une app qui compile `packages/` sans être dans ce
+  job est un angle mort.
+
+C'est la même leçon que le 2026-08-18 — *« un vert qui ne mesure pas le typage n'est pas un
+vert »* — appliquée à l'app qu'on avait oubliée.
+
 ## 0.99.22 — La carte cesse d'annoncer « à venir » ce qui est livré
 
 > **Cas 2** de l'ADR-0060 (application) — **aucun ADR** : l'`adr-0069` avait déjà tranché, sa
