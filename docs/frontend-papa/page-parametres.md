@@ -18,9 +18,16 @@ Maquette de référence du gabarit :
 
 ### 🗺 La carte — la vue par défaut, et la navigation
 
-Ce n'est pas un réglage : c'est l'outil qui empêche d'en oublier un. **67 lignes** — 25 ici,
-7 ailleurs, 5 nulle part, 30 à décider. Chaque ligne « ici » ouvre son onglet, chaque ligne
+Ce n'est pas un réglage : c'est l'outil qui empêche d'en oublier un. **69 lignes** — 23 ici,
+7 ailleurs, 15 nulle part, 24 à décider. Chaque ligne « ici » ouvre son onglet, chaque ligne
 « ailleurs » ouvre sa page.
+
+> ⚠️ **Ces cinq nombres étaient FAUX** avant le 2026-08-22 — « 67 lignes, 25 ici, 5 nulle part,
+> 30 à décider » quand le fichier en portait 68, dont 22 ici et 15 nulle part. Ils sont recopiés
+> à la main depuis `inventaireReglages.ts` et rien ne les vérifie : ils dérivent à chaque ligne
+> ajoutée. 🔴 **C'est le signal que l'`adr-0062` avait nommé** — *« si elle dérive, c'est qu'elle
+> doit être DÉRIVÉE »*. La dérive est ici sur le **compte**, pas sur le contenu ; le jour où elle
+> gagne le contenu, cette liste doit cesser d'être écrite à la main.
 
 > **Pourquoi la vue par défaut et pas un septième onglet.** Un onglet pair qu'on n'ouvre jamais ne
 > répond à personne — et celui-là est précisément l'outil qui dit ce que l'écran **ne** couvre pas.
