@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 import app.db.models as m
 from app.core.config import settings
 from app.main import app
+from app.modules.activity.timeutils import local_day
 from app.modules.activity.timeutils import today_local
 from app.modules.auth.deps import get_current_user
 
@@ -918,7 +919,22 @@ def test_day_traces_ne_sert_aucune_mesure(papa: TestClient, client_db) -> None:
                 )
             )
         db.commit()
-        jour = (hier.date()).isoformat()
+        # 🔴 `local_day`, JAMAIS `hier.date()`. L'événement est stocké en UTC ; la route le range
+        # dans un jour **Europe/Paris** (`range_bounds_utc`). Entre minuit et 2 h locales, les deux
+        # dates diffèrent : l'événement tombait hors des bornes du jour demandé et `subjects` était
+        # vide — `IndexError`. Ces quatre tests étaient donc **rouges 2 h par jour et verts 22**.
+        #
+        # ⚠️ La CI ne pouvait pas l'attraper : ses runners tournent en UTC, où jour local = jour
+        # UTC. Ce défaut n'existe QUE sur une machine en avance sur UTC.
+        #
+        # ⚠️ `astimezone()` nu ne suffirait pas non plus : il prendrait le fuseau de la MACHINE.
+        # `local_day` prend celui de l'APP (`settings.activity_timezone`), qui est ce que la route
+        # utilise. Le test doit dater comme l'application date.
+        #
+        # 📌 `test_agenda_plan.py` documentait déjà ce piège — « un verrou qui ne mord que deux
+        # heures sur vingt-quatre n'est pas un verrou, c'est une loterie ». La leçon n'avait pas
+        # voyagé jusqu'ici.
+        jour = local_day(hier).isoformat()
     finally:
         db.close()
 
@@ -963,7 +979,7 @@ def test_day_traces_ne_compte_pas_le_volume(papa: TestClient, client_db) -> None
                 )
             )
         db.commit()
-        jour = hier.date().isoformat()
+        jour = local_day(hier).isoformat()
     finally:
         db.close()
 
@@ -994,13 +1010,64 @@ def test_day_traces_ignore_la_navigation_et_les_coches(papa: TestClient, client_
                 )
             )
         db.commit()
-        jour = hier.date().isoformat()
+        jour = local_day(hier).isoformat()
     finally:
         db.close()
 
     _as_massimo()
     charge = papa.get(f"{STUDENT}/days/{jour}/traces").json()
     assert charge["subjects"] == [], "naviguer et cocher ne sont pas du travail"
+
+
+def test_un_soir_tardif_appartient_au_jour_LOCAL_pas_au_jour_UTC(papa: TestClient, client_db) -> None:
+    """🔴 Le verrou qui mord à N'IMPORTE QUELLE HEURE — instant FIGÉ, jamais `now()`.
+
+    Le 2026-08-22 à 00 h 57, quatre tests de ce fichier sont tombés en `IndexError`. Ils dataient
+    l'événement avec `hier.date()`, la date **UTC** — alors que la route range dans un jour
+    **Europe/Paris** (`range_bounds_utc`). Entre minuit et 2 h locales, les deux diffèrent :
+    l'événement sortait des bornes du jour demandé.
+
+    ⚠️ **Ils étaient donc rouges 2 h par jour et verts 22**, et la CI ne pouvait rien voir : ses
+    runners tournent en UTC, où jour local = jour UTC. Corriger les quatre ne suffit pas — sans ce
+    test-ci, la même faute reviendrait et resterait invisible 22 h sur 24.
+
+    📌 Le fichier voisin l'avait déjà écrit, pour le défaut symétrique :
+    *« un verrou qui ne mord que deux heures sur vingt-quatre n'est pas un verrou, c'est une
+    loterie »* (`test_agenda_plan.py`). La leçon n'avait pas voyagé ; ce test la fait voyager.
+
+    L'instant est **figé** au 15 juillet 22 h 30 UTC — soit le **16** juillet 00 h 30 à Paris.
+    Rien ici ne dépend de l'heure du lancement.
+    """
+    tard = datetime(2026, 7, 15, 22, 30, tzinfo=timezone.utc)
+    jour_utc, jour_local = tard.date().isoformat(), local_day(tard).isoformat()
+    assert jour_utc != jour_local, "l'instant choisi doit justement enjamber la frontière"
+
+    _, SessionLocal = client_db
+    db = SessionLocal()
+    try:
+        student = db.query(m.StudentProfile).first()
+        subject = db.query(m.Subject).first()
+        db.add(
+            m.LearningEvent(
+                student_id=student.id,
+                subject_id=subject.id,
+                event_type="lesson_viewed",
+                created_at=tard,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    _as_massimo()
+    # 🔴 Il appartient au jour LOCAL…
+    assert papa.get(f"{STUDENT}/days/{jour_local}/traces").json()["subjects"], (
+        f"un événement du {tard.isoformat()} doit se lire au {jour_local} (Europe/Paris)"
+    )
+    # …et à lui SEUL. C'est cette moitié-ci qui tombe si quelqu'un revient à `.date()`.
+    assert papa.get(f"{STUDENT}/days/{jour_utc}/traces").json()["subjects"] == [], (
+        f"il ne doit PAS se lire au {jour_utc}, qui n'est que sa date UTC"
+    )
 
 
 def test_day_traces_sans_notion_rend_la_matiere_seule(papa: TestClient, client_db) -> None:
@@ -1025,7 +1092,7 @@ def test_day_traces_sans_notion_rend_la_matiere_seule(papa: TestClient, client_d
             )
         )
         db.commit()
-        jour = hier.date().isoformat()
+        jour = local_day(hier).isoformat()
     finally:
         db.close()
 
@@ -1057,7 +1124,7 @@ def test_les_deux_evenements_de_chat_ne_font_qu_un_libelle(papa: TestClient, cli
                 )
             )
         db.commit()
-        jour = hier.date().isoformat()
+        jour = local_day(hier).isoformat()
     finally:
         db.close()
 

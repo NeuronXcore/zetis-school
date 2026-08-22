@@ -4,6 +4,50 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un test ROUGE 2 h par jour et VERT 22 — et la CI ne peut pas le voir — 2026-08-22
+
+À **00 h 57 CEST**, quatre tests de `test_agenda.py` sont tombés en `IndexError`, sur du code que
+la CI venait de valider. Ils n'avaient rien de nouveau : ils étaient faux depuis toujours.
+
+```python
+hier = datetime.now(timezone.utc) - timedelta(days=1)   # 2026-08-20T22:57Z
+... created_at=hier ...
+jour = hier.date().isoformat()                          # « 2026-08-20 » ← la date UTC
+```
+
+La route range l'événement dans un jour **Europe/Paris** (`range_bounds_utc`). À 22 h 57 UTC on est
+déjà le lendemain à Paris : l'événement tombait **hors des bornes** du jour demandé, `subjects`
+rendait `[]`, et l'indexation levait. **Aucun code de production n'était en cause** — la route avait
+raison, les tests avaient tort.
+
+🔴 **La CI ne pouvait structurellement pas l'attraper** : ses runners tournent en **UTC**, où jour
+local = jour UTC. Le décalage n'y existe jamais. Ce défaut n'apparaît **que** sur une machine en
+avance sur UTC, dans la fenêtre de son décalage — 00 h 00 à 02 h 00 à Paris l'été. Il s'est
+manifesté en bloquant un `git push` (hook `pre-push`), pas en CI.
+
+**Parade** : dater comme l'application date. Le helper existait déjà, nommé pour exactement ça :
+
+```python
+from app.modules.activity.timeutils import local_day
+jour = local_day(hier).isoformat()   # « Jour Europe/Paris auquel appartient un instant UTC »
+```
+
+⚠️ **`astimezone()` nu ne suffit pas** : il prend le fuseau de la **machine**. `local_day` prend
+celui de l'**app** (`settings.activity_timezone`) — le même que la route. Un test qui date dans un
+fuseau et une route qui range dans un autre divergent, même sans passer minuit.
+
+🔴 **Corriger les cinq sites ne suffisait pas.** Un test dont la justesse dépend de l'heure du
+lancement reste une loterie : remis à `.date()`, il redeviendrait invisible 22 h sur 24. Le vrai
+verrou **fige l'instant** — `test_un_soir_tardif_appartient_au_jour_LOCAL_pas_au_jour_UTC` place un
+événement au 15 juillet 22 h 30 UTC (le **16** à Paris) et exige qu'il se lise au jour local **et
+pas** au jour UTC. Il mord à n'importe quelle heure.
+
+📌 **Le dépôt le savait déjà, dans le fichier d'à côté** : `test_agenda_plan.py` porte la même
+leçon pour le défaut symétrique — *« ils n'ont attrapé le bug que parce qu'on les a lancés à
+00 h 16 — 22 h par jour ils étaient verts sur du code faux… un verrou qui ne mord que deux heures
+sur vingt-quatre n'est pas un verrou, c'est une loterie »*. La leçon n'avait pas voyagé d'un fichier
+à l'autre. **Chercher les frères** : `grep -rn "now(timezone.utc)" app/tests | grep date`.
+
 ## 🔴 Un verdict d'ÉCHEC peut être la sortie d'un travail RÉUSSI — 2026-08-21
 
 `verifier_sauvegarde` (`backup_verify`) **retourne** son verdict :
