@@ -1,5 +1,25 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.18 — Quatre tests cessent d'être rouges deux heures par nuit
+
+> **Rangement** (cas 1 de l'ADR-0060) — aucun ADR. Entrée ici parce qu'un **défaut réel** est
+> corrigé, pas parce que des fichiers bougent : la suite rendait de **faux rouges** chaque nuit.
+
+Quatre tests de `test_agenda.py` dataient leur événement avec `hier.date()` — la date **UTC** —
+alors que la route range dans un jour **Europe/Paris**. Entre minuit et 2 h locales, les deux
+diffèrent : l'événement sortait des bornes du jour demandé et l'indexation levait. **Aucun code de
+production n'était en cause** ; la route avait raison, les tests avaient tort.
+
+🔴 **La CI ne pouvait pas le voir** : ses runners tournent en UTC, où jour local = jour UTC. Le
+défaut n'apparaît que sur une machine en avance sur UTC — il s'est manifesté en bloquant un
+`git push` à 00 h 57, jamais en CI.
+
+Les **cinq** sites (un cinquième, latent, ne tombait pas encore) passent par `local_day()`, le
+helper qui existait déjà et porte exactement ce nom. Et un verrou neuf **fige l'instant** au lieu de
+partir de `now()` : un événement au 15 juillet 22 h 30 UTC — le **16** à Paris — doit se lire au
+jour local et **pas** au jour UTC. Il mord à n'importe quelle heure, là où les quatre autres ne
+mordaient que de minuit à 2 h.
+
 ## 0.99.17 — Sauvegarder et Vérifier disent leur fin, et le bouton dit ce que le clic fait
 
 > **ADR-0067 §6, Amendement 2.** Cas **2** de l'ADR-0060 — application. Le §6 est **restreint**,
