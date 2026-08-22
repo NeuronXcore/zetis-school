@@ -1,5 +1,34 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.24 — La suite backend cesse d'attendre le réseau (124 s → 28 s)
+
+> **Cas 1** de l'ADR-0060 (rangement) — aucun ADR : le code de production n'est pas en cause, les
+> tests frappaient le réseau.
+
+`test_settings_machine.py` prenait **97 s des 124 s de toute la suite** : 19 tests à **6,05 s**,
+soit exactement les trois sondes bloquantes de `GET /machine` — Redis, Ollama (`SONDE_TIMEOUT_S`),
+MinIO. Postgres, lui, est instantané sur la session SQLite. Le reste du dépôt — 1569 tests —
+tournait déjà en 27 s, le plus lent à 0,75 s.
+
+🔴 **Et ce n'était pas qu'une lenteur : c'était une LOTERIE.** La même suite, sur le même commit :
+**124 s** services de dev arrêtés, **28 s** services debout. La durée *et le chemin de code*
+dépendaient de l'état de Docker sur la machine — la famille exacte du défaut corrigé le même jour
+dans `CouverturePage.test.tsx`. En CI, où les services ne sont **jamais** joignables, chaque PR
+payait les 96 s.
+
+**Le correctif neutralise le RÉSEAU, pas les sondes** — et la distinction porte tout. Remplacer
+`machine.sondes()` par une liste toute faite aurait été plus court et aurait rendu
+`test_aucun_mot_de_passe_ne_sort` **aveugle** : les sondes sont précisément le code qui manipule
+les chaînes de connexion. Leur corps s'exécute désormais en entier, exceptions comprises ; seul
+l'échec devient immédiat.
+
+| | Avant | Après |
+|---|---|---|
+| Suite complète | 124,4 s | **27,8 s** |
+| `test_settings_machine.py` | 97,3 s | **0,50 s** |
+| CPU réellement utilisé | 26 % | **98 %** |
+| Écart selon l'état de Docker | **4,4×** | **aucun** (27,8 s / 28,1 s) |
+
 ## 0.99.23 — Le typecheck cesse d'avoir un angle mort
 
 > **Cas 1** de l'ADR-0060 (rangement) — aucun ADR : une configuration de build avait tort.

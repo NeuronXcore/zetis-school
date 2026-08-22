@@ -23,6 +23,44 @@
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
+### 🔧 « LA SUITE BACKEND CESSE D'ATTENDRE LE RÉSEAU » — en cours (non commitée)
+
+**Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**. `CHANGELOG` **0.99.24**.
+
+🔴 **Le chantier demandé était `pytest-xdist`. La mesure l'a écarté, et c'est le point.** La suite
+n'utilisait que **26 % du CPU** : 33 s de calcul pour 131 s d'horloge. Elle n'était pas lente, elle
+**attendait**. Paralléliser aurait fait chevaucher les attentes — chiffre meilleur, défaut caché,
+exactement le geste qu'un re-run fait sur une loterie.
+
+**Le coupable, isolé en deux commandes** (`time` puis `--durations`) : `test_settings_machine.py`,
+**97 s des 124** — 19 tests à **6,05 s**, soit `SONDE_TIMEOUT_S = 1.5` × **3 sondes bloquantes**
+(Redis, Ollama, MinIO ; Postgres est instantané sur SQLite). Le reste du dépôt, 1569 tests,
+tournait déjà en 27 s. ⚠️ **L'indice qui ne trompe pas : une durée UNIFORME** — quinze tests à
+6,05 s ne sont pas quinze tests lents, c'est un délai multiplié par quinze.
+
+🔴 **Et derrière la lenteur, une LOTERIE** : même commit, **124 s** services arrêtés contre
+**28 s** services debout. Le verdict dépendait de l'état de Docker.
+
+**FAIT.** Une fixture `autouse` neutralise le **réseau**, pas les sondes — `httpx.get`, `_redis`
+et `Minio` patchés **à leur source** (les deux derniers sont des imports paresseux ; les patcher
+sur `machine` n'aurait rien fait). ⚠️ Remplacer `sondes()` par une liste toute faite aurait rendu
+`test_aucun_mot_de_passe_ne_sort` **aveugle** : les sondes sont le code qui manipule les chaînes de
+connexion.
+
+| | Avant | Après |
+|---|---|---|
+| Suite complète | 124,4 s | **27,8 s** |
+| `test_settings_machine.py` | 97,3 s | **0,50 s** |
+| CPU utilisé | 26 % | **98 %** |
+| Écart selon Docker | **4,4×** | **aucun** (27,8 / 28,1) |
+
+📌 **xdist n'est PAS enterré, il est reporté avec un meilleur dossier** : la suite est désormais
+**limitée par le CPU** (98 %), donc réellement parallélisable — 27,8 s pourraient tomber à
+quelques secondes sur les 28 cœurs de la machine, moins en CI. C'est un chantier propre, à décider
+sur les chiffres et non sur une gêne.
+
+**PROCHAIN PAS :** `/livraison`.
+
 ### ✅ « LE RE-RUN A DEUX ISSUES, ET AUCUNE NE MERGE » — **MERGÉ** (PR #184, squash `5ae4bfb`)
 
 **Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**, et **aucune entrée `CHANGELOG`** : rien du

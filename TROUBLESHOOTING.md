@@ -4,6 +4,44 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Mesurer le %CPU AVANT de parler de parallélisme — 2026-08-22
+
+**Le piège.** Une suite lente appelle naturellement `pytest-xdist`. C'était la demande. La mesure
+a dit autre chose :
+
+```
+33 s de CPU pour 131 s d'horloge  →  26 % — la suite ATTEND, elle ne calcule pas
+```
+
+Paralléliser aurait fait **chevaucher les attentes** : le chiffre serait tombé à ~40 s et les 96 s
+de délais réseau seraient restées là, réparties sur plusieurs cœurs. **Le même geste qu'un re-run
+sur une loterie : ça verdit sans réparer.**
+
+**Comment trouver le vrai coupable, en deux commandes.**
+
+```bash
+time python -m pytest -q            # le %CPU dit s'il s'agit d'attente ou de calcul
+python -m pytest -q --durations=15  # et si c'est de l'attente, QUI attend
+```
+
+⚠️ **L'indice qui ne trompe pas : une durée UNIFORME.** Quinze tests à `6,05 s` ne sont pas quinze
+tests lents, c'est **un délai d'attente multiplié par quinze**. Ici le compte tombait exactement :
+`SONDE_TIMEOUT_S = 1.5` × 3 sondes bloquantes.
+
+📌 **Et la vraie découverte était derrière** : la même suite prenait **124 s** avec les services de
+dev arrêtés et **28 s** avec eux debout. Le verdict dépendait de l'état de Docker — une loterie,
+au sens de l'entrée sur `CouverturePage` ci-dessous. Un test qui frappe le réseau ne mesure pas ce
+qu'il croit.
+
+⚠️ **Neutraliser le RÉSEAU, jamais la fonction sondée.** Remplacer `sondes()` par une liste toute
+faite aurait rendu aveugle le test qui vérifie qu'aucune chaîne de connexion ne fuit — les sondes
+sont justement le code qui les manipule. On patche `httpx.get`, `_redis` et `Minio` à leur source ;
+le corps des sondes s'exécute en entier, l'échec devient seulement immédiat.
+
+⚠️ **Chaque patch vise l'endroit où la sonde va CHERCHER son client**, et ils diffèrent : `httpx`
+est importé en tête de `machine.py`, tandis que `_redis` et `Minio` le sont **dans** la fonction
+(import paresseux). Les patcher sur le module `machine` n'aurait eu aucun effet.
+
 ## 🔴 « `packages/` est couvert » ne veut PAS dire « toutes ses compilations le sont » — 2026-08-22
 
 **Le piège.** Le workflow de CI affirmait — et c'était vrai — qu'*« une seule commande par app

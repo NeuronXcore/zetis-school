@@ -33,6 +33,42 @@ def _papa(client_db) -> None:
     _as(PAPA)
 
 
+@pytest.fixture(autouse=True)
+def _sondes_sans_reseau(monkeypatch) -> None:
+    """🔴 **Ces tests frappaient le réseau POUR DE VRAI, et payaient trois délais d'attente.**
+
+    Mesuré le 2026-08-22 : ce fichier prenait **97 s sur les 124 s de toute la suite** — 19 tests à
+    **6,05 s**, soit exactement les trois sondes bloquantes (Redis, Ollama à `SONDE_TIMEOUT_S`,
+    MinIO ; Postgres est instantané sur la session SQLite). Le reste du dépôt — 1569 tests — tourne
+    en 27 s, le plus lent à 0,75 s.
+
+    🔴 **Et c'était une LOTERIE, pas seulement une lenteur.** La même suite, sur le même commit :
+    **124 s** avec les services de dev arrêtés, **28 s** avec eux debout. La durée ET le chemin de
+    code dépendaient de l'état de Docker sur la machine — la famille exacte du défaut corrigé le
+    même jour dans `CouverturePage.test.tsx`. En CI les services ne sont **jamais** joignables :
+    chaque PR payait les 96 s.
+
+    ⚠️ **On neutralise le RÉSEAU, pas les sondes** — et la distinction porte tout ce verrou.
+    Remplacer `machine.sondes()` par une liste toute faite serait plus court et rendrait
+    `test_aucun_mot_de_passe_ne_sort` **aveugle** : les sondes sont précisément le code qui
+    manipule les chaînes de connexion (`minio_endpoint`, les identifiants, le DSN). Ici leur corps
+    s'exécute en entier, exceptions comprises — on ne fait que rendre l'échec **immédiat** au lieu
+    de le faire attendre.
+
+    ⚠️ Chaque `setattr` vise l'endroit où la sonde va CHERCHER le client, et ces endroits
+    diffèrent : `httpx` est importé en tête de `machine.py`, tandis que `_redis` et `Minio` sont
+    importés **dans** la fonction (import paresseux) — les patcher sur `machine` n'aurait aucun
+    effet, il faut les patcher à leur source.
+    """
+
+    def _injoignable(*_a, **_k):
+        raise ConnectionError("réseau neutralisé par le test")
+
+    monkeypatch.setattr(machine.httpx, "get", _injoignable)
+    monkeypatch.setattr("app.core.queue._redis", _injoignable)
+    monkeypatch.setattr("minio.Minio", _injoignable)
+
+
 # --- 🔴 Aucun secret ------------------------------------------------------------------------------
 
 
