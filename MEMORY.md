@@ -6,14 +6,20 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`bc6c2a4`**, rien à pousser.
-> Une branche de chantier VIVANTE : **`fix/loterie-couverture`**, basée sur `bc6c2a4`, **non
-> commitée** (le correctif vit dans l'arbre — `git status` avant `git log`).
+> **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
+> **`a1fc2db`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
+> `fix/loterie-couverture` supprimée au merge, **locale ET distante** — `git ls-remote --heads
+> origin` et `git branch` ne rendent plus que `main`.
 >
-> Trois chantiers ont été livrés ce jour-là : le **poids des données** (#180, mergé), la
-> commande **`/livraison`** et son alignement dans `WORKFLOW.md`, puis la **loterie** ci-dessous.
+> Trois chantiers livrés ce jour-là : le **poids des données** (#180), la commande
+> **`/livraison`** avec son alignement dans `WORKFLOW.md`, puis la **loterie** (#181).
+>
+> 🔴 **`/livraison` a fait son premier trajet complet sur #181, et il s'est bien passé** — §0 à
+> §5 d'affilée, CI verte du premier coup, aucun de ses trois arrêts déclenché. Ce n'est pas une
+> preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
+> viendra d'un chantier d'interface, ou d'un rouge étranger.
 
-### 🔧 « UN TEST CESSE DE TIRER AU SORT SON VERDICT » — en cours (branche non commitée)
+### ✅ « UN TEST CESSE DE TIRER AU SORT SON VERDICT » — **MERGÉ** (PR #181, squash `a1fc2db`)
 
 **Cas 1** de l'ADR-0060 (rangement) — **aucun ADR** : le code de production n'était pas en cause,
 le test avait tort. Même forme que la 0.99.18. `CHANGELOG` **0.99.21**.
@@ -38,7 +44,12 @@ pastilles à chaque tour. Il mord à **chaque** exécution — **10/10** en loca
 `subjectId` et ne déclenchent donc aucun refetch. Le critère n'est pas « une requête après un
 `await` » mais « une requête après une action qui **relance un fetch** ».
 
-**PROCHAIN PAS :** `/livraison` — ce serait le **premier chantier à l'emprunter de bout en bout**.
+**PROCHAIN PAS :** ce chantier est clos. Restent **deux** dettes, toutes deux hors périmètre
+jusqu'ici : la ligne fausse de la 🗺 carte (`inventaireReglages.ts:568`, l'occupation disque
+annoncée « ⏸ tranche 4 » alors qu'elle est livrée depuis #180) et l'échec **antérieur** de
+`pnpm -r typecheck` sur `apps/extension-zetis-clip`. Puis la **phase E** (`BACKLOG.md` L293),
+dont aucun reste n'est cadré — ce sont des **cas 3** : `/cadrage` sur `main`, **puis**
+`/ouverture`.
 
 ### ✅ « LE POIDS DES DONNÉES » — **MERGÉ** (PR #180, squash `d1611a3`) — ADR-0069
 
