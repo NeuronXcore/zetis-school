@@ -77,9 +77,18 @@ un job **échoué**. Relis toujours l'état par `gh pr checks <n>` avant de conc
 3. **S'il appartient au chantier** → **arrêt**, tu rends le diagnostic. Tu ne corriges pas dans la
    foulée : le correctif d'un rouge est du code, et du code se relit.
 4. **S'il lui est étranger** → **un** re-run, un seul.
+5. 🔴 **Si tu ne peux pas TRANCHER** — les preuves ne concluent pas — → **arrêt**, et traite-le
+   comme un rouge du chantier. *« Je ne sais pas à qui il appartient »* n'est pas *« il est
+   étranger »* : c'est la même confusion que le `0` qui voudrait dire « non mesurable »
+   (`adr-0069`). **Le re-run se mérite par une preuve, jamais par une intuition.**
 
-🔴 **Et si le re-run passe au vert : tu t'ARRÊTES QUAND MÊME.** Tu ne merges pas. Tu rends le
-diagnostic et tu attends la décision.
+🔴 **Le re-run a DEUX issues, et AUCUNE des deux ne merge.** C'est le trou que la règle avait à sa
+première écriture : elle ne prévoyait que le vert.
+
+| Issue du re-run | Ce que tu fais |
+|---|---|
+| **Vert** | ⛔ **Arrêt quand même.** Tu ne merges pas : le re-run n'a rien réparé, il a rendu un défaut invisible. Tu rends le diagnostic et tu attends la décision. Le test instable vaut une entrée dans `TROUBLESHOOTING.md`. |
+| **Rouge à nouveau** | ⛔ **Arrêt, et traite-le comme un rouge du chantier** — diagnostic rendu, aucune correction dans la foulée. Deux rouges d'affilée sur le même job **ne sont plus une loterie** : c'est un défaut **reproductible**, et il peut très bien avoir été *révélé* par ton diff sans que le fichier fautif soit le tien. ⚠️ **Aucun second re-run** : trois exécutions pour obtenir un verdict, c'est du tirage au sort, exactement ce que cette règle refuse. |
 
 > **Ce que ça a coûté d'apprendre.** Le 2026-08-22, la PR #180 est passée rouge puis verte **sur
 > le même commit**. Le re-run n'a rien réparé : il a rendu invisible une **loterie** dans

@@ -21,6 +21,34 @@
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
+### 🔧 « LE RE-RUN A DEUX ISSUES, ET AUCUNE NE MERGE » — en cours (non commitée)
+
+**Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**, et **aucune entrée `CHANGELOG`** : rien du
+produit ne change, seulement une règle de méthode. C'est la même décision que pour la création de
+`/livraison` (`df29711`), qui n'en avait pas eu non plus.
+
+🔴 **Le trou.** Le §3 de `/livraison` disait quoi faire si le re-run passe au **vert**, et **rien**
+s'il retombe rouge. La commande aurait dû improviser au pire moment. Et un **second** trou est
+apparu en le relisant : rien non plus quand les preuves **ne tranchent pas** sur l'appartenance de
+l'échec.
+
+**FAIT — les deux trous comblés, aux trois endroits qui portent la règle** (`/livraison` §3,
+`WORKFLOW.md` §5 garde-fou 2, `CLAUDE.md`) :
+
+- **Le re-run a DEUX issues, et aucune ne merge.** Vert → arrêt (il révèle une loterie sans la
+  réparer). Rouge à nouveau → arrêt **aussi**, traité comme un rouge du chantier : deux rouges
+  d'affilée ne sont plus une loterie mais un défaut **reproductible**, qui peut avoir été *révélé*
+  par le diff sans que le fichier fautif soit le sien. ⚠️ **Jamais de second re-run** — trois
+  exécutions pour un verdict, c'est du tirage au sort.
+- **Le re-run se mérite par une PREUVE**, jamais par une intuition : un échec qu'on ne sait pas
+  attribuer se traite comme un rouge du chantier. *« Je ne sais pas à qui il appartient »* n'est
+  pas *« il est étranger »* — la même confusion que le `0` qui voudrait dire « non mesurable ».
+
+⚠️ **Toujours pas exercé pour autant.** Trois livraisons, trois CI vertes du premier coup : le
+garde-fou reste une intention écrite. Combler le trou ne le valide pas.
+
+**PROCHAIN PAS :** `/livraison`.
+
 ### ✅ « LE TYPECHECK CESSE D'AVOIR UN ANGLE MORT » — **MERGÉ** (PR #183, squash `115955d`)
 
 **Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**. `CHANGELOG` **0.99.23**.

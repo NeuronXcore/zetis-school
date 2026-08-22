@@ -309,11 +309,16 @@ part ailleurs : ni Git ni les ADR ne les portent.
 >    914 tests verts sur la machine, la CI rouge dix minutes plus tard. La commande **attend** —
 >    et ne se fie jamais au code de sortie de `gh pr checks --watch`, sorti en **0** ce jour-là
 >    avec un job échoué.
-> 2. 🔴 **Un rouge ÉTRANGER au chantier donne droit à UN re-run — et le vert qui en sort arrête
->    quand même.** Un re-run ne répare pas un test instable, il le rend invisible : c'est le
->    **rouge** qui produit le diagnostic. ⚠️ `gh pr merge --auto` est **interdit** à la commande
->    pour cette raison exacte, alors même que le dépôt a activé l'auto-merge pour les gestes
->    manuels.
+> 2. 🔴 **Un rouge ÉTRANGER au chantier donne droit à UN re-run — dont AUCUNE des deux issues ne
+>    merge.** Vert : arrêt quand même, parce qu'un re-run ne répare pas un test instable, il le
+>    rend invisible — c'est le **rouge** qui produit le diagnostic. Rouge à nouveau : arrêt aussi,
+>    et traité comme un rouge du chantier, car deux rouges d'affilée sur le même job ne sont plus
+>    une loterie mais un défaut **reproductible** ; **aucun second re-run** — trois exécutions
+>    pour un verdict, c'est du tirage au sort. ⚠️ Et le re-run lui-même **se mérite par une
+>    preuve** : un échec qu'on ne sait pas attribuer se traite comme un rouge du chantier, « je ne
+>    sais pas » n'étant pas « c'est étranger ». ⚠️ `gh pr merge --auto` est **interdit** à la
+>    commande pour cette raison exacte, alors même que le dépôt a activé l'auto-merge pour les
+>    gestes manuels.
 > 3. 🔴 **Un CHOIX de surface l'arrête toujours**, quelle que soit la couleur de la CI — un
 >    libellé, une formulation, un ordre appartiennent au commanditaire (`adr-0060` cas 4, tranché
 >    devant l'écran) ; un titre de bloc a demandé **trois** propositions ce jour-là. ⚠️ Mais la
