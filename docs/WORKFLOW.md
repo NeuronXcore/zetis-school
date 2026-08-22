@@ -273,8 +273,9 @@ FIN DE SESSION (l'agent est encore lucide)
   2. [code]       graphify update .          → carte du code à jour
   3. [vérif]      TU vérifies la reprise      → contrôle de MEMORY.md
   4. [décisions]  commit wip + push           → l'état du code est figé
-  ── si le chantier est fini : PR → merge ──
+  ── si le chantier est fini : PR → CI VERTE → merge ──   ◄─┐
   4bis.[décisions] MEMORY.md AU RÉEL          → mergé, branche supprimée, rien à pousser
+                                                 └── /livraison enchaîne 4 → 4bis d'un trait
 ─────────────  coupure — le contexte est perdu  ─────────────
 NOUVELLE SESSION (amnésique, repart de zéro)
   5. [code]       graphify update / explain   → réorientation, sans tout relire
@@ -296,6 +297,31 @@ Ce que 4bis doit consigner, au minimum : le **squash** et le numéro de PR, la *
 la branche**, « rien à pousser », et surtout ce que la clôture **laisse ouvert** — vérifications
 non faites, données de test restées en base, décisions différées. Ces résidus-là ne vivent nulle
 part ailleurs : ni Git ni les ADR ne les portent.
+
+> 🔴 **Depuis le 2026-08-22, les étapes 4 → 4bis sont portées par la commande `/livraison`** —
+> parce que l'oubli était structurel et qu'une consigne qui compte sur la vigilance a déjà échoué
+> deux fois. Elle enchaîne commit → push → PR → **attente de la CI** → merge → 4bis → commit
+> documentaire, et c'est la **seule** commande du dépôt qui committe et merge d'elle-même.
+>
+> **Trois garde-fous, chacun payé le jour où elle a été écrite** :
+>
+> 1. 🔴 **Le seul vert qui autorise un merge est celui de la CI.** « Vert en local » ne vaut rien :
+>    914 tests verts sur la machine, la CI rouge dix minutes plus tard. La commande **attend** —
+>    et ne se fie jamais au code de sortie de `gh pr checks --watch`, sorti en **0** ce jour-là
+>    avec un job échoué.
+> 2. 🔴 **Un rouge ÉTRANGER au chantier donne droit à UN re-run — et le vert qui en sort arrête
+>    quand même.** Un re-run ne répare pas un test instable, il le rend invisible : c'est le
+>    **rouge** qui produit le diagnostic. ⚠️ `gh pr merge --auto` est **interdit** à la commande
+>    pour cette raison exacte, alors même que le dépôt a activé l'auto-merge pour les gestes
+>    manuels.
+> 3. 🔴 **Un CHOIX de surface l'arrête toujours**, quelle que soit la couleur de la CI — un
+>    libellé, une formulation, un ordre appartiennent au commanditaire (`adr-0060` cas 4, tranché
+>    devant l'écran) ; un titre de bloc a demandé **trois** propositions ce jour-là. ⚠️ Mais la
+>    **vérification** visuelle, elle, appartient à l'agent : il ouvre le préview, lit le DOM,
+>    livre une **capture**, et continue. Voir §5bis.
+>
+> Elle **refuse de partir** si l'on est sur `main`, si `DECISIONS.md` traîne dans l'arbre, ou si
+> `/cloture` n'a pas eu lieu — elle livre, elle n'écrit pas la mémoire à sa place.
 
 ### ⚠️ `MEMORY.md` ne garde QUE le chantier actif — les quatre contrôles avant d'élaguer
 
@@ -450,6 +476,29 @@ Puis donne-moi la checklist 9 points + le message de commit suggéré.
 1. Étape traitée · 2. Résumé · 3. Fichiers créés · 4. Fichiers modifiés · 5. Commandes lancées ·
 6. Tests (résultat) · 7. Points non traités volontairement · 8. Prochaine étape recommandée ·
 9. Message de commit conseillé.
+
+### 6.5 Livraison (après la clôture) — `/livraison`
+
+La clôture s'arrête au **point 9** : elle propose un message de commit, elle ne committe pas.
+Ce qui suit est **toujours identique**, et coûtait sept allers-retours — c'est ce que la commande
+absorbe :
+
+```
+/livraison
+```
+
+```txt
+commit → push → PR → ATTENTE DE LA CI → merge (squash, branche supprimée) → 4bis → commit doc
+```
+
+Elle s'arrête et te rend la main dans **trois** cas, et trois seulement : un rouge **du**
+chantier (elle rend le diagnostic, elle ne corrige pas — un correctif est du code, et du code se
+relit) · un **vert obtenu après un re-run** (il révèle une loterie, il ne la répare pas) · un
+**choix de surface** (un libellé n'est pas un test). Le détail et l'histoire de chaque garde-fou
+sont au §5.
+
+⚠️ **Elle ne remplace pas la clôture, elle la suit** — et refuse de partir sans elle : sans
+`MEMORY.md` à jour, un merge produit exactement l'oubli de 4bis que le §5 documente.
 
 ## 7. Garde-fou méta — la sobriété vaut aussi pour le process
 
