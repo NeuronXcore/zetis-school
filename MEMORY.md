@@ -6,21 +6,51 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`21eacb0`**, rien à pousser sur
-> `main`. Une branche de chantier vivante : **`feat/une-verification-dit-son-age`**, **rebasée sur
-> `21eacb0`** le 2026-08-22, **locale uniquement** (absente d'`origin`). Son état réel se lit par
-> `git log --oneline main..HEAD` et `git status`.
+> **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
+> **`39aab8a`**, **rien à pousser**. **Aucune branche de chantier vivante** : les deux du jour ont
+> été supprimées au merge, **locales ET distantes** — vérifié par `git ls-remote`, `git branch` et
+> l'API GitHub, qui ne rendent plus que `main`.
 >
-> ⚠️ **Le rebase a résolu deux conflits en tête de `CHANGELOG.md` et `TROUBLESHOOTING.md`**, parce
-> qu'un correctif (PR #178) s'était glissé entre-temps sur `main` : il avait pris le numéro
-> **0.99.18**, donc l'entrée de ce chantier est passée à **0.99.19**. Les trois entrées de
-> `TROUBLESHOOTING` sont conservées, la plus récente en tête. Rien n'a été perdu — vérifié.
+> ⚠️ **DEUX chantiers ont été mergés ce jour-là, et le second est né du premier** — c'est
+> l'histoire à ne pas perdre, elle est racontée ci-dessous.
 
-### 🟢 « UNE VÉRIFICATION DIT SON ÂGE » — **COMPLET, non poussé**
+### ✅ « LES TRACES DU JOUR SE COMPTENT EN HEURE LOCALE » — **MERGÉ** (PR #178, squash `21eacb0`)
+
+**Chantier NON PRÉVU, né d'un `git push` refusé à 00 h 57.** Cas **1** de l'ADR-0060 (rangement) —
+aucun ADR. `CHANGELOG` **0.99.18**.
+
+Quatre tests de `test_agenda.py` dataient leur événement avec `hier.date()` — la date **UTC** —
+alors que la route range dans un jour **Europe/Paris** (`range_bounds_utc`). Entre minuit et 2 h
+locales les deux diffèrent : l'événement sortait des bornes, `subjects` rendait `[]`, `IndexError`.
+🔴 **Aucun code de production n'était en cause** : la route avait raison, les tests avaient tort.
+Ils étaient **rouges 2 h par nuit et verts 22**.
+
+🔴 **La CI ne pouvait structurellement pas le voir** — ses runners tournent en **UTC**, où jour
+local = jour UTC. Il s'est manifesté en bloquant un `push`, jamais en CI. **Corollaire durable :
+une CI verte ne dit rien d'un défaut de fuseau.**
+
+Les **cinq** sites (un cinquième, latent) passent par `local_day()`, le helper qui existait déjà et
+porte exactement ce nom. ⚠️ `astimezone()` nu aurait été faux aussi : fuseau de la **machine**, pas
+de l'**app**. Et un verrou neuf **fige l'instant** (15 juillet 22 h 30 UTC = le 16 à Paris) : il
+mord à n'importe quelle heure, là où les quatre autres ne mordaient que de minuit à 2 h.
+
+📌 **La leçon existait déjà dans le fichier d'à côté** (`test_agenda_plan.py` : *« un verrou qui ne
+mord que deux heures sur vingt-quatre n'est pas un verrou, c'est une loterie »*) et n'avait pas
+voyagé. Elle est maintenant dans `TROUBLESHOOTING.md`, avec la commande pour chercher les frères.
+
+### ✅ « UNE VÉRIFICATION DIT SON ÂGE » — **MERGÉE** (PR #179, squash `39aab8a`)
 
 **Chantier** : **cas 4** de l'ADR-0060 (surface), **voie légère du §3** — réversible en un commit,
 sans migration, aucun texte vu par Massimo. Donc **aucun ADR** : une entrée `CHANGELOG` et des
-tests. Branche directe depuis `main`.
+tests. Branche directe depuis `main`, **rebasée** ensuite sur le correctif ci-dessus.
+
+⚠️ **Le rebase a renuméroté son entrée `CHANGELOG` de `0.99.18` en `0.99.19`** — le correctif,
+mergé en premier, avait pris le 18. Deux conflits en tête de `CHANGELOG.md` et
+`TROUBLESHOOTING.md`, résolus en gardant tout. 🔴 **Le contrôle qui l'a prouvé** : le diff de ces
+deux fichiers face à `main` était **90 insertions, 0 suppression**.
+
+**Chiffres vérifiés DANS LA CI** : `frontends — vitest` **908 / 80 fichiers** (Papa, +5) et
+**920 / 84** (Massimo) · `backend — pytest` **1576** · `verrous du dépôt` et GitGuardian au vert.
 
 🔴 **Le cadrage a conclu qu'il n'y avait rien à cadrer, et c'est son RÉSULTAT** — pas une esquive.
 Ce qui a été demandé (« cadre le seuil de péremption ») s'est avéré ne pas être une décision neuve.
@@ -74,9 +104,10 @@ de la donnée** ne se règle pas au rabotage (retirer l'heure sauvait « il y a 
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
-- 🔴 **L'environnement de dev est LAISSÉ DEBOUT** : infra docker de dev (`up -d postgres redis
-  minio`, **jamais `-v`**) + préviews `:8005` et `:5181`, relevés pour la relecture d'écran.
-  **À arrêter à la main.**
+- 🔴 **L'environnement de dev est TOUJOURS DEBOUT** (relevé pour la relecture d'écran du
+  2026-08-21 au soir, et jamais arrêté depuis) : infra docker de dev (`up -d postgres redis
+  minio`, **jamais `-v`**) + préviews `:8005` et `:5181`. **À arrêter à la main** —
+  `docker compose down` **sans `-v`**.
 - ⚠️ **Le changement de `depuis()` au-delà de 24 h n'a PAS été vu à l'écran** pour son autre
   appelant (`ProductionPopover`) : je n'ai pas fabriqué un travail vieux de trois jours pour le
   regarder. Argumenté dans le code — un lot dure des minutes, et le seul cas atteignable est un
@@ -118,13 +149,16 @@ de la donnée** ne se règle pas au rabotage (retirer l'heure sauvait « il y a 
 
 **PROCHAIN PAS :**
 
-1. **Vérifier le diff, puis committer et pousser** la branche (absente d'`origin`) → **PR → merge**
-   → **étape 4bis** (`WORKFLOW.md §5`).
-2. 🔴 **Arrêter l'environnement de dev** — `docker compose down` **sans `-v`**, puis les préviews.
-3. **Choisir la suite.** L'onglet 💾 n'a plus de dette de surface connue. Le reste de la **phase E**
-   (`BACKLOG.md` L293) attend, et **aucun n'est cadré** — ce sont des **cas 3** : `/cadrage` sur
-   `main`, **puis** `/ouverture`. Occupation disque + cohérence Postgres ↔ MinIO (1,5) · purges et
-   rétention des voix (1) · remises à zéro portées (2) · export RGPD (1).
+1. 🔴 **Arrêter l'environnement de dev, laissé debout** — `docker compose down` **sans `-v`**, puis
+   les préviews `:8005` et `:5181`. C'est la seule chose qui traîne.
+2. **Choisir le chantier suivant** — rien n'est engagé, `main` est propre. L'onglet 💾 n'a plus de
+   dette de surface connue. Le reste de la **phase E** (`BACKLOG.md` L293) attend, et **aucun n'est
+   cadré** — ce sont des **cas 3** : `/cadrage` sur `main`, **puis** `/ouverture`. Occupation
+   disque + cohérence Postgres ↔ MinIO (1,5) · purges et rétention des voix (1) · remises à zéro
+   portées (2) · export RGPD (1).
+   ⚠️ Ne pas confondre avec les derniers chantiers, qui partaient **directement sur leur branche**
+   (cas 1, 2 et 4).
+3. Sinon, les **dettes ouvertes** ci-dessous.
 
 ### 📥 À CASER (hors chantier) — demandes notées en session
 
