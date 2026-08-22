@@ -4,6 +4,38 @@
 > cours de chantier, avec la cause et la solution retenue. Complète `MEMORY.md` (raisonnement) et
 > les ADR (décisions). Une entrée = un piège qui ferait perdre du temps à la prochaine session.
 
+## 🔴 Un `getByRole` SYNCHRONE après un `waitFor` qui surveille autre chose — 2026-08-22
+
+**Le piège.** `CouverturePage.test.tsx` a rendu **deux verdicts opposés sur le même commit** :
+rouge au premier run de la CI de la PR #180, vert au re-run, sans qu'une ligne ne change. En local,
+32/32 cinq fois de suite.
+
+**La cause, lisible dans le test** (ligne 448) :
+
+```js
+await waitFor(() => expect(mathsChip.getAttribute("aria-pressed")).toBe("true"));
+expect(chips().getByRole("button", { name: /Français/ })).toBeTruthy();   // ← synchrone
+```
+
+Le `waitFor` attend `aria-pressed`, **pas** la fin du travail déclenché par le clic. Or le clic sur
+une pastille lance un **refetch**, et la page **repasse par son état de chargement** — le dump de
+la CI le prouve (`aria-busy="true"`, « Chargement de la matrice », squelettes). Le groupe
+`"Filtrer par matière"` disparaît alors du DOM, et l'appel synchrone de la ligne suivante lève.
+Sur une machine rapide la fenêtre est trop courte pour être touchée ; sur un runner chargé, non.
+
+**La parade.** Envelopper l'assertion dans le `waitFor` qui la précède (ou attendre explicitement
+la fin du refetch) — jamais un `getByRole` à sec après un `await` qui surveille un autre signal.
+
+⚠️ **Pourquoi ça compte plus qu'avant** : `allow_auto_merge` a été activé sur le dépôt le même
+jour. Une PR qui croise cette loterie repartira au vert dès le re-run et **fusionnera sans que
+personne ne regarde pourquoi le premier essai était rouge**. C'est le rouge de #180 qui a produit
+ce diagnostic.
+
+📌 **Même famille que l'entrée « un test ROUGE 2 h par jour »** ci-dessous : un verrou dont le
+verdict dépend de la machine n'est pas un verrou, c'est une loterie. Chercher les frères :
+`grep -rn "getByRole\|getByText" --include=*.test.tsx | grep -v waitFor` sur les lignes qui
+suivent immédiatement un `await`.
+
 ## 🔴 `storage_backend` ne gouverne QUE la vidéo — l'audio n'est jamais dans MinIO — 2026-08-22
 
 **Le piège.** `settings.storage_backend` (`disk` | `minio`) se lit comme « où vivent les médias ».

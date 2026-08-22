@@ -6,20 +6,24 @@
 > le modèle de données dans `DATA_MODEL.md`. Ce fichier ne duplique pas ces sources.
 ## État à la reprise
 
-> **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`eecdba6`** (l'ADR-0069 seul).
-> Une branche de chantier VIVANTE : **`feat/occupation-disque`**, basée sur `eecdba6`.
+> **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
+> **`d1611a3`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
+> `feat/occupation-disque` a été supprimée au merge, **locale ET distante** — vérifié par
+> `git ls-remote --heads origin` et l'API GitHub, qui ne rendent plus que `main` (la référence
+> locale périmée a été élaguée par `git remote prune origin`).
 >
-> ✅ **Le chantier est COMMITÉ et POUSSÉ** — un commit unique (15 fichiers), `origin` au même
-> point que le local, arbre de travail **propre**. Le contenu se lit par
-> `git log --oneline main..HEAD` et `git show --stat HEAD`.
->
-> 🔴 **La PR n'est PAS ouverte, et `main` n'a pas bougé** (toujours `eecdba6`, l'ADR seul).
-> C'est le geste suivant, et il appartient à l'humain.
+> ⚠️ **Un réglage du DÉPÔT a changé ce jour-là, et il change la façon de merger** — voir la
+> dette « loterie » plus bas, qui en dépend directement.
 
-### ✅ « LE POIDS DES DONNÉES » — chantier **COMPLET** (ADR-0069), reste à committer
+### ✅ « LE POIDS DES DONNÉES » — **MERGÉ** (PR #180, squash `d1611a3`) — ADR-0069
 
-**Cas 3** de l'ADR-0060, ADR écrit au cadrage la veille. Slice unique. **Rien n'est en cours,
-aucun fichier instable** : il ne manque que la vérification humaine et le geste git.
+**Cas 3** de l'ADR-0060, ADR écrit au cadrage la veille. Slice unique, **livrée**. `CHANGELOG`
+**0.99.20**. **Rien n'est en cours, aucun fichier instable.**
+
+🔴 **La CI a été ROUGE au premier essai, VERTE au re-run — sans qu'une ligne ne change.** Le
+coupable n'était pas ce chantier (preuves : le commit ne touche aucun fichier de la Couverture,
+`CouverturePage.test.tsx` n'a pas bougé depuis la PR #112, et les 8 derniers runs de `main`
+étaient verts). C'est une **loterie**, consignée en dette plus bas — ne pas la perdre.
 
 **FAIT — et vérifié.**
 
@@ -46,9 +50,7 @@ se lire comme une capacité** — c'est ce qui manquait aux deux autres, dont la
 mot de la ligne de total (« Total des données ») et du nom de l'onglet (💾 Données).
 ⚠️ **Ne pas la rouvrir sans relire ça** : le libellé porte une décision, pas un goût.
 
-**À FAIRE (dans l'ordre) :** vérifier (diff + tests) → commit → push → **PR** → merge →
-**étape 4bis** (`WORKFLOW.md §5` : revenir écrire ici le squash, le n° de PR, « branche supprimée »,
-« rien à pousser », et solder les résidus ci-dessous).
+**À FAIRE :** rien sur ce chantier — il est mergé et la 4bis est faite.
 
 ### 🔴 LES DÉCISIONS DE CE CHANTIER — à relire, pas à rouvrir
 
@@ -83,11 +85,27 @@ gouverne que la vidéo · un contrat capturé casse dès qu'une clé racine s'aj
 **re-capture**, ne s'édite pas) · `pg_database_size` n'existe pas sous SQLite, où tourne toute la
 suite · le formateur `taille()` a un plancher qui rend « 1 Ko » pour zéro octet.
 
-**PROCHAIN PAS (précis) :** **ouvrir la PR** depuis `feat/occupation-disque`, la faire passer au
-vert, merger — puis revenir ici pour l'**étape 4bis**. Commit et push sont **faits** ; le diff et
-le périmètre, eux, restent à relire par l'humain (`WORKFLOW.md §2` étape 4).
+**PROCHAIN PAS (précis) :** ce chantier est clos. Le choix suivant est ouvert — voir les dettes,
+et la **phase E** en bas de liste. 🔴 **Le candidat que je mettrais en premier est la loterie
+ci-dessous** : c'est un `fix/` d'une ligne, et l'auto-merge fraîchement activé la rend plus
+dangereuse qu'hier.
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
+
+- 🔴 **`CouverturePage.test.tsx` est une LOTERIE — rouge puis verte sur le MÊME commit.** La PR
+  #180 a échoué au premier run de la CI, passé au second, sans qu'une ligne ne change. Le défaut
+  se lit dans le test : ligne **448**, un `chips()` **synchrone** juste après un `waitFor` qui
+  surveille **autre chose** (`aria-pressed`). Or le clic sur une pastille déclenche un refetch et
+  la page **repasse en chargement** — le dump de la CI le montre (`aria-busy="true"`, squelettes),
+  et le groupe disparaît du DOM. Sur un runner chargé, le refetch tombe pile dans cette fenêtre.
+  **Parade** : envelopper la ligne 448 dans le `waitFor` qui la précède. ⚠️ **Non corrigée** —
+  hors périmètre, et le fichier n'a pas bougé depuis la PR #112.
+- 🔴 **`allow_auto_merge` et `delete_branch_on_merge` ont été ACTIVÉS sur le dépôt** (2026-08-22,
+  API GitHub, vérifiés). Deux conséquences : `gh pr merge --squash --auto` arme désormais le
+  merge, et la branche **distante** est supprimée toute seule — ⚠️ **la locale, non** (`git branch
+  -d` après `git switch main`). 🔴 **Et un garde-fou disparaît** : la prochaine PR qui croisera la
+  loterie ci-dessus repartira au vert dès le re-run, **sans que personne ne regarde pourquoi**.
+  C'est le rouge de #180 qui a produit le diagnostic ; l'auto-merge l'aurait enterré.
 
 - 🔴 **Une ligne de la 🗺 carte est devenue FAUSSE** : `inventaireReglages.ts:568` annonce
   « Occupation disque par famille · cohérence Postgres ↔ MinIO » en **« ⏸ tranche 4 »**, alors que
