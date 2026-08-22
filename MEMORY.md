@@ -7,21 +7,23 @@
 ## État à la reprise
 
 > **Où en est le dépôt** (2026-08-22, **étape 4bis FAITE**) — `main` = `origin/main` =
-> **`115955d`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
+> **`5ae4bfb`**, **rien à pousser**, arbre propre. **Aucune branche de chantier vivante** :
 > `fix/loterie-couverture` et `fix/carte-occupation-livree` ont été supprimées au merge,
 > **locales ET distantes** — `git ls-remote --heads origin` et `git branch` ne rendent plus
 > que `main`.
 >
-> Cinq chantiers livrés ce jour-là : le **poids des données** (#180), la commande
+> Six chantiers livrés ce jour-là : le **poids des données** (#180), la commande
 > **`/livraison`** avec son alignement dans `WORKFLOW.md`, la **loterie** (#181), la
-> **carte** (#182) et l'**angle mort du typecheck** (#183).
+> **carte** (#182), l'**angle mort du typecheck** (#183) et le **trou du §3** (#184).
+>
+> 🔴 **Les trois dettes ouvertes du matin sont toutes soldées.**
 >
 > 🔴 **`/livraison` a fait son premier trajet complet sur #181, et il s'est bien passé** — §0 à
 > §5 d'affilée, CI verte du premier coup, aucun de ses trois arrêts déclenché. Ce n'est pas une
 > preuve qu'elle est bonne : c'est le cas FACILE (aucune surface, aucun rouge). Le vrai test
 > viendra d'un chantier d'interface, ou d'un rouge étranger.
 
-### 🔧 « LE RE-RUN A DEUX ISSUES, ET AUCUNE NE MERGE » — en cours (non commitée)
+### ✅ « LE RE-RUN A DEUX ISSUES, ET AUCUNE NE MERGE » — **MERGÉ** (PR #184, squash `5ae4bfb`)
 
 **Cas 1** de l'ADR-0060 (rangement) — **aucun ADR**, et **aucune entrée `CHANGELOG`** : rien du
 produit ne change, seulement une règle de méthode. C'est la même décision que pour la création de
@@ -47,7 +49,7 @@ l'échec.
 ⚠️ **Toujours pas exercé pour autant.** Trois livraisons, trois CI vertes du premier coup : le
 garde-fou reste une intention écrite. Combler le trou ne le valide pas.
 
-**PROCHAIN PAS :** `/livraison`.
+**PROCHAIN PAS :** chantier clos.
 
 ### ✅ « LE TYPECHECK CESSE D'AVOIR UN ANGLE MORT » — **MERGÉ** (PR #183, squash `115955d`)
 
