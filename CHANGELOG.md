@@ -1,5 +1,29 @@
 # CHANGELOG.md — Historique ZETIS
 
+## 0.99.21 — Un test cesse de tirer au sort son verdict
+
+> **Cas 1** de l'ADR-0060 (rangement) — aucun ADR : le code de production n'est pas en cause, le
+> test avait tort. Même forme que la 0.99.18.
+
+`CouverturePage.test.tsx` a rendu **deux verdicts opposés sur le même commit** : rouge au premier
+run de la CI de la PR #180, vert au re-run, sans qu'une ligne ne change.
+
+La cause n'était pas le hasard. Cliquer une pastille de matière change `?subject=`, donc
+`subjectId`, donc l'identité de `reload` — et l'effet de `useCoverage` refait `setLoading(true)`.
+La page **repasse par son squelette, pastilles comprises** : le groupe « Filtrer par matière »
+quitte le DOM à chaque clic. Le test tenait une **référence prise avant le clic** — un nœud
+**détaché**, sur lequel `aria-pressed` se lit encore parfaitement — puis interrogeait le groupe
+**hors de toute attente**. Sur cette machine le refetch revenait avant l'assertion ; sur un runner
+chargé, non.
+
+🔴 **Le correctif ne se contente pas d'attendre : il rend la fenêtre CERTAINE.** Le second appel
+est différé à la main, le test **affirme** que le groupe a bien quitté le document, puis vérifie
+tout dans un seul `waitFor` en re-requêtant les pastilles à chaque tour. Il mord désormais à
+chaque exécution, au lieu d'une fois sur N — la même doctrine que le verrou de la 0.99.18, qui
+fige l'instant plutôt que d'espérer la bonne heure.
+
+Aucun changement de comportement du produit : la Couverture n'a jamais eu ce défaut.
+
 ## 0.99.20 — Le poids des données se lit sans ouvrir un terminal
 
 > **Cas 3** de l'ADR-0060 : `adr-0069`, écrit au cadrage la veille. Slice unique.
