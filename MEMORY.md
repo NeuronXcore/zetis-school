@@ -9,11 +9,12 @@
 > **Où en est le dépôt** (2026-08-22) — `main` = `origin/main` = **`eecdba6`** (l'ADR-0069 seul).
 > Une branche de chantier VIVANTE : **`feat/occupation-disque`**, basée sur `eecdba6`.
 >
-> 🔴 **RIEN N'EST COMMITÉ SUR CETTE BRANCHE, et elle n'existe pas sur `origin`.** Tout le
-> chantier vit dans l'**arbre de travail** : **13 fichiers modifiés, 2 nouveaux** (vérifié par
-> `git status --porcelain` ; `git log main..HEAD` rend **0**). Un `git checkout`, un
-> `git stash drop` ou un changement de branche **détruirait la session entière**. Le premier
-> geste d'une reprise est de lire `git status`, pas `git log` — le log est vide de ce travail.
+> ✅ **Le chantier est COMMITÉ et POUSSÉ** — un commit unique (15 fichiers), `origin` au même
+> point que le local, arbre de travail **propre**. Le contenu se lit par
+> `git log --oneline main..HEAD` et `git show --stat HEAD`.
+>
+> 🔴 **La PR n'est PAS ouverte, et `main` n'a pas bougé** (toujours `eecdba6`, l'ADR seul).
+> C'est le geste suivant, et il appartient à l'humain.
 
 ### ✅ « LE POIDS DES DONNÉES » — chantier **COMPLET** (ADR-0069), reste à committer
 
@@ -82,8 +83,9 @@ gouverne que la vidéo · un contrat capturé casse dès qu'une clé racine s'aj
 **re-capture**, ne s'édite pas) · `pg_database_size` n'existe pas sous SQLite, où tourne toute la
 suite · le formateur `taille()` a un plancher qui rend « 1 Ko » pour zéro octet.
 
-**PROCHAIN PAS (précis) :** relire le diff, lancer les tests soi-même, puis **committer** — la
-branche n'a **aucun commit** et n'existe pas sur `origin`. Ensuite : push, PR, merge, 4bis.
+**PROCHAIN PAS (précis) :** **ouvrir la PR** depuis `feat/occupation-disque`, la faire passer au
+vert, merger — puis revenir ici pour l'**étape 4bis**. Commit et push sont **faits** ; le diff et
+le périmètre, eux, restent à relire par l'humain (`WORKFLOW.md §2` étape 4).
 
 **RÉSIDUS DE CETTE CLÔTURE (ne vivent QUE ici) :**
 
